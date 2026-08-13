@@ -24,9 +24,9 @@
     <span class="stat-label">Closing Balance</span>
     <span class="stat-value"><%= fmtCurrency(summary.closingBalance) %></span>
   </div>
-  <div class="stat-card <%= summary.dmsVariance !== 0 ? 'accent-red' : 'accent-violet' %>">
-    <span class="stat-label">DMS Variance</span>
-    <span class="stat-value"><%= fmtCurrency(summary.dmsVariance) %></span>
+  <div class="stat-card accent-violet">
+    <span class="stat-label">DMS Deposits</span>
+    <span class="stat-value"><%= fmtCurrency(summary.dmsTotal) %></span>
   </div>
 </section>
 
@@ -82,19 +82,19 @@
   </div>
 
   <div class="panel">
-    <div class="panel-head"><h3>DMS Reconciliation</h3></div>
+    <div class="panel-head"><h3>DMS Deposits</h3></div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Date</th><th class="num">DMS</th><th class="num">Receipt</th><th class="num">Var.</th><th>Status</th></tr></thead>
+        <thead><tr><th>Date</th><th>Mode</th><th>Account</th><th class="num">Amount</th><th>Status</th></tr></thead>
         <tbody>
           <% if (!dms.length) { %><tr><td colspan="5" class="empty">No DMS records.</td></tr><% } %>
           <% dms.forEach(function (r) { %>
             <tr>
               <td class="nowrap"><%= fmtDate(r.dms_date) %></td>
-              <td class="num"><%= fmtCurrency(r.dms_amount) %></td>
-              <td class="num"><%= fmtCurrency(r.receipt_amount) %></td>
-              <td class="num <%= Number(r.variance) !== 0 ? 'text-warn' : '' %>"><%= fmtCurrency(r.variance) %></td>
-              <td><span class="badge status-<%= r.status %>"><%= r.status %></span></td>
+              <td><%= r.payment_mode %></td>
+              <td><%= r.account || '—' %></td>
+              <td class="num"><%= fmtCurrency(r.amount) %></td>
+              <td><span class="badge status-<%= r.status %>"><%= r.status === 'on_hold' ? 'On Hold' : (r.status.charAt(0).toUpperCase() + r.status.slice(1)) %></span></td>
             </tr>
           <% }); %>
         </tbody>

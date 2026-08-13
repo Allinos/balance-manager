@@ -73,21 +73,51 @@ CREATE TABLE IF NOT EXISTS deposits (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ------------------------------------------------------------
---  DMS deposits & reconciliation
---  variance = dms_amount - receipt_amount
+--  Depositors – managed "Deposit By" list
 -- ------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS dms_deposits (
-  id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
-  dms_date       DATE          NOT NULL,
-  dms_amount     DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  receipt_amount DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  variance       DECIMAL(14,2) NOT NULL DEFAULT 0.00,
-  status         ENUM('pending','reconciled','mismatch') NOT NULL DEFAULT 'pending',
-  reference_no   VARCHAR(120)  NULL,
-  remarks        VARCHAR(255)  NULL,
-  created_by     INT UNSIGNED  NULL,
-  created_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+CREATE TABLE IF NOT EXISTS depositors (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(120) NOT NULL,
+  is_active  TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_depositors_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+--  Accounts – managed list for DMS deposits
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS accounts (
+  id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  name       VARCHAR(120) NOT NULL,
+  is_active  TINYINT(1)   NOT NULL DEFAULT 1,
+  created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_accounts_name (name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ------------------------------------------------------------
+--  DMS deposits (simple)
+--  Outflow that reduces the running balance. When payment_mode is
+--  Cash it also reduces available cash; Online reduces the overall
+--  balance only. No reconciliation / variance / receipt.
+--  NOTE: the previous DMS schema differed, so it is dropped & recreated.
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS dms_deposits;
+CREATE TABLE dms_deposits (
+  id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  dms_date      DATE          NOT NULL,
+  payment_mode  ENUM('Cash','Online') NOT NULL DEFAULT 'Cash',
+  account       VARCHAR(120)  NULL,
+  amount        DECIMAL(14,2) NOT NULL DEFAULT 0.00,
+  status        ENUM('pending','on_hold','completed') NOT NULL DEFAULT 'pending',
+  deposited_by  VARCHAR(120)  NULL,
+  remarks       VARCHAR(255)  NULL,
+  created_by    INT UNSIGNED  NULL,
+  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_dms_date (dms_date),
   KEY fk_dms_created_by (created_by),

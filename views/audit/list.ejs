@@ -10,7 +10,7 @@
     <label>Entity</label>
     <select name="entity">
       <option value="">All</option>
-      <% ['collection','deposit','dms','user','auth','report'].forEach(function (e) { %>
+      <% ['collection','deposit','dms','user','depositor','account','auth','report'].forEach(function (e) { %>
         <option value="<%= e %>" <%= filters.entity === e ? 'selected' : '' %>><%= e %></option>
       <% }); %>
     </select>

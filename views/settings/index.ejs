@@ -1,0 +1,84 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title">Settings</h2>
+    <p class="muted">Manage the lists used in Deposit &amp; DMS forms</p>
+  </div>
+</div>
+
+<div class="panels-grid">
+  <!-- ---------- Depositors ---------- -->
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Deposit By (Depositors)</h3>
+    </div>
+    <div class="panel-body">
+      <form method="post" action="/settings/depositors" class="inline-add">
+        <input type="text" name="name" maxlength="120" placeholder="Add depositor name…" required />
+        <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Status</th><th class="actions-col">Actions</th></tr></thead>
+        <tbody>
+          <% if (!depositors.length) { %>
+            <tr><td colspan="3" class="empty">No depositors yet.</td></tr>
+          <% } %>
+          <% depositors.forEach(function (d) { %>
+            <tr>
+              <td colspan="3" class="edit-cell">
+                <form method="post" action="/settings/depositors/<%= d.id %>?_method=PUT" class="row-edit">
+                  <input type="text" name="name" value="<%= d.name %>" maxlength="120" required />
+                  <label class="chk"><input type="checkbox" name="is_active" value="1" <%= d.is_active ? 'checked' : '' %> /> Active</label>
+                  <button type="submit" class="btn btn-xs btn-ghost">Save</button>
+                </form>
+                <form method="post" action="/settings/depositors/<%= d.id %>?_method=DELETE" class="inline"
+                      data-confirm="Delete depositor <%= d.name %>?">
+                  <button class="btn btn-xs btn-danger">Del</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ---------- Accounts ---------- -->
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Accounts</h3>
+    </div>
+    <div class="panel-body">
+      <form method="post" action="/settings/accounts" class="inline-add">
+        <input type="text" name="name" maxlength="120" placeholder="Add account name…" required />
+        <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
+      </form>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Status</th><th class="actions-col">Actions</th></tr></thead>
+        <tbody>
+          <% if (!accounts.length) { %>
+            <tr><td colspan="3" class="empty">No accounts yet.</td></tr>
+          <% } %>
+          <% accounts.forEach(function (a) { %>
+            <tr>
+              <td colspan="3" class="edit-cell">
+                <form method="post" action="/settings/accounts/<%= a.id %>?_method=PUT" class="row-edit">
+                  <input type="text" name="name" value="<%= a.name %>" maxlength="120" required />
+                  <label class="chk"><input type="checkbox" name="is_active" value="1" <%= a.is_active ? 'checked' : '' %> /> Active</label>
+                  <button type="submit" class="btn btn-xs btn-ghost">Save</button>
+                </form>
+                <form method="post" action="/settings/accounts/<%= a.id %>?_method=DELETE" class="inline"
+                      data-confirm="Delete account <%= a.name %>?">
+                  <button class="btn btn-xs btn-danger">Del</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -26,9 +26,21 @@
       </select>
     </div>
     <div class="field">
-      <label>Deposited By</label>
-      <input type="text" name="deposited_by" maxlength="120"
-             value="<%= deposit.deposited_by || '' %>" placeholder="e.g. Jagat Bora" />
+      <label>Deposit By</label>
+      <select name="deposited_by">
+        <option value="">— Select —</option>
+        <% var found = false; %>
+        <% depositors.forEach(function (d) { %>
+          <% if (d.name === deposit.deposited_by) { found = true; } %>
+          <option value="<%= d.name %>" <%= d.name === deposit.deposited_by ? 'selected' : '' %>><%= d.name %></option>
+        <% }); %>
+        <% if (deposit.deposited_by && !found) { %>
+          <option value="<%= deposit.deposited_by %>" selected><%= deposit.deposited_by %> (inactive)</option>
+        <% } %>
+      </select>
+      <% if (!depositors.length) { %>
+        <span class="field-hint">No depositors yet — add them in <a href="/settings">Settings</a>.</span>
+      <% } %>
     </div>
     <div class="field">
       <label>Reference No.</label>

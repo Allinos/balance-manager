@@ -1,41 +1,53 @@
 'use strict';
 
 const DmsModel = require('../models/dms.model');
+const AccountModel = require('../models/account.model');
+const DepositorModel = require('../models/depositor.model');
+const { recalculateAll } = require('../services/ledger.service');
 const audit = require('../services/audit.service');
 const { round2 } = require('../utils/money');
 const { todayISO } = require('../utils/date');
 
-/** Derive variance & reconciliation status. */
-function reconcile(dmsAmount, receiptAmount) {
-  const variance = round2(Number(dmsAmount) - Number(receiptAmount));
-  let status = 'pending';
-  if (Number(receiptAmount) > 0) {
-    status = variance === 0 ? 'reconciled' : 'mismatch';
-  }
-  return { variance, status };
+const STATUSES = ['pending', 'on_hold', 'completed'];
+const MODES = ['Cash', 'Online'];
+
+async function formLists() {
+  const [accounts, depositors] = await Promise.all([
+    AccountModel.findActive(),
+    DepositorModel.findActive(),
+  ]);
+  return { accounts, depositors, statuses: STATUSES, modes: MODES };
 }
 
 exports.list = async (req, res) => {
-  const { start, end, status } = req.query;
-  const records = await DmsModel.findAll({
+  const { start, end, status, mode } = req.query;
+  const filter = {
     ...(start && end ? { start, end } : {}),
     ...(status ? { status } : {}),
-  });
-  const summary = await DmsModel.summary(start && end ? { start, end } : {});
+    ...(mode ? { mode } : {}),
+  };
+  const [records, totals] = await Promise.all([
+    DmsModel.findAll(filter),
+    DmsModel.totals(start && end ? { start, end } : {}),
+  ]);
   res.render('dms/list', {
     title: 'DMS Deposits',
     active: 'dms',
     records,
-    summary,
-    filters: { start: start || '', end: end || '', status: status || '' },
+    summary: totals,
+    statuses: STATUSES,
+    modes: MODES,
+    filters: { start: start || '', end: end || '', status: status || '', mode: mode || '' },
   });
 };
 
-exports.showCreate = (req, res) => {
+exports.showCreate = async (req, res) => {
+  const lists = await formLists();
   res.render('dms/form', {
     title: 'Add DMS Deposit',
     active: 'dms',
-    record: { dms_date: todayISO() },
+    record: { dms_date: todayISO(), payment_mode: 'Cash', status: 'pending' },
+    ...lists,
     formAction: '/dms',
     isEdit: false,
   });
@@ -43,20 +55,17 @@ exports.showCreate = (req, res) => {
 
 exports.create = async (req, res) => {
   const body = req.body;
-  const dms_amount = round2(body.dms_amount);
-  const receipt_amount = round2(body.receipt_amount || 0);
-  const { variance, status } = reconcile(dms_amount, receipt_amount);
-
   const created = await DmsModel.create({
     dms_date: body.dms_date,
-    dms_amount,
-    receipt_amount,
-    variance,
-    status,
-    reference_no: body.reference_no,
+    payment_mode: MODES.includes(body.payment_mode) ? body.payment_mode : 'Cash',
+    account: body.account,
+    amount: round2(body.amount),
+    status: STATUSES.includes(body.status) ? body.status : 'pending',
+    deposited_by: body.deposited_by,
     remarks: body.remarks,
     created_by: req.session.user.id,
   });
+  await recalculateAll(); // deduct from balances
   await audit.record(req, { action: 'CREATE', entity: 'dms', entityId: created.id });
   req.flash('success', 'DMS deposit added.');
   res.redirect('/dms');
@@ -68,10 +77,12 @@ exports.showEdit = async (req, res) => {
     req.flash('error', 'DMS record not found.');
     return res.redirect('/dms');
   }
+  const lists = await formLists();
   res.render('dms/form', {
     title: 'Edit DMS Deposit',
     active: 'dms',
     record,
+    ...lists,
     formAction: `/dms/${record.id}?_method=PUT`,
     isEdit: true,
   });
@@ -80,19 +91,16 @@ exports.showEdit = async (req, res) => {
 exports.update = async (req, res) => {
   const id = req.params.id;
   const body = req.body;
-  const dms_amount = round2(body.dms_amount);
-  const receipt_amount = round2(body.receipt_amount || 0);
-  const { variance, status } = reconcile(dms_amount, receipt_amount);
-
   await DmsModel.update(id, {
     dms_date: body.dms_date,
-    dms_amount,
-    receipt_amount,
-    variance,
-    status,
-    reference_no: body.reference_no,
+    payment_mode: MODES.includes(body.payment_mode) ? body.payment_mode : 'Cash',
+    account: body.account,
+    amount: round2(body.amount),
+    status: STATUSES.includes(body.status) ? body.status : 'pending',
+    deposited_by: body.deposited_by,
     remarks: body.remarks,
   });
+  await recalculateAll();
   await audit.record(req, { action: 'UPDATE', entity: 'dms', entityId: id });
   req.flash('success', 'DMS deposit updated.');
   res.redirect('/dms');
@@ -101,12 +109,19 @@ exports.update = async (req, res) => {
 exports.remove = async (req, res) => {
   const id = req.params.id;
   await DmsModel.remove(id);
+  await recalculateAll();
   await audit.record(req, { action: 'DELETE', entity: 'dms', entityId: id });
   req.flash('success', 'DMS deposit deleted.');
   res.redirect('/dms');
 };
 
 exports.apiList = async (req, res) => {
-  const { start, end, status } = req.query;
-  res.json(await DmsModel.findAll({ ...(start && end ? { start, end } : {}), ...(status ? { status } : {}) }));
+  const { start, end, status, mode } = req.query;
+  res.json(
+    await DmsModel.findAll({
+      ...(start && end ? { start, end } : {}),
+      ...(status ? { status } : {}),
+      ...(mode ? { mode } : {}),
+    })
+  );
 };

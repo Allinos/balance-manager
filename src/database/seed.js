@@ -35,25 +35,21 @@ const DEPOSITS = [
   ['2026-07-10', 181750, 'Bank', 'Jagat Bora', 'DEP-0710'],
 ];
 
-// dms_date, dms_amount, receipt_amount
-const DMS = [
-  ['2026-07-02', 109050, 109050],  // reconciled
-  ['2026-07-06', 144870, 144870],  // reconciled
-  ['2026-07-07', 147800, 147000],  // mismatch (variance 800)
-  ['2026-07-10', 181750, 0],       // pending
-];
+const DEPOSITORS = ['Jagat Bora', 'Rahul Das', 'Priya Sharma'];
+const ACCOUNTS = ['SBI - Main', 'HDFC - Current', 'ICICI - Savings'];
 
-function reconcile(dms, receipt) {
-  const variance = round2(dms - receipt);
-  let status = 'pending';
-  if (receipt > 0) status = variance === 0 ? 'reconciled' : 'mismatch';
-  return { variance, status };
-}
+// dms_date, payment_mode, account, amount, status, deposited_by
+const DMS = [
+  ['2026-07-03', 'Cash', 'SBI - Main', 10000, 'completed', 'Jagat Bora'],
+  ['2026-07-05', 'Online', 'HDFC - Current', 20000, 'completed', 'Rahul Das'],
+  ['2026-07-08', 'Cash', 'ICICI - Savings', 50000, 'pending', 'Priya Sharma'],
+  ['2026-07-09', 'Online', 'SBI - Main', 15000, 'on_hold', 'Jagat Bora'],
+];
 
 async function seed() {
   console.log('> Clearing existing data...');
   await query('SET FOREIGN_KEY_CHECKS = 0');
-  for (const t of ['audit_logs', 'dms_deposits', 'deposits', 'collections', 'users']) {
+  for (const t of ['audit_logs', 'dms_deposits', 'deposits', 'collections', 'depositors', 'accounts', 'users']) {
     await query(`TRUNCATE TABLE ${t}`);
   }
   await query('SET FOREIGN_KEY_CHECKS = 1');
@@ -72,6 +68,14 @@ async function seed() {
     'Operator Demo', 'operator@example.com', demoHash, 'operator',
   ]);
   const adminId = admin.insertId;
+
+  console.log('> Inserting depositors & accounts...');
+  for (const name of DEPOSITORS) {
+    await query('INSERT INTO depositors (name) VALUES (?)', [name]);
+  }
+  for (const name of ACCOUNTS) {
+    await query('INSERT INTO accounts (name) VALUES (?)', [name]);
+  }
 
   console.log('> Inserting collections...');
   for (const [date, online, cash, credit, oldBal, remarks] of COLLECTIONS) {
@@ -94,13 +98,12 @@ async function seed() {
     );
   }
 
-  console.log('> Inserting DMS entries...');
-  for (const [date, dms, receipt] of DMS) {
-    const { variance, status } = reconcile(dms, receipt);
+  console.log('> Inserting DMS deposits...');
+  for (const [date, mode, account, amount, status, by] of DMS) {
     await query(
-      `INSERT INTO dms_deposits (dms_date, dms_amount, receipt_amount, variance, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [date, dms, receipt, variance, status, adminId]
+      `INSERT INTO dms_deposits (dms_date, payment_mode, account, amount, status, deposited_by, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [date, mode, account, amount, status, by, adminId]
     );
   }
 

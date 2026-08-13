@@ -115,6 +115,14 @@ const CollectionModel = {
     const rows = await query(sql, params);
     return rows[0];
   },
+
+  /** Min & max collection dates (null when empty). */
+  async dateBounds() {
+    const rows = await query(
+      'SELECT MIN(collection_date) AS min, MAX(collection_date) AS max FROM collections'
+    );
+    return { min: rows[0].min, max: rows[0].max };
+  },
 };
 
 module.exports = CollectionModel;

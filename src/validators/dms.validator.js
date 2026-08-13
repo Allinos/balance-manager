@@ -5,21 +5,23 @@ const { body } = require('express-validator');
 const dmsRules = [
   body('dms_date')
     .notEmpty()
-    .withMessage('DMS date is required')
+    .withMessage('Date is required')
     .isISO8601()
-    .withMessage('DMS date must be a valid date'),
-  body('dms_amount')
+    .withMessage('Date must be valid'),
+  body('payment_mode')
+    .isIn(['Cash', 'Online'])
+    .withMessage('Payment mode must be Cash or Online'),
+  body('account').optional({ values: 'falsy' }).isLength({ max: 120 }).trim(),
+  body('amount')
     .notEmpty()
-    .withMessage('DMS amount is required')
-    .isFloat({ min: 0 })
-    .withMessage('DMS amount must be a number ≥ 0')
+    .withMessage('Amount is required')
+    .isFloat({ gt: 0 })
+    .withMessage('Amount must be greater than 0')
     .toFloat(),
-  body('receipt_amount')
-    .optional({ values: 'falsy' })
-    .isFloat({ min: 0 })
-    .withMessage('Receipt amount must be a number ≥ 0')
-    .toFloat(),
-  body('reference_no').optional({ values: 'falsy' }).isLength({ max: 120 }).trim(),
+  body('status')
+    .isIn(['pending', 'on_hold', 'completed'])
+    .withMessage('Invalid status'),
+  body('deposited_by').optional({ values: 'falsy' }).isLength({ max: 120 }).trim(),
   body('remarks').optional({ values: 'falsy' }).isLength({ max: 255 }).trim(),
 ];
 

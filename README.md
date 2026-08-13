@@ -12,10 +12,12 @@ admin dashboard, reports, exports, user management and audit logs.
 
 - **Authentication & role-based access** (admin / manager / operator / viewer)
 - **Dashboard** with summary cards + Chart.js charts (collections vs deposits, collection mix)
-- **Daily Collection CRUD** with auto-calculated totals
-- **Deposit CRUD** (Bank / Online / Cash / Cheque)
+- **Daily Collection CRUD** with auto-calculated totals + online/cash/credit summary
+- **Deposit CRUD** (Bank / Online / Cash / Cheque) with a managed "Deposit By" list
 - **Running balance ledger** — opening/remaining balance recomputed automatically
-- **DMS deposit tracking & reconciliation** with auto variance + status
+- **Simple DMS deposits** (date, payment mode, account, amount, status, deposit by) that
+  automatically deduct from the running balance / available cash
+- **Settings** — admin-managed lists of depositors and accounts
 - **Reports** with date filters and **Excel + PDF export**
 - **User management** (admin only)
 - **Audit logs** of every create/update/delete/login/export
@@ -29,10 +31,9 @@ admin dashboard, reports, exports, user management and audit logs.
 |-------|---------|
 | **Total Collection** | `Online + Cash + Credit Balance` |
 | **Opening Balance** | Previous day's **Remaining Balance** |
-| **Remaining Balance** | `Opening Balance + Total Collection + Old Balance Collection − Deposits of the day` |
-| **Available Cash** | `= Remaining Balance` (cash on hand awaiting deposit) |
-| **DMS Variance** | `DMS Amount − Receipt Amount` |
-| **DMS Status** | `reconciled` (variance 0), `mismatch` (variance ≠ 0), `pending` (no receipt yet) |
+| **Remaining Balance** | `Opening Balance + Total Collection + Old Balance Collection − Deposits − DMS Deposits` |
+| **Available Cash** | `Opening Cash + Cash Collection − Cash-mode Deposits − Cash-mode DMS` |
+| **DMS Deposit** | Outflow. `Cash` mode reduces available cash + balance; `Online` mode reduces the overall balance |
 
 The ledger is recalculated end-to-end (in date order) whenever a collection or
 deposit is created, edited or deleted, so opening/remaining balances always stay
@@ -123,7 +124,7 @@ Open <http://localhost:3000>.
 | Create / edit collections, deposits, DMS | | ✅ | ✅ | ✅ |
 | Delete records | | | ✅ | ✅ |
 | Export reports | | ✅ | ✅ | ✅ |
-| Manage users | | | | ✅ |
+| Manage users & settings (depositors/accounts) | | | | ✅ |
 | View audit logs | | | | ✅ |
 
 ---
@@ -152,7 +153,8 @@ Five tables (see `src/database/schema.sql`):
 - **users** – accounts, hashed passwords (bcrypt), role enum
 - **collections** – one row per collection date (unique), stored + derived amounts
 - **deposits** – deposits keyed by date, linked to the ledger by date
-- **dms_deposits** – DMS amount vs receipt, variance + status
+- **dms_deposits** – date, payment mode (Cash/Online), account, amount, status
+- **depositors** / **accounts** – managed lists for the Deposit By / Account selects
 - **audit_logs** – who did what, when, with JSON detail
 
 ---

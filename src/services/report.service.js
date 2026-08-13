@@ -60,11 +60,11 @@ async function buildExcel({ start, end } = {}) {
   const wm = wb.addWorksheet('DMS');
   wm.columns = [
     { header: 'Date', key: 'dms_date', width: 14 },
-    { header: 'DMS Amount', key: 'dms_amount', width: 14 },
-    { header: 'Receipt Amount', key: 'receipt_amount', width: 16 },
-    { header: 'Variance', key: 'variance', width: 14 },
+    { header: 'Payment Mode', key: 'payment_mode', width: 14 },
+    { header: 'Account', key: 'account', width: 18 },
+    { header: 'Amount', key: 'amount', width: 14 },
     { header: 'Status', key: 'status', width: 14 },
-    { header: 'Reference', key: 'reference_no', width: 18 },
+    { header: 'Deposit By', key: 'deposited_by', width: 18 },
     { header: 'Remarks', key: 'remarks', width: 24 },
   ];
   dms.forEach((r) => wm.addRow(r));
@@ -112,14 +112,14 @@ async function streamPdf(res, { start, end } = {}) {
     ]));
 
   // DMS
-  section('DMS Reconciliation');
-  drawTable(doc, ['Date', 'DMS', 'Receipt', 'Variance', 'Status'],
+  section('DMS Deposits');
+  drawTable(doc, ['Date', 'Mode', 'Account', 'Amount', 'Status'],
     dms.map((r) => [
       formatDate(r.dms_date),
-      formatCurrency(r.dms_amount),
-      formatCurrency(r.receipt_amount),
-      formatCurrency(r.variance),
-      r.status,
+      r.payment_mode,
+      r.account || '-',
+      formatCurrency(r.amount),
+      r.status === 'on_hold' ? 'On Hold' : r.status,
     ]));
 
   doc.end();

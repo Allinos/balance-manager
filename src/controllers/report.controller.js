@@ -19,7 +19,7 @@ exports.index = async (req, res) => {
     },
     { total: 0, deposits: 0 }
   );
-  const dmsVariance = dms.reduce((a, r) => a + Number(r.variance), 0);
+  const dmsTotal = dms.reduce((a, r) => a + Number(r.amount), 0);
 
   res.render('reports/index', {
     title: 'Reports',
@@ -32,7 +32,7 @@ exports.index = async (req, res) => {
       totalCollection: totals.total,
       totalDeposits: totals.deposits,
       closingBalance: ledger.length ? ledger[ledger.length - 1].remaining_balance : 0,
-      dmsVariance,
+      dmsTotal,
     },
   });
 };

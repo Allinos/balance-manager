@@ -46,13 +46,13 @@
     <span class="mini-label">DMS Deposited</span>
     <span class="mini-value"><%= fmtCurrency(cards.dmsAmount) %></span>
   </div>
-  <div class="mini-card <%= cards.dmsVariance !== 0 ? 'is-warn' : '' %>">
-    <span class="mini-label">DMS Variance</span>
-    <span class="mini-value"><%= fmtCurrency(cards.dmsVariance) %></span>
+  <div class="mini-card <%= cards.dmsPending > 0 ? 'is-warn' : '' %>">
+    <span class="mini-label">DMS Pending</span>
+    <span class="mini-value"><%= cards.dmsPending %></span>
   </div>
-  <div class="mini-card <%= (cards.dmsPending + cards.dmsMismatch) > 0 ? 'is-warn' : '' %>">
-    <span class="mini-label">DMS Pending / Mismatch</span>
-    <span class="mini-value"><%= cards.dmsPending %> / <%= cards.dmsMismatch %></span>
+  <div class="mini-card">
+    <span class="mini-label">DMS Completed</span>
+    <span class="mini-value"><%= cards.dmsCompleted %></span>
   </div>
 </section>
 

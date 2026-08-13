@@ -47,21 +47,6 @@
     recalcTotal();
   }
 
-  // ---- Live DMS variance preview ----
-  var dmsInputs = document.querySelectorAll('[data-dms]');
-  var variancePreview = document.getElementById('variance_preview');
-  function recalcVariance() {
-    var vals = {};
-    dmsInputs.forEach(function (i) { vals[i.name] = parseFloat(i.value) || 0; });
-    if (variancePreview) {
-      variancePreview.value = ((vals.dms_amount || 0) - (vals.receipt_amount || 0)).toFixed(2);
-    }
-  }
-  if (variancePreview && dmsInputs.length) {
-    dmsInputs.forEach(function (i) { i.addEventListener('input', recalcVariance); });
-    recalcVariance();
-  }
-
   // ---- Dashboard charts ----
   var dataEl = document.getElementById('dashboard-data');
   if (dataEl && typeof Chart !== 'undefined') {

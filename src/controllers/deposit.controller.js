@@ -1,6 +1,7 @@
 'use strict';
 
 const DepositModel = require('../models/deposit.model');
+const DepositorModel = require('../models/depositor.model');
 const { recalculateAll } = require('../services/ledger.service');
 const audit = require('../services/audit.service');
 const { round2 } = require('../utils/money');
@@ -8,20 +9,27 @@ const { todayISO } = require('../utils/date');
 
 exports.list = async (req, res) => {
   const { start, end } = req.query;
-  const deposits = await DepositModel.findAll(start && end ? { start, end } : {});
+  const range = start && end ? { start, end } : {};
+  const [deposits, totals] = await Promise.all([
+    DepositModel.findAll(range),
+    DepositModel.totals(range),
+  ]);
   res.render('deposits/list', {
     title: 'Deposits',
     active: 'deposits',
     deposits,
+    summary: { total: Number(totals.total), entries: Number(totals.entries) },
     filters: { start: start || '', end: end || '' },
   });
 };
 
-exports.showCreate = (req, res) => {
+exports.showCreate = async (req, res) => {
+  const depositors = await DepositorModel.findActive();
   res.render('deposits/form', {
     title: 'Add Deposit',
     active: 'deposits',
     deposit: { deposit_date: todayISO(), mode: 'Bank' },
+    depositors,
     formAction: '/deposits',
     isEdit: false,
   });
@@ -50,10 +58,12 @@ exports.showEdit = async (req, res) => {
     req.flash('error', 'Deposit not found.');
     return res.redirect('/deposits');
   }
+  const depositors = await DepositorModel.findActive();
   res.render('deposits/form', {
     title: 'Edit Deposit',
     active: 'deposits',
     deposit,
+    depositors,
     formAction: `/deposits/${deposit.id}?_method=PUT`,
     isEdit: true,
   });

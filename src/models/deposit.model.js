@@ -60,13 +60,19 @@ const DepositModel = {
     await query('DELETE FROM deposits WHERE id = ?', [id]);
   },
 
-  /** Total deposits grouped by date, returns a Map<date,total>. */
-  async totalsByDate() {
+  /**
+   * Deposits grouped by date → Map<date, { total, cash }>.
+   * `cash` counts modes that physically remove cash on hand (Cash, Bank).
+   */
+  async byDate() {
     const rows = await query(
-      'SELECT deposit_date, COALESCE(SUM(amount),0) AS total FROM deposits GROUP BY deposit_date'
+      `SELECT deposit_date,
+              COALESCE(SUM(amount),0) AS total,
+              COALESCE(SUM(CASE WHEN mode IN ('Cash','Bank') THEN amount ELSE 0 END),0) AS cash
+       FROM deposits GROUP BY deposit_date`
     );
     const map = new Map();
-    for (const r of rows) map.set(r.deposit_date, Number(r.total));
+    for (const r of rows) map.set(r.deposit_date, { total: Number(r.total), cash: Number(r.cash) });
     return map;
   },
 

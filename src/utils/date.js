@@ -21,6 +21,21 @@ function formatDate(value) {
   return `${d}-${months[parseInt(m, 10) - 1]}-${y.slice(2)}`;
 }
 
+/** Human friendly date + time, e.g. 01-Jul-26 02:30 PM. */
+function formatDateTime(value) {
+  if (!value) return '';
+  // MySQL dateStrings come as 'YYYY-MM-DD HH:MM:SS'.
+  const str = typeof value === 'string' ? value : new Date(value).toISOString().replace('T', ' ');
+  const [datePart, timePart = ''] = str.split(/[ T]/);
+  const datePretty = formatDate(datePart);
+  if (!timePart) return datePretty;
+  const [hStr, m] = timePart.split(':');
+  let h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${datePretty} ${String(h).padStart(2, '0')}:${m} ${ampm}`;
+}
+
 /** First and last day of the current month as ISO strings. */
 function currentMonthRange() {
   const now = new Date();
@@ -33,4 +48,4 @@ function todayISO() {
   return toISODate(new Date());
 }
 
-module.exports = { toISODate, formatDate, currentMonthRange, todayISO };
+module.exports = { toISODate, formatDate, formatDateTime, currentMonthRange, todayISO };

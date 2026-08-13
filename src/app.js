@@ -13,7 +13,7 @@ const config = require('./config/env');
 const routes = require('./routes');
 const { notFound, errorHandler } = require('./middleware/error');
 const { formatCurrency } = require('./utils/money');
-const { formatDate, toISODate } = require('./utils/date');
+const { formatDate, formatDateTime, toISODate } = require('./utils/date');
 
 const app = express();
 
@@ -62,6 +62,7 @@ app.use((req, res, next) => {
   res.locals.currencySymbol = config.currencySymbol;
   res.locals.fmtCurrency = formatCurrency;
   res.locals.fmtDate = formatDate;
+  res.locals.fmtDateTime = formatDateTime;
   res.locals.toISODate = toISODate;
   res.locals.active = '';
   res.locals.flash = {

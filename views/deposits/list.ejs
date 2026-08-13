@@ -8,6 +8,17 @@
   <% } %>
 </div>
 
+<div class="summary-strip">
+  <div class="s-item">
+    <span class="s-label">Total Deposits</span>
+    <span class="s-value"><%= fmtCurrency(summary.total) %></span>
+  </div>
+  <div class="s-item">
+    <span class="s-label">Records</span>
+    <span class="s-value"><%= summary.entries %></span>
+  </div>
+</div>
+
 <%- include('../partials/date-filter', { action: '/deposits', filters: filters }) %>
 
 <div class="panel">
@@ -15,23 +26,29 @@
     <table class="data-table">
       <thead>
         <tr>
-          <th>Date</th><th class="num">Amount</th><th>Mode</th>
-          <th>Deposited By</th><th>Reference</th><th>Remarks</th>
+          <th>Date</th>
+          <th class="num">Amount</th>
+          <th>Mode</th>
+          <th>Deposit By</th>
+          <th>Remarks</th>
+          <th>Reference No.</th>
+          <th class="nowrap">Recorded At</th>
           <th class="actions-col">Actions</th>
         </tr>
       </thead>
       <tbody>
         <% if (!deposits.length) { %>
-          <tr><td colspan="7" class="empty">No deposits found.</td></tr>
+          <tr><td colspan="8" class="empty">No deposits found.</td></tr>
         <% } %>
         <% deposits.forEach(function (r) { %>
           <tr>
             <td class="nowrap"><%= fmtDate(r.deposit_date) %></td>
             <td class="num strong"><%= fmtCurrency(r.amount) %></td>
             <td><span class="badge"><%= r.mode %></span></td>
-            <td><%= r.deposited_by || '' %></td>
-            <td class="muted small"><%= r.reference_no || '' %></td>
+            <td><%= r.deposited_by || '—' %></td>
             <td class="muted small"><%= r.remarks || '' %></td>
+            <td class="muted small"><%= r.reference_no || '' %></td>
+            <td class="muted small nowrap"><%= fmtDateTime(r.created_at) %></td>
             <td class="actions-col">
               <% if (currentUser && currentUser.role !== 'viewer') { %>
                 <a href="/deposits/<%= r.id %>/edit" class="btn btn-xs btn-ghost">Edit</a>

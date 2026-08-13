@@ -9,10 +9,20 @@ const { todayISO } = require('../utils/date');
 exports.list = async (req, res) => {
   const { start, end } = req.query;
   const ledger = await buildLedger(start && end ? { start, end } : {});
+  const summary = ledger.reduce(
+    (acc, r) => {
+      acc.online += Number(r.online);
+      acc.cash += Number(r.cash);
+      acc.creditBalance += Number(r.credit_balance);
+      return acc;
+    },
+    { online: 0, cash: 0, creditBalance: 0 }
+  );
   res.render('collections/list', {
     title: 'Daily Collections',
     active: 'collections',
     collections: [...ledger].reverse(),
+    summary,
     filters: { start: start || '', end: end || '' },
   });
 };

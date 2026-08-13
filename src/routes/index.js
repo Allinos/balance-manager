@@ -14,6 +14,7 @@ const depositRoutes = require('./web/deposit.routes');
 const dmsRoutes = require('./web/dms.routes');
 const reportRoutes = require('./web/report.routes');
 const userRoutes = require('./web/user.routes');
+const settingsRoutes = require('./web/settings.routes');
 const apiRoutes = require('./api');
 
 // Public auth routes
@@ -31,6 +32,7 @@ router.use('/deposits', depositRoutes);
 router.use('/dms', dmsRoutes);
 router.use('/reports', reportRoutes);
 router.use('/users', userRoutes);
+router.use('/settings', settingsRoutes);
 router.get('/audit', requireAdmin, asyncHandler(auditCtrl.list));
 
 // JSON API (session protected)
