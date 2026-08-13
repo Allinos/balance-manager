@@ -16,10 +16,13 @@ const { round2 } = require('../utils/money');
  *   available_cash    = running cash on hand
  *                     = opening_cash + cash_collection
  *                       - cash_deposits(Cash/Bank) - cash_dms(mode Cash)
+ *   available_online  = running online balance
+ *                     = opening_online + online_collection
+ *                       - online_deposits(Online/Cheque) - online_dms(mode Online)
  *
  * Both regular deposits and DMS deposits are outflows that reduce the
  * remaining balance. A DMS deposit paid in Cash also reduces available cash;
- * a DMS deposit paid Online reduces only the overall balance.
+ * a DMS deposit paid Online reduces available online.
  */
 
 /** Compute total_collection for a single collection row. */
@@ -39,18 +42,20 @@ async function recalculateAll() {
 
   let openingBalance = 0;
   let openingCash = 0;
+  let openingOnline = 0;
   const ledger = [];
 
   for (const row of collections) {
     const totalCollection = computeTotal(row);
     const oldBalance = Number(row.old_balance_collection) || 0;
 
-    const dep = depositsByDate.get(row.collection_date) || { total: 0, cash: 0 };
+    const dep = depositsByDate.get(row.collection_date) || { total: 0, cash: 0, online: 0 };
     const dms = dmsByDate.get(row.collection_date) || { total: 0, cash: 0, online: 0 };
 
     const outflow = round2(dep.total + dms.total);
     const remaining = round2(openingBalance + totalCollection + oldBalance - outflow);
     const availableCash = round2(openingCash + Number(row.cash) - dep.cash - dms.cash);
+    const availableOnline = round2(openingOnline + Number(row.online) - dep.online - dms.online);
 
     // Persist only when something changed to avoid needless writes.
     if (
@@ -86,10 +91,12 @@ async function recalculateAll() {
       dms_deposits: round2(dms.total),
       remaining_balance: remaining,
       available_cash: availableCash,
+      available_online: availableOnline,
     });
 
     openingBalance = remaining;
     openingCash = availableCash;
+    openingOnline = availableOnline;
   }
 
   return ledger;

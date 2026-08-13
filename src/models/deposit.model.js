@@ -61,18 +61,22 @@ const DepositModel = {
   },
 
   /**
-   * Deposits grouped by date → Map<date, { total, cash }>.
-   * `cash` counts modes that physically remove cash on hand (Cash, Bank).
+   * Deposits grouped by date → Map<date, { total, cash, online }>.
+   *   cash   = modes that physically remove cash on hand (Cash, Bank)
+   *   online = modes that move online / bank-instrument money (Online, Cheque)
    */
   async byDate() {
     const rows = await query(
       `SELECT deposit_date,
               COALESCE(SUM(amount),0) AS total,
-              COALESCE(SUM(CASE WHEN mode IN ('Cash','Bank') THEN amount ELSE 0 END),0) AS cash
+              COALESCE(SUM(CASE WHEN mode IN ('Cash','Bank')     THEN amount ELSE 0 END),0) AS cash,
+              COALESCE(SUM(CASE WHEN mode IN ('Online','Cheque') THEN amount ELSE 0 END),0) AS online
        FROM deposits GROUP BY deposit_date`
     );
     const map = new Map();
-    for (const r of rows) map.set(r.deposit_date, { total: Number(r.total), cash: Number(r.cash) });
+    for (const r of rows) {
+      map.set(r.deposit_date, { total: Number(r.total), cash: Number(r.cash), online: Number(r.online) });
+    }
     return map;
   },
 

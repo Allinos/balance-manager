@@ -29,10 +29,10 @@ const COLLECTIONS = [
 
 // deposit_date, amount, mode, deposited_by, reference_no
 const DEPOSITS = [
-  ['2026-07-02', 109050, 'Bank', 'Jagat Bora', 'DEP-0702'],
-  ['2026-07-06', 144870, 'Bank', 'Jagat Bora', 'DEP-0706'],
-  ['2026-07-07', 147800, 'Bank', 'Jagat Bora', 'DEP-0707'],
-  ['2026-07-10', 181750, 'Bank', 'Jagat Bora', 'DEP-0710'],
+  ['2026-07-02', 50000, 'Bank', 'Jagat Bora', 'DEP-0702'],   // reduces cash
+  ['2026-07-06', 80000, 'Online', 'Rahul Das', 'DEP-0706'],  // reduces online
+  ['2026-07-07', 40000, 'Cash', 'Jagat Bora', 'DEP-0707'],   // reduces cash
+  ['2026-07-10', 60000, 'Online', 'Priya Sharma', 'DEP-0710'], // reduces online
 ];
 
 const DEPOSITORS = ['Jagat Bora', 'Rahul Das', 'Priya Sharma'];

@@ -8,6 +8,8 @@
   <% } %>
 </div>
 
+<%- include('../partials/range-filter', { action: '/deposits', range: range }) %>
+
 <div class="summary-strip">
   <div class="s-item">
     <span class="s-label">Total Deposits</span>
@@ -18,8 +20,6 @@
     <span class="s-value"><%= summary.entries %></span>
   </div>
 </div>
-
-<%- include('../partials/date-filter', { action: '/deposits', filters: filters }) %>
 
 <div class="panel">
   <div class="table-wrap">

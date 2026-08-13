@@ -32,8 +32,12 @@ const AuditLogModel = {
       params.push(action);
     }
     if (where.length) sql += ' WHERE ' + where.join(' AND ');
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-    params.push(Number(limit), Number(offset));
+    // NOTE: MySQL 8 + mysql2 prepared statements reject bound LIMIT/OFFSET
+    // ("Incorrect arguments to mysqld_stmt_execute"), so we inline them as
+    // sanitised non-negative integers instead of binding them.
+    const safeLimit = Math.max(1, Math.min(1000, parseInt(limit, 10) || 200));
+    const safeOffset = Math.max(0, parseInt(offset, 10) || 0);
+    sql += ` ORDER BY created_at DESC LIMIT ${safeLimit} OFFSET ${safeOffset}`;
     return query(sql, params);
   },
 

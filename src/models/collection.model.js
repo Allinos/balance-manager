@@ -24,8 +24,8 @@ const CollectionModel = {
     }
     sql += ' ORDER BY collection_date DESC';
     if (limit) {
-      sql += ' LIMIT ?';
-      params.push(Number(limit));
+      // Inline a sanitised integer – MySQL 8 rejects bound LIMIT values.
+      sql += ` LIMIT ${Math.max(1, parseInt(limit, 10) || 1)}`;
     }
     return query(sql, params);
   },

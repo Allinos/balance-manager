@@ -27,7 +27,7 @@
 
     <div class="field">
       <label>Account</label>
-      <select name="account">
+      <select name="account" id="dms-account" data-account-balances='<%- JSON.stringify(accountBalances) %>'>
         <option value="">— Select —</option>
         <% var accFound = false; %>
         <% accounts.forEach(function (a) { %>
@@ -38,6 +38,7 @@
           <option value="<%= record.account %>" selected><%= record.account %> (inactive)</option>
         <% } %>
       </select>
+      <span class="field-hint" id="dms-account-balance" data-symbol="<%= currencySymbol %>"></span>
       <% if (!accounts.length) { %>
         <span class="field-hint">No accounts yet — add them in <a href="/settings">Settings</a>.</span>
       <% } %>
@@ -60,17 +61,8 @@
 
     <div class="field">
       <label>Deposit By</label>
-      <select name="deposited_by">
-        <option value="">— Select —</option>
-        <% var depFound = false; %>
-        <% depositors.forEach(function (d) { %>
-          <% if (d.name === record.deposited_by) { depFound = true; } %>
-          <option value="<%= d.name %>" <%= d.name === record.deposited_by ? 'selected' : '' %>><%= d.name %></option>
-        <% }); %>
-        <% if (record.deposited_by && !depFound) { %>
-          <option value="<%= record.deposited_by %>" selected><%= record.deposited_by %> (inactive)</option>
-        <% } %>
-      </select>
+      <input type="text" name="deposited_by" maxlength="120"
+             value="<%= record.deposited_by || '' %>" placeholder="Optional — who entered this" />
     </div>
 
     <div class="field field-full">

@@ -98,6 +98,21 @@ const DmsModel = {
     return rows[0];
   },
 
+  /**
+   * Total DMS deposited into each account → Map<accountName, amount>.
+   * This is the running "account balance" (money moved into the account).
+   */
+  async totalsByAccount() {
+    const rows = await query(
+      `SELECT account, COALESCE(SUM(amount),0) AS total
+       FROM dms_deposits WHERE account IS NOT NULL AND account <> ''
+       GROUP BY account`
+    );
+    const map = new Map();
+    for (const r of rows) map.set(r.account, Number(r.total));
+    return map;
+  },
+
   /** Outflows grouped by date → Map<date, { total, cash, online }>. */
   async byDate() {
     const rows = await query(

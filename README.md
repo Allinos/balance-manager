@@ -32,8 +32,16 @@ admin dashboard, reports, exports, user management and audit logs.
 | **Total Collection** | `Online + Cash + Credit Balance` |
 | **Opening Balance** | Previous day's **Remaining Balance** |
 | **Remaining Balance** | `Opening Balance + Total Collection + Old Balance Collection − Deposits − DMS Deposits` |
-| **Available Cash** | `Opening Cash + Cash Collection − Cash-mode Deposits − Cash-mode DMS` |
-| **DMS Deposit** | Outflow. `Cash` mode reduces available cash + balance; `Online` mode reduces the overall balance |
+| **Available Cash** | `Opening Cash + Cash Collection − Cash-source Deposits (Cash/Bank) − Cash-mode DMS` |
+| **Available Online** | `Opening Online + Online Collection − Online-source Deposits (Online/Cheque) − Online-mode DMS` |
+| **DMS Deposit** | Outflow. `Cash` mode reduces Available Cash; `Online` mode reduces Available Online. Both reduce the overall balance. |
+| **Account Balance** | `Σ DMS deposits into that account` — the running total held in each account |
+
+### Date filters
+
+Reports, Deposits, Collections and the Dashboard share a standard date filter with
+**All / Today / Yesterday / Last 7 Days / Last 30 Days / Custom range** presets.
+The selected range updates all records, totals and analytics on the page.
 
 The ledger is recalculated end-to-end (in date order) whenever a collection or
 deposit is created, edited or deleted, so opening/remaining balances always stay

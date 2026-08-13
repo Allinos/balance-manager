@@ -2,18 +2,24 @@
 
 const DepositorModel = require('../models/depositor.model');
 const AccountModel = require('../models/account.model');
+const DmsModel = require('../models/dms.model');
 const audit = require('../services/audit.service');
 
 exports.index = async (req, res) => {
-  const [depositors, accounts] = await Promise.all([
+  const [depositors, accounts, balancesMap] = await Promise.all([
     DepositorModel.findAll(),
     AccountModel.findAll(),
+    DmsModel.totalsByAccount(),
   ]);
+  const accountsWithBalance = accounts.map((a) => ({
+    ...a,
+    balance: balancesMap.get(a.name) || 0,
+  }));
   res.render('settings/index', {
     title: 'Settings',
     active: 'settings',
     depositors,
-    accounts,
+    accounts: accountsWithBalance,
   });
 };
 

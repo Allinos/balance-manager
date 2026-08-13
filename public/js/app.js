@@ -47,6 +47,24 @@
     recalcTotal();
   }
 
+  // ---- DMS: live account balance on select ----
+  var acctSelect = document.getElementById('dms-account');
+  var acctBalanceEl = document.getElementById('dms-account-balance');
+  if (acctSelect && acctBalanceEl) {
+    var balances = {};
+    try { balances = JSON.parse(acctSelect.getAttribute('data-account-balances') || '{}'); } catch (e) { balances = {}; }
+    var symbol = acctBalanceEl.getAttribute('data-symbol') || '';
+    function showAcctBalance() {
+      var name = acctSelect.value;
+      if (!name) { acctBalanceEl.textContent = ''; return; }
+      var bal = Number(balances[name] || 0);
+      var formatted = bal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      acctBalanceEl.textContent = 'Current balance: ' + symbol + ' ' + formatted;
+    }
+    acctSelect.addEventListener('change', showAcctBalance);
+    showAcctBalance();
+  }
+
   // ---- Dashboard charts ----
   var dataEl = document.getElementById('dashboard-data');
   if (dataEl && typeof Chart !== 'undefined') {

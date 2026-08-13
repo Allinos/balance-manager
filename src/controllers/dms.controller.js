@@ -2,7 +2,6 @@
 
 const DmsModel = require('../models/dms.model');
 const AccountModel = require('../models/account.model');
-const DepositorModel = require('../models/depositor.model');
 const { recalculateAll } = require('../services/ledger.service');
 const audit = require('../services/audit.service');
 const { round2 } = require('../utils/money');
@@ -11,12 +10,15 @@ const { todayISO } = require('../utils/date');
 const STATUSES = ['pending', 'on_hold', 'completed'];
 const MODES = ['Cash', 'Online'];
 
+/** Accounts plus a { name: balance } map (balance = total DMS into the account). */
 async function formLists() {
-  const [accounts, depositors] = await Promise.all([
+  const [accounts, balancesMap] = await Promise.all([
     AccountModel.findActive(),
-    DepositorModel.findActive(),
+    DmsModel.totalsByAccount(),
   ]);
-  return { accounts, depositors, statuses: STATUSES, modes: MODES };
+  const accountBalances = {};
+  for (const a of accounts) accountBalances[a.name] = balancesMap.get(a.name) || 0;
+  return { accounts, accountBalances, statuses: STATUSES, modes: MODES };
 }
 
 exports.list = async (req, res) => {

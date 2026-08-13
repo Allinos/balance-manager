@@ -8,6 +8,8 @@
   <% } %>
 </div>
 
+<%- include('../partials/range-filter', { action: '/collections', range: range }) %>
+
 <div class="summary-strip">
   <div class="s-item">
     <span class="s-label">Total Online</span>
@@ -21,9 +23,11 @@
     <span class="s-label">Total Credit Balance</span>
     <span class="s-value"><%= fmtCurrency(summary.creditBalance) %></span>
   </div>
+  <div class="s-item">
+    <span class="s-label">Total Collection</span>
+    <span class="s-value"><%= fmtCurrency(summary.total) %></span>
+  </div>
 </div>
-
-<%- include('../partials/date-filter', { action: '/collections', filters: filters, compact: true }) %>
 
 <div class="panel">
   <div class="table-wrap">
@@ -40,13 +44,14 @@
           <th class="num">Deposits</th>
           <th class="num">Remaining</th>
           <th class="num">Avail. Cash</th>
+          <th class="num">Avail. Online</th>
           <th>Remarks</th>
           <th class="actions-col">Actions</th>
         </tr>
       </thead>
       <tbody>
         <% if (!collections.length) { %>
-          <tr><td colspan="12" class="empty">No collections found.</td></tr>
+          <tr><td colspan="13" class="empty">No collections found.</td></tr>
         <% } %>
         <% collections.forEach(function (r) { %>
           <tr>
@@ -60,6 +65,7 @@
             <td class="num"><%= fmtCurrency(r.deposits || 0) %></td>
             <td class="num strong"><%= fmtCurrency(r.remaining_balance) %></td>
             <td class="num"><%= fmtCurrency(r.available_cash) %></td>
+            <td class="num"><%= fmtCurrency(r.available_online) %></td>
             <td class="muted small"><%= r.remarks || '' %></td>
             <td class="actions-col">
               <% if (currentUser && currentUser.role !== 'viewer') { %>

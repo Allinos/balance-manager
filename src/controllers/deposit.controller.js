@@ -6,20 +6,21 @@ const { recalculateAll } = require('../services/ledger.service');
 const audit = require('../services/audit.service');
 const { round2 } = require('../utils/money');
 const { todayISO } = require('../utils/date');
+const { resolveRange, toFilter } = require('../utils/range');
 
 exports.list = async (req, res) => {
-  const { start, end } = req.query;
-  const range = start && end ? { start, end } : {};
+  const range = resolveRange(req.query, { fallback: 'all' });
+  const filter = toFilter(range);
   const [deposits, totals] = await Promise.all([
-    DepositModel.findAll(range),
-    DepositModel.totals(range),
+    DepositModel.findAll(filter),
+    DepositModel.totals(filter),
   ]);
   res.render('deposits/list', {
     title: 'Deposits',
     active: 'deposits',
     deposits,
     summary: { total: Number(totals.total), entries: Number(totals.entries) },
-    filters: { start: start || '', end: end || '' },
+    range,
   });
 };
 

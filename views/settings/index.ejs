@@ -57,19 +57,22 @@
     </div>
     <div class="table-wrap">
       <table class="data-table">
-        <thead><tr><th>Name</th><th>Status</th><th class="actions-col">Actions</th></tr></thead>
+        <thead><tr><th>Name &amp; Balance</th><th class="actions-col">Actions</th></tr></thead>
         <tbody>
           <% if (!accounts.length) { %>
-            <tr><td colspan="3" class="empty">No accounts yet.</td></tr>
+            <tr><td colspan="2" class="empty">No accounts yet.</td></tr>
           <% } %>
           <% accounts.forEach(function (a) { %>
             <tr>
-              <td colspan="3" class="edit-cell">
+              <td colspan="2" class="edit-cell">
                 <form method="post" action="/settings/accounts/<%= a.id %>?_method=PUT" class="row-edit">
                   <input type="text" name="name" value="<%= a.name %>" maxlength="120" required />
                   <label class="chk"><input type="checkbox" name="is_active" value="1" <%= a.is_active ? 'checked' : '' %> /> Active</label>
                   <button type="submit" class="btn btn-xs btn-ghost">Save</button>
                 </form>
+                <span class="balance-pill" title="Total deposited into this account">
+                  Balance: <%= fmtCurrency(a.balance) %>
+                </span>
                 <form method="post" action="/settings/accounts/<%= a.id %>?_method=DELETE" class="inline"
                       data-confirm="Delete account <%= a.name %>?">
                   <button class="btn btn-xs btn-danger">Del</button>

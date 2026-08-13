@@ -1,10 +1,14 @@
+<%
+  var rangeText = range.start && range.end ? (fmtDate(range.start) + ' – ' + fmtDate(range.end)) : 'All dates';
+%>
 <div class="page-head">
   <div>
     <h2 class="page-title">Overview</h2>
-    <p class="muted">Summary for <%= fmtDate(range.start) %> – <%= fmtDate(range.end) %></p>
+    <p class="muted">Summary for <%= rangeText %></p>
   </div>
-  <%- include('../partials/date-filter', { action: '/dashboard', filters: { start: range.start, end: range.end } }) %>
 </div>
+
+<%- include('../partials/range-filter', { action: '/dashboard', range: range }) %>
 
 <section class="cards-grid">
   <div class="stat-card accent-blue">
@@ -25,7 +29,12 @@
   <div class="stat-card accent-violet">
     <span class="stat-label">Available Cash</span>
     <span class="stat-value"><%= fmtCurrency(cards.availableCash) %></span>
-    <span class="stat-sub">Awaiting deposit</span>
+    <span class="stat-sub">Cash on hand</span>
+  </div>
+  <div class="stat-card accent-teal">
+    <span class="stat-label">Available Online</span>
+    <span class="stat-value"><%= fmtCurrency(cards.availableOnline) %></span>
+    <span class="stat-sub">Online balance</span>
   </div>
 </section>
 

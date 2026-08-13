@@ -5,25 +5,27 @@ const { computeTotal, recalculateAll, buildLedger } = require('../services/ledge
 const audit = require('../services/audit.service');
 const { round2 } = require('../utils/money');
 const { todayISO } = require('../utils/date');
+const { resolveRange, toFilter } = require('../utils/range');
 
 exports.list = async (req, res) => {
-  const { start, end } = req.query;
-  const ledger = await buildLedger(start && end ? { start, end } : {});
+  const range = resolveRange(req.query, { fallback: 'all' });
+  const ledger = await buildLedger(toFilter(range));
   const summary = ledger.reduce(
     (acc, r) => {
       acc.online += Number(r.online);
       acc.cash += Number(r.cash);
       acc.creditBalance += Number(r.credit_balance);
+      acc.total += Number(r.total_collection);
       return acc;
     },
-    { online: 0, cash: 0, creditBalance: 0 }
+    { online: 0, cash: 0, creditBalance: 0, total: 0 }
   );
   res.render('collections/list', {
     title: 'Daily Collections',
     active: 'collections',
     collections: [...ledger].reverse(),
     summary,
-    filters: { start: start || '', end: end || '' },
+    range,
   });
 };
 

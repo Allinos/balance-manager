@@ -1,15 +1,23 @@
+<%
+  var exportQuery = range.preset === 'custom'
+    ? ('start=' + (range.start || '') + '&end=' + (range.end || ''))
+    : ('preset=' + range.preset);
+  var rangeText = range.start && range.end
+    ? (fmtDate(range.start) + ' – ' + fmtDate(range.end))
+    : 'All dates';
+%>
 <div class="page-head">
   <div>
     <h2 class="page-title">Reports</h2>
-    <p class="muted"><%= fmtDate(range.start) %> – <%= fmtDate(range.end) %></p>
+    <p class="muted"><%= rangeText %></p>
   </div>
   <div class="btn-row">
-    <a class="btn btn-success" href="/reports/export/excel?start=<%= range.start %>&end=<%= range.end %>">⬇ Excel</a>
-    <a class="btn btn-danger" href="/reports/export/pdf?start=<%= range.start %>&end=<%= range.end %>">⬇ PDF</a>
+    <a class="btn btn-success" href="/reports/export/excel?<%= exportQuery %>">⬇ Excel</a>
+    <a class="btn btn-danger" href="/reports/export/pdf?<%= exportQuery %>">⬇ PDF</a>
   </div>
 </div>
 
-<%- include('../partials/date-filter', { action: '/reports', filters: { start: range.start, end: range.end } }) %>
+<%- include('../partials/range-filter', { action: '/reports', range: range }) %>
 
 <section class="cards-grid">
   <div class="stat-card accent-blue">
