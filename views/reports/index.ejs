@@ -1,0 +1,104 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title">Reports</h2>
+    <p class="muted"><%= fmtDate(range.start) %> – <%= fmtDate(range.end) %></p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-success" href="/reports/export/excel?start=<%= range.start %>&end=<%= range.end %>">⬇ Excel</a>
+    <a class="btn btn-danger" href="/reports/export/pdf?start=<%= range.start %>&end=<%= range.end %>">⬇ PDF</a>
+  </div>
+</div>
+
+<%- include('../partials/date-filter', { action: '/reports', filters: { start: range.start, end: range.end } }) %>
+
+<section class="cards-grid">
+  <div class="stat-card accent-blue">
+    <span class="stat-label">Total Collection</span>
+    <span class="stat-value"><%= fmtCurrency(summary.totalCollection) %></span>
+  </div>
+  <div class="stat-card accent-green">
+    <span class="stat-label">Total Deposits</span>
+    <span class="stat-value"><%= fmtCurrency(summary.totalDeposits) %></span>
+  </div>
+  <div class="stat-card accent-amber">
+    <span class="stat-label">Closing Balance</span>
+    <span class="stat-value"><%= fmtCurrency(summary.closingBalance) %></span>
+  </div>
+  <div class="stat-card <%= summary.dmsVariance !== 0 ? 'accent-red' : 'accent-violet' %>">
+    <span class="stat-label">DMS Variance</span>
+    <span class="stat-value"><%= fmtCurrency(summary.dmsVariance) %></span>
+  </div>
+</section>
+
+<div class="panel">
+  <div class="panel-head"><h3>Collections Ledger</h3></div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th><th class="num">Online</th><th class="num">Cash</th>
+          <th class="num">Credit</th><th class="num">Total</th><th class="num">Opening</th>
+          <th class="num">Deposits</th><th class="num">Remaining</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!ledger.length) { %><tr><td colspan="8" class="empty">No data.</td></tr><% } %>
+        <% ledger.forEach(function (r) { %>
+          <tr>
+            <td class="nowrap"><%= fmtDate(r.collection_date) %></td>
+            <td class="num"><%= fmtCurrency(r.online) %></td>
+            <td class="num"><%= fmtCurrency(r.cash) %></td>
+            <td class="num"><%= fmtCurrency(r.credit_balance) %></td>
+            <td class="num strong"><%= fmtCurrency(r.total_collection) %></td>
+            <td class="num"><%= fmtCurrency(r.opening_balance) %></td>
+            <td class="num"><%= fmtCurrency(r.deposits || 0) %></td>
+            <td class="num strong"><%= fmtCurrency(r.remaining_balance) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panels-grid">
+  <div class="panel">
+    <div class="panel-head"><h3>Deposits</h3></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th class="num">Amount</th><th>Mode</th><th>By</th></tr></thead>
+        <tbody>
+          <% if (!deposits.length) { %><tr><td colspan="4" class="empty">No deposits.</td></tr><% } %>
+          <% deposits.forEach(function (r) { %>
+            <tr>
+              <td class="nowrap"><%= fmtDate(r.deposit_date) %></td>
+              <td class="num"><%= fmtCurrency(r.amount) %></td>
+              <td><%= r.mode %></td>
+              <td><%= r.deposited_by || '' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>DMS Reconciliation</h3></div>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr><th>Date</th><th class="num">DMS</th><th class="num">Receipt</th><th class="num">Var.</th><th>Status</th></tr></thead>
+        <tbody>
+          <% if (!dms.length) { %><tr><td colspan="5" class="empty">No DMS records.</td></tr><% } %>
+          <% dms.forEach(function (r) { %>
+            <tr>
+              <td class="nowrap"><%= fmtDate(r.dms_date) %></td>
+              <td class="num"><%= fmtCurrency(r.dms_amount) %></td>
+              <td class="num"><%= fmtCurrency(r.receipt_amount) %></td>
+              <td class="num <%= Number(r.variance) !== 0 ? 'text-warn' : '' %>"><%= fmtCurrency(r.variance) %></td>
+              <td><span class="badge status-<%= r.status %>"><%= r.status %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

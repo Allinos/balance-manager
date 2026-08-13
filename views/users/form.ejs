@@ -1,0 +1,43 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title"><%= isEdit ? 'Edit' : 'Add' %> User</h2>
+    <p class="muted"><%= isEdit ? 'Leave password blank to keep it unchanged' : 'Set an initial password' %></p>
+  </div>
+  <a href="/users" class="btn btn-ghost">← Back</a>
+</div>
+
+<div class="panel form-panel">
+  <form method="post" action="<%= formAction %>" class="form-grid">
+    <div class="field">
+      <label>Name *</label>
+      <input type="text" name="name" required maxlength="120" value="<%= user.name || '' %>" />
+    </div>
+    <div class="field">
+      <label>Email *</label>
+      <input type="email" name="email" required value="<%= user.email || '' %>" />
+    </div>
+    <div class="field">
+      <label>Role *</label>
+      <select name="role">
+        <% ['viewer','operator','manager','admin'].forEach(function (r) { %>
+          <option value="<%= r %>" <%= user.role === r ? 'selected' : '' %>><%= r %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div class="field">
+      <label>Password <%= isEdit ? '' : '*' %></label>
+      <input type="password" name="password" <%= isEdit ? '' : 'required' %>
+             placeholder="<%= isEdit ? 'Leave blank to keep' : 'Min 6 characters' %>" minlength="6" />
+    </div>
+    <div class="field field-checkbox">
+      <label>
+        <input type="checkbox" name="is_active" value="1" <%= (user.is_active == null || user.is_active) ? 'checked' : '' %> />
+        Active account
+      </label>
+    </div>
+    <div class="field field-full field-actions">
+      <button type="submit" class="btn btn-primary"><%= isEdit ? 'Update' : 'Create' %> User</button>
+      <a href="/users" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>

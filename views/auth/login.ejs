@@ -1,0 +1,24 @@
+<div class="auth-card">
+  <div class="auth-brand">
+    <span class="brand-mark">₹</span>
+    <h1>Balance<strong>Manager</strong></h1>
+    <p class="muted">Daily collection &amp; deposit reconciliation</p>
+  </div>
+
+  <form method="post" action="/login" class="auth-form" autocomplete="off">
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required
+             value="<%= formData.email || '' %>" placeholder="admin@example.com" />
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required placeholder="••••••••" />
+    </div>
+    <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+  </form>
+
+  <p class="auth-hint muted">
+    Demo: <code>admin@example.com</code> / <code>Admin@123</code>
+  </p>
+</div>

@@ -1,0 +1,15 @@
+<form class="filter-bar" method="get" action="<%= action %>">
+  <div class="field">
+    <label>From</label>
+    <input type="date" name="start" value="<%= filters.start || '' %>" />
+  </div>
+  <div class="field">
+    <label>To</label>
+    <input type="date" name="end" value="<%= filters.end || '' %>" />
+  </div>
+  <% if (typeof extraFields !== 'undefined') { %><%- extraFields %><% } %>
+  <div class="field field-actions">
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a href="<%= action %>" class="btn btn-ghost">Reset</a>
+  </div>
+</form>

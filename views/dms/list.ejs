@@ -1,0 +1,83 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title">DMS Deposits</h2>
+    <p class="muted">Tracking &amp; reconciliation · Variance = DMS − Receipt</p>
+  </div>
+  <% if (currentUser && currentUser.role !== 'viewer') { %>
+    <a href="/dms/new" class="btn btn-primary">+ Add DMS Deposit</a>
+  <% } %>
+</div>
+
+<section class="cards-grid cards-grid--small">
+  <div class="mini-card">
+    <span class="mini-label">DMS Total</span>
+    <span class="mini-value"><%= fmtCurrency(summary.dms_amount) %></span>
+  </div>
+  <div class="mini-card">
+    <span class="mini-label">Receipts</span>
+    <span class="mini-value"><%= fmtCurrency(summary.receipt_amount) %></span>
+  </div>
+  <div class="mini-card <%= Number(summary.variance) !== 0 ? 'is-warn' : '' %>">
+    <span class="mini-label">Variance</span>
+    <span class="mini-value"><%= fmtCurrency(summary.variance) %></span>
+  </div>
+  <div class="mini-card">
+    <span class="mini-label">Reconciled</span>
+    <span class="mini-value"><%= summary.reconciled || 0 %></span>
+  </div>
+  <div class="mini-card <%= Number(summary.mismatch) > 0 ? 'is-warn' : '' %>">
+    <span class="mini-label">Mismatch</span>
+    <span class="mini-value"><%= summary.mismatch || 0 %></span>
+  </div>
+</section>
+
+<%
+  var statusOptions = '<div class="field"><label>Status</label><select name="status" onchange="this.form.submit()">'
+    + '<option value="">All</option>'
+    + ['pending','reconciled','mismatch'].map(function(s){
+        return '<option value="'+s+'"'+(filters.status===s?' selected':'')+'>'+s+'</option>';
+      }).join('')
+    + '</select></div>';
+%>
+<%- include('../partials/date-filter', { action: '/dms', filters: filters, extraFields: statusOptions }) %>
+
+<div class="panel">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Date</th><th class="num">DMS Amount</th><th class="num">Receipt</th>
+          <th class="num">Variance</th><th>Status</th><th>Reference</th><th>Remarks</th>
+          <th class="actions-col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!records.length) { %>
+          <tr><td colspan="8" class="empty">No DMS records found.</td></tr>
+        <% } %>
+        <% records.forEach(function (r) { %>
+          <tr>
+            <td class="nowrap"><%= fmtDate(r.dms_date) %></td>
+            <td class="num"><%= fmtCurrency(r.dms_amount) %></td>
+            <td class="num"><%= fmtCurrency(r.receipt_amount) %></td>
+            <td class="num <%= Number(r.variance) !== 0 ? 'text-warn' : '' %>"><%= fmtCurrency(r.variance) %></td>
+            <td><span class="badge status-<%= r.status %>"><%= r.status %></span></td>
+            <td class="muted small"><%= r.reference_no || '' %></td>
+            <td class="muted small"><%= r.remarks || '' %></td>
+            <td class="actions-col">
+              <% if (currentUser && currentUser.role !== 'viewer') { %>
+                <a href="/dms/<%= r.id %>/edit" class="btn btn-xs btn-ghost">Edit</a>
+              <% } %>
+              <% if (currentUser && (currentUser.role === 'manager' || currentUser.role === 'admin')) { %>
+                <form method="post" action="/dms/<%= r.id %>?_method=DELETE" class="inline"
+                      data-confirm="Delete this DMS record?">
+                  <button class="btn btn-xs btn-danger">Del</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>

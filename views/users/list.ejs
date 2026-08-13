@@ -1,0 +1,40 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title">Users</h2>
+    <p class="muted">Manage accounts &amp; roles</p>
+  </div>
+  <a href="/users/new" class="btn btn-primary">+ Add User</a>
+</div>
+
+<div class="panel">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th class="actions-col">Actions</th></tr>
+      </thead>
+      <tbody>
+        <% users.forEach(function (u) { %>
+          <tr>
+            <td class="strong"><%= u.name %></td>
+            <td class="muted"><%= u.email %></td>
+            <td><span class="badge badge-role"><%= u.role %></span></td>
+            <td>
+              <% if (u.is_active) { %><span class="badge status-reconciled">active</span>
+              <% } else { %><span class="badge status-mismatch">inactive</span><% } %>
+            </td>
+            <td class="muted small"><%= u.last_login_at ? fmtDate(u.last_login_at) : 'never' %></td>
+            <td class="actions-col">
+              <a href="/users/<%= u.id %>/edit" class="btn btn-xs btn-ghost">Edit</a>
+              <% if (u.id !== currentUser.id) { %>
+                <form method="post" action="/users/<%= u.id %>?_method=DELETE" class="inline"
+                      data-confirm="Delete user <%= u.email %>?">
+                  <button class="btn btn-xs btn-danger">Del</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>

@@ -1,0 +1,64 @@
+<div class="page-head">
+  <div>
+    <h2 class="page-title">Audit Logs</h2>
+    <p class="muted"><%= pagination.total %> entries</p>
+  </div>
+</div>
+
+<form class="filter-bar" method="get" action="/audit">
+  <div class="field">
+    <label>Entity</label>
+    <select name="entity">
+      <option value="">All</option>
+      <% ['collection','deposit','dms','user','auth','report'].forEach(function (e) { %>
+        <option value="<%= e %>" <%= filters.entity === e ? 'selected' : '' %>><%= e %></option>
+      <% }); %>
+    </select>
+  </div>
+  <div class="field">
+    <label>Action</label>
+    <select name="action">
+      <option value="">All</option>
+      <% ['CREATE','UPDATE','DELETE','LOGIN','LOGOUT','EXPORT'].forEach(function (a) { %>
+        <option value="<%= a %>" <%= filters.action === a ? 'selected' : '' %>><%= a %></option>
+      <% }); %>
+    </select>
+  </div>
+  <div class="field field-actions">
+    <button type="submit" class="btn btn-primary">Filter</button>
+    <a href="/audit" class="btn btn-ghost">Reset</a>
+  </div>
+</form>
+
+<div class="panel">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th><th>IP</th></tr>
+      </thead>
+      <tbody>
+        <% if (!logs.length) { %><tr><td colspan="7" class="empty">No audit entries.</td></tr><% } %>
+        <% logs.forEach(function (l) { %>
+          <tr>
+            <td class="nowrap small"><%= l.created_at %></td>
+            <td><%= l.user_name || '—' %></td>
+            <td><span class="badge"><%= l.action %></span></td>
+            <td><%= l.entity %></td>
+            <td class="muted"><%= l.entity_id || '' %></td>
+            <td class="small muted mono"><%= l.details ? (typeof l.details === 'string' ? l.details : JSON.stringify(l.details)) : '' %></td>
+            <td class="small muted"><%= l.ip_address || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+
+  <% if (pagination.pages > 1) { %>
+    <div class="pagination">
+      <% for (var p = 1; p <= pagination.pages; p++) { %>
+        <a class="page-link <%= p === pagination.page ? 'is-active' : '' %>"
+           href="/audit?page=<%= p %>&entity=<%= filters.entity %>&action=<%= filters.action %>"><%= p %></a>
+      <% } %>
+    </div>
+  <% } %>
+</div>

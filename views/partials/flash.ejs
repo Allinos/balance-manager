@@ -1,0 +1,8 @@
+<% if (typeof flash !== 'undefined' && flash) { %>
+  <% (flash.success || []).forEach(function (msg) { %>
+    <div class="alert alert-success" data-autohide><%= msg %></div>
+  <% }); %>
+  <% (flash.error || []).forEach(function (msg) { %>
+    <div class="alert alert-error" data-autohide><%= msg %></div>
+  <% }); %>
+<% } %>

@@ -1,0 +1,10 @@
+<header class="topbar">
+  <button class="icon-btn" data-sidebar-toggle aria-label="Toggle menu">☰</button>
+  <h1 class="topbar-title"><%= typeof title !== 'undefined' ? title : 'Balance Manager' %></h1>
+  <div class="topbar-actions">
+    <span class="topbar-date"><%= fmtDate(new Date()) %></span>
+    <% if (currentUser) { %>
+      <span class="badge badge-role"><%= currentUser.role %></span>
+    <% } %>
+  </div>
+</header>
