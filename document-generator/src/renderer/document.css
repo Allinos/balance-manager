@@ -1,0 +1,507 @@
+/* ==========================================================================
+   Printed document (A4). Independent of the app theme: always black on white.
+   Two styles: .doc-zoho (modern, airy) and .doc-tally (compact, boxed).
+   ========================================================================== */
+
+.doc {
+  --doc-accent: #1f4fd8;
+  --doc-ink: #1b1e24;
+  --doc-muted: #5b6270;
+  --doc-line: #d9dde5;
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm;
+  background: #fff;
+  color: var(--doc-ink);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  font-size: 9.2pt;
+  line-height: 1.42;
+  display: flex;
+  flex-direction: column;
+  gap: 5mm;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  color-scheme: light;
+}
+.doc *,
+.doc *::before,
+.doc *::after {
+  box-sizing: border-box;
+}
+.doc-pre {
+  white-space: pre-line;
+}
+.doc-label {
+  font-size: 7.6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--doc-muted);
+  font-weight: 600;
+  margin-bottom: 1.2mm;
+}
+.doc-sub {
+  font-size: 7.5pt;
+  color: var(--doc-muted);
+}
+.doc-sub-inline {
+  font-size: 7pt;
+  color: var(--doc-muted);
+}
+.doc-ids {
+  font-weight: 600;
+}
+
+/* Header */
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+}
+.doc-header-left {
+  display: flex;
+  gap: 5mm;
+  align-items: flex-start;
+  min-width: 0;
+}
+.doc-logo {
+  max-width: 34mm;
+  max-height: 24mm;
+  object-fit: contain;
+}
+.doc-company-name {
+  font-size: 14pt;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 1mm;
+}
+.doc-company-legal {
+  color: var(--doc-muted);
+}
+.doc-company {
+  color: #3a404c;
+  font-size: 8.6pt;
+}
+.doc-header-right {
+  text-align: right;
+  flex-shrink: 0;
+}
+.doc-title {
+  font-size: 18pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--doc-accent);
+  white-space: nowrap;
+}
+.doc-stamp-status {
+  display: inline-block;
+  margin-top: 2mm;
+  padding: 1mm 3mm;
+  border: 2px solid #c62828;
+  color: #c62828;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  transform: rotate(-4deg);
+}
+
+/* Parties + meta */
+.doc-parties {
+  display: flex;
+  gap: 6mm;
+  align-items: stretch;
+}
+.doc-party {
+  flex: 1;
+  min-width: 0;
+}
+.doc-party-name {
+  font-weight: 700;
+  font-size: 10.5pt;
+}
+.doc-meta {
+  flex: 0 0 72mm;
+}
+.doc-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  padding: 0.6mm 0;
+}
+.doc-meta-key {
+  color: var(--doc-muted);
+  white-space: nowrap;
+}
+.doc-meta-val {
+  font-weight: 600;
+  text-align: right;
+  word-break: break-word;
+}
+
+/* Items */
+.doc-items,
+.doc-taxes {
+  width: 100%;
+  border-collapse: collapse;
+}
+.doc-items thead {
+  display: table-header-group;
+}
+.doc-items th,
+.doc-items td,
+.doc-taxes th,
+.doc-taxes td {
+  padding: 1.8mm 2mm;
+  vertical-align: top;
+  text-align: left;
+}
+.doc-items th,
+.doc-taxes th {
+  font-size: 7.8pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.doc-items tr,
+.doc-taxes tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.c-num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+.c-right {
+  text-align: right !important;
+  font-weight: 700;
+}
+.c-sn {
+  width: 7mm;
+  text-align: center !important;
+  color: var(--doc-muted);
+}
+.c-hsn {
+  width: 18mm;
+}
+.c-amt {
+  font-weight: 700;
+}
+.doc-item-name {
+  font-weight: 600;
+}
+.doc-item-desc {
+  color: var(--doc-muted);
+  font-size: 8pt;
+  white-space: pre-line;
+}
+.doc-empty-row {
+  text-align: center !important;
+  color: var(--doc-muted);
+  padding: 8mm !important;
+}
+.doc-items tfoot td {
+  font-weight: 700;
+}
+
+/* Summary */
+.doc-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.doc-summary-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
+  min-width: 0;
+}
+.doc-totals {
+  flex: 0 0 72mm;
+}
+.doc-total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 1mm 2mm;
+}
+.doc-total-row span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.doc-grand {
+  font-weight: 700;
+  font-size: 11pt;
+  margin-top: 1mm;
+  padding: 2mm;
+}
+.doc-words-text {
+  font-weight: 600;
+}
+
+/* Payment, terms, signatures */
+.doc-payment {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.doc-bank {
+  flex: 0 1 95mm;
+}
+.doc-bank .doc-meta-row {
+  justify-content: flex-start;
+}
+.doc-bank .doc-meta-key {
+  width: 22mm;
+}
+.doc-bank .doc-meta-val {
+  text-align: left;
+}
+.doc-qr {
+  text-align: center;
+}
+.doc-qr img {
+  width: 28mm;
+  height: 28mm;
+}
+.doc-terms {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  font-size: 8.4pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.doc-signatures {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+  padding-top: 4mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.doc-sign {
+  text-align: center;
+  min-width: 55mm;
+}
+.doc-sign-for {
+  font-weight: 700;
+}
+.doc-sign-space {
+  height: 22mm;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.doc-signature {
+  max-height: 18mm;
+  max-width: 50mm;
+  object-fit: contain;
+  position: relative;
+  z-index: 1;
+}
+.doc-stamp {
+  position: absolute;
+  max-height: 22mm;
+  max-width: 22mm;
+  opacity: 0.85;
+  left: 2mm;
+  bottom: 0;
+}
+.doc-sign-line {
+  border-top: 1px solid var(--doc-ink);
+  padding-top: 1mm;
+  font-size: 8pt;
+}
+.doc-footer {
+  text-align: center;
+  font-size: 7.6pt;
+  color: var(--doc-muted);
+}
+
+/* Receipt */
+.doc-receipt {
+  font-size: 10.5pt;
+  line-height: 1.8;
+}
+.doc-receipt-amount {
+  display: inline-flex;
+  gap: 6mm;
+  align-items: center;
+  margin-top: 4mm;
+  padding: 3mm 6mm;
+  font-size: 12pt;
+}
+
+/* ----------------------------- Zoho style ------------------------------ */
+.doc-zoho .doc-header {
+  padding-bottom: 5mm;
+  border-bottom: 2px solid var(--doc-accent);
+}
+.doc-zoho .doc-meta {
+  background: #f6f8fc;
+  border-radius: 2mm;
+  padding: 3mm 4mm;
+}
+.doc-zoho .doc-items thead th {
+  background: var(--doc-accent);
+  color: #fff;
+}
+.doc-zoho .doc-items thead th:first-child {
+  border-top-left-radius: 1.5mm;
+}
+.doc-zoho .doc-items thead th:last-child {
+  border-top-right-radius: 1.5mm;
+}
+.doc-zoho .doc-items tbody td {
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-zoho .doc-items tbody tr:nth-child(even) td {
+  background: #fafbfd;
+}
+.doc-zoho .doc-taxes th {
+  border-bottom: 1px solid var(--doc-line);
+  color: var(--doc-muted);
+}
+.doc-zoho .doc-taxes td {
+  border-bottom: 1px solid #eef0f4;
+}
+.doc-zoho .doc-grand {
+  background: var(--doc-accent);
+  color: #fff;
+  border-radius: 1.5mm;
+}
+.doc-zoho .doc-words {
+  background: #f6f8fc;
+  border-radius: 2mm;
+  padding: 2.5mm 3.5mm;
+}
+.doc-zoho .doc-receipt-amount {
+  background: #f6f8fc;
+  border: 1px solid var(--doc-line);
+  border-radius: 2mm;
+}
+.doc-zoho .doc-receipt-amount strong {
+  color: var(--doc-accent);
+}
+
+/* ----------------------------- Tally style ----------------------------- */
+.doc-tally {
+  font-family: Arial, 'Helvetica Neue', 'Liberation Sans', sans-serif;
+  font-size: 8.6pt;
+  line-height: 1.32;
+  gap: 0;
+  --doc-line: #333;
+  --doc-muted: #444;
+}
+.doc-tally .doc-header {
+  border: 1px solid var(--doc-line);
+  padding: 3mm;
+  flex-direction: row-reverse;
+  position: relative;
+  padding-top: 9mm;
+}
+.doc-tally .doc-header-right {
+  position: absolute;
+  top: 2mm;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+.doc-tally .doc-title {
+  color: var(--doc-ink);
+  font-size: 12pt;
+  letter-spacing: 0.12em;
+}
+.doc-tally .doc-header-left {
+  flex: 1;
+}
+.doc-tally .doc-company-name {
+  font-size: 12.5pt;
+}
+.doc-tally .doc-parties {
+  gap: 0;
+  border: 1px solid var(--doc-line);
+  border-top: 0;
+}
+.doc-tally .doc-party,
+.doc-tally .doc-meta {
+  padding: 2.5mm 3mm;
+}
+.doc-tally .doc-party + .doc-party,
+.doc-tally .doc-meta {
+  border-left: 1px solid var(--doc-line);
+}
+.doc-tally .doc-meta-row {
+  border-bottom: 1px dotted #999;
+}
+.doc-tally .doc-meta-row:last-child {
+  border-bottom: 0;
+}
+.doc-tally .doc-label {
+  color: var(--doc-ink);
+  letter-spacing: 0.02em;
+}
+.doc-tally .doc-items th,
+.doc-tally .doc-items td,
+.doc-tally .doc-taxes th,
+.doc-tally .doc-taxes td {
+  border: 1px solid var(--doc-line);
+  padding: 1.2mm 1.6mm;
+}
+.doc-tally .doc-items {
+  border-top: 0;
+}
+.doc-tally .doc-taxes th {
+  border-top: 0;
+  background: #f4f4f4;
+}
+.doc-tally .doc-items thead th {
+  background: #eee;
+  border-top: 0;
+}
+.doc-tally .doc-summary {
+  border: 1px solid var(--doc-line);
+  border-top: 0;
+  gap: 0;
+}
+.doc-tally .doc-summary-left {
+  padding: 2.5mm 3mm;
+  border-right: 1px solid var(--doc-line);
+}
+.doc-tally .doc-totals {
+  padding: 1.5mm 0 0;
+}
+.doc-tally .doc-grand {
+  border-top: 1px solid var(--doc-line);
+  border-bottom: 3px double var(--doc-line);
+  border-radius: 0;
+}
+.doc-tally .doc-payment,
+.doc-tally .doc-terms,
+.doc-tally .doc-signatures {
+  border: 1px solid var(--doc-line);
+  border-top: 0;
+  padding: 2.5mm 3mm;
+  margin: 0;
+}
+.doc-tally .doc-signatures {
+  margin-top: 0;
+}
+.doc-tally .doc-receipt {
+  border: 1px solid var(--doc-line);
+  border-top: 0;
+  padding: 4mm;
+}
+.doc-tally .doc-receipt-amount {
+  border: 1px solid var(--doc-line);
+}
+.doc-tally .doc-footer {
+  padding-top: 2mm;
+}

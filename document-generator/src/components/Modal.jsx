@@ -1,0 +1,45 @@
+import { useEffect, useRef } from 'react';
+import Icon from './Icon.jsx';
+
+/**
+ * Accessible modal dialog. Closes on Esc and backdrop click.
+ * @param {{title?: string, onClose: () => void, size?: 'sm'|'md'|'lg', children: any, footer?: any, className?: string}} props
+ */
+export default function Modal({ title, onClose, size = 'md', children, footer, className = '' }) {
+  const panel = useRef(null);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    const previous = document.activeElement;
+    const focusable = panel.current?.querySelector('[autofocus], input, select, textarea, button:not(.modal-close)');
+    focusable?.focus();
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      if (previous && previous.focus) previous.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="modal-backdrop no-print" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className={`modal modal-${size} ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={panel}>
+        {title && (
+          <div className="modal-header">
+            <h2>{title}</h2>
+            <button className="icon-btn modal-close" onClick={onClose} aria-label="Close">
+              <Icon name="x" />
+            </button>
+          </div>
+        )}
+        <div className="modal-body">{children}</div>
+        {footer && <div className="modal-footer">{footer}</div>}
+      </div>
+    </div>
+  );
+}

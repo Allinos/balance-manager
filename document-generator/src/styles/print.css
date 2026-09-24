@@ -1,0 +1,75 @@
+/* ==========================================================================
+   Print: only the A4 document is printed — no sidebar, toolbars or buttons.
+   ========================================================================== */
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Neutralise the app shell so the document flows across pages. */
+  .app,
+  .main,
+  .viewer,
+  .editor,
+  .editor-body,
+  .viewer-body,
+  .page-preview,
+  .page-preview-sizer {
+    display: block !important;
+    height: auto !important;
+    width: auto !important;
+    max-width: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  .editor-form {
+    display: none !important;
+  }
+  .page-preview-paper {
+    transform: none !important;
+    width: auto !important;
+    box-shadow: none !important;
+  }
+  /* @page provides the 12mm margins; the sheet itself needs none. */
+  .document-page,
+  .doc {
+    width: 100% !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+  tr,
+  .doc-summary,
+  .doc-payment,
+  .doc-signatures,
+  .doc-terms {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tfoot {
+    display: table-footer-group;
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}

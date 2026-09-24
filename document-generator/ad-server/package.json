@@ -1,0 +1,17 @@
+{
+  "name": "docgen-ad-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Minimal remote configuration + advertisement server for DocGen",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -1,5 +1,11 @@
 # Balance Manager
 
+> **Also in this repository:** [`document-generator/`](document-generator/) — **DocGen**, a
+> lightweight offline desktop app (Tauri 2 + React + SQLite) for creating invoices,
+> quotations, orders, challans, notes and receipts. See its
+> [README](document-generator/README.md).
+
+
 A daily **collection, deposit and DMS reconciliation** manager built with
 **Node.js + Express + MySQL + EJS**. It digitises the spreadsheet workflow of
 tracking daily online/cash/credit collections, bank deposits, a running balance
