@@ -119,6 +119,37 @@ npm run app:dev        # starts Vite on :1420 and opens the desktop window (hot 
 The UI only works inside the Tauri window (it talks to the Rust backend); opening
 `http://localhost:1420` in a normal browser shows a friendly error.
 
+### Troubleshooting on Windows
+
+**`linker 'link.exe' not found`**: Rust on Windows needs Microsoft's C++ linker.
+VS Code is not enough. Install the Build Tools with the C++ workload (about 2–6 GB, one time):
+
+```powershell
+winget install Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Or download it from <https://visualstudio.microsoft.com/visual-cpp-build-tools/> and tick
+**"Desktop development with C++"**. Keep the *MSVC v143* and *Windows 11 SDK* items selected.
+Then **close and reopen the terminal** and check:
+
+```powershell
+rustup default stable-msvc
+rustup show              # should list x86_64-pc-windows-msvc
+```
+
+**`Port 1420 is already in use`**: a previous `npm run app:dev` is still running in the
+background. Stop it and start again:
+
+```powershell
+Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+npm run app:dev
+```
+
+(Command Prompt: `netstat -ano | findstr :1420`, then `taskkill /PID <number> /F`.)
+
+The first `app:dev` or `app:build` compiles all Rust dependencies and takes 3–10 minutes.
+Later runs take a few seconds.
+
 ## SQLite setup
 
 Nothing to install — SQLite is compiled into the app (`rusqlite` with the `bundled` feature).
