@@ -1,0 +1,71 @@
+# Builds the DocGen Windows installer in the cloud, so no Visual Studio /
+# C++ Build Tools are needed on your own PC.
+#
+# How to get the installer:
+#   GitHub → Actions → "DocGen Windows build" → latest run → Artifacts →
+#   download "DocGen-Windows-installer" (a .zip containing the setup .exe).
+#
+# Runs automatically when anything in document-generator/ changes, or manually
+# with the "Run workflow" button. Pushing a tag like docgen-v1.0.0 also creates
+# a GitHub Release with the installer attached.
+
+name: DocGen Windows build
+
+on:
+  push:
+    paths:
+      - 'document-generator/**'
+      - '.github/workflows/docgen-windows.yml'
+    tags:
+      - 'docgen-v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: document-generator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: document-generator/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: document-generator/src-tauri -> target
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build Windows installers (NSIS .exe + MSI)
+        run: npx tauri build --bundles nsis,msi
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: DocGen-Windows-installer
+          path: |
+            document-generator/src-tauri/target/release/bundle/nsis/*.exe
+            document-generator/src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+
+      - name: Publish GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/docgen-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            document-generator/src-tauri/target/release/bundle/nsis/*.exe
+            document-generator/src-tauri/target/release/bundle/msi/*.msi
