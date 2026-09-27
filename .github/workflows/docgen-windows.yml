@@ -1,13 +1,17 @@
 # Builds the DocGen Windows installer in the cloud, so no Visual Studio /
 # C++ Build Tools are needed on your own PC.
 #
-# How to get the installer:
-#   GitHub → Actions → "DocGen Windows build" → latest run → Artifacts →
-#   download "DocGen-Windows-installer" (a .zip containing the setup .exe).
+# Uses NO third-party or marketplace actions (only shell commands), because
+# this organization only allows actions owned by Allinos. The Windows runner
+# already has Git, Node.js, Rust (MSVC) and the GitHub CLI installed.
+#
+# Where to get the installer:
+#   GitHub → repository → Releases → "DocGen latest build" →
+#   download DocGen_<version>_x64-setup.exe
 #
 # Runs automatically when anything in document-generator/ changes, or manually
-# with the "Run workflow" button. Pushing a tag like docgen-v1.0.0 also creates
-# a GitHub Release with the installer attached.
+# with Actions → "DocGen Windows build" → "Run workflow". Pushing a tag like
+# docgen-v1.0.0 publishes a permanent release for that version instead.
 
 name: DocGen Windows build
 
@@ -23,49 +27,70 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: docgen-windows-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 60
     defaults:
       run:
-        working-directory: document-generator
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Get the code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+          git log -1 --oneline
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: document-generator/package-lock.json
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: document-generator/src-tauri -> target
+      - name: Show tool versions
+        run: |
+          node --version
+          npm --version
+          rustup default stable-msvc
+          rustc --version
+          cargo --version
 
       - name: Install dependencies
+        working-directory: document-generator
         run: npm ci
 
       - name: Unit tests
+        working-directory: document-generator
         run: npm test
 
       - name: Build Windows installers (NSIS .exe + MSI)
+        working-directory: document-generator
         run: npx tauri build --bundles nsis,msi
 
-      - name: Upload installer
-        uses: actions/upload-artifact@v4
-        with:
-          name: DocGen-Windows-installer
-          path: |
-            document-generator/src-tauri/target/release/bundle/nsis/*.exe
-            document-generator/src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: error
+      - name: Collect installers
+        run: |
+          mkdir -p out
+          cp document-generator/src-tauri/target/release/bundle/nsis/*.exe out/
+          cp document-generator/src-tauri/target/release/bundle/msi/*.msi out/
+          ls -la out
 
-      - name: Publish GitHub Release (tags only)
+      - name: Publish release for a version tag
         if: startsWith(github.ref, 'refs/tags/docgen-v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            document-generator/src-tauri/target/release/bundle/nsis/*.exe
-            document-generator/src-tauri/target/release/bundle/msi/*.msi
+        run: |
+          gh release create "$GITHUB_REF_NAME" out/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DocGen ${GITHUB_REF_NAME#docgen-v}" \
+            --notes "Windows installer for DocGen. Download the -setup.exe file and double-click it to install."
+
+      - name: Publish "latest build" release
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          gh release delete docgen-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create docgen-latest out/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "DocGen latest build" \
+            --notes "Built automatically from ${GITHUB_REF_NAME} (${GITHUB_SHA::7}) on $(date -u '+%Y-%m-%d %H:%M UTC'). Download the -setup.exe file and double-click it to install DocGen."
