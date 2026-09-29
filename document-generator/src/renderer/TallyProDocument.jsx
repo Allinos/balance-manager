@@ -28,8 +28,6 @@ import { CancelledMark, QrBlock, stateLine } from './blocks.jsx';
 
 /** Goods documents show the full Tally dispatch grid even when cells are empty. */
 const GOODS_TYPES = new Set(['TAX_INVOICE', 'BILL_OF_SUPPLY', 'DELIVERY_CHALLAN', 'SALES_ORDER', 'PROFORMA_INVOICE']);
-/** Sales documents printed with a copy label. */
-const COPY_LABEL_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'CREDIT_NOTE', 'DEBIT_NOTE']);
 const MIN_ROWS = 6;
 
 function Cell({ label, value, wide = false }) {
@@ -69,7 +67,7 @@ function PartyBox({ title, name, company, address, gstin, state, phone, email, s
   );
 }
 
-export default function TallyProDocument({ payload, type, qr, compact = false }) {
+export default function TallyProDocument({ payload, type, qr, compact = false, copy = '' }) {
   const { company = {}, document: doc, items = [], settings, parent } = payload;
   const ds = settings.doc;
   const meta = doc.meta || {};
@@ -136,7 +134,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false })
       <div className="tp-title-row">
         <span />
         <h1 className="tp-title">{title}</h1>
-        <span className="tp-copy">{COPY_LABEL_TYPES.has(type.id) ? '(ORIGINAL FOR RECIPIENT)' : ''}</span>
+        <span className="tp-copy">{copy ? `(${copy})` : ''}</span>
       </div>
 
       <div className="tp-frame">

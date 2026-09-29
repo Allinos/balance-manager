@@ -73,3 +73,17 @@
     text-decoration: none;
   }
 }
+
+/* Extra copies (Settings → Documents → Number of copies): printed only, each on a new page. */
+.print-only {
+  display: none;
+}
+@media print {
+  .print-only {
+    display: block !important;
+  }
+  .doc-extra-copy {
+    break-before: page;
+    page-break-before: always;
+  }
+}

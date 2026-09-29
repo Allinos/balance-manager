@@ -1,5 +1,5 @@
 /**
- * Database access through Knex. PostgreSQL in production (DATABASE_URL),
+ * Database access through Knex. MySQL 8 in production (DATABASE_URL=mysql://…),
  * SQLite for development, tests and small single-server installs.
  */
 
@@ -27,9 +27,11 @@ class InlineMigrationSource {
 export function createKnex(overrides = {}) {
   const url = overrides.databaseUrl ?? config.databaseUrl;
   if (url) {
+    if (!/^mysql:\/\//i.test(url)) throw new Error('DATABASE_URL must be a MySQL URL: mysql://user:password@host:3306/database');
     return knexFactory({
-      client: 'pg',
-      connection: url,
+      client: 'mysql2',
+      // utf8mb4 for all text; timestamps are stored as ISO-8601 text (see migrations).
+      connection: { uri: url, charset: 'utf8mb4', supportBigNumbers: true },
       pool: { min: 0, max: Number(process.env.DB_POOL_MAX || 10) },
     });
   }
@@ -57,12 +59,25 @@ export async function migrate(knex) {
   await knex.migrate.latest({ migrationSource: new InlineMigrationSource() });
 }
 
-export const isPg = (knex) => knex.client.config.client === 'pg';
+export const isMysql = (knex) => knex.client.config.client === 'mysql2';
+
+/** Insert one row and return it (MySQL has no RETURNING). */
+export async function insertOne(db, table, row) {
+  const result = await db(table).insert(row);
+  const id = Array.isArray(result) ? (typeof result[0] === 'object' ? result[0].id : result[0]) : result;
+  return db(table).where({ id }).first();
+}
+
+/** Update rows matching `where` and return the first updated row. */
+export async function updateOne(db, table, where, patch) {
+  await db(table).where(where).update(patch);
+  return db(table).where(where).first();
+}
 
 /** Current time as ISO string (stored as text/timestamptz consistently). */
 export const nowIso = () => new Date().toISOString();
 
-/** Parse a JSON column that may already be an object (pg json) or a string (sqlite). */
+/** Parse a JSON text column (tolerates values that are already objects). */
 export function parseJson(value, fallback = null) {
   if (value === null || value === undefined || value === '') return fallback;
   if (typeof value === 'object') return value;
@@ -76,7 +91,9 @@ export function parseJson(value, fallback = null) {
 /** Case-insensitive "contains" filter that works on both databases. */
 export function whereContains(qb, columns, term) {
   const pattern = `%${term.toLowerCase().replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  // MySQL already uses backslash as the LIKE escape character (and '\' is not a valid literal there).
+  const escape = qb.client.config.client === 'mysql2' ? '' : " escape '\\'";
   qb.where((w) => {
-    for (const col of columns) w.orWhereRaw(`lower(${col}) like ? escape '\\'`, [pattern]);
+    for (const col of columns) w.orWhereRaw(`lower(${col}) like ?${escape}`, [pattern]);
   });
 }

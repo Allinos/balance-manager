@@ -9,7 +9,7 @@
  * an explicit expiry. duration_days = 0 means lifetime.
  */
 
-import { nowIso } from '../db.js';
+import { insertOne, nowIso, updateOne } from '../db.js';
 import { ApiError } from '../lib/http.js';
 import { generateActivationCode, signLicenseToken } from '../lib/security.js';
 
@@ -48,9 +48,7 @@ export async function createLicense(knex, fields) {
     const code = generateActivationCode();
     const exists = await knex('licenses').where({ code }).first('id');
     if (exists) continue;
-    const [row] = await knex('licenses')
-      .insert({ status: 'unused', notes: '', ...fields, code, created_at: ts, updated_at: ts })
-      .returning('*');
+    const row = await insertOne(knex, 'licenses', { status: 'unused', notes: '', ...fields, code, created_at: ts, updated_at: ts });
     return row;
   }
   throw new ApiError(500, 'CODE_GENERATION_FAILED', 'Could not generate a unique activation code.');
@@ -69,7 +67,7 @@ export async function extendLicense(knex, license, days) {
     patch.expires_at = new Date(base + days * DAY).toISOString();
     if (license.status === 'suspended' || license.status === 'revoked') patch.status = 'active';
   }
-  const [row] = await knex('licenses').where({ id: license.id }).update(patch).returning('*');
+  const row = await updateOne(knex, 'licenses', { id: license.id }, patch);
   return row;
 }
 

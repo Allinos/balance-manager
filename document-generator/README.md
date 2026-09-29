@@ -20,11 +20,19 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
 
 ## Features
 
-- **Dashboard**: one card per document type with the number of documents and a **+** to create
-  one; the last 10 documents below.
-- **Document Manager**: one compact summary line (total, this month, files, count per status),
-  Documents / Files, search, and **Add External Document** (PDF, images, Word/Excel/CSV, text,
-  up to 25 MB, stored inside the database so backups include them). Deleted items can be restored.
+- **Dashboard**: document-type cards in two rows with the number of documents and a round **+**
+  to create one; the last 10 documents below; **Customize** chooses which cards appear (up to 12).
+- **Document Manager**: one compact summary card (total, this month, files, count per status),
+  Documents / Files, search with a document-type filter, **+ New Document**, and **Add External
+  Document** (PDF, images, Word/Excel/CSV, text, up to 25 MB, stored inside the database so
+  backups include them). Deleted items can be restored.
+- **Saved customers**: typing a name offers saved customers/vendors; one click fills the details.
+  (There is no separate customer management screen.)
+- **Round Off** as a Yes/No choice directly above Grand Total.
+- **Number of copies** (Settings → Documents): single, double, triple or 4 copies when printing or
+  saving a PDF, labelled Original for Recipient / Duplicate for Transporter / Triplicate for Supplier.
+- Small **?** help beside fields that need explaining (place of supply, HSN/SAC, reverse charge,
+  e-way bill, round off …).
 - **Status in the list**: click the pencil next to a status, pick a new one — saved immediately.
   Each type has its own statuses (e.g. Quotation: Draft → Sent → Accepted/Rejected).
 - **16 document types** with type-specific fields, required fields, numbering, statuses,
@@ -40,7 +48,10 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
   financial documents are never silently deleted), template switcher, history.
 - **Searchable selects** for states, units and currencies: first 10 options
   (recently used first), type to search long lists.
-- **Units**: 50+ product and service units (Nos, Kg, Box, Sq.ft, Hour, Visit, Lump sum …) plus your own.
+- **Units**: 50+ product and service units (Nos, Kg, Box, Sq.ft, Hour, Visit, Lump sum …) plus your own,
+  in a searchable list (service units first for services).
+- **GST** chosen from a searchable list (0, 0.25, 3, 5, 12, 18, 28, 40 % plus your own rates);
+  on products, HSN/SAC and GST share one row.
 - **Activation**: two choices — *Login Using Your Account* OR *I Have a License* — plus *Skip*.
   During the first 30 days a thin green line in the sidebar shows the days remaining. After that,
   a popup asks for an account login or a license (`AB12-CD34-EF56`). Licenses are Ed25519-signed
@@ -70,7 +81,7 @@ document-generator/
 │   │   ├── dashboard/            Dashboard (type cards, recent documents)
 │   │   ├── manager/              Document Manager (list, files, summary)
 │   │   ├── documents/            editor, viewer (print/PDF/cancel/history), actions
-│   │   ├── customers/ products/  saved parties, products & services
+│   │   ├── products/             products & services
 │   │   ├── license/              activation choices, 30-day line, activation popup, settings
 │   │   ├── help/                 Help & Support
 │   │   ├── ads/                  ad selection (adService.js) + sandboxed popup
@@ -214,7 +225,7 @@ npx tauri build --debug --no-bundle
 xvfb-run -a node e2e/run.mjs
 ```
 
-The e2e run (107 checks, 16 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
+The e2e run (132 checks, 16 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
 
 ## Security notes
 

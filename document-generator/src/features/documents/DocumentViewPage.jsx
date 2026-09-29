@@ -13,6 +13,7 @@ import { useToast } from '../../hooks/useUi.jsx';
 import { useShortcuts } from '../../hooks/useShortcuts.js';
 import { Link, useRouter } from '../../router/router.jsx';
 import PagePreview from '../../renderer/PagePreview.jsx';
+import { clampCopies } from '../../renderer/copies.js';
 import { isCancelled, useDocumentActions } from './useDocumentActions.js';
 
 function parseMeta(meta) {
@@ -344,7 +345,7 @@ export default function DocumentViewPage({ params, query }) {
               <Icon name="user" size={15} /> {doc.party_name}
             </button>
           )}
-          <PagePreview payload={payload} />
+          <PagePreview payload={payload} copies={clampCopies(settings.documentCopies)} />
         </div>
         {showHistory && <HistoryPanel doc={doc} history={history} onClose={() => setShowHistory(false)} />}
       </div>

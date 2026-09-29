@@ -12,14 +12,16 @@ export const SERVICE_UNITS = ['Service', 'Hour', 'Day', 'Week', 'Month', 'Year',
 
 export const DEFAULT_UNITS = [...PRODUCT_UNITS, ...SERVICE_UNITS];
 
-/** Grouped options for the unit selector. */
-export function unitOptions(custom = []) {
+/**
+ * Grouped options for the unit selector.
+ * @param {string[]} custom  units from settings (anything not built in is shown as "Your units")
+ * @param {'product'|'service'} [kind]  which group to list first
+ */
+export function unitOptions(custom = [], kind = 'product') {
   const extra = custom.filter((u) => u && !DEFAULT_UNITS.includes(u));
-  return [
-    ...(extra.length ? [{ group: 'Your units', options: extra }] : []),
-    { group: 'Products', options: PRODUCT_UNITS },
-    { group: 'Services', options: SERVICE_UNITS },
-  ];
+  const products = { group: 'Product units', options: PRODUCT_UNITS };
+  const services = { group: 'Service units', options: SERVICE_UNITS };
+  return [...(extra.length ? [{ group: 'Your units', options: extra }] : []), ...(kind === 'service' ? [services, products] : [products, services])];
 }
 
 export const isServiceUnit = (u) => SERVICE_UNITS.includes(u);

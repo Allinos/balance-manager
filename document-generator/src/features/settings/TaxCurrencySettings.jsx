@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import { Field, NumberInput, Segmented, Select, TextInput } from '../../components/Form.jsx';
 import { CURRENCY_PRESETS } from '../../config/defaults.js';
+import SearchSelect from '../../components/SearchSelect.jsx';
+import { isValidRate, rateValue, taxRateOptions } from '../../config/taxRates.js';
 import { DOCUMENT_TYPES } from '../../config/documentTypes.js';
 import { listSequences, previewNumber, saveSequence } from '../../services/settingsService.js';
 import { todayISO } from '../../utils/dates.js';
@@ -68,7 +70,13 @@ export function TaxSettings() {
             </div>
           </Field>
           <Field label="Default tax rate for new items">
-            <Select value={String(draft.defaultTaxRate)} onChange={(v) => set({ defaultTaxRate: v })} options={draft.taxRates.map((r) => ({ value: r, label: `${r}%` }))} />
+            <SearchSelect
+              value={rateValue(draft.defaultTaxRate)}
+              onChange={(v) => v !== '' && isValidRate(v) && set({ defaultTaxRate: v })}
+              options={taxRateOptions({ ...draft, taxSystem: draft.taxSystem }, draft.defaultTaxRate)}
+              creatable
+              testId="default-tax-rate"
+            />
           </Field>
         </>
       )}
@@ -285,7 +293,7 @@ export function NumberingSettings() {
         Numbers are assigned automatically when a document is first saved. &quot;Next&quot; is the number the next document will get.
       </p>
       <div className="inline-form">
-        <Field label="Financial year starts in">
+        <Field label="Financial year starts in" help="Numbering can restart every financial year (April in India), e.g. INV/2026-27/0001.">
           <Select value={String(draft.fiscalYearStartMonth)} onChange={(v) => set({ fiscalYearStartMonth: Number(v) })} options={months.map((m, i) => ({ value: String(i + 1), label: m }))} />
         </Field>
         {dirty && (

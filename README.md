@@ -6,7 +6,7 @@ small businesses, by [RainDeal.in](https://raindeal.in).
 | Part | Folder | Stack |
 |------|--------|-------|
 | Desktop app (Windows, macOS, Linux) | [`document-generator/`](document-generator/) | Tauri 2, React (JavaScript), SQLite |
-| License & configuration server | [`server/`](server/) | Node.js, Express 5, PostgreSQL / SQLite |
+| License & configuration server | [`server/`](server/) | Node.js, Express 5, MySQL 8 (SQLite for development) |
 | Client portal + admin panel | [`portal/`](portal/) | React, Vite |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,

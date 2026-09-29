@@ -28,8 +28,10 @@ export async function seedLoad(knex, { clients = 10000, batch = 500 } = {}) {
       };
     });
     await knex.transaction(async (trx) => {
-      const inserted = await trx('clients').insert(rows).returning('id');
-      const ids = inserted.map((r) => (typeof r === 'object' ? r.id : r));
+      await trx('clients').insert(rows);
+      // Look the ids up by e-mail (MySQL returns only the first id of a multi-row insert).
+      const byEmail = new Map((await trx('clients').whereIn('email', rows.map((r) => r.email)).select('id', 'email')).map((r) => [r.email, r.id]));
+      const ids = rows.map((r) => byEmail.get(r.email));
       const licenses = ids.map((clientId, i) => {
         const plan = plans[(offset + i) % plans.length];
         let code;
@@ -44,7 +46,9 @@ export async function seedLoad(knex, { clients = 10000, batch = 500 } = {}) {
           source: 'bulk', created_at: ts, updated_at: ts,
         };
       });
-      const licIds = (await trx('licenses').insert(licenses).returning('id')).map((r) => (typeof r === 'object' ? r.id : r));
+      await trx('licenses').insert(licenses);
+      const byCode = new Map((await trx('licenses').whereIn('code', licenses.map((l) => l.code)).select('id', 'code')).map((r) => [r.code, r.id]));
+      const licIds = licenses.map((l) => byCode.get(l.code));
       const devices = licIds
         .filter((_, i) => licenses[i].status === 'active')
         .map((licenseId) => ({ license_id: licenseId, device_id: `dg-load-${licenseId}`, device_name: 'Load PC', platform: 'windows', app_version: '1.1.0', activated_at: ts, last_seen_at: ts }));

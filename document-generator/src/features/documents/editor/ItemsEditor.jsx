@@ -1,7 +1,10 @@
 import Autocomplete from '../../../components/Autocomplete.jsx';
 import Icon from '../../../components/Icon.jsx';
 import SearchSelect from '../../../components/SearchSelect.jsx';
+import HelpTip from '../../../components/HelpTip.jsx';
 import { isServiceUnit, unitOptions } from '../../../config/units.js';
+import { isValidRate, rateValue, taxRateOptions } from '../../../config/taxRates.js';
+import { getType } from '../../../config/documentTypes.js';
 import { NumberInput } from '../../../components/Form.jsx';
 import { listProducts, saveProduct } from '../../../services/catalogService.js';
 import { blankItem } from '../../../services/documentService.js';
@@ -20,7 +23,8 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
   const showTax = showPrices && ds.showTax !== false && doc.tax_mode !== 'NONE';
   const purchase = ['PURCHASE_ORDER', 'GOODS_RECEIPT'].includes(doc.document_type);
   const lineByKey = Object.fromEntries(lines.map((l) => [l._key, l]));
-  const units = unitOptions(settings.units || []);
+  const units = unitOptions(settings.units || [], getType(doc.document_type).group === 'service' ? 'service' : 'product');
+  const rateOptions = taxRateOptions(settings, undefined);
 
   const update = (key, patch) => onChange(items.map((it) => (it._key === key ? { ...it, ...patch } : it)));
   const remove = (key) => {
@@ -76,7 +80,7 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
     showPrices && 'amount',
     'remove',
   ].filter(Boolean);
-  const WIDTHS = { item: 'minmax(180px, 3fr)', hsn: '88px', qty: '72px', unit: '92px', pkg: '130px', rate: '104px', disc: '104px', tax: '72px', amount: '112px', remove: '64px' };
+  const WIDTHS = { item: 'minmax(180px, 3fr)', hsn: '88px', qty: '72px', unit: '92px', pkg: '130px', rate: '104px', disc: '104px', tax: '96px', amount: '112px', remove: '64px' };
   const gridStyle = { gridTemplateColumns: cols.map((c) => WIDTHS[c]).join(' ') };
 
   return (
@@ -88,13 +92,18 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
       <div className="items-grid" role="table" aria-label="Items">
         <div className="items-head" role="row" style={gridStyle}>
           <span className="c-item">Product / Service</span>
-          {cols.includes('hsn') && <span>HSN/SAC</span>}
+          {cols.includes('hsn') && (
+            <span>
+              HSN/SAC
+              <HelpTip text="GST code of the item: HSN for goods (e.g. 9403), SAC for services (e.g. 998314). Printed on the invoice." />
+            </span>
+          )}
           <span className="num">Qty</span>
           <span>Unit</span>
           {cols.includes('pkg') && <span>Package</span>}
           {cols.includes('rate') && <span className="num">Rate</span>}
           {cols.includes('disc') && <span className="num">Discount</span>}
-          {cols.includes('tax') && <span className="num">{doc.tax_label || 'Tax'} %</span>}
+          {cols.includes('tax') && <span>{doc.tax_label || 'Tax'} %</span>}
           {cols.includes('amount') && <span className="num">Amount</span>}
           <span />
         </div>
@@ -169,12 +178,14 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
                 </div>
               )}
               {cols.includes('tax') && (
-                <input
-                  className="input num"
-                  list="tax-rate-list"
-                  value={it.tax_rate}
-                  onChange={(e) => /^\d*\.?\d*$/.test(e.target.value) && update(it._key, { tax_rate: e.target.value })}
-                  aria-label="Tax rate"
+                <SearchSelect
+                  className="ss-compact ss-num"
+                  value={rateValue(it.tax_rate)}
+                  onChange={(v) => v !== '' && isValidRate(v) && update(it._key, { tax_rate: v })}
+                  options={rateOptions}
+                  creatable
+                  ariaLabel="GST rate"
+                  testId={`item-tax-${index}`}
                 />
               )}
               {cols.includes('amount') && (
@@ -196,11 +207,6 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
           );
         })}
       </div>
-      <datalist id="tax-rate-list">
-        {(settings.taxRates || []).map((r) => (
-          <option key={r} value={r} />
-        ))}
-      </datalist>
       <button type="button" className="btn add-item" onClick={add} data-testid="add-item">
         <Icon name="plus" /> Add Item
       </button>

@@ -32,9 +32,13 @@ export default function Autocomplete({
   const focused = useRef(false);
   const listId = useId();
   const seq = useRef(0);
+  /** Value set by choosing an option: must not trigger a new search (that re-opened the list). */
+  const chosen = useRef(null);
 
   useEffect(() => {
     if (!focused.current) return undefined;
+    if (chosen.current !== null && value === chosen.current) return undefined;
+    chosen.current = null;
     const q = (value || '').trim();
     if (q.length < minChars) {
       setOptions([]);
@@ -58,8 +62,10 @@ export default function Autocomplete({
   }, [value, minChars]);
 
   const choose = (opt) => {
+    seq.current += 1; // ignore any search still in flight
     setOpen(false);
     setOptions([]);
+    chosen.current = opt?.name ?? null;
     onSelect(opt);
   };
 

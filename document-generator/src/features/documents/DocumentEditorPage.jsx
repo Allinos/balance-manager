@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.jsx';
 import { Field, NumberInput, Select, TextArea, TextInput } from '../../components/Form.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
+import HelpTip from '../../components/HelpTip.jsx';
 import { EXTRA_FIELDS, getType, PAYMENT_MODES, statusesFor, statusLabel, TYPE_MAP } from '../../config/documentTypes.js';
 import { STATE_NAMES, stateCode } from '../../config/states.js';
 import {
@@ -189,6 +190,7 @@ export default function DocumentEditorPage({ params, query }) {
   if (!model || !calc) return <Spinner />;
 
   const ds = calc.docSettings;
+  const roundMode = ['AUTO', 'MANUAL'].includes(doc.meta.roundOffMode) ? doc.meta.roundOffMode : 'NONE';
   const t = calc.totals;
   const isReceipt = type.layout === 'receipt';
   const showPrices = ds.showPrices !== false;
@@ -198,8 +200,8 @@ export default function DocumentEditorPage({ params, query }) {
   const taxModes =
     settings.taxSystem === 'GST'
       ? [
-          { value: 'INTRA', label: 'CGST + SGST (same state)' },
-          { value: 'INTER', label: 'IGST (other state)' },
+          { value: 'INTRA', label: 'CGST + SGST' },
+          { value: 'INTER', label: 'IGST' },
           { value: 'NONE', label: 'No tax' },
         ]
       : settings.taxSystem === 'VAT'
@@ -270,7 +272,7 @@ export default function DocumentEditorPage({ params, query }) {
               <h2>{type.label} details</h2>
             </div>
             <div className="grid-4">
-              <Field label={`${type.short} number`} hint={isNew && !doc.document_number ? 'Leave empty for automatic numbering' : ''}>
+              <Field label={`${type.short} number`} help="Leave empty to use the next number automatically (set the series in Settings → Numbering). Type a number only if you need a specific one.">
                 <TextInput value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} />
               </Field>
               <Field label={type.dateLabel} required>
@@ -291,16 +293,16 @@ export default function DocumentEditorPage({ params, query }) {
                   data-testid="doc-status"
                 />
               </Field>
-              <Field label="Reference" hint="PO / order / invoice no.">
+              <Field label="Reference" help="Any number you want printed for reference, e.g. the customer's purchase order or your job number.">
                 <TextInput value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
               </Field>
               {showPrices && !isReceipt && settings.taxSystem !== 'NONE' && ds.showTax !== false && (
-                <Field label="Tax">
+                <Field label="Tax" help="CGST + SGST for a sale within your own state, IGST for a sale to another state. Chosen automatically from Place of supply.">
                   <Select value={doc.tax_mode} onChange={(v) => setDoc({ tax_mode: v })} options={taxModes} />
                 </Field>
               )}
               {settings.taxSystem === 'GST' && !isReceipt && (
-                <Field label="Place of supply">
+                <Field label="Place of supply" help="The state where the goods are delivered or the service is received. It decides CGST + SGST (same state) or IGST (other state).">
                   <SearchSelect
                     value={doc.place_of_supply}
                     onChange={(v) => setDoc({ place_of_supply: v || '' })}
@@ -331,7 +333,7 @@ export default function DocumentEditorPage({ params, query }) {
                 </Field>
               )}
               {doc.currency !== settings.baseCurrency && (
-                <Field label={`Exchange rate (1 ${doc.currency} = ? ${settings.baseCurrency})`}>
+                <Field label={`Exchange rate (1 ${doc.currency} = ? ${settings.baseCurrency})`} help="How much one unit of this currency is worth in your base currency. Used for your records; the document shows amounts in the selected currency.">
                   <NumberInput value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
                 </Field>
               )}
@@ -368,7 +370,7 @@ export default function DocumentEditorPage({ params, query }) {
                     const required = type.required.includes(`meta.${k}`);
                     const value = doc.meta[k] ?? '';
                     return (
-                      <Field key={k} label={f.label} required={required}>
+                      <Field key={k} label={f.label} required={required} help={f.help}>
                         {f.type === 'date' ? (
                           <input className="input" type="date" value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
                         ) : f.type === 'yesno' ? (
@@ -416,29 +418,13 @@ export default function DocumentEditorPage({ params, query }) {
                   <NumberInput value={doc.shipping} onChange={(v) => setDoc({ shipping: v })} />
                 </Field>
                 <div className="grid-2 tight">
-                  <Field label="Other charges label">
+                  <Field label="Other charges label" help="Name for an extra charge or deduction added after tax, e.g. Packing, Loading or Advance received (use a minus amount).">
                     <TextInput value={doc.other_charges_label} onChange={(v) => setDoc({ other_charges_label: v })} />
                   </Field>
                   <Field label="Amount">
                     <NumberInput value={doc.other_charges} onChange={(v) => setDoc({ other_charges: v })} allowNegative />
                   </Field>
                 </div>
-                <Field label="Round off">
-                  <Select
-                    value={doc.meta.roundOffMode || 'NONE'}
-                    onChange={(v) => setMeta({ roundOffMode: v })}
-                    options={[
-                      { value: 'AUTO', label: 'Round to nearest whole amount' },
-                      { value: 'NONE', label: 'No rounding' },
-                      { value: 'MANUAL', label: 'Enter manually' },
-                    ]}
-                  />
-                </Field>
-                {doc.meta.roundOffMode === 'MANUAL' && (
-                  <Field label="Round off amount (+/−)">
-                    <NumberInput value={doc.round_off} onChange={(v) => setDoc({ round_off: v })} allowNegative />
-                  </Field>
-                )}
               </div>
               <div className="totals-box" data-testid="totals">
                 <div><span>Subtotal</span><span>{formatMoney(t.subtotal, doc)}</span></div>
@@ -453,7 +439,27 @@ export default function DocumentEditorPage({ params, query }) {
                 {doc.tax_mode === 'SIMPLE' && ds.showTax !== false && <div><span>{doc.tax_label}</span><span>{formatMoney(t.tax, doc)}</span></div>}
                 {!isZero(t.shipping) && <div><span>Shipping</span><span>{formatMoney(t.shipping, doc)}</span></div>}
                 {!isZero(t.other_charges) && <div><span>{doc.other_charges_label || 'Other charges'}</span><span>{formatMoney(t.other_charges, doc)}</span></div>}
-                {!isZero(t.round_off) && <div><span>Round off</span><span>{formatMoney(t.round_off, doc)}</span></div>}
+                <div className="roundoff-row" data-testid="round-off">
+                  <span className="roundoff-label">
+                    Round Off
+                    <HelpTip text="Rounds the Grand Total to the nearest whole amount (e.g. 1,180.40 → 1,180.00). The difference is shown here and printed on the document." />
+                  </span>
+                  <span className="radio-group" role="radiogroup" aria-label="Round off">
+                    <label className="radio">
+                      <input type="radio" name="round-off" checked={roundMode === 'NONE'} onChange={() => setMeta({ roundOffMode: 'NONE' })} data-testid="round-off-no" /> No
+                    </label>
+                    <label className="radio">
+                      <input type="radio" name="round-off" checked={roundMode === 'AUTO'} onChange={() => setMeta({ roundOffMode: 'AUTO' })} data-testid="round-off-yes" /> Yes
+                    </label>
+                    {roundMode === 'MANUAL' && (
+                      <label className="radio">
+                        <input type="radio" name="round-off" checked readOnly /> Manual
+                        <NumberInput className="roundoff-manual" value={doc.round_off} onChange={(v) => setDoc({ round_off: v })} allowNegative aria-label="Round off amount" />
+                      </label>
+                    )}
+                  </span>
+                  <span data-testid="round-off-amount">{isZero(t.round_off) ? '—' : formatMoney(t.round_off, doc)}</span>
+                </div>
                 <div className="grand"><span>Grand Total</span><span data-testid="grand-total">{formatMoney(t.grand_total, doc)}</span></div>
                 <p className="words-preview">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>
               </div>

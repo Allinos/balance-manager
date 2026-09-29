@@ -845,3 +845,11 @@
 .doc-tp-compact .tp-cell {
   min-height: 0;
 }
+.doc-copy-label {
+  align-self: flex-end;
+  font-size: 7.4pt;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  color: var(--doc-muted);
+  margin-bottom: -3mm;
+}

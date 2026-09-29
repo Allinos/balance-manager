@@ -2,7 +2,7 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { nowIso, parseJson } from '../db.js';
+import { insertOne, nowIso, parseJson, updateOne } from '../db.js';
 import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib/http.js';
 import { limits, requireClient } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, signSession, verifyPassword } from '../lib/security.js';
@@ -104,8 +104,7 @@ export function portalRoutes(knex) {
     const exists = await knex('clients').where({ email: body.email }).first('id');
     if (exists) throw new ApiError(409, 'EMAIL_TAKEN', 'An account with this email already exists. Please sign in.');
     const ts = nowIso();
-    const [client] = await knex('clients')
-      .insert({
+    const client = await insertOne(knex, 'clients', {
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -113,8 +112,7 @@ export function portalRoutes(knex) {
         created_at: ts,
         updated_at: ts,
         last_login_at: ts,
-      })
-      .returning('*');
+      });
     await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.register', entity: 'client', entityId: client.id, ip: clientIp(req) });
     res.status(201).json({ token: signSession('client', client), client: publicClient(client) });
   });
@@ -133,7 +131,7 @@ export function portalRoutes(knex) {
 
   r.put('/me', auth, async (req, res) => {
     const body = parse(businessSchema, req.body);
-    const [client] = await knex('clients').where({ id: req.client.id }).update({ ...body, updated_at: nowIso() }).returning('*');
+    const client = await updateOne(knex, 'clients', { id: req.client.id }, { ...body, updated_at: nowIso() });
     res.json({ client: publicClient(client) });
   });
 
@@ -142,10 +140,7 @@ export function portalRoutes(knex) {
     if (!(await verifyPassword(body.currentPassword, req.client.password_hash))) {
       throw new ApiError(400, 'WRONG_PASSWORD', 'Your current password is incorrect.');
     }
-    const [client] = await knex('clients')
-      .where({ id: req.client.id })
-      .update({ password_hash: await hashPassword(body.newPassword), token_version: req.client.token_version + 1, updated_at: nowIso() })
-      .returning('*');
+    const client = await updateOne(knex, 'clients', { id: req.client.id }, { password_hash: await hashPassword(body.newPassword), token_version: req.client.token_version + 1, updated_at: nowIso() });
     await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.password', entity: 'client', entityId: client.id, ip: clientIp(req) });
     res.json({ token: signSession('client', client) });
   });
@@ -213,8 +208,7 @@ export function portalRoutes(knex) {
       if (!owned) throw notFound('License');
     }
     const ts = nowIso();
-    const [payment] = await knex('payments')
-      .insert({
+    const payment = await insertOne(knex, 'payments', {
         client_id: req.client.id,
         plan_id: plan.id,
         renew_license_id: body.renewLicenseId ?? null,
@@ -225,13 +219,9 @@ export function portalRoutes(knex) {
         meta: '{}',
         created_at: ts,
         updated_at: ts,
-      })
-      .returning('*');
+      });
     const order = await provider.createOrder({ payment, plan, client: req.client });
-    const [updated] = await knex('payments')
-      .where({ id: payment.id })
-      .update({ provider_order_id: order.providerOrderId, status: 'pending', updated_at: nowIso() })
-      .returning('*');
+    const updated = await updateOne(knex, 'payments', { id: payment.id }, { provider_order_id: order.providerOrderId, status: 'pending', updated_at: nowIso() });
     await audit(knex, { actorType: 'client', actorId: req.client.id, action: 'payment.create', entity: 'payment', entityId: payment.id, details: { plan: plan.code, provider: provider.name }, ip: clientIp(req) });
     res.status(201).json({ payment: publicPayment({ ...updated, plan_name: plan.name }), checkout: order.checkout });
   });
@@ -248,7 +238,7 @@ export function portalRoutes(knex) {
     const result = await provider.verifyConfirmation({ payment, body: req.body || {} });
     if (!result.paid) {
       const status = result.meta?.outcome === 'failed' ? 'failed' : payment.status;
-      const [p] = await knex('payments').where({ id: payment.id }).update({ status, updated_at: nowIso() }).returning('*');
+      const p = await updateOne(knex, 'payments', { id: payment.id }, { status, updated_at: nowIso() });
       return res.status(202).json({ payment: publicPayment(p), license: null });
     }
     const { paid, license } = await markPaid(knex, payment, result.providerPaymentId, result.meta);
@@ -265,16 +255,13 @@ export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
     const fresh = await trx('payments').where({ id: payment.id }).first();
     let paid = fresh;
     if (fresh.status !== 'paid') {
-      [paid] = await trx('payments')
-        .where({ id: payment.id })
-        .update({
+      paid = await updateOne(trx, 'payments', { id: payment.id }, {
           status: 'paid',
           provider_payment_id: providerPaymentId || fresh.provider_payment_id,
           paid_at: nowIso(),
           meta: JSON.stringify({ ...parseJson(fresh.meta, {}), ...meta }),
           updated_at: nowIso(),
-        })
-        .returning('*');
+        });
     }
     const license = await fulfillPayment(trx, paid);
     return { paid: { ...paid, license_id: license.id }, license };

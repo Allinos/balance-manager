@@ -10,10 +10,11 @@ export default function Modal({ title, onClose, size = 'md', children, footer, c
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        onClose();
-      }
+      if (e.key !== 'Escape') return;
+      // An open dropdown, suggestion list, help tip or menu inside the dialog closes first.
+      if (panel.current?.querySelector('.ss.open, .autocomplete-list, .help-tip-pop, details.menu[open], .status-pop')) return;
+      e.stopPropagation();
+      onClose();
     };
     window.addEventListener('keydown', onKey, true);
     const previous = document.activeElement;

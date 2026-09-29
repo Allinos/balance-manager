@@ -14,7 +14,6 @@ const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', match: ['/dashboard'] },
   { to: '/manager', label: 'Document Manager', icon: 'documents', match: ['/manager', '/doc'] },
   { to: '/products', label: 'Products & Services', icon: 'box', match: ['/products'] },
-  { to: '/customers', label: 'Customers & Vendors', icon: 'users', match: ['/customers'] },
 ];
 const BOTTOM = [
   { to: '/help', label: 'Help & Support', icon: 'help', match: ['/help'] },

@@ -31,7 +31,7 @@ const { publicKeyB64 } = loadLicenseKeys();
 
 const server = createApp(knex).listen(config.port, () => {
   console.log(`DocGen server listening on http://localhost:${config.port}`);
-  console.log(`Database: ${config.databaseUrl ? 'PostgreSQL' : `SQLite (${config.sqliteFile})`}`);
+  console.log(`Database: ${config.databaseUrl ? 'MySQL' : `SQLite (${config.sqliteFile})`}`);
   console.log(`License public key (put in document-generator/src-tauri/remote-config.json → licensePublicKey): ${publicKeyB64}`);
 });
 

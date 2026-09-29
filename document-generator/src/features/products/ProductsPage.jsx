@@ -2,7 +2,10 @@ import { useCallback, useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import Modal from '../../components/Modal.jsx';
 import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
+import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, NumberInput, Segmented, Select, TextArea, TextInput } from '../../components/Form.jsx';
+import { SERVICE_UNITS, unitOptions } from '../../config/units.js';
+import { isValidRate, rateValue, taxRateOptions } from '../../config/taxRates.js';
 import {
   deleteCategory,
   deleteProduct,
@@ -67,7 +70,7 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
       <form onSubmit={submit} className="form">
         <Segmented
           value={p.type}
-          onChange={(type) => set({ type, unit: type === 'SERVICE' && p.unit === 'Nos' ? 'Job' : p.unit })}
+          onChange={(type) => set({ type, unit: type === 'SERVICE' && !SERVICE_UNITS.includes(p.unit) ? 'Service' : type === 'PRODUCT' && SERVICE_UNITS.includes(p.unit) ? 'Nos' : p.unit })}
           options={[
             { value: 'PRODUCT', label: 'Product' },
             { value: 'SERVICE', label: 'Service' },
@@ -81,59 +84,70 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
             <TextInput value={p.sku} onChange={(v) => set({ sku: v })} />
           </Field>
           <Field label="Category">
-            <Select
-              value={p.category_id ?? ''}
+            <SearchSelect
+              value={p.category_id ? String(p.category_id) : ''}
               onChange={(v) => set({ category_id: v })}
               options={[{ value: '', label: '— None —' }, ...categories.map((c) => ({ value: String(c.id), label: c.name }))]}
+              placeholder="— None —"
+              testId="product-category"
             />
           </Field>
-          <Field label={p.type === 'SERVICE' ? 'SAC code' : 'HSN code'}>
-            <TextInput value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v })} />
+          <Field label="Unit">
+            <SearchSelect
+              value={p.unit}
+              onChange={(v) => set({ unit: v || '' })}
+              options={unitOptions(settings.units || [], p.type === 'SERVICE' ? 'service' : 'product')}
+              creatable
+              recentKey="units"
+              placeholder="Choose unit"
+              testId="product-unit"
+            />
           </Field>
+          <Field
+            label={p.type === 'SERVICE' ? 'SAC code' : 'HSN code'}
+            help={
+              p.type === 'SERVICE'
+                ? 'Services Accounting Code for GST, usually 6 digits starting with 99 (e.g. 998314 for IT services). Printed on invoices.'
+                : 'Harmonized System of Nomenclature code for GST (4–8 digits, e.g. 9403 for furniture). Printed on invoices and in the HSN summary.'
+            }
+          >
+            <TextInput value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v.replace(/[^0-9]/g, '').slice(0, 8) })} inputMode="numeric" data-testid="product-hsn" />
+          </Field>
+          {settings.taxSystem !== 'NONE' ? (
+            <Field label={settings.taxSystem === 'GST' ? 'GST' : `${settings.taxLabel || 'Tax'} rate`}>
+              <SearchSelect
+                value={p.tax_type === 'EXEMPT' ? '0' : rateValue(p.tax_rate)}
+                onChange={(v) => v !== '' && isValidRate(v) && set({ tax_rate: v })}
+                options={taxRateOptions(settings, p.tax_rate)}
+                creatable
+                disabled={p.tax_type === 'EXEMPT'}
+                placeholder="Rate"
+                testId="product-gst"
+              />
+            </Field>
+          ) : (
+            <div />
+          )}
           <Field label="Description" className="span-2">
             <TextArea rows={2} value={p.description} onChange={(v) => set({ description: v })} />
-          </Field>
-          <Field label="Unit">
-            <TextInput value={p.unit} onChange={(v) => set({ unit: v })} list="product-units" />
           </Field>
           <Field label="Selling price">
             <NumberInput value={p.selling_price} onChange={(v) => set({ selling_price: v })} placeholder="0.00" data-testid="product-price" />
           </Field>
           {settings.taxSystem !== 'NONE' && (
-            <>
-              <Field label={`${settings.taxSystem === 'GST' ? 'GST' : settings.taxLabel || 'Tax'} rate %`}>
-                <input
-                  className="input num"
-                  list="product-tax-rates"
-                  value={p.tax_type === 'EXEMPT' ? '0' : p.tax_rate}
-                  disabled={p.tax_type === 'EXEMPT'}
-                  onChange={(e) => /^\d*\.?\d*$/.test(e.target.value) && set({ tax_rate: e.target.value })}
-                />
-              </Field>
-              <Field label="Tax type">
-                <Select
-                  value={p.tax_type}
-                  onChange={(v) => set({ tax_type: v })}
-                  options={[
-                    { value: 'EXCLUSIVE', label: 'Price excludes tax (tax added on top)' },
-                    { value: 'INCLUSIVE', label: 'Price includes tax' },
-                    { value: 'EXEMPT', label: 'Exempt / nil rated' },
-                  ]}
-                />
-              </Field>
-            </>
+            <Field label="Price is" help="Exclusive: tax is added on top of this price. Inclusive: this price already contains the tax. Exempt: no tax is charged.">
+              <Select
+                value={p.tax_type}
+                onChange={(v) => set({ tax_type: v })}
+                options={[
+                  { value: 'EXCLUSIVE', label: 'Excluding tax' },
+                  { value: 'INCLUSIVE', label: 'Including tax' },
+                  { value: 'EXEMPT', label: 'Exempt / nil rated' },
+                ]}
+              />
+            </Field>
           )}
         </div>
-        <datalist id="product-units">
-          {(settings.units || []).map((u) => (
-            <option key={u} value={u} />
-          ))}
-        </datalist>
-        <datalist id="product-tax-rates">
-          {(settings.taxRates || []).map((r) => (
-            <option key={r} value={r} />
-          ))}
-        </datalist>
 
         {more ? (
           <div className="grid-2">

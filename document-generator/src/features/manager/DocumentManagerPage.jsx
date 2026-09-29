@@ -8,8 +8,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import StatusEditor from '../../components/StatusEditor.jsx';
+import SearchSelect from '../../components/SearchSelect.jsx';
+import { NewDocumentModal } from '../../layouts/AppLayout.jsx';
 import { EmptyState, Menu, StatusBadge } from '../../components/Common.jsx';
-import { STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '../../config/documentTypes.js';
+import { DOCUMENT_TYPES, STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '../../config/documentTypes.js';
 import { pricesVisible } from '../../config/defaults.js';
 import { dashboardStats, listDocuments } from '../../services/documentService.js';
 import { FILE_ICONS, deleteFiles, exportFile, formatSize, importFiles, listFiles, openFile, purgeFiles, restoreFiles, updateFile } from '../../services/filesService.js';
@@ -34,6 +36,8 @@ export default function DocumentManagerPage({ query }) {
   const [tab, setTab] = useState(query.tab === 'files' ? 'files' : 'documents');
   const [search, setSearch] = useState(query.q || '');
   const [deleted, setDeleted] = useState(false);
+  const [typeFilter, setTypeFilter] = useState(query.type || '');
+  const [chooser, setChooser] = useState(false);
   const [docs, setDocs] = useState({ rows: [], total: 0 });
   const [files, setFiles] = useState({ rows: [], total: 0 });
   const [fileTotal, setFileTotal] = useState(0);
@@ -45,8 +49,8 @@ export default function DocumentManagerPage({ query }) {
   useShortcuts({ 'mod+f': () => searchRef.current?.focus() });
 
   const docFilter = useCallback(
-    (offset = 0) => ({ search: debounced, searchTypes: typesMatching(debounced), deleted, limit: PAGE, offset }),
-    [debounced, deleted],
+    (offset = 0) => ({ search: debounced, searchTypes: typesMatching(debounced), types: typeFilter ? [typeFilter] : [], deleted, limit: PAGE, offset }),
+    [debounced, deleted, typeFilter],
   );
   const fileFilter = useCallback((offset = 0) => ({ search: debounced, deleted, limit: PAGE, offset }), [debounced, deleted]);
 
@@ -133,14 +137,8 @@ export default function DocumentManagerPage({ query }) {
   };
 
   const statusCounts = Object.fromEntries((stats?.byStatus || []).map((r) => [r.status, Number(r.count)]));
-  const summary = stats
-    ? [
-        ['Total', stats.total],
-        ['This Month', stats.thisMonth],
-        ['Files', fileTotal],
-        ...SUMMARY_STATUSES.filter((s) => statusCounts[s]).map((s) => [STATUS_LABELS[s], statusCounts[s]]),
-      ]
-    : [];
+  const n = (v) => Number(v || 0).toLocaleString('en-IN');
+  const statusItems = SUMMARY_STATUSES.filter((st) => statusCounts[st]);
 
   return (
     <div className="page">
@@ -149,21 +147,57 @@ export default function DocumentManagerPage({ query }) {
           <h1>Document Manager</h1>
         </div>
         <div className="page-actions">
-          <button className="btn btn-primary" onClick={upload} data-testid="add-external">
+          <button className="btn" onClick={upload} data-testid="add-external">
             <Icon name="upload" size={16} /> Add External Document
+          </button>
+          <button className="btn btn-primary" onClick={() => setChooser(true)} data-testid="new-document">
+            <Icon name="plus" size={16} /> New Document
           </button>
         </div>
       </div>
 
       {stats && (
-        <div className="summary-line" data-testid="summary-line">
-          {summary.map(([label, value]) => (
-            <span key={label}>
-              {label}: <strong>{Number(value).toLocaleString('en-IN')}</strong>
+        <div className="summary-card" data-testid="summary-line">
+          <div className="summary-metric">
+            <span className="summary-icon">
+              <Icon name="documents" size={16} />
             </span>
-          ))}
+            <span>
+              <strong>{n(stats.total)}</strong>
+              <small>Total</small>
+            </span>
+          </div>
+          <div className="summary-metric">
+            <span className="summary-icon tone-blue">
+              <Icon name="calendar" size={16} />
+            </span>
+            <span>
+              <strong>{n(stats.thisMonth)}</strong>
+              <small>This Month</small>
+            </span>
+          </div>
+          <div className="summary-metric">
+            <span className="summary-icon tone-amber">
+              <Icon name="paperclip" size={16} />
+            </span>
+            <span>
+              <strong>{n(fileTotal)}</strong>
+              <small>Files</small>
+            </span>
+          </div>
+          {statusItems.length > 0 && (
+            <div className="summary-statuses">
+              {statusItems.map((st) => (
+                <span key={st} className={`summary-status status-${st.toLowerCase()}`}>
+                  <i aria-hidden="true" />
+                  {STATUS_LABELS[st]} <strong>{n(statusCounts[st])}</strong>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
+
 
       <div className="manager-toolbar">
         <div className="segmented" role="tablist">
@@ -190,6 +224,18 @@ export default function DocumentManagerPage({ query }) {
             </button>
           )}
         </div>
+        {tab === 'documents' && (
+          <SearchSelect
+            className="type-filter"
+            value={typeFilter}
+            onChange={(v) => setTypeFilter(v || '')}
+            options={[{ value: '', label: 'All types' }, ...DOCUMENT_TYPES.map((t) => ({ value: t.id, label: t.label }))]}
+            placeholder="All types"
+            ariaLabel="Filter by document type"
+            clearable
+            testId="type-filter"
+          />
+        )}
         <button className={`btn btn-ghost btn-sm ${deleted ? 'active' : ''}`} onClick={() => setDeleted((d) => !d)} data-testid="show-deleted">
           <Icon name={deleted ? 'back' : 'trash'} size={14} /> {deleted ? 'Back' : 'Deleted'}
         </button>
@@ -199,9 +245,9 @@ export default function DocumentManagerPage({ query }) {
         {tab === 'documents' ? (
           docs.rows.length === 0 ? (
             <EmptyState
-              icon={search ? 'search' : 'documents'}
-              title={loading ? 'Loading…' : search ? 'No matching documents' : deleted ? 'Nothing deleted' : 'No documents yet'}
-              message={search ? 'Try a different search.' : deleted ? '' : 'Create documents from the Dashboard.'}
+              icon={search || typeFilter ? 'search' : 'documents'}
+              title={loading ? 'Loading…' : search || typeFilter ? 'No matching documents' : deleted ? 'Nothing deleted' : 'No documents yet'}
+              message={search || typeFilter ? 'Try a different search or type.' : deleted ? '' : 'Click “New Document” to create one.'}
             />
           ) : (
             <table className="table" data-testid="documents-table">
@@ -367,6 +413,7 @@ export default function DocumentManagerPage({ query }) {
           </div>
         )}
       </div>
+      {chooser && <NewDocumentModal onClose={() => setChooser(false)} />}
     </div>
   );
 }

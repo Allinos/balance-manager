@@ -11,7 +11,7 @@ Backend for the DocGen desktop app, the client portal and the admin panel.
   suspend), plans, payments (mark paid), ads, app configuration, audit log, statistics.
 - Serves the React **portal/admin** (`../portal/dist`) from the same origin.
 
-Stack: Node.js 20+, Express 5, Knex (PostgreSQL in production, SQLite for development),
+Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
 bcrypt, JWT sessions, zod validation, rate limits, helmet.
 
 ## Quick start (development)
@@ -35,7 +35,7 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
 |----------|---------|---------|
 | `PORT` | `8787` | HTTP port |
 | `NODE_ENV` | — | `production` enables strict checks (JWT secret required, mock payments off, HTTPS URLs only) |
-| `DATABASE_URL` | — | `postgres://user:pass@host:5432/docgen` (recommended in production) |
+| `DATABASE_URL` | — | `mysql://user:pass@host:3306/docgen` — MySQL 8 (recommended in production) |
 | `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty |
 | `DATA_DIR` | `./data` | keys, uploads (ad images), SQLite file |
 | `JWT_SECRET` | — | long random string for portal/admin sessions (**required in production**) |
@@ -51,7 +51,10 @@ More admins: `npm run create-admin -- other@example.com 'long password' admin` (
 
 ## Production deployment
 
-1. PostgreSQL database; set `DATABASE_URL`, `JWT_SECRET` (`openssl rand -base64 48`),
+1. MySQL 8 database (utf8mb4):
+   `CREATE DATABASE docgen CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;`
+   `CREATE USER 'docgen'@'%' IDENTIFIED BY '…'; GRANT ALL ON docgen.* TO 'docgen'@'%';`
+   Then set `DATABASE_URL=mysql://docgen:…@host:3306/docgen`, `JWT_SECRET` (`openssl rand -base64 48`),
    `NODE_ENV=production`, `TRUST_PROXY=true`, `PORTAL_URL=https://docgen.example.com`.
 2. `npm ci --omit=dev && (cd ../portal && npm ci && npm run build)`.
 3. `npm run migrate` (also runs automatically at start), then `npm start` under a process
@@ -61,7 +64,8 @@ More admins: `npm run create-admin -- other@example.com 'long password' admin` (
 6. In `document-generator/src-tauri/remote-config.json` set `serverUrl`, `portalUrl`,
    `licensePublicKey`, then build the desktop installers.
 
-Everything scales horizontally except the SQLite mode: use PostgreSQL for more than one instance.
+Everything scales horizontally except the SQLite mode: use MySQL for more than one instance.
+Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does not matter.
 
 ## How licensing works
 
@@ -124,7 +128,7 @@ Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists ar
 ## Tests
 
 ```bash
-npm test                     # API tests (SQLite); TEST_DATABASE_URL=postgres://… runs them on PostgreSQL
+npm test                     # API tests (SQLite); TEST_DATABASE_URL=mysql://… runs them on MySQL
 npm run loadtest             # seeds 10,000 clients + licenses, measures key endpoints (LOAD_CLIENTS=…)
 npm run seed:load -- 10000   # seed an existing (test!) database
 ```

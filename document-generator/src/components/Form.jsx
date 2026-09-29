@@ -1,14 +1,17 @@
 /** Small form primitives with consistent styling. */
 
 import { isValidDecimal } from '../utils/decimal.js';
+import HelpTip from './HelpTip.jsx';
 
-export function Field({ label, hint, children, className = '', required = false }) {
+/** @param {{label?: string, hint?: string, help?: string, required?: boolean, className?: string, children: any}} props  `help` adds a small "?" with an explanation. */
+export function Field({ label, hint, help, children, className = '', required = false }) {
   return (
     <label className={`field ${className}`}>
       {label && (
         <span className="field-label">
           {label}
           {required && <span className="req"> *</span>}
+          {help && <HelpTip text={help} label={`About ${label}`} />}
         </span>
       )}
       {children}

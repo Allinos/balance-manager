@@ -114,7 +114,7 @@ export default function CompanySettings() {
         <Field label="GSTIN">
           <TextInput value={c.gstin} onChange={(v) => set({ gstin: v.toUpperCase() })} />
         </Field>
-        <Field label="PAN">
+        <Field label="PAN" help="Your 10-character Permanent Account Number. Printed as “Company's PAN” on GST invoices.">
           <TextInput value={c.pan} onChange={(v) => set({ pan: v.toUpperCase() })} />
         </Field>
         <Field label="VAT number">
@@ -138,7 +138,7 @@ export default function CompanySettings() {
         <Field label="Account number">
           <TextInput value={c.account_number} onChange={(v) => set({ account_number: v })} />
         </Field>
-        <Field label="IFSC">
+        <Field label="IFSC" help="11-character bank branch code, printed with your bank details so customers can pay by NEFT/RTGS.">
           <TextInput value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} />
         </Field>
         <Field label="Branch">

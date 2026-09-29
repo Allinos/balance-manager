@@ -3,7 +3,7 @@
  *
  *   PORT                    HTTP port (default 8787)
  *   NODE_ENV                'production' enables strict checks
- *   DATABASE_URL            postgres://user:pass@host:5432/db  (PostgreSQL, recommended in production)
+ *   DATABASE_URL            mysql://user:pass@host:3306/docgen  (MySQL 8, recommended in production)
  *   SQLITE_FILE             SQLite file used when DATABASE_URL is not set (default ./data/docgen.sqlite)
  *   JWT_SECRET              secret for portal/admin sessions (required in production)
  *   LICENSE_PRIVATE_KEY     Ed25519 private key (PEM) used to sign desktop license tokens

@@ -12,6 +12,7 @@ import { qrDataUrl, upiLink } from '../utils/qr.js';
 import { formatMoney } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import TallyProDocument from './TallyProDocument.jsx';
+import { copyLabel } from './copies.js';
 import {
   AmountInWords,
   BankDetails,
@@ -69,7 +70,11 @@ function qrFor(payload) {
 /**
  * @param {{payload: Object}} props
  */
-export default function DocumentRenderer({ payload }) {
+/**
+ * @param {{payload: Object, copyIndex?: number, copies?: number}} props
+ *   copyIndex / copies: which copy this is when several are printed (labels such as "DUPLICATE FOR TRANSPORTER").
+ */
+export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1 }) {
   const { company = {}, document: doc, items = [], taxes = [], settings, parent } = payload;
   const ds = settings.doc;
   const type = getType(doc.document_type);
@@ -88,11 +93,13 @@ export default function DocumentRenderer({ payload }) {
   const hasBank = ['bank_name', 'account_number', 'ifsc', 'iban', 'upi_id'].some((k) => company[k]);
   const bank = ds.showBank !== false && showPrices && hasBank;
 
-  if (template === 'tally-pro' && !isReceipt) return <TallyProDocument payload={payload} type={type} qr={qr} />;
+  const copy = copyLabel(type, copyIndex, copies);
+  if (template === 'tally-pro' && !isReceipt) return <TallyProDocument payload={payload} type={type} qr={qr} copy={copy} />;
 
   return (
     <article className={`doc doc-${template}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
       <CancelledMark doc={doc} />
+      {copy && <div className="doc-copy-label">{copy}</div>}
       <DocumentHeader company={company} title={ds.title || type.title} doc={doc} />
 
       <section className="doc-parties">

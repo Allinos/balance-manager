@@ -11,8 +11,14 @@ const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCo
  * Customer / vendor details. The name field searches saved parties; picking one
  * fills everything in. Parties are optional — details can simply be typed.
  */
-export default function PartyFields({ doc, type, onChange, saveParty, onSaveParty, taxSystem }) {
+export default function PartyFields({ doc, type, onChange: change, saveParty, onSaveParty, taxSystem }) {
   const [shipOpen, setShipOpen] = useState(!!doc.shipping_address);
+  // A picked saved customer needs no "save" prompt until its details are edited.
+  const [edited, setEdited] = useState(false);
+  const onChange = (patch) => {
+    if (doc.party_id) setEdited(true);
+    change(patch);
+  };
   const noun = type.partyKind === 'vendor' ? 'vendor' : 'customer';
 
   /** GSTIN: upper-case, and fill the state from its first two digits. */
@@ -22,8 +28,10 @@ export default function PartyFields({ doc, type, onChange, saveParty, onSavePart
     return state && !doc.party_state ? { party_gstin: gstin, party_state: state, place_of_supply: state } : { party_gstin: gstin };
   };
 
-  const pick = (p) =>
-    onChange({
+  const pick = (p) => {
+    setEdited(false);
+    onSaveParty(false);
+    change({
       party_id: p.id,
       party_name: p.name,
       party_company: p.company_name,
@@ -36,6 +44,7 @@ export default function PartyFields({ doc, type, onChange, saveParty, onSavePart
       shipping_address: p.shipping_address || '',
       place_of_supply: p.state || doc.place_of_supply,
     });
+  };
 
   return (
     <section className="card editor-section">
@@ -74,6 +83,7 @@ export default function PartyFields({ doc, type, onChange, saveParty, onSavePart
         </Field>
         <Field
           label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}
+          help={taxSystem === 'GST' ? "The customer's 15-character GST number. Leave empty for unregistered customers. Their state is filled in from it." : undefined}
           hint={taxSystem === 'GST' && doc.party_gstin && !isValidGstin(doc.party_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : ''}
         >
           <TextInput
@@ -109,10 +119,12 @@ export default function PartyFields({ doc, type, onChange, saveParty, onSavePart
         </div>
       )}
 
-      <label className="check mt">
-        <input type="checkbox" checked={saveParty} onChange={(e) => onSaveParty(e.target.checked)} />
-        <span>{doc.party_id ? `Update the saved ${noun} with these details` : `Save this ${noun} for next time`}</span>
-      </label>
+      {(!doc.party_id || edited) && (
+        <label className="check mt">
+          <input type="checkbox" checked={saveParty} onChange={(e) => onSaveParty(e.target.checked)} data-testid="save-party" />
+          <span>{doc.party_id ? `Update the saved ${noun} with these details` : `Save this ${noun} for next time`}</span>
+        </label>
+      )}
     </section>
   );
 }

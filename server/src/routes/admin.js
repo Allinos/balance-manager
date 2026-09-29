@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
-import { nowIso, parseJson, whereContains } from '../db.js';
+import { insertOne, nowIso, parseJson, updateOne, whereContains } from '../db.js';
 import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib/http.js';
 import { limits, requireAdmin } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, normaliseCode, signSession, verifyPassword } from '../lib/security.js';
@@ -191,9 +191,7 @@ export function adminRoutes(knex) {
     const tempPassword = body.password || crypto.randomBytes(6).toString('base64url');
     const ts = nowIso();
     const { password: _omit, ...fields } = body;
-    const [client] = await knex('clients')
-      .insert({ ...fields, password_hash: await hashPassword(tempPassword), source: 'admin', created_at: ts, updated_at: ts })
-      .returning('*');
+    const client = await insertOne(knex, 'clients', { ...fields, password_hash: await hashPassword(tempPassword), source: 'admin', created_at: ts, updated_at: ts });
     await log(req, 'client.create', 'client', client.id);
     res.status(201).json({ client: publicClient(client), temporaryPassword: body.password ? undefined : tempPassword });
   });
@@ -218,7 +216,7 @@ export function adminRoutes(knex) {
 
   r.put('/clients/:id', auth, async (req, res) => {
     const body = parse(businessSchema.extend({ status: z.enum(['active', 'suspended']).optional(), email: z.string().trim().toLowerCase().email().optional() }), req.body);
-    const [client] = await knex('clients').where({ id: Number(req.params.id) }).update({ ...body, updated_at: nowIso() }).returning('*');
+    const client = await updateOne(knex, 'clients', { id: Number(req.params.id) }, { ...body, updated_at: nowIso() });
     if (!client) throw notFound('Client');
     await log(req, 'client.update', 'client', client.id, body);
     res.json({ client: publicClient(client) });
@@ -409,14 +407,14 @@ export function adminRoutes(knex) {
   r.post('/plans', ownerOnly, async (req, res) => {
     const body = parse(planSchema, req.body);
     const ts = nowIso();
-    const [plan] = await knex('plans').insert({ ...planRow(body), created_at: ts, updated_at: ts }).returning('*');
+    const plan = await insertOne(knex, 'plans', { ...planRow(body), created_at: ts, updated_at: ts });
     await log(req, 'plan.create', 'plan', plan.id, { code: plan.code });
     res.status(201).json({ plan: publicPlan(plan) });
   });
 
   r.put('/plans/:id', ownerOnly, async (req, res) => {
     const body = parse(planSchema, req.body);
-    const [plan] = await knex('plans').where({ id: Number(req.params.id) }).update({ ...planRow(body), updated_at: nowIso() }).returning('*');
+    const plan = await updateOne(knex, 'plans', { id: Number(req.params.id) }, { ...planRow(body), updated_at: nowIso() });
     if (!plan) throw notFound('Plan');
     await log(req, 'plan.update', 'plan', plan.id, { code: plan.code });
     res.json({ plan: publicPlan(plan) });
@@ -475,7 +473,7 @@ export function adminRoutes(knex) {
   r.post('/ads', auth, async (req, res) => {
     const body = parse(adSchema, req.body);
     const ts = nowIso();
-    const [ad] = await knex('ads').insert({ ...adRow(body), created_at: ts, updated_at: ts }).returning('*');
+    const ad = await insertOne(knex, 'ads', { ...adRow(body), created_at: ts, updated_at: ts });
     await log(req, 'ad.create', 'ad', ad.id, { title: ad.title });
     res.status(201).json({ ad: publicAd(ad) });
   });
@@ -484,10 +482,7 @@ export function adminRoutes(knex) {
     const body = parse(adSchema, req.body);
     const current = await knex('ads').where({ id: Number(req.params.id) }).first();
     if (!current) throw notFound('Ad');
-    const [ad] = await knex('ads')
-      .where({ id: current.id })
-      .update({ ...adRow(body), version: current.version + 1, updated_at: nowIso() })
-      .returning('*');
+    const ad = await updateOne(knex, 'ads', { id: current.id }, { ...adRow(body), version: current.version + 1, updated_at: nowIso() });
     await log(req, 'ad.update', 'ad', ad.id, { title: ad.title });
     res.json({ ad: publicAd(ad) });
   });
@@ -535,9 +530,8 @@ export function adminRoutes(knex) {
       z.object({ email: z.string().trim().toLowerCase().email(), name: z.string().trim().min(2).max(120), password: z.string().min(10).max(200), role: z.enum(['owner', 'admin', 'support']).default('admin') }),
       req.body,
     );
-    const [admin] = await knex('admins')
-      .insert({ email: body.email, name: body.name, role: body.role, password_hash: await hashPassword(body.password), created_at: nowIso() })
-      .returning(['id', 'email', 'name', 'role']);
+    const row = await insertOne(knex, 'admins', { email: body.email, name: body.name, role: body.role, password_hash: await hashPassword(body.password), created_at: nowIso() });
+    const admin = { id: row.id, email: row.email, name: row.name, role: row.role };
     await log(req, 'admin.create', 'admin', admin.id, { email: admin.email, role: admin.role });
     res.status(201).json({ admin });
   });

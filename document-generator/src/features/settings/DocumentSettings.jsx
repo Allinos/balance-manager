@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Field, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
+import { Field, Segmented, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { DOCUMENT_TYPES, TEMPLATES, getType } from '../../config/documentTypes.js';
 import { DOC_SETTING_FIELDS, resolveDocSettings } from '../../config/defaults.js';
 import { saveDocSettings } from '../../services/settingsService.js';
@@ -48,7 +48,7 @@ export default function DocumentSettings() {
   const { draft, set, dirty, save } = useSettingsDraft([
     'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showAmountInWords',
     'showSignature', 'showStamp', 'autoRoundOff', 'defaultPaymentTerms', 'qrContent', 'qrCustomText',
-    'footerText', 'dateFormat', 'declaration', 'jurisdiction',
+    'footerText', 'dateFormat', 'declaration', 'jurisdiction', 'documentCopies',
   ]);
   const overrides = useMemo(() => ({ ...draft }), [draft]);
 
@@ -73,6 +73,21 @@ export default function DocumentSettings() {
               </button>
             ))}
           </div>
+        </Field>
+        <Field
+          label="Number of copies"
+          help="How many copies are printed or saved to PDF. GST invoices are labelled Original for Recipient, Duplicate for Transporter and Triplicate for Supplier."
+        >
+          <Segmented
+            value={String(draft.documentCopies || 1)}
+            onChange={(v) => set({ documentCopies: Number(v) })}
+            options={[
+              { value: '1', label: 'Single Copy' },
+              { value: '2', label: 'Double Copy' },
+              { value: '3', label: 'Triple Copy' },
+              { value: '4', label: '4 Copies' },
+            ]}
+          />
         </Field>
         <Field label="Accent colour">
           <div className="swatches">
@@ -105,7 +120,7 @@ export default function DocumentSettings() {
           />
         </div>
 
-        <Field label="QR code content" hint="Turn the QR code on per document type under Document Types">
+        <Field label="QR code content" help="What the QR code on the document contains. Turn the QR code on per document type under Document Types.">
           <Select
             value={draft.qrContent}
             onChange={(v) => set({ qrContent: v })}
@@ -125,10 +140,10 @@ export default function DocumentSettings() {
         <Field label="Default payment terms (invoices)">
           <TextArea rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
         </Field>
-        <Field label="Declaration (tax invoices)" hint="Printed at the bottom of invoices, as in Tally">
+        <Field label="Declaration (tax invoices)" help="Standard statement printed at the bottom of tax invoices, as in Tally.">
           <TextArea rows={2} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
         </Field>
-        <Field label="Jurisdiction" hint='e.g. "Mumbai" prints "SUBJECT TO MUMBAI JURISDICTION"'>
+        <Field label="Jurisdiction" help='The city whose courts handle disputes. "Mumbai" prints "SUBJECT TO MUMBAI JURISDICTION" at the bottom.'>
           <TextInput value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
         </Field>
         <Field label="Footer text">

@@ -48,6 +48,8 @@ export const DEFAULT_SETTINGS = {
   dateFormat: 'DD-MM-YYYY',
   fiscalYearStartMonth: 4,
   visibleDocTypes: DEFAULT_VISIBLE_TYPES,
+  dashboardTypes: [], // empty = the business type's first 8 document types
+  documentCopies: 1, // 1–4 copies when printing / downloading
   units: DEFAULT_UNITS,
   qrContent: 'UPI', // 'UPI' | 'DOCUMENT' | 'CONTACT' | 'CUSTOM'
   qrCustomText: '',

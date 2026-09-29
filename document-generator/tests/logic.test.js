@@ -112,3 +112,26 @@ test('unit options put custom units first', () => {
   assert.deepEqual(groups[0].options, ['Crate']);
   assert.ok(groups.some((g) => g.options.includes('Hour')));
 });
+
+test('copy labels follow GST Rule 48', async () => {
+  const { copyLabel, clampCopies } = await import('../src/renderer/copies.js');
+  const inv = { id: 'TAX_INVOICE', group: 'sales' };
+  const svc = { id: 'SERVICE_INVOICE', group: 'service' };
+  assert.deepEqual([0, 1, 2, 3].map((i) => copyLabel(inv, i, 4)), ['ORIGINAL FOR RECIPIENT', 'DUPLICATE FOR TRANSPORTER', 'TRIPLICATE FOR SUPPLIER', 'EXTRA COPY']);
+  assert.equal(copyLabel(svc, 1, 2), 'DUPLICATE FOR SUPPLIER');
+  assert.equal(copyLabel({ id: 'QUOTATION' }, 0, 1), '', 'single copy of a non-GST document has no label');
+  assert.equal(copyLabel({ id: 'QUOTATION' }, 1, 2), 'DUPLICATE');
+  assert.equal(clampCopies('9'), 4);
+  assert.equal(clampCopies(undefined), 1);
+});
+
+test('GST rate options and units by kind', async () => {
+  const { taxRateOptions, isValidRate, rateValue } = await import('../src/config/taxRates.js');
+  const opts = taxRateOptions({ taxSystem: 'GST', taxRates: ['18', '7.5'] }, '18.00');
+  assert.deepEqual(opts.map((o) => o.value), ['0', '0.25', '3', '5', '7.5', '12', '18', '28', '40']);
+  assert.equal(rateValue('18.00'), '18');
+  assert.ok(isValidRate('0.25') && !isValidRate('abc') && !isValidRate('101'));
+  const svc = unitOptions([], 'service');
+  assert.equal(svc[0].group, 'Service units');
+  assert.equal(unitOptions([], 'product')[0].group, 'Product units');
+});

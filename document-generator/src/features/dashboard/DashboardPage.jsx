@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
+import Modal from '../../components/Modal.jsx';
 import { EmptyState, PageHeader, Spinner, StatusBadge } from '../../components/Common.jsx';
 import { BUSINESS_TYPES, DOCUMENT_TYPES, getType } from '../../config/documentTypes.js';
 import { pricesVisible } from '../../config/defaults.js';
@@ -29,6 +30,53 @@ const PLURAL = {
   WORK_ORDER: 'Work Orders',
   JOB_COMPLETION: 'Job Completions',
 };
+
+const MAX_CARDS = 12; // two rows of up to six
+const DEFAULT_CARDS = 8; // two rows of four
+
+/** Document types shown on the Dashboard (Customize), in registry order. */
+export function dashboardTypes(settings) {
+  const known = new Set(DOCUMENT_TYPES.map((t) => t.id));
+  const chosen = (settings.dashboardTypes || []).filter((id) => known.has(id));
+  if (chosen.length) return DOCUMENT_TYPES.filter((t) => chosen.includes(t.id));
+  const business = BUSINESS_TYPES.find((b) => b.id === settings.businessType) || BUSINESS_TYPES[0];
+  const preferred = settings.visibleDocTypes?.length ? settings.visibleDocTypes : business.types;
+  return DOCUMENT_TYPES.filter((t) => preferred.includes(t.id)).slice(0, DEFAULT_CARDS);
+}
+
+function CustomizeModal({ selected, onClose, onSave }) {
+  const [ids, setIds] = useState(selected);
+  const toggle = (id) => setIds((x) => (x.includes(id) ? x.filter((i) => i !== id) : x.length >= MAX_CARDS ? x : [...x, id]));
+  return (
+    <Modal
+      title="Customize Dashboard"
+      onClose={onClose}
+      size="sm"
+      footer={
+        <>
+          <span className="muted small">
+            {ids.length} of {MAX_CARDS} cards
+          </span>
+          <button className="btn btn-primary" disabled={ids.length < 2} onClick={() => onSave(DOCUMENT_TYPES.map((t) => t.id).filter((id) => ids.includes(id)))} data-testid="customize-save">
+            Save
+          </button>
+        </>
+      }
+    >
+      <ul className="customize-list">
+        {DOCUMENT_TYPES.map((t) => (
+          <li key={t.id}>
+            <label className="customize-item">
+              <input type="checkbox" checked={ids.includes(t.id)} onChange={() => toggle(t.id)} disabled={!ids.includes(t.id) && ids.length >= MAX_CARDS} data-testid={`customize-${t.id}`} />
+              <Icon name={t.icon} size={16} />
+              <span>{PLURAL[t.id] || t.label}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </Modal>
+  );
+}
 
 /** Last 10 documents: number, type, party, amount, date, status. */
 function RecentDocuments({ rows }) {
@@ -62,10 +110,11 @@ function RecentDocuments({ rows }) {
 }
 
 export default function DashboardPage() {
-  const { settings } = useAppData();
+  const { settings, updateSettings } = useAppData();
   const { navigate } = useRouter();
   const toast = useToast();
   const [stats, setStats] = useState(null);
+  const [customize, setCustomize] = useState(false);
 
   useEffect(() => {
     dashboardStats()
@@ -75,15 +124,12 @@ export default function DashboardPage() {
 
   if (!stats) return <Spinner />;
   const counts = Object.fromEntries(stats.byType.map((r) => [r.document_type, Number(r.count)]));
-  const business = BUSINESS_TYPES.find((b) => b.id === settings.businessType) || BUSINESS_TYPES[0];
-  const preferred = new Set(settings.visibleDocTypes?.length ? settings.visibleDocTypes : business.types);
-  // The business's document types, plus any other type that already has documents.
-  const types = DOCUMENT_TYPES.filter((t) => preferred.has(t.id) || counts[t.id]);
+  const types = dashboardTypes(settings);
 
   return (
     <div className="page">
       <PageHeader title="Dashboard" />
-      <div className="type-cards" data-testid="type-cards">
+      <div className="type-cards" style={{ '--cols': Math.max(1, Math.ceil(types.length / 2)) }} data-testid="type-cards">
         {types.map((t) => (
           <div key={t.id} className="type-count-card" data-testid={`card-${t.id}`}>
             <button className="type-count-main" onClick={() => navigate(`/manager?q=${encodeURIComponent(t.short)}`)} title={`Show ${PLURAL[t.id] || t.label}`}>
@@ -94,7 +140,7 @@ export default function DashboardPage() {
               <span className="type-count-value">{(counts[t.id] || 0).toLocaleString('en-IN')}</span>
             </button>
             <button className="type-count-add" onClick={() => navigate(`/doc/new/${t.id}`)} title={`New ${t.label}`} aria-label={`New ${t.label}`} data-testid={`create-${t.id}`}>
-              <Icon name="plus" size={16} />
+              <Icon name="plus" size={18} />
             </button>
           </div>
         ))}
@@ -109,6 +155,26 @@ export default function DashboardPage() {
         </div>
         <RecentDocuments rows={stats.recent} />
       </section>
+
+      <div className="dashboard-foot">
+        <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
+          <Icon name="sliders" size={15} /> Customize
+        </button>
+      </div>
+      {customize && (
+        <CustomizeModal
+          selected={types.map((t) => t.id)}
+          onClose={() => setCustomize(false)}
+          onSave={async (ids) => {
+            try {
+              await updateSettings({ dashboardTypes: ids });
+              setCustomize(false);
+            } catch (e) {
+              toast.error(e.message);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

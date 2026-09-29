@@ -2,7 +2,7 @@
  * Basic load / performance test of the DocGen server.
  *
  *   npm run loadtest                       fresh temporary SQLite database
- *   DATABASE_URL=postgres://… npm run loadtest   (uses and seeds that database — use a test database!)
+ *   DATABASE_URL=mysql://… npm run loadtest   (uses and seeds that database — use a test database!)
  *   LOAD_CLIENTS=20000 npm run loadtest
  *
  * Seeds clients + licenses + devices, then measures latency (p50/p95/max) and
@@ -63,7 +63,7 @@ async function bench(name, total, concurrency, fn) {
   return row;
 }
 
-console.log(`Database: ${process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite'} — seeded ${seeded.clients} clients/licenses in ${seeded.ms} ms\n`);
+console.log(`Database: ${process.env.DATABASE_URL ? 'MySQL' : 'SQLite'} — seeded ${seeded.clients} clients/licenses in ${seeded.ms} ms\n`);
 const admin = await (await post('/api/admin/auth/login', { email: 'load-admin@load.test', password: 'load-admin-pass' })).json();
 const token = admin.token;
 const unused = await knex('licenses').where({ status: 'unused' }).limit(300).select('code');

@@ -1,6 +1,6 @@
 /** Audit log, aggregated usage counters and remote app configuration. */
 
-import { isPg, nowIso, parseJson } from '../db.js';
+import { isMysql, nowIso, parseJson } from '../db.js';
 
 export async function audit(knex, { actorType, actorId = null, action, entity = '', entityId = null, details = {}, ip = '' }) {
   await knex('audit_log').insert({
@@ -18,12 +18,8 @@ export async function audit(knex, { actorType, actorId = null, action, entity = 
 /** Increment a daily counter without storing one row per request. */
 export async function bumpStat(knex, metric, by = 1) {
   const day = new Date().toISOString().slice(0, 10);
-  if (isPg(knex)) {
-    await knex.raw(
-      `insert into usage_stats (day, metric, count) values (?, ?, ?)
-       on conflict (day, metric) do update set count = usage_stats.count + excluded.count`,
-      [day, metric, by],
-    );
+  if (isMysql(knex)) {
+    await knex.raw('insert into usage_stats (`day`, metric, `count`) values (?, ?, ?) on duplicate key update `count` = `count` + ?', [day, metric, by, by]);
   } else {
     await knex.raw(
       `insert into usage_stats (day, metric, count) values (?, ?, ?)

@@ -10,7 +10,6 @@ import DocumentManagerPage from './features/manager/DocumentManagerPage.jsx';
 import DocumentEditorPage from './features/documents/DocumentEditorPage.jsx';
 import DocumentViewPage from './features/documents/DocumentViewPage.jsx';
 import ProductsPage from './features/products/ProductsPage.jsx';
-import CustomersPage from './features/customers/CustomersPage.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
 import HelpPage from './features/help/HelpPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
@@ -22,7 +21,6 @@ const ROUTES = [
   ['/dashboard', DashboardPage],
   ['/manager', DocumentManagerPage],
   ['/products', ProductsPage],
-  ['/customers', CustomersPage],
   ['/help', HelpPage],
   ['/settings', SettingsPage],
   ['/settings/:section', SettingsPage],
@@ -32,7 +30,7 @@ const ROUTES = [
 ];
 
 /** Older addresses (v1.0). */
-const REDIRECTS = { '/documents': '/dashboard', '/created': '/manager', '/premium': '/settings/license' };
+const REDIRECTS = { '/customers': '/manager', '/documents': '/dashboard', '/created': '/manager', '/premium': '/settings/license' };
 
 function useTheme(theme) {
   useEffect(() => {

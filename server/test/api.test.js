@@ -1,6 +1,6 @@
 /**
  * API tests against a real HTTP server and a fresh database.
- * Runs on SQLite by default; set TEST_DATABASE_URL to run the same suite on PostgreSQL.
+ * Runs on SQLite by default; set TEST_DATABASE_URL=mysql://… to run the same suite on MySQL.
  */
 
 import { after, before, describe, test } from 'node:test';
