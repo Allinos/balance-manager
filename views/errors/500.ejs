@@ -1,9 +1,0 @@
-<div class="error-page">
-  <div class="error-code">500</div>
-  <h2>Something went wrong</h2>
-  <p class="muted"><%= typeof message !== 'undefined' && message ? message : 'An unexpected error occurred.' %></p>
-  <% if (typeof stack !== 'undefined' && stack) { %>
-    <pre class="error-stack"><%= stack %></pre>
-  <% } %>
-  <a href="/dashboard" class="btn btn-primary">Back to dashboard</a>
-</div>
