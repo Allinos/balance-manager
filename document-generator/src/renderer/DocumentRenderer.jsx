@@ -7,13 +7,16 @@
  */
 
 import { useMemo } from 'react';
-import { getType } from '../config/documentTypes.js';
+import { getType, normaliseTemplate } from '../config/documentTypes.js';
 import { qrDataUrl, upiLink } from '../utils/qr.js';
 import { formatMoney } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
+import TallyProDocument from './TallyProDocument.jsx';
 import {
   AmountInWords,
   BankDetails,
+  CancelledMark,
+  Declaration,
   DocumentFooter,
   DocumentHeader,
   DocumentMeta,
@@ -70,11 +73,12 @@ export default function DocumentRenderer({ payload }) {
   const { company = {}, document: doc, items = [], taxes = [], settings, parent } = payload;
   const ds = settings.doc;
   const type = getType(doc.document_type);
-  const style = settings.documentStyle === 'tally' ? 'tally' : 'zoho';
+  // Template: this document's choice → the type's → the global default.
+  const template = normaliseTemplate(doc.template || ds.template || settings.documentStyle);
   const showPrices = ds.showPrices !== false;
   const showTax = ds.showTax !== false && doc.tax_mode !== 'NONE';
   const isReceipt = type.layout === 'receipt';
-  const receiverSignature = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT'].includes(type.id);
+  const receiverSignature = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT', 'JOB_COMPLETION'].includes(type.id);
 
   const qr = useMemo(
     () => (ds.showQr ? qrFor(payload) : { src: '', caption: '' }),
@@ -84,8 +88,11 @@ export default function DocumentRenderer({ payload }) {
   const hasBank = ['bank_name', 'account_number', 'ifsc', 'iban', 'upi_id'].some((k) => company[k]);
   const bank = ds.showBank !== false && showPrices && hasBank;
 
+  if (template === 'tally-pro' && !isReceipt) return <TallyProDocument payload={payload} type={type} qr={qr} />;
+
   return (
-    <article className={`doc doc-${style}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
+    <article className={`doc doc-${template}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
+      <CancelledMark doc={doc} />
       <DocumentHeader company={company} title={ds.title || type.title} doc={doc} />
 
       <section className="doc-parties">
@@ -125,8 +132,9 @@ export default function DocumentRenderer({ payload }) {
       )}
 
       <TermsAndConditions notes={doc.notes} terms={doc.terms} />
+      {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
       <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
-      <DocumentFooter text={settings.footerText} />
+      <DocumentFooter text={settings.footerText} jurisdiction={settings.jurisdiction} />
     </article>
   );
 }

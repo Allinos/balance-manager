@@ -80,3 +80,10 @@ export function formatDate(iso, format = 'DD-MM-YYYY') {
 export const monthKey = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 
 export const daysBetween = (fromMs, toMs) => (toMs - fromMs) / 86400000;
+
+/** Short local date + time for status lines, e.g. "29 Sep 2026, 10:42". */
+export function formatDateTime(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}

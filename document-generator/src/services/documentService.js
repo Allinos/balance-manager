@@ -8,7 +8,8 @@
  */
 
 import { call } from './api.js';
-import { getType } from '../config/documentTypes.js';
+import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
+import { isValidGstin } from '../config/states.js';
 import { resolveDocSettings, CURRENCY_PRESETS } from '../config/defaults.js';
 import { calcDocument } from '../utils/calc.js';
 import { dec, toFixed, round } from '../utils/decimal.js';
@@ -38,8 +39,9 @@ export function defaultTaxMode(settings) {
 
 export const taxLabelFor = (settings) => (settings.taxSystem === 'VAT' ? settings.taxLabel || 'VAT' : 'GST');
 
-/** A blank, editable item row. */
-export function blankItem(settings) {
+/** A blank, editable item row. `typeId` picks the type's default unit (e.g. "Service"). */
+export function blankItem(settings, typeId) {
+  const typeUnit = typeId ? getType(typeId).defaults.defaultUnit : '';
   return {
     _key: newKey(),
     product_id: null,
@@ -47,7 +49,7 @@ export function blankItem(settings) {
     description: '',
     hsn_sac: '',
     quantity: '1',
-    unit: (settings.units && settings.units[0]) || 'Nos',
+    unit: typeUnit || (settings.units && settings.units[0]) || 'Nos',
     unit_price: '0',
     discount_value: '0',
     discount_type: 'PERCENT',
@@ -119,7 +121,7 @@ export function newDocument(typeId, { settings, docSettings }) {
         against: '',
       },
     },
-    items: type.layout === 'receipt' ? [] : [blankItem(settings)],
+    items: type.layout === 'receipt' ? [] : [blankItem(settings, type.id)],
     parent: null,
   };
 }
@@ -238,6 +240,12 @@ export function validate(model) {
   const type = getType(doc.document_type);
   if (!doc.party_name.trim()) return `Please enter the ${type.partyKind === 'vendor' ? 'vendor' : 'customer'} name.`;
   if (!doc.issue_date) return 'Please choose the document date.';
+  if (doc.party_gstin && !isValidGstin(doc.party_gstin)) return `The ${type.partyKind === 'vendor' ? 'vendor' : 'customer'} GSTIN "${doc.party_gstin}" is not valid. It has 15 characters, e.g. 27AAPFU0939F1ZV.`;
+  for (const field of type.required) {
+    if (!field.startsWith('meta.') || field === 'meta.amount_received') continue;
+    const key = field.slice(5);
+    if (!String(doc.meta?.[key] ?? '').trim()) return `Please fill in "${EXTRA_FIELDS[key]?.label || key}".`;
+  }
   if (type.layout === 'receipt') {
     if (dec(doc.meta.amount_received) <= 0n) return 'Please enter the amount received.';
     return '';
@@ -313,7 +321,8 @@ export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
 
 export const listDocuments = (filter) => call('documents_list', { filter });
 export const getDocument = (id) => call('document_get', { id: Number(id) });
-export const setDocumentStatus = (id, status) => call('document_set_status', { id, status });
+export const setDocumentStatus = (id, status, note = '') => call('document_set_status', { id, status, note });
+export const setDocumentTemplate = (id, template) => call('document_set_template', { id, template });
 export const deleteDocument = (id) => call('document_delete', { id });
 export const restoreDocument = (id) => call('document_restore', { id });
 export const dashboardStats = () => call('dashboard_stats');

@@ -2,7 +2,9 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import Icon from '../../components/Icon.jsx';
 import { Field, NumberInput, Select, TextArea, TextInput } from '../../components/Form.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
-import { getType, PAYMENT_MODES, STATUSES, STATUS_LABELS, TYPE_MAP } from '../../config/documentTypes.js';
+import SearchSelect from '../../components/SearchSelect.jsx';
+import { EXTRA_FIELDS, getType, PAYMENT_MODES, statusesFor, statusLabel, TYPE_MAP } from '../../config/documentTypes.js';
+import { STATE_NAMES, stateCode } from '../../config/states.js';
 import {
   calculate,
   currencyInfo,
@@ -27,6 +29,7 @@ import { useDocumentActions } from './useDocumentActions.js';
 import ItemsEditor from './editor/ItemsEditor.jsx';
 
 const PREVIEW_KEY = 'docgen.editor.preview';
+const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
 function readPreviewPref() {
   try {
@@ -52,6 +55,7 @@ export default function DocumentEditorPage({ params, query }) {
   const [saveParty, setSaveParty] = useState(true);
   const [autoNumber, setAutoNumber] = useState('');
   const [showPreview, setShowPreview] = useState(readPreviewPref);
+  const [moreOpen, setMoreOpen] = useState(false);
   const dirtyRef = useRef(false);
   dirtyRef.current = dirty;
 
@@ -63,6 +67,9 @@ export default function DocumentEditorPage({ params, query }) {
         let m;
         if (params.id) {
           m = modelFromBundle(await getDocument(params.id));
+          if (m.document.status === 'CANCELLED' || m.document.status === 'VOID') {
+            throw new Error(`${m.document.document_number} is cancelled and cannot be edited. Duplicate it to create a new document.`);
+          }
         } else if (query.from) {
           m = modelFromSource(await getDocument(query.from), params.type, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
         } else {
@@ -70,6 +77,8 @@ export default function DocumentEditorPage({ params, query }) {
         }
         if (!cancelled) {
           setModel(m);
+          const t = getType(m.document.document_type);
+          setMoreOpen(t.optional.some((k) => m.document.meta?.[k]) || t.required.some((r) => r.startsWith('meta.') && r !== 'meta.amount_received'));
           setSaveParty(!m.document.party_id);
           if (query.from) setDirty(true);
         }
@@ -170,8 +179,8 @@ export default function DocumentEditorPage({ params, query }) {
       <div className="page">
         <div className="callout callout-error">
           <Icon name="alert" /> {loadError}
-          <button className="btn btn-sm" onClick={() => navigate('/documents', { force: true })}>
-            Back to Documents
+          <button className="btn btn-sm" onClick={() => navigate('/manager', { force: true })}>
+            Back to Document Manager
           </button>
         </div>
       </div>
@@ -203,7 +212,7 @@ export default function DocumentEditorPage({ params, query }) {
   return (
     <div className={`editor ${showPreview ? 'with-preview' : ''}`}>
       <div className="editor-bar no-print">
-        <button className="icon-btn" onClick={() => navigate(doc.id ? `/doc/${doc.id}` : '/documents')} title="Back">
+        <button className="icon-btn" onClick={() => navigate(doc.id ? `/doc/${doc.id}` : '/manager')} title="Back">
           <Icon name="back" />
         </button>
         <div className="editor-title">
@@ -211,7 +220,7 @@ export default function DocumentEditorPage({ params, query }) {
             {isNew ? `New ${type.label}` : `Edit ${doc.document_number}`}
             {dirty && <span className="unsaved" title="Unsaved changes">●</span>}
           </h1>
-          <StatusBadge status={doc.status} />
+          <StatusBadge status={doc.status} type={doc.document_type} />
         </div>
         <div className="editor-actions">
           <button className={`btn ${showPreview ? 'active' : ''}`} onClick={togglePreview} title="Show/hide live preview">
@@ -235,7 +244,7 @@ export default function DocumentEditorPage({ params, query }) {
                     if (await actions.remove(doc)) {
                       setDirty(false);
                       dirtyRef.current = false;
-                      navigate('/created', { force: true });
+                      navigate('/manager', { force: true });
                     }
                   },
                 },
@@ -273,7 +282,14 @@ export default function DocumentEditorPage({ params, query }) {
                 </Field>
               )}
               <Field label="Status">
-                <Select value={doc.status} onChange={(v) => setDoc({ status: v })} options={STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))} />
+                <Select
+                  value={doc.status}
+                  onChange={(v) => setDoc({ status: v })}
+                  options={statusesFor(doc.document_type, doc.status)
+                    .filter((s) => s !== 'CANCELLED' && s !== 'VOID')
+                    .map((s) => ({ value: s, label: statusLabel(doc.document_type, s) }))}
+                  data-testid="doc-status"
+                />
               </Field>
               <Field label="Reference" hint="PO / order / invoice no.">
                 <TextInput value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
@@ -285,12 +301,21 @@ export default function DocumentEditorPage({ params, query }) {
               )}
               {settings.taxSystem === 'GST' && !isReceipt && (
                 <Field label="Place of supply">
-                  <TextInput value={doc.place_of_supply} onChange={(v) => setDoc({ place_of_supply: v })} list="indian-states" />
+                  <SearchSelect
+                    value={doc.place_of_supply}
+                    onChange={(v) => setDoc({ place_of_supply: v || '' })}
+                    options={stateOptions}
+                    placeholder="Choose state"
+                    creatable
+                    clearable
+                    recentKey="states"
+                    testId="place-of-supply"
+                  />
                 </Field>
               )}
               {currencies.length > 1 && (
                 <Field label="Currency">
-                  <Select
+                  <SearchSelect
                     value={doc.currency}
                     onChange={(code) => {
                       const c = currencyInfo(settings, code);
@@ -301,7 +326,7 @@ export default function DocumentEditorPage({ params, query }) {
                         exchange_rate: code === settings.baseCurrency ? '1' : c.rate || '1',
                       });
                     }}
-                    options={currencies.map((c) => ({ value: c.code, label: `${c.code} ${c.symbol ? `(${c.symbol.trim()})` : ''}` }))}
+                    options={currencies.map((c) => ({ value: c.code, label: c.code, hint: c.symbol?.trim() }))}
                   />
                 </Field>
               )}
@@ -321,6 +346,43 @@ export default function DocumentEditorPage({ params, query }) {
             onSaveParty={setSaveParty}
             taxSystem={settings.taxSystem}
           />
+
+          {type.optional.length > 0 && (
+            <section className="card editor-section">
+              <button type="button" className="section-toggle" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} data-testid="more-details">
+                <Icon name={moreOpen ? 'chevronDown' : 'chevronRight'} size={16} />
+                <span>Additional details</span>
+                <span className="muted small">
+                  {type.optional
+                    .slice(0, 3)
+                    .map((k) => EXTRA_FIELDS[k]?.label)
+                    .join(', ')}
+                  {type.optional.length > 3 ? '…' : ''}
+                </span>
+              </button>
+              {moreOpen && (
+                <div className="grid-3 mt">
+                  {type.optional.map((k) => {
+                    const f = EXTRA_FIELDS[k];
+                    if (!f) return null;
+                    const required = type.required.includes(`meta.${k}`);
+                    const value = doc.meta[k] ?? '';
+                    return (
+                      <Field key={k} label={f.label} required={required}>
+                        {f.type === 'date' ? (
+                          <input className="input" type="date" value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
+                        ) : f.type === 'yesno' ? (
+                          <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
+                        ) : (
+                          <TextInput value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
+                        )}
+                      </Field>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          )}
 
           {isReceipt ? (
             <section className="card editor-section">

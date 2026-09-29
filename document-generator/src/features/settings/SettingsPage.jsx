@@ -7,9 +7,10 @@ import {
   AboutSettings,
   AppearanceSettings,
   BackupSettings,
-  CustomerSettings,
   GeneralSettings,
 } from './OtherSettings.jsx';
+import UnitsSettings from './UnitsSettings.jsx';
+import LicenseSettings from '../license/LicenseSettings.jsx';
 
 const SECTIONS = [
   { id: 'company', label: 'Company', icon: 'building', Component: CompanySettings },
@@ -18,9 +19,10 @@ const SECTIONS = [
   { id: 'tax', label: 'Tax', icon: 'percent', Component: TaxSettings },
   { id: 'currency', label: 'Currency', icon: 'coins', Component: CurrencySettings },
   { id: 'numbering', label: 'Numbering', icon: 'hash', Component: NumberingSettings },
-  { id: 'customers', label: 'Customers', icon: 'users', Component: CustomerSettings },
+  { id: 'units', label: 'Units', icon: 'box', Component: UnitsSettings },
   { id: 'general', label: 'General', icon: 'sliders', Component: GeneralSettings },
   { id: 'appearance', label: 'Appearance', icon: 'palette', Component: AppearanceSettings },
+  { id: 'license', label: 'License & Account', icon: 'key', Component: LicenseSettings },
   { id: 'backup', label: 'Backup', icon: 'database', Component: BackupSettings },
   { id: 'about', label: 'About', icon: 'info', Component: AboutSettings },
 ];
@@ -33,7 +35,7 @@ export default function SettingsPage({ params }) {
       <nav className="settings-nav" aria-label="Settings sections">
         <h1>Settings</h1>
         {SECTIONS.map((s) => (
-          <Link key={s.id} to={`/settings/${s.id}`} className={`settings-link ${s.id === current.id ? 'active' : ''}`}>
+          <Link key={s.id} to={`/settings/${s.id}`} data-testid={`settings-${s.id}`} className={`settings-link ${s.id === current.id ? 'active' : ''}`}>
             <Icon name={s.icon} size={16} />
             {s.label}
           </Link>

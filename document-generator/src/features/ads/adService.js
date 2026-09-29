@@ -1,89 +1,138 @@
 /**
- * Advertisement scheduling.
+ * Advertisement selection.
  *
- *   App opens → read local ad state → refresh remote config only if the fetch
- *   interval has passed and we are online (otherwise keep the cached config) →
- *   ads enabled? → inside start/end window? → first-open delay passed? →
- *   minimum days since last ad passed? → monthly limit not reached? →
- *   optional randomisation → show.
+ * Remote ads come from the cached server configuration (see services/remoteConfig.js).
+ * Rules, in order:
+ *   1. never while a document is being edited (enforced by AdManager);
+ *   2. at most one ad per app session;
+ *   3. policy from the server: no ads for the first N days after install,
+ *      minimum days between any two ads, maximum ads per month;
+ *   4. per ad: date window, target (trial/licensed users, platform, app version),
+ *      its own "show again after N days" and monthly maximum;
+ *   5. highest priority wins, ties are picked at random.
  *
- * Nothing about documents, customers, products or the company is ever read or
- * sent here. Remote config is validated by the Rust side before it reaches us.
+ * Built-in fallback: if the app has never received a server configuration (for
+ * example it is always offline), a built-in DocGen message is shown about every
+ * 15 days. It needs no internet connection.
  */
 
 import { call } from '../../services/api.js';
-import { monthKey, daysBetween } from '../../utils/dates.js';
+import { getAdState, now, setAdState } from '../../services/remoteConfig.js';
+import { monthKey } from '../../utils/dates.js';
 
-const DEFAULT_FETCH_INTERVAL_DAYS = 7;
-/** After a failed fetch wait this long before trying again (prevents excessive requests). */
-const RETRY_AFTER_FAILURE_DAYS = 1;
+const DAY = 86400000;
+export const DEFAULT_AD_INTERVAL_DAYS = 15;
 
-const getState = () => call('ad_state_get');
-const setState = (values) => call('ad_state_set', { values });
+/** Built-in ad (id 0). Shown offline; the button opens License & Account. */
+export const DEFAULT_AD = {
+  id: 0,
+  version: 1,
+  builtIn: true,
+  title: 'Get more from DocGen',
+  description: 'Activate DocGen with your account or a license code to use it without limits, on more computers, with priority support.',
+  ctaText: 'Activate now',
+  action: 'license',
+  imageUrl: '',
+  html: '',
+  linkUrl: '',
+};
 
-export const recordAdEvent = (event, adVersion) =>
-  call('ad_event_record', { event, adVersion: String(adVersion || '') }).catch(() => {});
+export const recordAdEvent = (event, ad) =>
+  call('ad_event_record', { event, adId: Number(ad.id) || 0, adVersion: String(ad.version ?? '') }).catch(() => {});
 
-async function refreshConfigIfDue(state, now) {
-  const cached = state.cachedConfig || null;
-  const interval = Number(cached?.fetchIntervalDays) || DEFAULT_FETCH_INTERVAL_DAYS;
-  const lastFetch = Number(state.lastConfigFetchAt || 0);
-  const lastAttempt = Number(state.lastConfigAttemptAt || 0);
-  const fetchDue = !lastFetch || daysBetween(lastFetch, now) >= interval;
-  const retryAllowed = !lastAttempt || daysBetween(lastAttempt, now) >= RETRY_AFTER_FAILURE_DAYS;
-  if (!fetchDue || !retryAllowed || !navigator.onLine) return cached;
-
-  await setState({ lastConfigAttemptAt: now });
-  try {
-    const config = await call('remote_config_fetch');
-    await setState({ cachedConfig: config, lastConfigFetchAt: now, lastConfigVersion: config.version });
-    return config;
-  } catch {
-    // Server down or offline: silently keep using the last valid configuration.
-    return cached;
+/** Compare dotted versions: -1, 0, 1. */
+export function compareVersions(a, b) {
+  const pa = String(a || '0').split('.').map((n) => parseInt(n, 10) || 0);
+  const pb = String(b || '0').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) < (pb[i] || 0) ? -1 : 1;
   }
+  return 0;
+}
+
+/** Does `ad` apply to this installation right now? */
+export function adMatches(ad, { t, licensed, platform, appVersion, perAd }) {
+  if (ad.startAt && t < Date.parse(ad.startAt)) return false;
+  if (ad.endAt && t > Date.parse(ad.endAt)) return false;
+  const target = ad.target || {};
+  if (target.licenseStatus === 'trial' && licensed) return false;
+  if (target.licenseStatus === 'licensed' && !licensed) return false;
+  if (target.platforms?.length && !target.platforms.includes(platform)) return false;
+  if (target.minVersion && compareVersions(appVersion, target.minVersion) < 0) return false;
+  if (target.maxVersion && compareVersions(appVersion, target.maxVersion) > 0) return false;
+  const mine = perAd?.[ad.id];
+  if (mine) {
+    if (mine.lastShownAt && t - mine.lastShownAt < Number(ad.frequencyDays || 0) * DAY) return false;
+    if (mine.month === monthKey(new Date(t)) && mine.count >= Number(ad.maxPerMonth ?? 31)) return false;
+  }
+  return true;
 }
 
 /**
- * Decide whether an ad should be shown now.
- * @returns {Promise<null | {contentUrl: string, clickUrl: string, title: string, ctaText: string, adVersion: string}>}
+ * Pure decision function (unit-tested): which ad, if any, to show.
+ * @returns {object|null}
  */
-export async function pickAdToShow() {
-  const now = Date.now();
-  const state = await getState();
+export function chooseAd(state, { t, licensed, platform, appVersion, online, random = Math.random }) {
+  const config = state.cachedConfig || null;
+  const firstOpenAt = Number(state.firstOpenAt || t);
+  const month = monthKey(new Date(t));
+  const monthlyCount = state.monthlyAdMonth === month ? Number(state.monthlyAdCount || 0) : 0;
 
-  // Reset the monthly counter at the start of each calendar month.
-  const month = monthKey();
-  let monthlyCount = Number(state.monthlyAdCount || 0);
-  if (state.monthlyAdMonth !== month) {
-    monthlyCount = 0;
-    await setState({ monthlyAdMonth: month, monthlyAdCount: 0 });
+  const defaultDue = () => {
+    const last = Number(state.defaultAdLastShownAt || 0);
+    const since = last || firstOpenAt;
+    return t - since >= DEFAULT_AD_INTERVAL_DAYS * DAY;
+  };
+
+  if (!config) {
+    // Never received a server configuration: built-in fallback only.
+    return !licensed && defaultDue() ? DEFAULT_AD : null;
   }
-  if (!state.firstOpenAt) await setState({ firstOpenAt: now });
-  const firstOpenAt = Number(state.firstOpenAt || now);
 
-  const config = await refreshConfigIfDue(state, now);
-  const ads = config?.ads;
-  if (!ads || !ads.enabled || !ads.contentUrl) return null;
-
-  if (ads.startAt && now < Date.parse(ads.startAt)) return null;
-  if (ads.endAt && now > Date.parse(ads.endAt)) return null;
-  if (daysBetween(firstOpenAt, now) < Number(ads.firstOpenDelayDays || 0)) return null;
-
+  const policy = config.adPolicy || {};
+  if (t - firstOpenAt < Number(policy.firstOpenDelayDays || 0) * DAY) return null;
   const lastShown = Number(state.lastAdShownAt || 0);
-  if (lastShown && daysBetween(lastShown, now) < Number(ads.minimumDaysBetweenAds || 0)) return null;
-  if (monthlyCount >= Number(ads.monthlyLimit || 0)) return null;
-  if (!navigator.onLine) return null; // ad content itself is remote
-  if (ads.randomize && Math.random() > Number(ads.probability ?? 0.5)) return null;
+  if (lastShown && t - lastShown < Number(policy.minDaysBetweenAds || 0) * DAY) return null;
+  if (monthlyCount >= Number(policy.maxPerMonth ?? 4)) return null;
 
-  return ads;
+  if (online) {
+    const candidates = (config.ads || []).filter((ad) => adMatches(ad, { t, licensed, platform, appVersion, perAd: state.adShown || {} }));
+    if (candidates.length) {
+      const top = Math.max(...candidates.map((a) => Number(a.priority || 0)));
+      const best = candidates.filter((a) => Number(a.priority || 0) === top);
+      return best[Math.floor(random() * best.length)] || best[0];
+    }
+  }
+  if (config.defaultAdEnabled !== false && !licensed && defaultDue()) return DEFAULT_AD;
+  return null;
 }
 
-/** Record that an ad was displayed (updates local counters and logs AD_SHOWN). */
+/** Read local state, record first open, and decide. */
+export async function pickAdToShow({ licensed, platform, appVersion }) {
+  const t = now();
+  const state = await getAdState();
+  if (!state.firstOpenAt) {
+    await setAdState({ firstOpenAt: t });
+    state.firstOpenAt = t;
+  }
+  return chooseAd(state, { t, licensed, platform, appVersion, online: typeof navigator === 'undefined' || navigator.onLine !== false });
+}
+
+/** Update counters after an ad was displayed. */
 export async function markAdShown(ad) {
-  const state = await getState();
-  const month = monthKey();
+  const t = now();
+  const month = monthKey(new Date(t));
+  const state = await getAdState();
   const count = state.monthlyAdMonth === month ? Number(state.monthlyAdCount || 0) : 0;
-  await setState({ lastAdShownAt: Date.now(), monthlyAdCount: count + 1, monthlyAdMonth: month });
-  await recordAdEvent('AD_SHOWN', ad.adVersion);
+  const values = { lastAdShownAt: t, monthlyAdCount: count + 1, monthlyAdMonth: month };
+  if (ad.builtIn) {
+    values.defaultAdLastShownAt = t;
+  } else {
+    const perAd = { ...(state.adShown || {}) };
+    const mine = perAd[ad.id] && perAd[ad.id].month === month ? perAd[ad.id] : { month, count: 0 };
+    perAd[ad.id] = { lastShownAt: t, month, count: mine.count + 1 };
+    values.adShown = perAd;
+  }
+  await setAdState(values);
+  await recordAdEvent('AD_SHOWN', ad);
 }

@@ -1,9 +1,10 @@
 import Icon from './Icon.jsx';
-import { STATUS_LABELS } from '../config/documentTypes.js';
+import { STATUS_LABELS, statusLabel } from '../config/documentTypes.js';
 
-export function StatusBadge({ status, deleted }) {
+export function StatusBadge({ status, deleted, type }) {
   if (deleted) return <span className="badge badge-deleted">Deleted</span>;
-  return <span className={`badge badge-${(status || 'DRAFT').toLowerCase()}`}>{STATUS_LABELS[status] || status}</span>;
+  const label = type ? statusLabel(type, status) : STATUS_LABELS[status] || status;
+  return <span className={`badge badge-${(status || 'DRAFT').toLowerCase()}`}>{label}</span>;
 }
 
 export function EmptyState({ icon = 'documents', title, message, action }) {
@@ -46,7 +47,14 @@ export function Spinner({ label = 'Loading…' }) {
 /** Dropdown menu button. */
 export function Menu({ label, icon = 'more', items, align = 'right', className = 'btn' }) {
   return (
-    <details className={`menu menu-${align}`}>
+    <details
+      className={`menu menu-${align}`}
+      onToggle={(e) => {
+        // Open upwards when there is not enough room below (e.g. last table rows).
+        const el = e.currentTarget;
+        if (el.open) el.classList.toggle('menu-up', el.getBoundingClientRect().bottom + 280 > window.innerHeight);
+      }}
+    >
       <summary className={className}>
         <Icon name={icon} />
         {label && <span>{label}</span>}

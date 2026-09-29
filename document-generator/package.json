@@ -1,7 +1,7 @@
 {
   "name": "docgen",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Lightweight offline desktop document generator (Tauri 2 + React + SQLite)",
   "type": "module",
   "scripts": {

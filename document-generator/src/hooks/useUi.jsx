@@ -4,6 +4,9 @@
  *   const toast = useToast();   toast.success('Saved');
  *   const confirm = useConfirm();
  *   if (await confirm({ title: 'Delete this document?', message: '...', danger: true })) { ... }
+ *
+ * With `input: { label, placeholder }` the dialog also asks for text and resolves
+ * to that text (possibly '') when confirmed, or `false` when cancelled.
  */
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
@@ -14,6 +17,7 @@ const UiContext = createContext(null);
 export function UiProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [dialog, setDialog] = useState(null);
+  const [text, setText] = useState('');
   const resolver = useRef(null);
 
   const push = useCallback((type, message) => {
@@ -32,6 +36,7 @@ export function UiProvider({ children }) {
     (opts) =>
       new Promise((resolve) => {
         resolver.current = resolve;
+        setText('');
         setDialog({ confirmText: 'Confirm', cancelText: 'Cancel', ...opts });
       }),
     [],
@@ -56,11 +61,26 @@ export function UiProvider({ children }) {
       {dialog && (
         <Modal title={dialog.title} onClose={() => close(false)} size="sm">
           {dialog.message && <p className="dialog-message">{dialog.message}</p>}
+          {dialog.input && (
+            <label className="field">
+              <span className="field-label">{dialog.input.label}</span>
+              <input
+                className="input"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={dialog.input.placeholder}
+                maxLength={300}
+                autoFocus
+                data-testid="confirm-input"
+                onKeyDown={(e) => e.key === 'Enter' && close(text.trim())}
+              />
+            </label>
+          )}
           <div className="modal-actions">
             <button className="btn" onClick={() => close(false)}>
               {dialog.cancelText}
             </button>
-            <button className={`btn ${dialog.danger ? 'btn-danger' : 'btn-primary'}`} onClick={() => close(true)} autoFocus>
+            <button className={`btn ${dialog.danger ? 'btn-danger' : 'btn-primary'}`} onClick={() => close(dialog.input ? text.trim() : true)} autoFocus={!dialog.input} data-testid="confirm-ok">
               {dialog.confirmText}
             </button>
           </div>

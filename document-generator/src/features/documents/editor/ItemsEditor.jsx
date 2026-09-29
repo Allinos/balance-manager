@@ -1,5 +1,7 @@
 import Autocomplete from '../../../components/Autocomplete.jsx';
 import Icon from '../../../components/Icon.jsx';
+import SearchSelect from '../../../components/SearchSelect.jsx';
+import { isServiceUnit, unitOptions } from '../../../config/units.js';
 import { NumberInput } from '../../../components/Form.jsx';
 import { listProducts, saveProduct } from '../../../services/catalogService.js';
 import { blankItem } from '../../../services/documentService.js';
@@ -18,13 +20,14 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
   const showTax = showPrices && ds.showTax !== false && doc.tax_mode !== 'NONE';
   const purchase = ['PURCHASE_ORDER', 'GOODS_RECEIPT'].includes(doc.document_type);
   const lineByKey = Object.fromEntries(lines.map((l) => [l._key, l]));
+  const units = unitOptions(settings.units || []);
 
   const update = (key, patch) => onChange(items.map((it) => (it._key === key ? { ...it, ...patch } : it)));
   const remove = (key) => {
     const next = items.filter((it) => it._key !== key);
-    onChange(next.length ? next : [blankItem(settings)]);
+    onChange(next.length ? next : [blankItem(settings, doc.document_type)]);
   };
-  const add = () => onChange([...items, blankItem(settings)]);
+  const add = () => onChange([...items, blankItem(settings, doc.document_type)]);
 
   const pickProduct = (key, p) => {
     const rate = p.tax_type === 'EXEMPT' ? '0' : p.tax_rate;
@@ -44,7 +47,7 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
   const saveAsProduct = async (it) => {
     try {
       const id = await saveProduct({
-        type: it.hsn_sac?.startsWith('99') || ['Hrs', 'Days', 'Job', 'Month'].includes(it.unit) ? 'SERVICE' : 'PRODUCT',
+        type: it.hsn_sac?.startsWith('99') || isServiceUnit(it.unit) ? 'SERVICE' : 'PRODUCT',
         name: it.name.trim(),
         description: it.description,
         hsn_sac: it.hsn_sac,
@@ -73,7 +76,7 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
     showPrices && 'amount',
     'remove',
   ].filter(Boolean);
-  const WIDTHS = { item: 'minmax(180px, 3fr)', hsn: '88px', qty: '72px', unit: '72px', pkg: '130px', rate: '104px', disc: '104px', tax: '72px', amount: '112px', remove: '64px' };
+  const WIDTHS = { item: 'minmax(180px, 3fr)', hsn: '88px', qty: '72px', unit: '92px', pkg: '130px', rate: '104px', disc: '104px', tax: '72px', amount: '112px', remove: '64px' };
   const gridStyle = { gridTemplateColumns: cols.map((c) => WIDTHS[c]).join(' ') };
 
   return (
@@ -129,7 +132,17 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
                 <input className="input" value={it.hsn_sac} onChange={(e) => update(it._key, { hsn_sac: e.target.value })} aria-label="HSN/SAC" />
               )}
               <NumberInput value={it.quantity} onChange={(v) => update(it._key, { quantity: v })} aria-label="Quantity" data-testid={`item-qty-${index}`} />
-              <input className="input" list="unit-list" value={it.unit} onChange={(e) => update(it._key, { unit: e.target.value })} aria-label="Unit" />
+              <SearchSelect
+                className="ss-compact"
+                value={it.unit}
+                onChange={(v) => update(it._key, { unit: v || '' })}
+                options={units}
+                creatable
+                recentKey="units"
+                ariaLabel="Unit"
+                placeholder="Unit"
+                testId={`item-unit-${index}`}
+              />
               {cols.includes('pkg') && (
                 <input
                   className="input"
@@ -183,11 +196,6 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
           );
         })}
       </div>
-      <datalist id="unit-list">
-        {(settings.units || []).map((u) => (
-          <option key={u} value={u} />
-        ))}
-      </datalist>
       <datalist id="tax-rate-list">
         {(settings.taxRates || []).map((r) => (
           <option key={r} value={r} />

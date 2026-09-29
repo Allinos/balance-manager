@@ -5,35 +5,38 @@ import { RouterProvider, matchPath, setLeaveConfirm, useRouter } from './router/
 import AppLayout from './layouts/AppLayout.jsx';
 import { Spinner } from './components/Common.jsx';
 import SetupWizard from './features/setup/SetupWizard.jsx';
-import DashboardPage from './features/dashboard/DashboardPage.jsx';
-import DocumentsHomePage from './features/documents/DocumentsHomePage.jsx';
-import CreatedDocumentsPage from './features/documents/CreatedDocumentsPage.jsx';
+import DocumentManagerPage from './features/manager/DocumentManagerPage.jsx';
 import DocumentEditorPage from './features/documents/DocumentEditorPage.jsx';
 import DocumentViewPage from './features/documents/DocumentViewPage.jsx';
 import ProductsPage from './features/products/ProductsPage.jsx';
+import CustomersPage from './features/customers/CustomersPage.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
-import PremiumPage from './features/premium/PremiumPage.jsx';
+import HelpPage from './features/help/HelpPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
+import LicenseGate from './features/license/LicenseGate.jsx';
+import { useServerSync } from './hooks/useServerSync.js';
 
 /** Route table: first match wins. */
 const ROUTES = [
-  ['/dashboard', DashboardPage],
-  ['/documents', DocumentsHomePage],
-  ['/created', CreatedDocumentsPage],
+  ['/manager', DocumentManagerPage],
   ['/products', ProductsPage],
+  ['/customers', CustomersPage],
+  ['/help', HelpPage],
   ['/settings', SettingsPage],
   ['/settings/:section', SettingsPage],
-  ['/premium', PremiumPage],
   ['/doc/new/:type', DocumentEditorPage],
   ['/doc/:id/edit', DocumentEditorPage],
   ['/doc/:id', DocumentViewPage],
 ];
 
+/** Older addresses (v1.0) that now live in the Document Manager. */
+const REDIRECTS = { '/dashboard': '/manager', '/documents': '/manager', '/created': '/manager', '/premium': '/settings/license' };
+
 function useTheme(theme) {
   useEffect(() => {
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
-      const resolved = theme === 'system' || !theme ? (media.matches ? 'dark' : 'light') : theme;
+      const resolved = theme === 'system' ? (media.matches ? 'dark' : 'light') : theme === 'dark' ? 'dark' : 'light';
       document.documentElement.dataset.theme = resolved;
     };
     apply();
@@ -43,18 +46,27 @@ function useTheme(theme) {
 }
 
 function Routes() {
-  const { path, query } = useRouter();
+  const { path, query, navigate } = useRouter();
+  const redirect = REDIRECTS[path];
+  useEffect(() => {
+    if (redirect) {
+      const qs = new URLSearchParams(query).toString();
+      navigate(`${redirect}${qs ? `?${qs}` : ''}`, { replace: true, force: true });
+    }
+  }, [redirect, query, navigate]);
+  if (redirect) return null;
   for (const [pattern, Component] of ROUTES) {
     const params = matchPath(pattern, path);
     if (params) return <Component key={`${pattern}:${JSON.stringify(params)}:${query.from || ''}:${query.mode || ''}`} params={params} query={query} />;
   }
-  return <DashboardPage params={{}} query={{}} />;
+  return <DocumentManagerPage params={{}} query={query} />;
 }
 
 function Shell() {
-  const { loading, error, settings, reload } = useAppData();
+  const { loading, error, settings, license, reload } = useAppData();
   const confirm = useConfirm();
   useTheme(settings?.theme);
+  useServerSync(!loading && !!settings?.setupComplete);
 
   useEffect(() => {
     setLeaveConfirm((message) =>
@@ -75,6 +87,7 @@ function Shell() {
     );
   }
   if (!settings.setupComplete) return <SetupWizard />;
+  if (license?.mode === 'expired') return <LicenseGate />;
   return (
     <AppLayout>
       <Routes />

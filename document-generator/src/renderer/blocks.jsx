@@ -10,9 +10,37 @@ import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
 import { dec, div, isZero, toPlain } from '../utils/decimal.js';
-import { getType } from '../config/documentTypes.js';
+import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
+import { stateCode } from '../config/states.js';
 
 const lines = (...parts) => parts.filter((p) => p && String(p).trim()).join('\n');
+
+/** "Maharashtra, Code: 27" (GST state code when known). */
+export const stateLine = (state) => {
+  if (!state) return '';
+  const code = stateCode(state);
+  return code ? `${state}, Code: ${code}` : state;
+};
+
+/** Filled "additional details" of a document as [label, value] pairs. */
+export function extraDetails(doc, type, dateFormat) {
+  const meta = doc.meta || {};
+  return type.optional
+    .filter((k) => k !== 'reverseCharge' && meta[k] && String(meta[k]).trim())
+    .map((k) => [EXTRA_FIELDS[k]?.label || k, EXTRA_FIELDS[k]?.type === 'date' ? formatDate(meta[k], dateFormat) : meta[k]]);
+}
+
+export const isCancelledDoc = (doc) => doc.status === 'CANCELLED' || doc.status === 'VOID';
+
+/** Large diagonal CANCELLED mark over the page (screen and print). */
+export function CancelledMark({ doc }) {
+  if (!isCancelledDoc(doc)) return null;
+  return (
+    <div className="doc-watermark" aria-hidden="true">
+      {doc.status === 'VOID' ? 'VOID' : 'CANCELLED'}
+    </div>
+  );
+}
 
 export function CompanyBlock({ company }) {
   const cityLine = [company.city, company.state, company.pin].filter(Boolean).join(', ');
@@ -30,6 +58,7 @@ export function CompanyBlock({ company }) {
       {contact && <div>{contact}</div>}
       {company.website && <div>{company.website}</div>}
       {ids.length > 0 && <div className="doc-ids">{ids.join('  |  ')}</div>}
+      {company.gstin && company.state && <div>State Name: {stateLine(company.state)}</div>}
     </div>
   );
 }
@@ -43,9 +72,7 @@ export function DocumentHeader({ company, title, doc }) {
       </div>
       <div className="doc-header-right">
         <div className="doc-title">{title}</div>
-        {doc.status === 'CANCELLED' || doc.status === 'VOID' ? (
-          <div className="doc-stamp-status">{doc.status}</div>
-        ) : null}
+        {isCancelledDoc(doc) ? <div className="doc-stamp-status">{doc.status}</div> : null}
       </div>
     </header>
   );
@@ -62,7 +89,7 @@ export function PartyBlock({ doc, label, showTaxId }) {
       {doc.party_email && <div>{doc.party_email}</div>}
       {showTaxId && doc.party_gstin && <div className="doc-ids">GSTIN: {doc.party_gstin}</div>}
       {showTaxId && doc.party_tax_id && <div className="doc-ids">Tax ID: {doc.party_tax_id}</div>}
-      {doc.party_state && <div>State: {doc.party_state}</div>}
+      {doc.party_state && <div>State: {stateLine(doc.party_state)}</div>}
     </div>
   );
 }
@@ -84,7 +111,9 @@ export function DocumentMeta({ doc, type, dateFormat, parent, baseCurrency }) {
   ];
   if (type.dueLabel && doc.due_date) rows.push([type.dueLabel, formatDate(doc.due_date, dateFormat)]);
   if (doc.reference) rows.push(['Reference', doc.reference]);
-  if (doc.place_of_supply) rows.push(['Place of Supply', doc.place_of_supply]);
+  if (doc.place_of_supply) rows.push(['Place of Supply', stateLine(doc.place_of_supply)]);
+  rows.push(...extraDetails(doc, type, dateFormat));
+  if (doc.meta?.reverseCharge === 'Yes') rows.push(['Reverse Charge', 'Yes']);
   if (parent?.document_number) rows.push(['Created From', parent.document_number]);
   if (doc.currency && baseCurrency && doc.currency !== baseCurrency) {
     rows.push(['Currency', `${doc.currency} (1 ${doc.currency} = ${doc.exchange_rate} ${baseCurrency})`]);
@@ -339,9 +368,24 @@ export function SignatureBlock({ company, ds, receiverSignature }) {
   );
 }
 
-export function DocumentFooter({ text }) {
-  if (!text) return null;
-  return <footer className="doc-footer">{text}</footer>;
+export function Declaration({ text }) {
+  if (!text?.trim()) return null;
+  return (
+    <div className="doc-declaration">
+      <div className="doc-label">Declaration</div>
+      <div className="doc-pre">{text}</div>
+    </div>
+  );
+}
+
+export function DocumentFooter({ text, jurisdiction }) {
+  if (!text && !jurisdiction) return null;
+  return (
+    <footer className="doc-footer">
+      {jurisdiction && <div className="doc-jurisdiction">SUBJECT TO {jurisdiction.toUpperCase()} JURISDICTION</div>}
+      {text && <div>{text}</div>}
+    </footer>
+  );
 }
 
 /** Payment receipt body. */

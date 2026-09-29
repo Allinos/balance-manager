@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Field, Segmented, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
-import { DOCUMENT_TYPES, getType } from '../../config/documentTypes.js';
+import { Field, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
+import { DOCUMENT_TYPES, TEMPLATES, getType } from '../../config/documentTypes.js';
 import { DOC_SETTING_FIELDS, resolveDocSettings } from '../../config/defaults.js';
 import { saveDocSettings } from '../../services/settingsService.js';
 import { newDocument, renderPayload } from '../../services/documentService.js';
@@ -48,7 +48,7 @@ export default function DocumentSettings() {
   const { draft, set, dirty, save } = useSettingsDraft([
     'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showAmountInWords',
     'showSignature', 'showStamp', 'autoRoundOff', 'defaultPaymentTerms', 'qrContent', 'qrCustomText',
-    'footerText', 'dateFormat',
+    'footerText', 'dateFormat', 'declaration', 'jurisdiction',
   ]);
   const overrides = useMemo(() => ({ ...draft }), [draft]);
 
@@ -58,15 +58,21 @@ export default function DocumentSettings() {
         <h2>Documents</h2>
         <p className="muted">Defaults for every document. Individual types can override these under Document Types.</p>
 
-        <Field label="Document style">
-          <Segmented
-            value={draft.documentStyle}
-            onChange={(v) => set({ documentStyle: v })}
-            options={[
-              { value: 'tally', label: 'Tally style (compact)' },
-              { value: 'zoho', label: 'Zoho style (modern)' },
-            ]}
-          />
+        <Field label="Template" hint="Only changes the look — your documents and data are never modified">
+          <div className="template-options compact">
+            {TEMPLATES.map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                className={`style-option ${draft.documentStyle === t.id ? 'active' : ''}`}
+                onClick={() => set({ documentStyle: t.id })}
+                data-testid={`settings-template-${t.id}`}
+              >
+                <strong>{t.label}</strong>
+                <span className="muted small">{t.description}</span>
+              </button>
+            ))}
+          </div>
         </Field>
         <Field label="Accent colour">
           <div className="swatches">
@@ -118,6 +124,12 @@ export default function DocumentSettings() {
         )}
         <Field label="Default payment terms (invoices)">
           <TextArea rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
+        </Field>
+        <Field label="Declaration (tax invoices)" hint="Printed at the bottom of invoices, as in Tally">
+          <TextArea rows={2} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
+        </Field>
+        <Field label="Jurisdiction" hint='e.g. "Mumbai" prints "SUBJECT TO MUMBAI JURISDICTION"'>
+          <TextInput value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
         </Field>
         <Field label="Footer text">
           <TextInput value={draft.footerText} onChange={(v) => set({ footerText: v })} />
@@ -187,6 +199,14 @@ export function DocumentTypeSettings() {
         ))}
       </div>
       <div className="grid-2">
+        <Field label="Template">
+          <Select
+            value={draft.template}
+            onChange={(v) => set({ template: v })}
+            options={TEMPLATES.map((t) => ({ value: t.id, label: t.id === (settings.documentStyle || 'tally-pro') ? `${t.label} (default)` : t.label }))}
+            data-testid="type-template"
+          />
+        </Field>
         {fields
           .filter((f) => f.type === 'text' || f.type === 'number')
           .map((f) => (

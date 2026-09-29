@@ -2,7 +2,10 @@ import { useState } from 'react';
 import Autocomplete from '../../../components/Autocomplete.jsx';
 import { Field, TextArea, TextInput } from '../../../components/Form.jsx';
 import { listParties } from '../../../services/catalogService.js';
-import { INDIAN_STATES } from '../../../config/defaults.js';
+import SearchSelect from '../../../components/SearchSelect.jsx';
+import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../../config/states.js';
+
+const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
 /**
  * Customer / vendor details. The name field searches saved parties; picking one
@@ -11,6 +14,13 @@ import { INDIAN_STATES } from '../../../config/defaults.js';
 export default function PartyFields({ doc, type, onChange, saveParty, onSaveParty, taxSystem }) {
   const [shipOpen, setShipOpen] = useState(!!doc.shipping_address);
   const noun = type.partyKind === 'vendor' ? 'vendor' : 'customer';
+
+  /** GSTIN: upper-case, and fill the state from its first two digits. */
+  const gstinChange = (v) => {
+    const gstin = v.toUpperCase().replace(/\s/g, '');
+    const state = stateFromGstin(gstin);
+    return state && !doc.party_state ? { party_gstin: gstin, party_state: state, place_of_supply: state } : { party_gstin: gstin };
+  };
 
   const pick = (p) =>
     onChange({
@@ -62,25 +72,30 @@ export default function PartyFields({ doc, type, onChange, saveParty, onSavePart
         <Field label="Email">
           <TextInput type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} />
         </Field>
-        <Field label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}>
+        <Field
+          label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}
+          hint={taxSystem === 'GST' && doc.party_gstin && !isValidGstin(doc.party_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : ''}
+        >
           <TextInput
             value={taxSystem === 'GST' ? doc.party_gstin : doc.party_tax_id}
-            onChange={(v) => onChange(taxSystem === 'GST' ? { party_gstin: v.toUpperCase() } : { party_tax_id: v })}
+            onChange={(v) => onChange(taxSystem === 'GST' ? gstinChange(v) : { party_tax_id: v })}
+            maxLength={taxSystem === 'GST' ? 15 : 40}
+            data-testid="party-gstin"
           />
         </Field>
         <Field label="State">
-          <TextInput
+          <SearchSelect
             value={doc.party_state}
-            onChange={(v) => onChange({ party_state: v, place_of_supply: v })}
-            list="indian-states"
+            onChange={(v) => onChange({ party_state: v || '', place_of_supply: v || '' })}
+            options={stateOptions}
+            placeholder="Choose state"
+            creatable
+            clearable
+            recentKey="states"
+            testId="party-state"
           />
         </Field>
       </div>
-      <datalist id="indian-states">
-        {INDIAN_STATES.map((s) => (
-          <option key={s} value={s} />
-        ))}
-      </datalist>
 
       {shipOpen ? (
         <Field label="Shipping address" className="mt">

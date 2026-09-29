@@ -49,7 +49,14 @@ export async function loadDemoData(ctx) {
   });
 
   const invoice = newDocument('TAX_INVOICE', ctx);
-  invoice.document = { ...invoice.document, ...partyFields, status: 'ISSUED', is_demo: 1, notes: 'Thank you for your business!' };
+  invoice.document = {
+    ...invoice.document, ...partyFields, status: 'ISSUED', is_demo: 1, notes: 'Thank you for your business!',
+    meta: {
+      ...invoice.document.meta,
+      paymentTerms: '15 days credit', buyerOrderNo: 'PO/ABC/2026/118', buyerOrderDate: addDays(todayISO(), -5),
+      dispatchedThrough: 'Own vehicle', destination: 'Bengaluru', vehicleNo: 'KA01AB1234', reverseCharge: 'No',
+    },
+  };
   invoice.items = [line(chair, ids[0], '10'), line(table, ids[1], '4'), line(service, ids[2], '1')];
   await saveDocument(invoice, ctx);
 

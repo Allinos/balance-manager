@@ -1,0 +1,136 @@
+# DocGen — test results
+
+Last full run: **29 September 2026**, branch `claude/focused-darwin-2j53b8`.
+
+| Suite | Command | Result |
+|-------|---------|--------|
+| Desktop JS unit tests | `cd document-generator && npm test` | **18 / 18 passed** |
+| Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
+| Desktop lint + production build | `npx eslint . && npx vite build` | clean |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **100 / 100 checks passed** |
+| Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
+| Server API tests (PostgreSQL 16) | `TEST_DATABASE_URL=postgres://… node --test test/api.test.js` | **19 / 19 passed** |
+| Portal + admin end-to-end (Chromium) | `cd portal && node e2e/portal.e2e.mjs` | **14 / 14 passed** |
+| Server load test (SQLite and PostgreSQL) | `npm run loadtest` | 0 errors, see below |
+| Windows installer build (GitHub Actions) | `docgen-windows.yml` | build + unit tests passed (Windows-only PDF code compiles) |
+
+Test machine: Linux container, 4 vCPU, 15 GB RAM, Node 22, WebKitGTK (the Linux webview).
+Numbers on a normal office PC are similar or better; the server figures are for a single
+Node process.
+
+---
+
+## 1. Desktop end-to-end (100 checks)
+
+`document-generator/e2e/run.mjs` drives the **real debug binary** through WebDriver
+(tauri-driver) against a **real local server** (`server/`, fresh database, seeded by the
+admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
+
+| # | Phase | Checks | What is verified |
+|---|-------|-------:|------------------|
+| 1 | First launch | 9 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; state list shows 10 + "type to search", filters on typing; **3 compact activation cards**; Create account link; code auto-formats to `AB12-CD34-EF56`; Skip starts the **30-day trial** |
+| 2 | Server config + HTML ad | 8 | config fetched and cached; next check **+30 days** (server interval); remote ad shown on the Document Manager; HTML in `sandbox=""` frame with opaque origin, its `<script>` did not run; non-blocking corner card; local counters; anonymous shown/closed counts reached the server |
+| 3 | Layout & Help | 9 | brand + tagline, "A product of RainDeal.in", Help & Settings at the bottom; sidebar **collapses to icons** and expands; **light theme by default**; Help lists tutorial videos from the server; guides open; help search |
+| 4 | Tally Professional invoice | 22 | customer GSTIN → Karnataka; place of supply follows; unit picked from the searchable unit list; additional details (buyer's order, dispatch, vehicle); inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary (Integrated Tax)**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory |
+| 5 | Preview actions | 6 | **Download PDF** without a print dialog (valid `%PDF`, named `INV-00001 - ABC Construction Pvt Ltd.pdf`); template switcher renders **Tally Standard, Modern, Simple, Tally Professional** from the same data; history lists creation and template changes |
+| 6 | Document Manager | 8 | quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; type filter; search by product; **Cancel Invoice** asks for a reason → CANCELLED mark on the page, editing disabled, reason in history, invoice and items **kept, not deleted** |
+| 7 | External documents | 5 | PDF + PNG added; folder created; file **moved**; file **copied** (separate entry, original kept); delete → Deleted view → restore |
+| 8 | Settings | 5 | custom unit "Crate" saved and listed first in the unit selector; customer saved from the invoice with GSTIN; four templates in settings; About shows interval / last / next check |
+| 9 | Account sign-in | 4 | wrong password → clear message; sign-in → licensed, plan in the sidebar; server registered the computer; sign out → back to trial |
+| 10 | Check schedule | 2 | restart → **no new check before due**; the same ad is not repeated |
+| 11 | Trial ended | 4 | clock +31 days → **license gate**, no Skip; overdue monthly check runs at startup; **activation code** unlocks the app |
+| 12 | Server offline | 3 | clock +62 days, server stopped → license works offline; failed attempt recorded, cached config kept; help videos still shown |
+| 13 | Server back | 2 | clock +63 days → check succeeds and is **rescheduled 30 days later** |
+| 14 | License expired | 1 | admin sets the end date to yesterday → "Check license now" → "Your DocGen license has expired" |
+| 15 | Offline build | 6 | no server configured → sign-in explained as unavailable; no ad on day 1; **built-in DocGen message after ~15 days**, its button opens License & Account; not repeated within 15 days; **setting the clock back does not extend the trial** |
+| 16 | 20,000 documents | 6 | see performance below |
+
+## 2. Desktop performance (20,000 documents)
+
+20,000 documents with items were inserted into the app database (5 types, 700 products),
+then the app was restarted.
+
+| Measurement | Result |
+|-------------|--------|
+| Document Manager opens (list + summary + folders) | **~0.7 s** |
+| Search "Customer 19999" (number/party/product LIKE search) | **~0.2 s** incl. WebDriver round-trip |
+| Last page (offset 19,950) | **20 ms** |
+
+Supported by indexes on type, date, status, party, folder, `(deleted_at, issue_date, id)`,
+item names, and paging (50 rows per page, "Load more").
+
+## 3. Server load test (10,000 clients + licenses)
+
+`npm run loadtest` seeds 10,000 clients with licenses and devices, then measures each
+endpoint. Rate limits are disabled for this run only (they are verified by
+`test/ratelimit.test.js`).
+
+| Endpoint | Concurrency | SQLite req/s · p50 · p95 | PostgreSQL 16 req/s · p50 · p95 |
+|----------|------------:|--------------------------|---------------------------------|
+| `GET /api/app/config` (desktop check) | 50 | 723 · 62 ms · 86 ms | 678 · 67 ms · 104 ms |
+| `POST /api/app/events` (ad counters) | 50 | 894 · 52 ms · 74 ms | 974 · 49 ms · 67 ms |
+| `POST /api/app/activate` (new device) | 20 | 356 · 52 ms · 76 ms | 323 · 60 ms · 86 ms |
+| `POST /api/app/login` (bcrypt) | 10 | 6 · 1.7 s · 2.8 s | 6 · 1.8 s · 2.3 s |
+| `GET /api/admin/clients` page 1 | 20 | 513 · 37 ms · 57 ms | 393 · 47 ms · 66 ms |
+| `GET /api/admin/clients?q=…` search | 20 | 63 · 311 ms · 364 ms | 127 · 156 ms · 191 ms |
+| `GET /api/admin/clients` last page | 20 | 399 · 49 ms · 61 ms | 358 · 51 ms · 76 ms |
+| `GET /api/admin/licenses?status=active` | 20 | 101 · 188 ms · 242 ms | 172 · 114 ms · 141 ms |
+| `GET /api/admin/stats` | 10 | 268 · 37 ms · 51 ms | 334 · 29 ms · 41 ms |
+
+Errors: **0** in every row.
+
+Review notes:
+
+- The desktop-facing endpoints (config, events, activation) handle hundreds of requests per
+  second on one process. Desktop apps check the configuration about **once a month**, so
+  100,000 installations produce roughly 3,300 checks a day.
+- Sign-in is deliberately slow (bcrypt cost 11 ≈ 0.25 s CPU per attempt) to resist password
+  guessing. Sign-ins happen once per computer, so ~6/s on 4 vCPU is ample; add CPU or
+  instances if needed. It is additionally rate-limited per IP.
+- Found and fixed during the review: the license list counted rows with an unnecessary join
+  to `clients`; the count now joins only when searching (`GET /api/admin/licenses` ~25–40 % faster).
+- Admin search uses case-insensitive substring matching (`LIKE`) over name, e-mail, business
+  and phone; ~150 ms on PostgreSQL at 10,000 clients. For hundreds of thousands of clients add
+  a PostgreSQL trigram index (`pg_trgm`) on those columns.
+- Use PostgreSQL in production (the SQLite mode is for development and small single-instance setups).
+
+## 4. Security checks covered by tests
+
+- Rate limiting: 30 sign-in/activation attempts per 15 minutes per IP, then HTTP 429 (`ratelimit.test.js`).
+- Input validation, duplicate e-mails, unauthenticated admin access and pagination limits are rejected with clear errors (API tests).
+- License tokens: Ed25519 signature verified by the desktop, bound to the device; tampered
+  payload, wrong key and other device are rejected (Rust tests); the server rejects tampered or foreign tokens on refresh (API tests).
+- The trial survives a database reset (install marker file) and is not extended by moving the clock back (Rust tests + e2e).
+- Remote configuration validation: HTTPS-only URLs, length and range limits (Rust tests); ad
+  scripts never run (e2e).
+- Financial documents are cancelled, never deleted; history is kept (e2e).
+- Business data is never sent: the desktop only sends license/device identifiers and anonymous ad counters.
+
+## 5. Known limitations
+
+- **Direct PDF download** is implemented for Windows (WebView2 `PrintToPdf`) and Linux
+  (WebKitGTK). Linux is covered by the e2e test; the Windows code is compiled and packaged by CI
+  but was not clicked through on Windows in this run. On macOS the button falls back to the
+  print dialog ("Save as PDF").
+- Payment gateways: the provider interface, checkout, confirmation and webhook flow are tested
+  with the built-in *mock* and *manual* providers. A real gateway (e.g. Razorpay) needs its keys
+  and a small provider module (see `server/README.md`).
+- Ad images must be HTTPS URLs; the e2e test used an HTML ad (no external image) because the test
+  machine has no public HTTPS image host.
+- The Tally Professional layout is modelled on the standard GST invoice particulars (CGST Rule 46)
+  and the common Tally print layout; it is not an official Tally format.
+
+## How to re-run everything
+
+```bash
+# desktop
+cd document-generator
+npm ci && npm test && npm run lint && npm run test:rust
+npx tauri build --debug --no-bundle && xvfb-run -a node e2e/run.mjs
+
+# server
+cd ../server && npm ci && npm test && npm run loadtest
+
+# portal
+cd ../portal && npm ci && npm run build && node e2e/portal.e2e.mjs
+```

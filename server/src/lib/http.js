@@ -44,7 +44,7 @@ export const pageQuery = z.object({
 /** Run a paginated query. `build(qb)` applies filters to both the count and the page query. */
 export async function paginate(knex, table, { page, pageSize }, build, { orderBy = [['id', 'desc']], select = ['*'] } = {}) {
   const countQ = knex(table);
-  build(countQ);
+  build(countQ, { count: true });
   const [{ count }] = await countQ.count({ count: '*' });
   const q = knex(table).select(select);
   build(q);

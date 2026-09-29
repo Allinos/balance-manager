@@ -1,6 +1,6 @@
 /* ==========================================================================
    Printed document (A4). Independent of the app theme: always black on white.
-   Two styles: .doc-zoho (modern, airy) and .doc-tally (compact, boxed).
+   Two styles: .doc-modern (modern, airy) and .doc-tally-std (compact, boxed).
    ========================================================================== */
 
 .doc {
@@ -339,60 +339,60 @@
   font-size: 12pt;
 }
 
-/* ----------------------------- Zoho style ------------------------------ */
-.doc-zoho .doc-header {
+/* ----------------------------- Modern ----------------------------------- */
+.doc-modern .doc-header {
   padding-bottom: 5mm;
   border-bottom: 2px solid var(--doc-accent);
 }
-.doc-zoho .doc-meta {
+.doc-modern .doc-meta {
   background: #f6f8fc;
   border-radius: 2mm;
   padding: 3mm 4mm;
 }
-.doc-zoho .doc-items thead th {
+.doc-modern .doc-items thead th {
   background: var(--doc-accent);
   color: #fff;
 }
-.doc-zoho .doc-items thead th:first-child {
+.doc-modern .doc-items thead th:first-child {
   border-top-left-radius: 1.5mm;
 }
-.doc-zoho .doc-items thead th:last-child {
+.doc-modern .doc-items thead th:last-child {
   border-top-right-radius: 1.5mm;
 }
-.doc-zoho .doc-items tbody td {
+.doc-modern .doc-items tbody td {
   border-bottom: 1px solid var(--doc-line);
 }
-.doc-zoho .doc-items tbody tr:nth-child(even) td {
+.doc-modern .doc-items tbody tr:nth-child(even) td {
   background: #fafbfd;
 }
-.doc-zoho .doc-taxes th {
+.doc-modern .doc-taxes th {
   border-bottom: 1px solid var(--doc-line);
   color: var(--doc-muted);
 }
-.doc-zoho .doc-taxes td {
+.doc-modern .doc-taxes td {
   border-bottom: 1px solid #eef0f4;
 }
-.doc-zoho .doc-grand {
+.doc-modern .doc-grand {
   background: var(--doc-accent);
   color: #fff;
   border-radius: 1.5mm;
 }
-.doc-zoho .doc-words {
+.doc-modern .doc-words {
   background: #f6f8fc;
   border-radius: 2mm;
   padding: 2.5mm 3.5mm;
 }
-.doc-zoho .doc-receipt-amount {
+.doc-modern .doc-receipt-amount {
   background: #f6f8fc;
   border: 1px solid var(--doc-line);
   border-radius: 2mm;
 }
-.doc-zoho .doc-receipt-amount strong {
+.doc-modern .doc-receipt-amount strong {
   color: var(--doc-accent);
 }
 
-/* ----------------------------- Tally style ----------------------------- */
-.doc-tally {
+/* ----------------------------- Tally Std ------------------------------- */
+.doc-tally-std {
   font-family: Arial, 'Helvetica Neue', 'Liberation Sans', sans-serif;
   font-size: 8.6pt;
   line-height: 1.32;
@@ -400,108 +400,448 @@
   --doc-line: #333;
   --doc-muted: #444;
 }
-.doc-tally .doc-header {
+.doc-tally-std .doc-header {
   border: 1px solid var(--doc-line);
   padding: 3mm;
   flex-direction: row-reverse;
   position: relative;
   padding-top: 9mm;
 }
-.doc-tally .doc-header-right {
+.doc-tally-std .doc-header-right {
   position: absolute;
   top: 2mm;
   left: 0;
   right: 0;
   text-align: center;
 }
-.doc-tally .doc-title {
+.doc-tally-std .doc-title {
   color: var(--doc-ink);
   font-size: 12pt;
   letter-spacing: 0.12em;
 }
-.doc-tally .doc-header-left {
+.doc-tally-std .doc-header-left {
   flex: 1;
 }
-.doc-tally .doc-company-name {
+.doc-tally-std .doc-company-name {
   font-size: 12.5pt;
 }
-.doc-tally .doc-parties {
+.doc-tally-std .doc-parties {
   gap: 0;
   border: 1px solid var(--doc-line);
   border-top: 0;
 }
-.doc-tally .doc-party,
-.doc-tally .doc-meta {
+.doc-tally-std .doc-party,
+.doc-tally-std .doc-meta {
   padding: 2.5mm 3mm;
 }
-.doc-tally .doc-party + .doc-party,
-.doc-tally .doc-meta {
+.doc-tally-std .doc-party + .doc-party,
+.doc-tally-std .doc-meta {
   border-left: 1px solid var(--doc-line);
 }
-.doc-tally .doc-meta-row {
+.doc-tally-std .doc-meta-row {
   border-bottom: 1px dotted #999;
 }
-.doc-tally .doc-meta-row:last-child {
+.doc-tally-std .doc-meta-row:last-child {
   border-bottom: 0;
 }
-.doc-tally .doc-label {
+.doc-tally-std .doc-label {
   color: var(--doc-ink);
   letter-spacing: 0.02em;
 }
-.doc-tally .doc-items th,
-.doc-tally .doc-items td,
-.doc-tally .doc-taxes th,
-.doc-tally .doc-taxes td {
+.doc-tally-std .doc-items th,
+.doc-tally-std .doc-items td,
+.doc-tally-std .doc-taxes th,
+.doc-tally-std .doc-taxes td {
   border: 1px solid var(--doc-line);
   padding: 1.2mm 1.6mm;
 }
-.doc-tally .doc-items {
+.doc-tally-std .doc-items {
   border-top: 0;
 }
-.doc-tally .doc-taxes th {
+.doc-tally-std .doc-taxes th {
   border-top: 0;
   background: #f4f4f4;
 }
-.doc-tally .doc-items thead th {
+.doc-tally-std .doc-items thead th {
   background: #eee;
   border-top: 0;
 }
-.doc-tally .doc-summary {
+.doc-tally-std .doc-summary {
   border: 1px solid var(--doc-line);
   border-top: 0;
   gap: 0;
 }
-.doc-tally .doc-summary-left {
+.doc-tally-std .doc-summary-left {
   padding: 2.5mm 3mm;
   border-right: 1px solid var(--doc-line);
 }
-.doc-tally .doc-totals {
+.doc-tally-std .doc-totals {
   padding: 1.5mm 0 0;
 }
-.doc-tally .doc-grand {
+.doc-tally-std .doc-grand {
   border-top: 1px solid var(--doc-line);
   border-bottom: 3px double var(--doc-line);
   border-radius: 0;
 }
-.doc-tally .doc-payment,
-.doc-tally .doc-terms,
-.doc-tally .doc-signatures {
+.doc-tally-std .doc-payment,
+.doc-tally-std .doc-terms,
+.doc-tally-std .doc-signatures {
   border: 1px solid var(--doc-line);
   border-top: 0;
   padding: 2.5mm 3mm;
   margin: 0;
 }
-.doc-tally .doc-signatures {
+.doc-tally-std .doc-signatures {
   margin-top: 0;
 }
-.doc-tally .doc-receipt {
+.doc-tally-std .doc-receipt {
   border: 1px solid var(--doc-line);
   border-top: 0;
   padding: 4mm;
 }
-.doc-tally .doc-receipt-amount {
+.doc-tally-std .doc-receipt-amount {
   border: 1px solid var(--doc-line);
 }
-.doc-tally .doc-footer {
+.doc-tally-std .doc-footer {
   padding-top: 2mm;
+}
+
+/* ----------------------------- Simple ---------------------------------- */
+.doc-simple {
+  --doc-accent: #111;
+  --doc-muted: #555;
+  --doc-line: #bbb;
+}
+.doc-simple .doc-header {
+  padding-bottom: 4mm;
+  border-bottom: 1px solid #111;
+}
+.doc-simple .doc-title {
+  color: #111;
+}
+.doc-simple .doc-items thead th {
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+}
+.doc-simple .doc-items tbody td {
+  border-bottom: 1px solid #e5e5e5;
+}
+.doc-simple .doc-taxes th {
+  border-bottom: 1px solid #999;
+}
+.doc-simple .doc-grand {
+  border-top: 1px solid #111;
+  border-bottom: 1px solid #111;
+}
+
+/* --------------------- Shared: watermark, declaration ------------------- */
+.doc {
+  position: relative;
+}
+.doc-watermark {
+  position: absolute;
+  top: 38%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-size: 64pt;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(200, 30, 30, 0.16);
+  border: 6px solid rgba(200, 30, 30, 0.16);
+  padding: 2mm 8mm;
+  pointer-events: none;
+  z-index: 5;
+  white-space: nowrap;
+}
+.doc-declaration {
+  font-size: 8pt;
+}
+.doc-jurisdiction {
+  font-weight: 700;
+  color: var(--doc-ink);
+}
+.doc-tally-std .doc-declaration {
+  border: 1px solid var(--doc-line);
+  border-top: 0;
+  padding: 2.5mm 3mm;
+}
+
+/* ------------------------ Tally Professional --------------------------- */
+.doc-tp {
+  font-family: Arial, 'Helvetica Neue', 'Liberation Sans', sans-serif;
+  font-size: 8.4pt;
+  line-height: 1.3;
+  gap: 0;
+  --doc-line: #222;
+  --doc-muted: #444;
+}
+.tp-title-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: end;
+  margin-bottom: 1.2mm;
+}
+.tp-title {
+  margin: 0;
+  font-size: 12.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+.tp-copy {
+  text-align: right;
+  font-size: 7.4pt;
+  font-style: italic;
+}
+.tp-frame {
+  border: 1px solid var(--doc-line);
+}
+.tp-top {
+  display: grid;
+  grid-template-columns: 52% 48%;
+  border-bottom: 1px solid var(--doc-line);
+}
+.tp-left {
+  border-right: 1px solid var(--doc-line);
+  display: flex;
+  flex-direction: column;
+}
+.tp-box {
+  padding: 1.6mm 2.2mm;
+}
+.tp-left .tp-box + .tp-box {
+  border-top: 1px solid var(--doc-line);
+}
+.tp-seller {
+  display: flex;
+  gap: 3mm;
+  align-items: flex-start;
+}
+.tp-logo {
+  max-width: 24mm;
+  max-height: 20mm;
+  object-fit: contain;
+}
+.tp-company {
+  font-size: 11pt;
+  font-weight: 700;
+}
+.tp-caption {
+  font-size: 7.6pt;
+  color: var(--doc-muted);
+}
+.tp-strong {
+  font-weight: 700;
+}
+.tp-party .tp-strong {
+  font-size: 9.2pt;
+}
+.tp-colon {
+  padding: 0 0.6mm;
+}
+.tp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.tp-cell {
+  padding: 1mm 1.8mm;
+  border-bottom: 1px solid var(--doc-line);
+  min-height: 8.6mm;
+}
+.tp-cell:nth-child(odd):not(.tp-wide) {
+  border-right: 1px solid var(--doc-line);
+}
+.tp-wide {
+  grid-column: 1 / -1;
+  border-bottom: 0;
+  min-height: 12mm;
+}
+.tp-cell-label {
+  font-size: 7.4pt;
+  color: var(--doc-muted);
+}
+.tp-cell-value {
+  font-weight: 700;
+  word-break: break-word;
+}
+.tp-qr {
+  display: flex;
+  justify-content: flex-end;
+  padding: 1.5mm 2mm;
+}
+.tp-qr img {
+  width: 22mm;
+  height: 22mm;
+}
+.tp-items,
+.tp-hsn {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tp-items th,
+.tp-hsn th {
+  font-weight: 600;
+  font-size: 7.8pt;
+  padding: 1mm 1.4mm;
+  border-bottom: 1px solid var(--doc-line);
+  border-right: 1px solid var(--doc-line);
+  text-align: center;
+}
+.tp-items td {
+  padding: 0.9mm 1.4mm;
+  border-right: 1px solid var(--doc-line);
+  vertical-align: top;
+}
+.tp-items th:last-child,
+.tp-items td:last-child,
+.tp-hsn th:last-child,
+.tp-hsn td:last-child {
+  border-right: 0;
+}
+.tp-items .c-sn {
+  width: 7mm;
+  text-align: center;
+}
+.tp-items .c-hsn {
+  width: 16mm;
+  text-align: center;
+}
+.tp-items .c-per {
+  width: 10mm;
+  text-align: center;
+}
+.tp-items .c-num,
+.tp-hsn .c-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.tp-items .c-amt {
+  width: 26mm;
+}
+.tp-hsn .c-rate {
+  text-align: center;
+  width: 12mm;
+}
+.tp-item-desc {
+  font-size: 7.6pt;
+  font-style: italic;
+  color: var(--doc-muted);
+  white-space: pre-line;
+}
+.tp-charge-label {
+  text-align: right;
+  font-style: italic;
+  font-weight: 700;
+}
+.tp-rule {
+  border-top: 1px solid var(--doc-line);
+}
+.tp-filler td {
+  height: 6mm;
+}
+.tp-items tfoot td {
+  border-top: 1px solid var(--doc-line);
+  padding: 1.2mm 1.4mm;
+}
+.tp-total-label {
+  text-align: right;
+  font-weight: 700;
+}
+.tp-grand {
+  font-weight: 800;
+  font-size: 9.6pt;
+}
+.tp-words {
+  border-top: 1px solid var(--doc-line);
+}
+.tp-row-between {
+  display: flex;
+  justify-content: space-between;
+}
+.tp-eoe {
+  font-style: italic;
+}
+.tp-hsn {
+  border-top: 1px solid var(--doc-line);
+}
+.tp-hsn td {
+  padding: 0.8mm 1.4mm;
+  border-right: 1px solid var(--doc-line);
+  border-bottom: 1px solid #999;
+}
+.tp-hsn tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--doc-line);
+}
+.tp-small {
+  border-top: 1px solid var(--doc-line);
+  font-size: 7.8pt;
+}
+.tp-notes {
+  border-top: 1px solid var(--doc-line);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3mm;
+}
+.tp-receipt {
+  font-size: 10pt;
+  line-height: 1.7;
+}
+.tp-bottom {
+  display: grid;
+  grid-template-columns: 52% 48%;
+  border-top: 1px solid var(--doc-line);
+  break-inside: avoid;
+}
+.tp-bottom-left {
+  padding: 1.6mm 2.2mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6mm;
+}
+.tp-bottom-right {
+  border-left: 1px solid var(--doc-line);
+  display: flex;
+  flex-direction: column;
+}
+.tp-declaration {
+  font-size: 7.8pt;
+}
+.tp-underline {
+  text-decoration: underline;
+}
+.tp-bank {
+  padding: 1.6mm 2.2mm;
+}
+.tp-sign {
+  margin-top: auto;
+  border-top: 1px solid var(--doc-line);
+  padding: 1.6mm 2.2mm;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+}
+.tp-sign-for {
+  font-weight: 700;
+}
+.tp-sign-space {
+  height: 16mm;
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+}
+.tp-receiver {
+  margin-top: auto;
+}
+.tp-receiver .tp-sign-space {
+  height: 12mm;
+}
+.tp-footer {
+  text-align: center;
+  font-size: 7.6pt;
+  padding-top: 1.5mm;
+}
+.doc-tp-compact .tp-cell {
+  min-height: 0;
 }

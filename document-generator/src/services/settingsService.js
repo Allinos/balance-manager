@@ -1,14 +1,20 @@
 import { call } from './api.js';
 import { DEFAULT_SETTINGS } from '../config/defaults.js';
+import { normaliseTemplate } from '../config/documentTypes.js';
+import { setClockOffset } from './remoteConfig.js';
 
 export async function loadAppData() {
-  const [stored, company, docSettings, info] = await Promise.all([
+  const [stored, company, docSettings, info, license] = await Promise.all([
     call('settings_get_all'),
     call('company_get'),
     call('doc_settings_get_all'),
     call('app_info'),
+    call('license_status'),
   ]);
-  return { settings: { ...DEFAULT_SETTINGS, ...stored }, company, docSettings, info };
+  setClockOffset(info.clockOffsetMs);
+  const settings = { ...DEFAULT_SETTINGS, ...stored };
+  settings.documentStyle = normaliseTemplate(settings.documentStyle);
+  return { settings, company, docSettings, info, license };
 }
 
 /** @param {Record<string, unknown>} values */

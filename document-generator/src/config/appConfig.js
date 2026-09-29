@@ -1,19 +1,25 @@
 /**
- * Publisher / support details shown on the "Premium & Support" page.
- * Edit these values before building your installer.
+ * Product branding and support details. Edit these values before building your installer.
+ *
+ * The sidebar icon is `public/brand-icon.svg` — replace that file to change it
+ * (any square SVG or PNG; for PNG also change `iconUrl`).
  */
 export const APP_CONFIG = {
   appName: 'DocGen',
-  publisher: 'DocGen Software',
-  website: 'https://example.com',
-  supportEmail: 'support@example.com',
+  tagline: 'Create. Manage. Grow.',
+  iconUrl: '/brand-icon.svg',
+  company: 'RainDeal.in',
+  companyUrl: 'https://raindeal.in',
+  website: 'https://raindeal.in',
+  supportEmail: 'support@raindeal.in',
   supportPhone: '+91 90000 00000',
   // International format without "+" or spaces, used for https://wa.me/<number>
   whatsappNumber: '919000000000',
+  youtubeChannel: 'https://www.youtube.com/@RainDeal',
   premiumFeatures: [
-    'Custom document templates with your brand colours',
+    'All document types and templates, no ads',
+    'Use on more than one computer',
     'Priority email & WhatsApp support',
-    'Help with installation, backup and data migration',
-    'Early access to cloud backup and WhatsApp sharing (coming soon)',
+    'Help with setup, backup and data migration',
   ],
 };

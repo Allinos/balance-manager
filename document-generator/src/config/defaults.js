@@ -1,6 +1,10 @@
 /** Default application settings. Stored values in SQLite override these key by key. */
 
-import { DEFAULT_VISIBLE_TYPES, getType } from './documentTypes.js';
+import { DEFAULT_VISIBLE_TYPES, getType, normaliseTemplate } from './documentTypes.js';
+import { STATE_NAMES } from './states.js';
+import { DEFAULT_UNITS } from './units.js';
+
+export { DEFAULT_UNITS };
 
 export const CURRENCY_PRESETS = [
   { code: 'INR', symbol: '₹', name: 'Indian Rupee', decimals: 2 },
@@ -18,22 +22,15 @@ export const CURRENCY_PRESETS = [
   { code: 'JPY', symbol: '¥', name: 'Japanese Yen', decimals: 0 },
 ];
 
-export const INDIAN_STATES = [
-  'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chandigarh',
-  'Chhattisgarh', 'Dadra and Nagar Haveli and Daman and Diu', 'Delhi', 'Goa', 'Gujarat', 'Haryana',
-  'Himachal Pradesh', 'Jammu and Kashmir', 'Jharkhand', 'Karnataka', 'Kerala', 'Ladakh', 'Lakshadweep',
-  'Madhya Pradesh', 'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Puducherry',
-  'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand',
-  'West Bengal',
-];
-
-export const DEFAULT_UNITS = ['Nos', 'Pcs', 'Kg', 'g', 'Ltr', 'Mtr', 'Ft', 'Sq.ft', 'Sq.m', 'Box', 'Set', 'Pair', 'Bag', 'Hrs', 'Days', 'Job', 'Month'];
+/** @deprecated use STATE_NAMES from states.js */
+export const INDIAN_STATES = STATE_NAMES;
 
 export const DEFAULT_SETTINGS = {
   setupComplete: false,
-  documentStyle: 'zoho', // 'tally' | 'zoho'
+  documentStyle: 'tally-pro', // template id, see TEMPLATES in documentTypes.js
+  businessType: 'trading',
   documentAccent: '#1f4fd8',
-  theme: 'system', // 'light' | 'dark' | 'system'
+  theme: 'light', // 'light' | 'dark' | 'system'
   baseCurrency: 'INR',
   currencies: [{ code: 'INR', symbol: '₹', name: 'Indian Rupee', decimals: 2, rate: '1' }],
   taxSystem: 'GST', // 'GST' | 'VAT' | 'NONE'
@@ -55,11 +52,14 @@ export const DEFAULT_SETTINGS = {
   qrContent: 'UPI', // 'UPI' | 'DOCUMENT' | 'CONTACT' | 'CUSTOM'
   qrCustomText: '',
   footerText: 'This is a computer-generated document.',
+  jurisdiction: '',
+  declaration: 'We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.',
 };
 
 /** Settings every document type understands (with their meaning for the settings UI). */
 export const DOC_SETTING_FIELDS = [
   { key: 'title', label: 'Printed title', type: 'text' },
+  { key: 'template', label: 'Template', type: 'template' },
   { key: 'showPrices', label: 'Show prices & amounts', type: 'bool' },
   { key: 'showTax', label: 'Show tax columns', type: 'bool' },
   { key: 'showHsn', label: 'Show HSN/SAC', type: 'bool' },
@@ -71,6 +71,7 @@ export const DOC_SETTING_FIELDS = [
   { key: 'showSignature', label: 'Show signature block', type: 'bool' },
   { key: 'showStamp', label: 'Show company stamp', type: 'bool' },
   { key: 'showPackage', label: 'Show package information column', type: 'bool' },
+  { key: 'showDeclaration', label: 'Show declaration', type: 'bool' },
   { key: 'dueDays', label: 'Default due in (days)', type: 'number', only: ['dueDays'] },
   { key: 'validityDays', label: 'Default validity (days)', type: 'number', only: ['validityDays'] },
   { key: 'deliveryDays', label: 'Default delivery in (days)', type: 'number', only: ['deliveryDays'] },
@@ -97,10 +98,15 @@ export function resolveDocSettings(typeId, settings, docSettings = {}) {
     showSignature: settings.showSignature,
     showStamp: settings.showStamp,
     showPackage: false,
+    showDeclaration: type.financial && type.group !== 'payment',
     notes: '',
-    terms: type.id === 'TAX_INVOICE' ? settings.defaultPaymentTerms || '' : '',
+    terms: ['TAX_INVOICE', 'SERVICE_INVOICE'].includes(type.id) ? settings.defaultPaymentTerms || '' : '',
+    template: '',
   };
-  return { ...base, ...type.defaults, ...(docSettings[typeId] || {}) };
+  const resolved = { ...base, ...type.defaults, ...(docSettings[typeId] || {}) };
+  // Template: per-type override, else the global default.
+  resolved.template = normaliseTemplate(resolved.template || settings.documentStyle);
+  return resolved;
 }
 
 /** Whether a document type shows monetary amounts (e.g. challans do not). */

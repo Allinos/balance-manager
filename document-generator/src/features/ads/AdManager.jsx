@@ -6,40 +6,48 @@ import { openExternal } from '../../services/systemService.js';
 import { markAdShown, pickAdToShow, recordAdEvent } from './adService.js';
 
 /** Pages where an ad may appear. Never while creating or editing a document. */
-const QUIET_OK = ['/dashboard', '/documents', '/created'];
-const STARTUP_DELAY_MS = 6000;
+const QUIET_OK = ['/manager', '/help'];
+const STARTUP_DELAY_MS = 5000;
 
 /**
- * Shows at most one advertisement per app session, only on overview pages.
- *
- * The ad HTML is loaded from the configured HTTPS URL inside a sandboxed
- * iframe with no script execution and a unique opaque origin, so it can never
- * reach the application, its data or any Tauri API. It is never injected into
- * the application DOM.
+ * Wrap untrusted ad HTML in a minimal document. It is rendered in an iframe
+ * with an empty `sandbox` attribute: no scripts, no forms, no navigation of the
+ * app, and a unique opaque origin, so it can never reach the application,
+ * its data or any Tauri API. Links inside it do nothing — the CTA button is
+ * the only way out.
+ */
+const adDocument = (html) => `<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;padding:0;font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#1f2937;background:#fff}
+body{padding:12px 16px}img{max-width:100%;height:auto}a{color:inherit;pointer-events:none}
+</style></head><body>${html}</body></html>`;
+
+/**
+ * Shows at most one advertisement per app session, only on overview pages,
+ * a few seconds after startup. Closable, never blocks work.
  */
 export default function AdManager() {
-  const { path } = useRouter();
-  const { info } = useAppData();
-  const enabled = !!info?.remoteConfigured;
+  const { path, navigate } = useRouter();
+  const { info, license, loading } = useAppData();
   const [candidate, setCandidate] = useState(null);
   const [visible, setVisible] = useState(null);
-  const checked = useRef(false);
+  const decided = useRef(false);
+  const licensed = !!license?.licensed;
 
-  // Decide once per session, a few seconds after startup.
+  // Decide once per session.
   useEffect(() => {
-    if (!enabled) return undefined; // no ad server configured in this build
+    if (loading || decided.current) return undefined;
     const t = setTimeout(async () => {
-      if (checked.current) return;
-      checked.current = true;
+      if (decided.current) return;
+      decided.current = true;
       try {
-        const ad = await pickAdToShow();
+        const ad = await pickAdToShow({ licensed, platform: info?.platform, appVersion: info?.version });
         if (ad) setCandidate(ad);
       } catch {
         /* ads must never disturb the app */
       }
     }, STARTUP_DELAY_MS);
     return () => clearTimeout(t);
-  }, [enabled]);
+  }, [loading, licensed, info?.platform, info?.version]);
 
   // Show only when the user is on an overview page.
   useEffect(() => {
@@ -50,42 +58,57 @@ export default function AdManager() {
     markAdShown(candidate).catch(() => {});
   }, [candidate, visible, path]);
 
+  useEffect(() => {
+    if (!visible) return undefined;
+    const esc = (e) => {
+      if (e.key === 'Escape') {
+        recordAdEvent('AD_CLOSED', visible);
+        setVisible(null);
+      }
+    };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [visible]);
+
   if (!visible) return null;
 
   const close = () => {
-    recordAdEvent('AD_CLOSED', visible.adVersion);
+    recordAdEvent('AD_CLOSED', visible);
     setVisible(null);
   };
   const click = () => {
-    recordAdEvent('AD_CLICKED', visible.adVersion);
-    if (visible.clickUrl) openExternal(visible.clickUrl).catch(() => {});
+    recordAdEvent('AD_CLICKED', visible);
+    if (visible.action === 'license') navigate('/settings/license');
+    else if (visible.linkUrl) openExternal(visible.linkUrl).catch(() => {});
     setVisible(null);
   };
+  const hasCta = visible.action === 'license' || !!visible.linkUrl;
 
   return (
-    <div className="modal-backdrop no-print">
-      <div className="ad-popup" role="dialog" aria-label="Advertisement">
-        <div className="ad-header">
-          <span>{visible.title || 'Advertisement'}</span>
-          <button className="icon-btn" onClick={close} aria-label="Close advertisement">
-            <Icon name="x" />
-          </button>
+    <div className="ad-layer no-print" data-testid="ad-popup" data-ad-id={visible.id}>
+      <div className="ad-popup" role="dialog" aria-label={visible.title || 'Announcement'}>
+        <button className="icon-btn ad-close" onClick={close} aria-label="Close" data-testid="ad-close">
+          <Icon name="x" size={16} />
+        </button>
+        {visible.imageUrl && <img className="ad-image" src={visible.imageUrl} alt="" referrerPolicy="no-referrer" onError={(e) => e.currentTarget.remove()} />}
+        <div className="ad-body">
+          <span className="ad-label">{visible.builtIn ? 'DocGen' : 'Sponsored'}</span>
+          <h3 className="ad-title">{visible.title}</h3>
+          {visible.description && <p className="ad-text">{visible.description}</p>}
         </div>
-        <iframe
-          className="ad-frame"
-          title="Advertisement"
-          src={visible.contentUrl}
-          sandbox=""
-          referrerPolicy="no-referrer"
-          loading="lazy"
-        />
-        {visible.clickUrl && (
-          <div className="ad-footer">
-            <button className="btn btn-primary" onClick={click}>
-              {visible.ctaText || 'Learn More'}
-            </button>
-          </div>
+        {visible.html && (
+          <iframe className="ad-frame" title="Announcement content" srcDoc={adDocument(visible.html)} sandbox="" referrerPolicy="no-referrer" data-testid="ad-frame" />
         )}
+        <div className="ad-footer">
+          <button className="btn btn-sm" onClick={close}>
+            Not now
+          </button>
+          {hasCta && (
+            <button className="btn btn-sm btn-primary" onClick={click} data-testid="ad-cta">
+              {visible.ctaText || 'Learn more'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -250,8 +250,9 @@ export function adminRoutes(knex) {
       knex,
       'licenses',
       q,
-      (qb) => {
-        qb.leftJoin('clients', 'clients.id', 'licenses.client_id');
+      (qb, { count = false } = {}) => {
+        // The join is only needed for searching by client or for the listed columns, not for counting.
+        if (!count || q.q) qb.leftJoin('clients', 'clients.id', 'licenses.client_id');
         if (q.q) {
           const code = normaliseCode(q.q);
           if (code) qb.where('licenses.code', code);

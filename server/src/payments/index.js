@@ -2,7 +2,7 @@
  * Payment provider registry.
  *
  * DocGen does not depend on a specific payment gateway. A provider is a small
- * object implementing this interface (see docs/SERVER.md → "Connecting a payment provider"):
+ * object implementing this interface (see server/README.md → "Connecting a payment provider"):
  *
  *   {
  *     name: 'razorpay',

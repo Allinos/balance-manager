@@ -5,11 +5,12 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { loadAppData, saveSettings as persistSettings } from '../services/settingsService.js';
+import { getLicenseStatus } from '../services/licenseService.js';
 
 const AppDataContext = createContext(null);
 
 export function AppDataProvider({ children }) {
-  const [state, setState] = useState({ loading: true, error: '', settings: null, company: null, docSettings: {}, info: {} });
+  const [state, setState] = useState({ loading: true, error: '', settings: null, company: null, docSettings: {}, info: {}, license: null });
 
   const reload = useCallback(async () => {
     try {
@@ -34,9 +35,15 @@ export function AppDataProvider({ children }) {
 
   const setCompany = useCallback((company) => setState((s) => ({ ...s, company })), []);
   const setDocSettings = useCallback((docSettings) => setState((s) => ({ ...s, docSettings })), []);
+  /** Store a license status returned by a license command, or re-read it. */
+  const setLicense = useCallback(async (license) => {
+    const next = license || (await getLicenseStatus());
+    setState((s) => ({ ...s, license: next }));
+    return next;
+  }, []);
 
   return (
-    <AppDataContext.Provider value={{ ...state, reload, updateSettings, setCompany, setDocSettings }}>
+    <AppDataContext.Provider value={{ ...state, reload, updateSettings, setCompany, setDocSettings, setLicense }}>
       {children}
     </AppDataContext.Provider>
   );
@@ -44,7 +51,8 @@ export function AppDataProvider({ children }) {
 
 /**
  * @returns {{loading: boolean, error: string, settings: Object, company: Object|null, docSettings: Object,
- *   info: Object, reload: Function, updateSettings: Function, setCompany: Function, setDocSettings: Function}}
+ *   info: Object, license: import('../services/licenseService.js').LicenseStatus, reload: Function, updateSettings: Function,
+ *   setCompany: Function, setDocSettings: Function, setLicense: (license?: object) => Promise<object>}}
  */
 export const useAppData = () => useContext(AppDataContext);
 

@@ -1,10 +1,16 @@
 node_modules/
 .env
-npm-debug.log*
-yarn-error.log*
+.env.*
+!.env.example
 *.log
 .DS_Store
 coverage/
 dist/
-tmp/
-exports/
+
+# server data (database, keys, uploads)
+server/data/
+
+# desktop build output and test artefacts
+document-generator/src-tauri/target/
+document-generator/e2e/screenshots/
+portal/e2e/screenshots/
