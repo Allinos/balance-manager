@@ -1,7 +1,7 @@
 # DocGen
 
 **Create. Manage. Grow.** — a lightweight, offline-first business document generator for
-small businesses, by [RainDeal.in](https://raindeal.in).
+small businesses, by [reynrel.in](https://reynrel.in).
 
 | Part | Folder | Stack |
 |------|--------|-------|

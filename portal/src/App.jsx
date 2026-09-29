@@ -62,9 +62,9 @@ export const useAuth = () => useContext(AuthCtx);
 function Brand({ to = '/' }) {
   return (
     <Link to={to} className="brand">
-      <img src="/favicon.svg" alt="" />
+      <img src="/logo.png" alt="" />
       <span>
-        <strong>DocGen</strong>
+        <strong className="wordmark"><span className="brand-doc">Doc</span><span className="brand-gen">Gen</span></strong>
         <small>Create. Manage. Grow.</small>
       </span>
     </Link>
@@ -163,8 +163,8 @@ export function Footer() {
   return (
     <footer className="footer">
       DocGen · A product of{' '}
-      <a href="https://raindeal.in" target="_blank" rel="noreferrer">
-        RainDeal.in
+      <a href="https://reynrel.in" target="_blank" rel="noreferrer">
+        reynrel.in
       </a>
     </footer>
   );

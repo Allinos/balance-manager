@@ -285,7 +285,7 @@ describe('admin', () => {
         title: 'Festive offer',
         description: '20% off Business plan',
         imageUrl: 'https://cdn.example.com/banner.png',
-        linkUrl: 'https://raindeal.in/offer',
+        linkUrl: 'https://reynrel.in/offer',
         html: '<b>Offer</b>',
         frequencyDays: 10,
         target: { licenseStatus: 'trial', platforms: ['windows'] },
@@ -300,8 +300,8 @@ describe('admin', () => {
         configIntervalDays: 14,
         adPolicy: { minDaysBetweenAds: 5, maxPerMonth: 3, firstOpenDelayDays: 0 },
         defaultAdEnabled: false,
-        app: { latestVersion: '1.1.0', downloadUrl: 'https://raindeal.in/docgen', message: '' },
-        help: { youtubeChannel: 'https://www.youtube.com/@RainDeal', videos: [{ title: 'Create your first invoice', url: 'https://www.youtube.com/watch?v=abcdefghijk' }] },
+        app: { latestVersion: '1.1.0', downloadUrl: 'https://reynrel.in/docgen', message: '' },
+        help: { youtubeChannel: 'https://www.youtube.com/@reynrel', videos: [{ title: 'Create your first invoice', url: 'https://www.youtube.com/watch?v=abcdefghijk' }] },
       },
     });
     assert.equal(cfg.status, 200);

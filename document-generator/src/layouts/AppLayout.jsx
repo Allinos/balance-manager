@@ -9,6 +9,7 @@ import { BUSINESS_TYPES, DOCUMENT_TYPES } from '../config/documentTypes.js';
 import { APP_CONFIG } from '../config/appConfig.js';
 import { openExternal } from '../services/systemService.js';
 import TrialLine from '../features/license/TrialLine.jsx';
+import BrandName from '../components/BrandName.jsx';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', match: ['/dashboard'] },
@@ -111,7 +112,9 @@ export default function AppLayout({ children }) {
         <div className="brand">
           <img className="brand-mark" src={APP_CONFIG.iconUrl} alt="" />
           <span className="brand-text">
-            <span className="brand-name">{APP_CONFIG.appName}</span>
+            <span className="brand-name">
+              <BrandName />
+            </span>
             <span className="brand-tagline">{APP_CONFIG.tagline}</span>
           </span>
           <button className="icon-btn collapse-btn" onClick={toggle} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} data-testid="sidebar-toggle">
@@ -131,8 +134,8 @@ export default function AppLayout({ children }) {
           </div>
           <div className="made-by">
             <span className="nav-text">A product of </span>
-            <button className="link" onClick={() => openExternal(APP_CONFIG.companyUrl).catch((e) => toast.error(e.message))} data-testid="raindeal-link" title="Open RainDeal.in">
-              {collapsed ? 'RD' : APP_CONFIG.company}
+            <button className="link" onClick={() => openExternal(APP_CONFIG.companyUrl).catch((e) => toast.error(e.message))} data-testid="company-link" title={`Open ${APP_CONFIG.company}`}>
+              {collapsed ? 'reynrel' : APP_CONFIG.company}
             </button>
           </div>
         </div>

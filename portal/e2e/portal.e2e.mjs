@@ -141,7 +141,7 @@ try {
   await page.getByTestId('new-ad').click();
   await page.getByTestId('ad-title').fill('Diwali offer: 20% off');
   await page.locator('.modal').getByLabel('Description').fill('Upgrade to Business before 31 Oct.');
-  await page.locator('.modal').getByLabel('Link (opens in browser)').fill('https://raindeal.in/offer');
+  await page.locator('.modal').getByLabel('Link (opens in browser)').fill('https://reynrel.in/offer');
   await page.locator('.modal').getByLabel('HTML content (optional)').fill('<p style="color:#2f5bea">Limited time</p>');
   await shot('07-ad-editor');
   await page.getByTestId('save-ad').click();

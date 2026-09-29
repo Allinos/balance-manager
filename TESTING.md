@@ -7,7 +7,7 @@ Last full run: **29 September 2026** (after keyboard data entry, the bug-fix & U
 | Desktop JS unit tests | `cd document-generator && npm test` | **20 / 20 passed** |
 | Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **158 / 158 checks passed** (two consecutive runs) |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **160 / 160 checks passed** (two consecutive runs) |
 | Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
 | Server API tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… node --test test/api.test.js` | **19 / 19 passed** |
 | Portal + admin end-to-end (Chromium) | `cd portal && node e2e/portal.e2e.mjs` (SQLite and `DATABASE_URL=mysql://…`) | **14 / 14 passed** on both |
@@ -20,7 +20,7 @@ Node process.
 
 ---
 
-## 1. Desktop end-to-end (158 checks)
+## 1. Desktop end-to-end (160 checks)
 
 `document-generator/e2e/run.mjs` drives the **real debug binary** through WebDriver
 (tauri-driver) against a **real local server** (`server/`, fresh database, seeded by the
@@ -30,7 +30,7 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 |---|-------|-------:|------------------|
 | 1 | First launch | 13 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; state list shows 10 + "type to search", filters on typing; activation shows **only two cards** (Login Using Your Account · OR · I Have a License) and **Skip**, no input fields and no trial wording; login card → Email/User ID, Password, Sign In, Create Account; license card → code auto-formats to `AB12-CD34-EF56`, Activate; **Skip opens the Dashboard**; sidebar shows only a **thin green line + "30 Days"** |
 | 2 | Server config + HTML ad | 8 | config fetched and cached; next check **+30 days** (server interval); remote ad shown; HTML in `sandbox=""` frame with opaque origin, its `<script>` did not run; non-blocking corner card; local counters; anonymous shown/closed counts reached the server |
-| 3 | Layout & Help | 9 | brand + tagline, "A product of RainDeal.in", nav Dashboard · Document Manager · Products & Services · Customers & Vendors, Help & Settings at the bottom; sidebar collapses to icons and expands; **light theme by default**; Help lists tutorial videos from the server; guides; help search |
+| 3 | Layout & Help | 11 | new DocGen logo (square, not stretched) + name in brand colours (Doc blue, Gen orange) + tagline, "A product of reynrel.in", nav Dashboard · Document Manager · Products & Services · Customers & Vendors, Help & Settings at the bottom; sidebar collapses to icons and expands; **light theme by default**; Help lists tutorial videos from the server; guides; help search |
 | 4 | Tally Professional invoice | 25 | GST picked in the **searchable GST select**; **? help** beside Round Off opens a short explanation and closes with Esc; created from the Dashboard **+**; customer GSTIN → Karnataka; place of supply follows; unit from the searchable unit list; additional details; inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory |
 | 5 | Preview actions | 6 | **Download PDF** without a print dialog (valid `%PDF`); template switcher renders **Tally Standard, Modern, Simple, Tally Professional** from the same data; history |
 | 6 | Document Manager | 20 | **saved client picked with one click** (list closes, details filled, “Save this customer” prompt removed; it returns only when details are edited); **Round Off radio directly above Grand Total** (Yes 26,553.00 / No 26,552.95); **compact summary card** with icons and status pills; **type filter next to Search**; **+ New Document** opens the chooser; quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; **no folder panel, filters or create strip**; **one compact summary line** (Total · This Month · Files · per status); search by product; **Cancel Invoice** asks for a reason → CANCELLED mark, editing disabled, reason in history, invoice **kept, not deleted** |

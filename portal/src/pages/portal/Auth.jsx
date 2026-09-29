@@ -9,9 +9,9 @@ function AuthCard({ title, subtitle, children }) {
     <div className="auth-page">
       <div className="auth-card">
         <Link to="/" className="brand center">
-          <img src="/favicon.svg" alt="" />
+          <img src="/logo.png" alt="" />
           <span>
-            <strong>DocGen</strong>
+            <strong className="wordmark"><span className="brand-doc">Doc</span><span className="brand-gen">Gen</span></strong>
             <small>Create. Manage. Grow.</small>
           </span>
         </Link>

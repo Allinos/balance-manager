@@ -23,9 +23,9 @@ export default function AdminLogin() {
     <div className="auth-page">
       <form className="auth-card form" onSubmit={submit}>
         <div className="brand center">
-          <img src="/favicon.svg" alt="" />
+          <img src="/logo.png" alt="" />
           <span>
-            <strong>DocGen Admin</strong>
+            <strong className="wordmark"><span className="brand-doc">Doc</span><span className="brand-gen">Gen</span> Admin</strong>
             <small>Licenses · Clients · Ads</small>
           </span>
         </div>

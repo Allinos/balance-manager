@@ -3610,3 +3610,36 @@ div.folder-item {
 .ss-num .ss-value {
   text-align: right;
 }
+
+/* ------------------------------ Brand ---------------------------------- */
+:root {
+  --brand-blue: #224cc8;
+  --brand-orange: #d8943e;
+}
+:root[data-theme='dark'] {
+  --brand-blue: #5b82f0;
+}
+.brand-wordmark {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.brand-doc {
+  color: var(--brand-blue);
+}
+.brand-gen {
+  color: var(--brand-orange);
+}
+.brand img.brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 0;
+}
+.brand-name {
+  font-size: 19px;
+  line-height: 1.1;
+}
+.setup-logo-img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}

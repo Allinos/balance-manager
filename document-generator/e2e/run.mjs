@@ -6,7 +6,7 @@
  * unless noted):
  *   1  first launch: setup wizard → activation cards → skip (30-day trial)
  *   2  remote configuration + HTML ad (sandboxed) + anonymous ad counters
- *   3  UI: sidebar collapse, branding, RainDeal link, Help & Support (server videos)
+ *   3  UI: sidebar collapse, branding, reynrel.in link, Help & Support (server videos)
  *   4  Tally Professional GST invoice: GSTIN → state code, IGST, units, extra fields
  *   5  preview actions: Download PDF, template switcher (4 templates), history
  *   6  Document Manager: status quick-edit (pencil), filters, cancel invoice (reason, kept)
@@ -288,7 +288,7 @@ async function seedServer() {
     defaultAdEnabled: true,
     app: { latestVersion: '', downloadUrl: '', message: '' },
     help: {
-      youtubeChannel: 'https://www.youtube.com/@RainDeal',
+      youtubeChannel: 'https://www.youtube.com/@reynrel',
       videos: [
         { title: 'Create a GST invoice in 2 minutes', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', description: 'From customer to PDF', duration: '2:10' },
         { title: 'Organise documents with folders', url: 'https://youtu.be/dQw4w9WgXcQ', description: '', duration: '1:45' },
@@ -299,7 +299,7 @@ async function seedServer() {
     title: 'Festive offer on DocGen Business',
     description: 'Use DocGen on 3 computers with priority support.',
     html: '<h3 style="margin:0">20% off this week</h3><p>Upgrade from the client portal.</p><script>parent.document.title="pwned"</script>',
-    linkUrl: 'https://raindeal.in/docgen',
+    linkUrl: 'https://reynrel.in/docgen',
     ctaText: 'See plans',
     frequencyDays: 30,
     maxPerMonth: 2,
@@ -416,7 +416,11 @@ async function main() {
     section('3. Layout, branding and Help & Support');
     const brand = await exec('return document.querySelector(".brand").innerText');
     check(brand.includes('DocGen') && brand.includes('Create. Manage. Grow.'), 'sidebar brand name and tagline');
-    check((await textOf('[data-testid="raindeal-link"]')).includes('RainDeal.in') && (await bodyText()).includes('A product of'), '"A product of RainDeal.in" in the sidebar');
+    check((await textOf('[data-testid="company-link"]')).includes('reynrel.in') && (await bodyText()).includes('A product of'), '"A product of reynrel.in" in the sidebar');
+    const wordmark = await exec('const d=document.querySelector(".sidebar .brand-doc"), g=document.querySelector(".sidebar .brand-gen"); return [d.textContent, getComputedStyle(d).color, g.textContent, getComputedStyle(g).color]');
+    check(wordmark.join('|') === 'Doc|rgb(34, 76, 200)|Gen|rgb(216, 148, 62)', `name in brand colours: Doc blue, Gen orange (${wordmark.join(' ')})`);
+    const logo = await exec('const i=document.querySelector(".sidebar img.brand-mark"); return [i.getAttribute("src"), i.naturalWidth, i.naturalHeight, Math.round(i.getBoundingClientRect().width), Math.round(i.getBoundingClientRect().height)]');
+    check(logo[0] === '/brand-icon.png' && logo[1] > 0 && logo[1] === logo[2] && logo[3] === logo[4], `new logo shown, square, not stretched (${logo.join(' ')})`);
     const order = await exec('return [...document.querySelectorAll(".sidebar .nav-item")].map(e=>e.innerText.trim())');
     check(order.at(-1) === 'Settings' && order.at(-2) === 'Help & Support', `Settings and Help at the bottom (${order.join(', ')})`);
     await clickCss('[data-testid="sidebar-toggle"]');

@@ -6,7 +6,7 @@ work orders and job completion reports. It also keeps your other business files
 (supplier bills, contracts, delivery proofs) in the same place.
 
 Built with **Tauri 2 + React (JavaScript) + SQLite**. It works completely **offline**;
-all business data stays in one local file. A product of [RainDeal.in](https://raindeal.in).
+all business data stays in one local file. A product of [reynrel.in](https://reynrel.in).
 
 | Dashboard | Document Manager | Tally Professional GST invoice |
 |---|---|---|
@@ -76,7 +76,7 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
 document-generator/
 ├── src/                          React UI (JavaScript + JSDoc)
 │   ├── App.jsx                   route table, license gate, theme
-│   ├── layouts/AppLayout.jsx     collapsible sidebar, brand, 30-day line, "A product of RainDeal.in"
+│   ├── layouts/AppLayout.jsx     collapsible sidebar, brand, 30-day line, "A product of reynrel.in"
 │   ├── components/               SearchSelect, StatusEditor, Modal, Form, Menu, Icon …
 │   ├── config/
 │   │   ├── documentTypes.js      ◀ document type registry (fields, statuses, templates)
@@ -149,9 +149,9 @@ dev server (`Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object
 
 ```json
 {
-  "serverUrl": "https://api.docgen.raindeal.in",
-  "portalUrl": "https://docgen.raindeal.in",
-  "websiteUrl": "https://raindeal.in",
+  "serverUrl": "https://api.docgen.reynrel.in",
+  "portalUrl": "https://docgen.reynrel.in",
+  "websiteUrl": "https://reynrel.in",
   "licensePublicKey": "<printed by the server at startup>",
   "requestTimeoutSecs": 10
 }
@@ -161,7 +161,7 @@ dev server (`Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object
   sign-in/activation are unavailable, the built-in DocGen message appears about every 15 days.
 - Release builds only accept `https://` URLs. The `DOCGEN_*` environment overrides work only in debug builds.
 
-Branding (`src/config/appConfig.js`): app name, tagline, icon (`public/brand-icon.svg`),
+Branding (`src/config/appConfig.js`): app name, tagline, icon (`public/brand-icon.png`; installer icons from `assets/app-icon.png` via `npx tauri icon`),
 company link, support e-mail/phone/WhatsApp, YouTube channel.
 
 ## Data

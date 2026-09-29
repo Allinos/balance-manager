@@ -36,7 +36,7 @@ export const DEFAULT_APP_CONFIG = {
   defaultAdEnabled: true,
   app: { latestVersion: '1.0.0', downloadUrl: '', message: '' },
   help: {
-    youtubeChannel: 'https://www.youtube.com/@RainDeal',
+    youtubeChannel: 'https://www.youtube.com/@reynrel',
     videos: [],
   },
 };

@@ -36,9 +36,9 @@ export default function Home() {
     <div className="shell">
       <header className="topbar">
         <Link to="/" className="brand">
-          <img src="/favicon.svg" alt="" />
+          <img src="/logo.png" alt="" />
           <span>
-            <strong>DocGen</strong>
+            <strong className="wordmark"><span className="brand-doc">Doc</span><span className="brand-gen">Gen</span></strong>
             <small>Create. Manage. Grow.</small>
           </span>
         </Link>

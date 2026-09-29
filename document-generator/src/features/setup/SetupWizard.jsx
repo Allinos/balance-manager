@@ -13,6 +13,7 @@ import { useToast } from '../../hooks/useUi.jsx';
 import { ImagePicker } from '../settings/CompanySettings.jsx';
 import { StylePreview } from '../settings/DocumentSettings.jsx';
 import ActivationOptions from '../license/ActivationOptions.jsx';
+import BrandName from '../../components/BrandName.jsx';
 
 const STEPS = ['Welcome', 'Company', 'Business', 'Template', 'Activate'];
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
@@ -111,7 +112,9 @@ export default function SetupWizard() {
         {step === 0 && (
           <div className="setup-body center">
             <img className="setup-logo-img" src={APP_CONFIG.iconUrl} alt="" />
-            <h1>Welcome to {APP_CONFIG.appName}</h1>
+            <h1>
+              Welcome to <BrandName />
+            </h1>
             <p className="setup-tagline">{APP_CONFIG.tagline}</p>
             <p className="muted">
               Create GST invoices, quotations, orders, challans and receipts in minutes — and keep all your business documents in one
