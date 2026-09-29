@@ -1,13 +1,13 @@
 # DocGen — test results
 
-Last full run: **29 September 2026**, branch `claude/focused-darwin-2j53b8`.
+Last full run: **29 September 2026** (after the UI simplification), branch `claude/focused-darwin-2j53b8`.
 
 | Suite | Command | Result |
 |-------|---------|--------|
 | Desktop JS unit tests | `cd document-generator && npm test` | **18 / 18 passed** |
 | Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **100 / 100 checks passed** |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **107 / 107 checks passed** |
 | Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
 | Server API tests (PostgreSQL 16) | `TEST_DATABASE_URL=postgres://… node --test test/api.test.js` | **19 / 19 passed** |
 | Portal + admin end-to-end (Chromium) | `cd portal && node e2e/portal.e2e.mjs` | **14 / 14 passed** |
@@ -20,7 +20,7 @@ Node process.
 
 ---
 
-## 1. Desktop end-to-end (100 checks)
+## 1. Desktop end-to-end (107 checks)
 
 `document-generator/e2e/run.mjs` drives the **real debug binary** through WebDriver
 (tauri-driver) against a **real local server** (`server/`, fresh database, seeded by the
@@ -28,21 +28,21 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 
 | # | Phase | Checks | What is verified |
 |---|-------|-------:|------------------|
-| 1 | First launch | 9 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; state list shows 10 + "type to search", filters on typing; **3 compact activation cards**; Create account link; code auto-formats to `AB12-CD34-EF56`; Skip starts the **30-day trial** |
-| 2 | Server config + HTML ad | 8 | config fetched and cached; next check **+30 days** (server interval); remote ad shown on the Document Manager; HTML in `sandbox=""` frame with opaque origin, its `<script>` did not run; non-blocking corner card; local counters; anonymous shown/closed counts reached the server |
-| 3 | Layout & Help | 9 | brand + tagline, "A product of RainDeal.in", Help & Settings at the bottom; sidebar **collapses to icons** and expands; **light theme by default**; Help lists tutorial videos from the server; guides open; help search |
-| 4 | Tally Professional invoice | 22 | customer GSTIN → Karnataka; place of supply follows; unit picked from the searchable unit list; additional details (buyer's order, dispatch, vehicle); inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary (Integrated Tax)**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory |
-| 5 | Preview actions | 6 | **Download PDF** without a print dialog (valid `%PDF`, named `INV-00001 - ABC Construction Pvt Ltd.pdf`); template switcher renders **Tally Standard, Modern, Simple, Tally Professional** from the same data; history lists creation and template changes |
-| 6 | Document Manager | 8 | quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; type filter; search by product; **Cancel Invoice** asks for a reason → CANCELLED mark on the page, editing disabled, reason in history, invoice and items **kept, not deleted** |
-| 7 | External documents | 5 | PDF + PNG added; folder created; file **moved**; file **copied** (separate entry, original kept); delete → Deleted view → restore |
+| 1 | First launch | 13 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; state list shows 10 + "type to search", filters on typing; activation shows **only two cards** (Login Using Your Account · OR · I Have a License) and **Skip**, no input fields and no trial wording; login card → Email/User ID, Password, Sign In, Create Account; license card → code auto-formats to `AB12-CD34-EF56`, Activate; **Skip opens the Dashboard**; sidebar shows only a **thin green line + "30 Days"** |
+| 2 | Server config + HTML ad | 8 | config fetched and cached; next check **+30 days** (server interval); remote ad shown; HTML in `sandbox=""` frame with opaque origin, its `<script>` did not run; non-blocking corner card; local counters; anonymous shown/closed counts reached the server |
+| 3 | Layout & Help | 9 | brand + tagline, "A product of RainDeal.in", nav Dashboard · Document Manager · Products & Services · Customers & Vendors, Help & Settings at the bottom; sidebar collapses to icons and expands; **light theme by default**; Help lists tutorial videos from the server; guides; help search |
+| 4 | Tally Professional invoice | 22 | created from the Dashboard **+**; customer GSTIN → Karnataka; place of supply follows; unit from the searchable unit list; additional details; inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory |
+| 5 | Preview actions | 6 | **Download PDF** without a print dialog (valid `%PDF`); template switcher renders **Tally Standard, Modern, Simple, Tally Professional** from the same data; history |
+| 6 | Document Manager | 9 | quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; **no folder panel, filters or create strip**; **one compact summary line** (Total · This Month · Files · per status); search by product; **Cancel Invoice** asks for a reason → CANCELLED mark, editing disabled, reason in history, invoice **kept, not deleted** |
+| 7 | External documents + Dashboard | 6 | **Add External Document** stores a PDF and an image, listed under Files, counted in the summary; delete → Deleted → restore; Dashboard cards show **type + count** (Invoices 1, Quotations 1) with **+**; **Recent Documents** listed |
 | 8 | Settings | 5 | custom unit "Crate" saved and listed first in the unit selector; customer saved from the invoice with GSTIN; four templates in settings; About shows interval / last / next check |
-| 9 | Account sign-in | 4 | wrong password → clear message; sign-in → licensed, plan in the sidebar; server registered the computer; sign out → back to trial |
+| 9 | Account sign-in | 4 | wrong password → clear message; sign-in → licensed (plan shown, day line hidden); server registered the computer; sign out → not activated |
 | 10 | Check schedule | 2 | restart → **no new check before due**; the same ad is not repeated |
-| 11 | Trial ended | 4 | clock +31 days → **license gate**, no Skip; overdue monthly check runs at startup; **activation code** unlocks the app |
+| 11 | 30 days ended | 5 | clock +31 days → app opens with **one activation popup**: "Your 30-day period has ended", the two cards, no Skip, "You can request through email or call for extending your time."; **cannot be dismissed** (no close button, Esc ignored); overdue monthly check runs; **activation code** closes the popup |
 | 12 | Server offline | 3 | clock +62 days, server stopped → license works offline; failed attempt recorded, cached config kept; help videos still shown |
 | 13 | Server back | 2 | clock +63 days → check succeeds and is **rescheduled 30 days later** |
-| 14 | License expired | 1 | admin sets the end date to yesterday → "Check license now" → "Your DocGen license has expired" |
-| 15 | Offline build | 6 | no server configured → sign-in explained as unavailable; no ad on day 1; **built-in DocGen message after ~15 days**, its button opens License & Account; not repeated within 15 days; **setting the clock back does not extend the trial** |
+| 14 | License expired | 1 | admin sets the end date to yesterday → "Check license now" → popup "Your DocGen license has expired" |
+| 15 | Offline build | 6 | no server configured → login form says the license server is not connected; no ad on day 1; **built-in DocGen message after ~15 days**, its button opens License & Account; not repeated within 15 days; **setting the clock back does not extend the 30 days** |
 | 16 | 20,000 documents | 6 | see performance below |
 
 ## 2. Desktop performance (20,000 documents)

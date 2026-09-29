@@ -5,6 +5,7 @@ import { RouterProvider, matchPath, setLeaveConfirm, useRouter } from './router/
 import AppLayout from './layouts/AppLayout.jsx';
 import { Spinner } from './components/Common.jsx';
 import SetupWizard from './features/setup/SetupWizard.jsx';
+import DashboardPage from './features/dashboard/DashboardPage.jsx';
 import DocumentManagerPage from './features/manager/DocumentManagerPage.jsx';
 import DocumentEditorPage from './features/documents/DocumentEditorPage.jsx';
 import DocumentViewPage from './features/documents/DocumentViewPage.jsx';
@@ -13,11 +14,12 @@ import CustomersPage from './features/customers/CustomersPage.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
 import HelpPage from './features/help/HelpPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
-import LicenseGate from './features/license/LicenseGate.jsx';
+import ActivationRequired from './features/license/ActivationRequired.jsx';
 import { useServerSync } from './hooks/useServerSync.js';
 
 /** Route table: first match wins. */
 const ROUTES = [
+  ['/dashboard', DashboardPage],
   ['/manager', DocumentManagerPage],
   ['/products', ProductsPage],
   ['/customers', CustomersPage],
@@ -29,8 +31,8 @@ const ROUTES = [
   ['/doc/:id', DocumentViewPage],
 ];
 
-/** Older addresses (v1.0) that now live in the Document Manager. */
-const REDIRECTS = { '/dashboard': '/manager', '/documents': '/manager', '/created': '/manager', '/premium': '/settings/license' };
+/** Older addresses (v1.0). */
+const REDIRECTS = { '/documents': '/dashboard', '/created': '/manager', '/premium': '/settings/license' };
 
 function useTheme(theme) {
   useEffect(() => {
@@ -59,7 +61,7 @@ function Routes() {
     const params = matchPath(pattern, path);
     if (params) return <Component key={`${pattern}:${JSON.stringify(params)}:${query.from || ''}:${query.mode || ''}`} params={params} query={query} />;
   }
-  return <DocumentManagerPage params={{}} query={query} />;
+  return <DashboardPage params={{}} query={query} />;
 }
 
 function Shell() {
@@ -87,11 +89,11 @@ function Shell() {
     );
   }
   if (!settings.setupComplete) return <SetupWizard />;
-  if (license?.mode === 'expired') return <LicenseGate />;
+  const locked = license?.mode === 'expired';
   return (
     <AppLayout>
       <Routes />
-      <AdManager />
+      {locked ? <ActivationRequired /> : <AdManager />}
     </AppLayout>
   );
 }

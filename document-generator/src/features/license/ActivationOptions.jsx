@@ -1,9 +1,11 @@
 /**
- * The three activation choices shown at the end of setup, when the trial ends,
- * and in Settings → License & Account:
- *   1. Login using your account (+ Create account → opens the portal in the browser)
- *   2. I have a license / activation code (AB12-CD34-EF56)
- *   3. Skip for now (30-day trial) — hidden once the trial has ended
+ * Activation choices, used at the end of setup, in the activation popup after
+ * the 30-day period, and in Settings → License & Account:
+ *
+ *   [ Login Using Your Account ]   OR   [ I Have a License ]
+ *                          Skip                               (setup only)
+ *
+ * Choosing a card replaces the cards with that card's form (with Back).
  */
 
 import { useState } from 'react';
@@ -14,29 +16,36 @@ import { useAppData } from '../../hooks/useAppData.jsx';
 import { useToast } from '../../hooks/useUi.jsx';
 import { APP_CONFIG } from '../../config/appConfig.js';
 
-export function CreateAccountLink({ className = 'link' }) {
+export function CreateAccountLink() {
   const { license } = useAppData();
   const toast = useToast();
-  const url = license?.registerUrl || `${APP_CONFIG.website}`;
+  const url = license?.registerUrl || APP_CONFIG.website;
   return (
-    <button type="button" className={className} onClick={() => openExternal(url).catch((e) => toast.error(e.message))} data-testid="create-account">
-      Create account
+    <button type="button" className="link" onClick={() => openExternal(url).catch((e) => toast.error(e.message))} data-testid="create-account">
+      Create Account
     </button>
   );
 }
 
 /**
- * @param {{ onDone?: (status: object) => void, onSkip?: () => void, allowSkip?: boolean, compact?: boolean }} props
+ * @param {{ onDone?: (status: object) => void, onSkip?: () => void }} props
+ *   onSkip: when given, a "Skip" link is shown under the cards.
  */
-export default function ActivationOptions({ onDone, onSkip, allowSkip = true }) {
+export default function ActivationOptions({ onDone, onSkip }) {
   const { license, setLicense } = useAppData();
   const toast = useToast();
+  const [view, setView] = useState('choose'); // 'choose' | 'login' | 'code'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
-  const [busy, setBusy] = useState('');
-  const [error, setError] = useState({ login: '', code: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const offlineBuild = license && !license.serverConfigured;
+
+  const open = (next) => {
+    setError('');
+    setView(next);
+  };
 
   const finish = async (status, message) => {
     await setLicense(status);
@@ -44,82 +53,70 @@ export default function ActivationOptions({ onDone, onSkip, allowSkip = true }) 
       toast.success(message);
       onDone?.(status);
     } else {
-      setError((e) => ({ ...e, login: 'The license on this account is not active. Please renew it in the client portal.' }));
+      setError('This license is not active. Please renew it or contact us.');
     }
   };
 
-  const login = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    setBusy('login');
-    setError({ login: '', code: '' });
-    try {
-      await finish(await loginWithAccount(email, password), 'Signed in — DocGen is activated on this computer.');
-    } catch (err) {
-      setError((x) => ({ ...x, login: err.message }));
-    } finally {
-      setBusy('');
-    }
-  };
-
-  const activate = async (e) => {
-    e.preventDefault();
-    if (!isValidActivationCode(code)) {
-      setError((x) => ({ ...x, code: 'Enter the 12-character code, e.g. AB12-CD34-EF56.' }));
+    setError('');
+    if (view === 'code' && !isValidActivationCode(code)) {
+      setError('Enter the 12-character code, e.g. AB12-CD34-EF56.');
       return;
     }
-    setBusy('code');
-    setError({ login: '', code: '' });
+    setBusy(true);
     try {
-      await finish(await activateWithCode(code), 'License activated. Thank you!');
+      if (view === 'login') await finish(await loginWithAccount(email, password), 'Signed in — DocGen is activated.');
+      else await finish(await activateWithCode(code), 'License activated. Thank you!');
     } catch (err) {
-      setError((x) => ({ ...x, code: err.message }));
+      setError(err.message);
     } finally {
-      setBusy('');
+      setBusy(false);
     }
   };
 
-  const trialLeft = license?.trialDaysLeft ?? 30;
+  const skip = onSkip && (
+    <div className="activate-skip">
+      <button type="button" className="link" onClick={onSkip} data-testid="license-skip">
+        Skip
+      </button>
+    </div>
+  );
+
+  if (view === 'choose') {
+    return (
+      <div className="activate">
+        <div className="activate-choice">
+          <button type="button" className="activate-card" onClick={() => open('login')} data-testid="choose-login">
+            <span className="activate-icon">
+              <Icon name="user" size={22} />
+            </span>
+            <strong>Login Using Your Account</strong>
+          </button>
+          <span className="activate-or">OR</span>
+          <button type="button" className="activate-card" onClick={() => open('code')} data-testid="choose-code">
+            <span className="activate-icon">
+              <Icon name="key" size={22} />
+            </span>
+            <strong>I Have a License</strong>
+          </button>
+        </div>
+        {skip}
+      </div>
+    );
+  }
 
   return (
     <div className="activate">
-      {offlineBuild && (
-        <div className="callout callout-warn">
-          <Icon name="wifiOff" />
-          <span>This copy of DocGen is not connected to a license server, so sign-in and activation codes are not available. You can use the trial.</span>
-        </div>
-      )}
-      <div className="activate-grid">
-        <form className="activate-card" onSubmit={login}>
-          <div className="activate-head">
-            <span className="activate-icon">
-              <Icon name="user" />
-            </span>
-            <div>
-              <h3>Login using your account</h3>
-              <p className="muted small">Use the email and password of your DocGen account.</p>
-            </div>
-          </div>
-          <input className="input" type="email" placeholder="Email or user ID" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" data-testid="license-email" />
-          <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" data-testid="license-password" />
-          {error.login && <div className="form-error" role="alert">{error.login}</div>}
-          <button className="btn btn-primary btn-block" disabled={busy !== '' || !email || !password || offlineBuild} data-testid="license-login">
-            {busy === 'login' ? 'Signing in…' : 'Sign in'}
-          </button>
-          <p className="muted small center">
-            No account? <CreateAccountLink />
-          </p>
-        </form>
-
-        <form className="activate-card" onSubmit={activate}>
-          <div className="activate-head">
-            <span className="activate-icon">
-              <Icon name="key" />
-            </span>
-            <div>
-              <h3>I have a license</h3>
-              <p className="muted small">Enter your activation code.</p>
-            </div>
-          </div>
+      <form className="activate-form" onSubmit={submit}>
+        <h3>{view === 'login' ? 'Login Using Your Account' : 'I Have a License'}</h3>
+        {offlineBuild && <p className="form-error">This copy of DocGen is not connected to the license server.</p>}
+        {view === 'login' ? (
+          <>
+            <input className="input" type="text" placeholder="Email / User ID" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" autoFocus data-testid="license-email" />
+            <input className="input" type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" data-testid="license-password" />
+          </>
+        ) : (
           <input
             className="input code-input"
             placeholder="AB12-CD34-EF56"
@@ -127,41 +124,35 @@ export default function ActivationOptions({ onDone, onSkip, allowSkip = true }) 
             onChange={(e) => setCode(formatActivationCode(e.target.value))}
             maxLength={14}
             spellCheck={false}
-            autoCapitalize="characters"
-            aria-label="Activation code"
+            autoFocus
+            aria-label="License / activation code"
             data-testid="license-code"
           />
-          <p className="muted small">12 capital letters or numbers in three groups of four.</p>
-          {error.code && <div className="form-error" role="alert">{error.code}</div>}
-          <button className="btn btn-primary btn-block" disabled={busy !== '' || !isValidActivationCode(code) || offlineBuild} data-testid="license-activate">
-            {busy === 'code' ? 'Activating…' : 'Activate'}
-          </button>
-        </form>
-
-        {allowSkip && (
-          <div className="activate-card activate-skip">
-            <div className="activate-head">
-              <span className="activate-icon">
-                <Icon name="calendar" />
-              </span>
-              <div>
-                <h3>Skip for now</h3>
-                <p className="muted small">
-                  Use every feature free for <strong>{trialLeft} {trialLeft === 1 ? 'day' : 'days'}</strong>. Activate any time from Settings.
-                </p>
-              </div>
-            </div>
-            <div className="activate-skip-actions">
-              <button type="button" className="btn btn-block" onClick={onSkip} data-testid="license-skip">
-                Skip — start free trial
-              </button>
-              <p className="muted small center">
-                Need an account? <CreateAccountLink />
-              </p>
-            </div>
+        )}
+        {error && (
+          <div className="form-error" role="alert">
+            {error}
           </div>
         )}
-      </div>
+        <button
+          className="btn btn-primary btn-block"
+          disabled={busy || offlineBuild || (view === 'login' ? !email || !password : !isValidActivationCode(code))}
+          data-testid={view === 'login' ? 'license-login' : 'license-activate'}
+        >
+          {busy ? 'Please wait…' : view === 'login' ? 'Sign In' : 'Activate'}
+        </button>
+        <div className="activate-form-foot">
+          <button type="button" className="link muted" onClick={() => open('choose')} data-testid="activate-back">
+            <Icon name="back" size={14} /> Back
+          </button>
+          {view === 'login' && (
+            <span className="small">
+              No account? <CreateAccountLink />
+            </span>
+          )}
+        </div>
+      </form>
+      {skip}
     </div>
   );
 }

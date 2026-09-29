@@ -6,7 +6,7 @@ import { openExternal } from '../../services/systemService.js';
 import { markAdShown, pickAdToShow, recordAdEvent } from './adService.js';
 
 /** Pages where an ad may appear. Never while creating or editing a document. */
-const QUIET_OK = ['/manager', '/help'];
+const QUIET_OK = ['/', '/dashboard', '/manager', '/help'];
 const STARTUP_DELAY_MS = 5000;
 
 /**

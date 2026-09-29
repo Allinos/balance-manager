@@ -10,11 +10,11 @@
  *   4  Tally Professional GST invoice: GSTIN → state code, IGST, units, extra fields
  *   5  preview actions: Download PDF, template switcher (4 templates), history
  *   6  Document Manager: status quick-edit (pencil), filters, cancel invoice (reason, kept)
- *   7  external documents + folders: upload, move, copy, rename, delete/restore
+ *   7  external documents: add, open list, delete/restore; Dashboard counts + recent
  *   8  settings: custom units, customers page, searchable selects
  *   9  account sign-in → licensed → sign out
  *  10  configuration schedule: no re-check before due; re-check when due (clock +31 d)
- *  11  trial ended → license gate → activation code AB12-CD34-EF56
+ *  11  30 days ended → activation popup → activation code AB12-CD34-EF56
  *  12  server offline → cached config still used; failed attempt recorded
  *  13  server back → check succeeds and is rescheduled
  *  14  license expired on the server → gate
@@ -162,12 +162,6 @@ const setSelect = (css, value) =>
      set.call(el, arguments[1]); el.dispatchEvent(new Event('change',{bubbles:true}));`,
     [css, value],
   ).then(() => sleep(500));
-/** Choose an option in a SearchSelect by typing (when searchable) and clicking it. */
-async function pick(testId, text) {
-  await clickCss(`[data-testid="${testId}"]`);
-  if (await exists(`[data-testid="${testId}-search"]`)) await type(`[data-testid="${testId}-search"]`, text);
-  await clickText(text, '.ss-option');
-}
 /** Open the "…" menu of the table row containing `rowText` and choose `label`. */
 async function rowMenu(tableCss, rowText, label) {
   const ok = await exec(
@@ -341,15 +335,27 @@ async function main() {
     await shot('03-template');
     await clickCss('[data-testid="setup-next"]');
     await waitForText('Activate DocGen');
-    check((await exec('return document.querySelectorAll(".activate-card").length')) === 3, 'three compact activation cards');
-    check(await exists('[data-testid="create-account"]'), 'Create account link present');
-    await type('[data-testid="license-code"]', 'ab12cd34ef56');
-    check((await exec('return document.querySelector("[data-testid=license-code]").value')) === 'AB12-CD34-EF56', 'activation code auto-formats to AB12-CD34-EF56');
+    check((await exec('return document.querySelectorAll(".activate-card").length')) === 2, 'two activation cards');
+    let act = await exec('return document.querySelector(".activate").innerText');
+    check(act.includes('Login Using Your Account') && act.includes('OR') && act.includes('I Have a License') && act.includes('Skip'), 'cards, OR separator and Skip');
+    check(!(await exists('[data-testid="license-email"]')) && !(await exists('[data-testid="license-code"]')), 'no input fields on the initial screen');
+    check(!/free trial|trial/i.test(await bodyText()), 'no trial wording');
     await shot('04-activation');
+    await clickCss('[data-testid="choose-login"]');
+    await find('[data-testid="license-email"]');
+    act = await exec('return document.querySelector(".activate").innerText');
+    check(act.includes('Sign In') && (await exists('[data-testid="license-password"]')) && (await exists('[data-testid="create-account"]')), 'login card opens email/password, Sign In and Create Account');
+    await shot('04b-login-form');
+    await clickCss('[data-testid="activate-back"]');
+    await clickCss('[data-testid="choose-code"]');
+    await type('[data-testid="license-code"]', 'ab12cd34ef56');
+    check((await exec('return document.querySelector("[data-testid=license-code]").value')) === 'AB12-CD34-EF56', 'license card: code auto-formats to AB12-CD34-EF56, Activate button');
+    await clickCss('[data-testid="activate-back"]');
     await clickCss('[data-testid="license-skip"]');
-    await waitForText('Document Manager');
-    const chip = await textOf('[data-testid="license-chip"]');
-    check(/Trial · 30 days left/.test(chip), `trial started (${chip})`);
+    await find('[data-testid="type-cards"]');
+    check((await exec('return location.hash')) === '#/dashboard', 'Skip opens the Dashboard directly');
+    const line = await textOf('[data-testid="trial-line"]');
+    check(line.trim() === '30 Days' && !/trial/i.test(await bodyText()), `thin green line with remaining days only (${line.trim()})`);
 
     // ------------------------------------------------------------------ 2
     section('2. Server configuration and HTML advertisement');
@@ -398,7 +404,7 @@ async function main() {
 
     // ------------------------------------------------------------------ 4
     section('4. Tally Professional GST invoice');
-    await go('#/manager');
+    await go('#/dashboard');
     await clickCss('[data-testid="create-TAX_INVOICE"]');
     await waitForText('New Tax Invoice');
     await type('[data-testid="party-name"]', 'ABC Construction Pvt Ltd');
@@ -476,7 +482,7 @@ async function main() {
 
     // ------------------------------------------------------------------ 6
     section('6. Document Manager: status quick edit and cancel');
-    await go('#/manager');
+    await go('#/dashboard');
     await clickCss('[data-testid="create-QUOTATION"]');
     await waitForText('New Quotation');
     await type('[data-testid="party-name"]', 'XYZ Interiors');
@@ -497,12 +503,10 @@ async function main() {
     await go('#/manager');
     await waitForText('Accepted');
     check(true, 'status changed from the list with the pencil and saved immediately');
-    await pick('filter-type', 'Quotation');
-    await sleep(600);
-    let table = await exec('return document.querySelector("[data-testid=documents-table]").innerText');
-    check(table.includes('QTN-00001') && !table.includes('INV-00001'), 'type filter');
-    await exec(`[...document.querySelectorAll('.filter-row button')].find(b=>b.innerText.includes('Clear'))?.click()`);
-    await sleep(500);
+    check(!(await exists('.folder-panel')) && !(await exists('.filter-row')) && !(await exists('.create-strip')), 'no folder panel, filters or create strip');
+    const summaryText = await textOf('[data-testid="summary-line"]');
+    check(/Total: 2/.test(summaryText) && /This Month: 2/.test(summaryText) && /Files: 0/.test(summaryText) && /Draft: 1/.test(summaryText) && /Accepted: 1/.test(summaryText), `one compact summary line (${summaryText.replace(/\n/g, ' ')})`);
+    let table;
     await type('[data-testid="manager-search"]', 'Teak');
     await sleep(700);
     table = await exec('return document.querySelector("[data-testid=documents-table]").innerText');
@@ -523,45 +527,32 @@ async function main() {
     check(bundle.document.status === 'CANCELLED' && !bundle.document.deleted_at && bundle.items.length === 1, 'invoice kept (not deleted) with its items');
 
     // ------------------------------------------------------------------ 7
-    section('7. External documents and folders');
+    section('7. External documents and Dashboard');
     await go('#/manager');
-    await clickCss('[data-testid="new-folder"]');
-    await type('[data-testid="folder-name"]', 'Supplier bills');
-    await clickCss('[data-testid="folder-save"]');
-    await find('[data-testid="folder-Supplier bills"]');
-    await clickText('All documents', '.folder-item');
     await clickCss('[data-testid="add-external"]');
     await waitForText('delivery-proof');
     await find('[data-testid="files-table"]');
     table = await textOf('[data-testid="files-table"]');
-    check(table.includes('Supplier bill 4411') && table.includes('delivery-proof'), 'PDF and image added as external documents');
-    await rowMenu('[data-testid=files-table]', 'Supplier bill 4411', 'Move to folder');
-    await pick('folder-target', 'Supplier bills');
-    await clickCss('[data-testid="folder-confirm"]');
-    await sleep(600);
-    await rowMenu('[data-testid=files-table]', 'delivery-proof', 'Copy to folder');
-    await pick('folder-target', 'Supplier bills');
-    await clickCss('[data-testid="folder-confirm"]');
-    await sleep(600);
-    await clickCss('[data-testid="folder-Supplier bills"] .folder-link');
-    await sleep(700);
-    table = await textOf('[data-testid="files-table"]');
-    check(table.includes('Supplier bill 4411') && table.includes('delivery-proof'), 'file moved and copy placed in the folder');
-    const all = await invoke('files_list', { filter: {} });
-    check(all.total === 3, `copy is a separate entry (${all.total} files, original kept)`);
-    const blobCount = await invoke('files_list', { filter: { search: 'delivery-proof' } });
-    check(blobCount.total === 2, 'both copies listed');
-    await shot('13-files-in-folder');
-    await clickText('Unfiled', '.folder-item');
-    await sleep(500);
+    check(table.includes('Supplier bill 4411') && table.includes('delivery-proof'), 'Add External Document: PDF and image stored and listed');
+    check((await textOf('[data-testid="summary-line"]')).includes('Files: 2'), 'summary counts the files');
+    await shot('13-files');
     await rowMenu('[data-testid=files-table]', 'delivery-proof', 'Delete');
     await clickCss('[data-testid="confirm-ok"]');
     await sleep(500);
-    await clickText('Deleted', '.folder-item');
+    await clickCss('[data-testid="show-deleted"]');
     await sleep(500);
     await clickText('Restore', '[data-testid=files-table] button');
     await sleep(500);
     check((await invoke('files_list', { filter: { deleted: true } })).total === 0, 'file deleted and restored');
+    await go('#/dashboard');
+    await find('[data-testid="recent-documents"]');
+    const invCard = await exec('return document.querySelector("[data-testid=card-TAX_INVOICE]").innerText');
+    const qtnCard = await exec('return document.querySelector("[data-testid=card-QUOTATION]").innerText');
+    check(invCard.includes('Invoices') && invCard.includes('1') && qtnCard.includes('Quotations') && qtnCard.includes('1'), `Dashboard cards show type and document count (${invCard.replace(/\n/g, ' ')} / ${qtnCard.replace(/\n/g, ' ')})`);
+    check((await exec('return document.querySelectorAll("[data-testid^=card-]").length')) >= 4, 'cards for the business document types, each with a + button');
+    const recent = await textOf('[data-testid="recent-documents"]');
+    check(recent.includes('INV-00001') && recent.includes('QTN-00001'), 'Recent Documents listed');
+    await shot('00-dashboard');
 
     // ------------------------------------------------------------------ 8
     section('8. Units, customers and settings');
@@ -592,6 +583,7 @@ async function main() {
     // ------------------------------------------------------------------ 9
     section('9. Sign in with account');
     await go('#/settings/license');
+    await clickCss('[data-testid="choose-login"]');
     await type('[data-testid="license-email"]', CLIENT.email);
     await type('[data-testid="license-password"]', 'wrong-password');
     await clickCss('[data-testid="license-login"]');
@@ -600,13 +592,13 @@ async function main() {
     await type('[data-testid="license-password"]', CLIENT.password);
     await clickCss('[data-testid="license-login"]');
     await waitForText('DocGen is activated', 15000);
-    check((await textOf('[data-testid="license-chip"]')).includes('Business'), 'licensed: sidebar shows the plan');
+    check(!(await exists('[data-testid="trial-line"]')) && (await textOf('[data-testid="license-status"]')).includes('Business'), 'licensed: plan shown, day line hidden');
     await shot('15-licensed');
     const devices = (await api('GET', `/api/admin/clients/${seed.client.id}`)).licenses.flatMap((l) => l.devices);
     check(devices.length === 1 && !devices[0].released_at, 'server registered this computer');
     await clickText('Sign out on this computer');
     await clickCss('[data-testid="confirm-ok"]');
-    await waitForText('Free trial', 10000);
+    await waitForText('Not activated', 10000);
     check((await invoke('license_status')).mode === 'trial', 'signed out → back to trial');
 
     // ----------------------------------------------------------------- 10
@@ -621,17 +613,22 @@ async function main() {
     // ----------------------------------------------------------------- 11
     section('11. Trial ended → activation code');
     await relaunch({ ...online, DOCGEN_CLOCK_OFFSET_DAYS: '31' });
-    await waitForText('Your free trial has ended');
-    check(!(await exists('.sidebar')), 'app is locked behind the license gate after 30 days');
-    check(!(await exists('[data-testid="license-skip"]')), 'no skip option after the trial');
+    await find('[data-testid="activation-required"]');
+    const popup = await textOf('[data-testid="activation-required"]');
+    check(popup.includes('Your 30-day period has ended') && popup.includes('You can request through email or call for extending your time.'), 'activation popup explains the 30-day period has ended');
+    check((await exec('return document.querySelectorAll("[data-testid=activation-required] .activate-card").length')) === 2 && !(await exists('[data-testid="license-skip"]')), 'popup has the two cards and no Skip');
+    await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
+    await sleep(300);
+    check((await exists('[data-testid="activation-required"]')) && !(await exists('[data-testid="activation-required"] .modal-close')), 'popup cannot be dismissed');
     await shot('16-trial-ended');
     await sleep(4000);
     adState = await invoke('ad_state_get');
     const secondFetch = Number(adState.lastConfigFetchAt);
     check(secondFetch > firstFetch + 30 * 86400000, 'overdue check ran at startup (monthly schedule)');
+    await clickCss('[data-testid="choose-code"]');
     await type('[data-testid="license-code"]', seed.spare.code);
     await clickCss('[data-testid="license-activate"]');
-    await waitForText('Document Manager', 15000);
+    await waitFor(async () => !(await exists('[data-testid="activation-required"]')), 'popup closes after activation', 15000);
     check((await invoke('license_status')).license.code === seed.spare.code, 'activated with code');
 
     // ----------------------------------------------------------------- 12
@@ -661,6 +658,7 @@ async function main() {
     await api('PUT', `/api/admin/licenses/${seed.spare.id}`, { expiresAt: new Date(Date.now() - 86400000).toISOString() });
     await go('#/settings/license');
     await clickText('Check license now');
+    await find('[data-testid="activation-required"]', 10000);
     await waitForText('Your DocGen license has expired', 10000);
     check(true, 'expired license locks the app with a renewal message');
     await shot('17-license-expired');
@@ -676,10 +674,11 @@ async function main() {
     await clickCss('[data-testid="setup-next"]');
     await type('[data-testid="setup-company"]', 'Offline Traders');
     for (let i = 0; i < 3; i += 1) await clickCss('[data-testid="setup-next"]');
-    await waitForText('not connected to a license server');
+    await clickCss('[data-testid="choose-login"]');
+    await waitForText('not connected to the license server');
     check(true, 'offline build explains that sign-in needs a server');
     await clickCss('[data-testid="license-skip"]');
-    await waitForText('Document Manager');
+    await find('[data-testid="type-cards"]');
     await sleep(6500);
     check(!(await exists('[data-testid="ad-popup"]')), 'no ad on the first day');
     await relaunch({ DOCGEN_CLOCK_OFFSET_DAYS: '16' });
@@ -706,7 +705,7 @@ async function main() {
     await go('#/manager');
     await find('[data-testid="documents-table"]');
     const listMs = Date.now() - t0;
-    const stats = await exec('return document.querySelector(".summary-strip")?.innerText || ""');
+    const stats = await exec('return document.querySelector("[data-testid=summary-line]")?.innerText || ""');
     check(stats.includes('20,000') || stats.includes('20000'), 'summary counts all documents');
     check(listMs < 3000, `Document Manager opens in ${listMs} ms`);
     t0 = Date.now();

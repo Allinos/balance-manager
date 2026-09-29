@@ -14,7 +14,7 @@ const GUIDES = [
     title: 'Create your first invoice',
     icon: 'invoice',
     steps: [
-      'Click New Document (or press Ctrl+N) and choose Tax Invoice.',
+      'On the Dashboard, click + on the Invoices card (or press Ctrl+N).',
       'Pick a saved customer or type the name — tick “Save this customer” to reuse it.',
       'Add items: search your products or type a description, quantity, unit and rate. GST is calculated automatically.',
       'Click Save. The invoice number is assigned from your numbering series.',
@@ -35,14 +35,13 @@ const GUIDES = [
   },
   {
     id: 'manager',
-    title: 'Organise documents & files',
+    title: 'Manage documents & files',
     icon: 'folder',
     steps: [
-      'Document Manager shows everything you created plus files you added (PDFs, images, spreadsheets).',
+      'Document Manager lists every document you created. Search by number, customer or product.',
       'Click the pencil next to a status to change it — it saves immediately.',
-      'Use folders on the left to group documents; select rows to move or copy them.',
-      'Use “Add external document” to keep supplier bills, contracts or receipts in the same place.',
-      'Deleted items go to the Deleted view and can be restored.',
+      'Click “Add External Document” to store supplier bills, contracts or receipts (PDF, images, Excel…). They appear under Files.',
+      'Deleted items can be restored from “Deleted”.',
     ],
   },
   {
@@ -90,7 +89,7 @@ const GUIDES = [
 const FAQ = [
   ['Does DocGen need the internet?', 'No. Everything works offline. The internet is used only to activate, to check your license occasionally and to fetch help videos and announcements.'],
   ['Is my business data uploaded?', 'Never. Documents, customers, products and files stay in the data file on this computer.'],
-  ['What happens after the 30-day trial?', 'You are reminded before the trial ends. After it ends, sign in or enter an activation code to continue. Your documents are never deleted.'],
+  ['What happens after 30 days?', 'The green line in the sidebar shows the days remaining. After 30 days, log in with your account or enter a license to continue. Your documents are never deleted.'],
   ['How do I change the invoice number series?', 'Settings → Numbering. Each document type has its own prefix and next number.'],
   ['Can I edit an issued invoice?', 'Yes, but DocGen warns you first. For accounting correctness, prefer cancelling and re-issuing, or a credit/debit note.'],
 ];

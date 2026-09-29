@@ -91,7 +91,7 @@ export default function SetupWizard() {
     setBusy(true);
     try {
       await saveSettings({ setupComplete: true });
-      window.location.hash = '#/manager';
+      window.location.hash = '#/dashboard';
       await reload();
     } catch (e) {
       toast.error(e.message);
@@ -183,7 +183,6 @@ export default function SetupWizard() {
         {step === 4 && (
           <div className="setup-body">
             <h2>Activate DocGen</h2>
-            <p className="muted">Sign in, enter your activation code, or start your free 30-day trial now and activate later.</p>
             <ActivationOptions onDone={complete} onSkip={complete} />
           </div>
         )}

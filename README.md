@@ -10,8 +10,8 @@ small businesses, by [RainDeal.in](https://raindeal.in).
 | Client portal + admin panel | [`portal/`](portal/) | React, Vite |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,
-  notes, receipts, work orders; Document Manager with folders and uploaded files; 30-day trial,
-  account sign-in or activation code; works fully offline.
+  notes, receipts, work orders; Dashboard with document counts; Document Manager with uploaded
+  files; 30 days to try, then account login or license; works fully offline.
 - **Server**: client accounts, plans, payments (provider-ready), activation codes and licenses,
   devices, remote app configuration and ads, admin API, audit log.
 - **Portal**: clients register, add business details, buy/renew a plan, see activation codes,
@@ -35,7 +35,7 @@ DOCGEN_SERVER_URL=http://localhost:8787 DOCGEN_PORTAL_URL=http://localhost:5173 
 DOCGEN_LICENSE_PUBLIC_KEY=<key from step 1> npm run app:dev
 ```
 
-Without a server the desktop app runs as a fully offline build (trial + built-in messages only).
+Without a server the desktop app runs as a fully offline build (30 days + built-in messages only).
 
 Windows installers are built by GitHub Actions (`.github/workflows/docgen-windows.yml`) and
 published on the *DocGen latest build* release — no local Visual Studio needed.

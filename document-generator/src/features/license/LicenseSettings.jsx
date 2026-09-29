@@ -4,7 +4,6 @@ import { refreshLicense, signOutLicense } from '../../services/licenseService.js
 import { openExternal } from '../../services/systemService.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { useConfirm, useToast } from '../../hooks/useUi.jsx';
-import { APP_CONFIG } from '../../config/appConfig.js';
 import ActivationOptions from './ActivationOptions.jsx';
 import { date, licenseSummary } from './licenseFormat.js';
 
@@ -54,12 +53,12 @@ export default function LicenseSettings() {
         <Icon name={license.licensed ? 'shield' : 'calendar'} size={20} />
         <div>
           <strong>
-            {license.licensed ? 'DocGen is activated' : license.mode === 'trial' ? `Free trial — ${license.trialDaysLeft} days left` : 'Trial ended'}
+            {license.licensed ? 'DocGen is activated' : license.mode === 'trial' ? `Not activated — ${license.trialDaysLeft} days remaining` : 'Not activated'}
           </strong>
           <div className="muted small">
             {license.licensed
               ? `${l.planName || 'License'} · ${l.expiresAt ? `valid until ${date(l.expiresAt)}` : 'lifetime'}`
-              : `Trial ${license.mode === 'trial' ? 'ends' : 'ended'} on ${date(license.trialEndsAt)}`}
+              : `The 30-day period ${license.mode === 'trial' ? 'ends' : 'ended'} on ${date(license.trialEndsAt)}`}
           </div>
         </div>
       </div>
@@ -100,19 +99,10 @@ export default function LicenseSettings() {
         </>
       ) : (
         <>
-          <p className="muted">Activate DocGen with your account or an activation code. You can buy a plan in the client portal.</p>
-          <ActivationOptions allowSkip={false} />
+          <ActivationOptions />
         </>
       )}
 
-      <h3>Why activate?</h3>
-      <ul className="check-list">
-        {APP_CONFIG.premiumFeatures.map((f) => (
-          <li key={f}>
-            <Icon name="check" size={16} /> {f}
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

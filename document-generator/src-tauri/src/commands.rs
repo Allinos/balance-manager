@@ -684,6 +684,11 @@ pub fn dashboard_stats(db: State<'_, Db>) -> AppResult<Value> {
             "SELECT document_type, COUNT(*) AS count FROM documents WHERE deleted_at IS NULL GROUP BY document_type",
             &[],
         )?;
+        let by_status = query_json(
+            c,
+            "SELECT status, COUNT(*) AS count FROM documents WHERE deleted_at IS NULL GROUP BY status",
+            &[],
+        )?;
         let month_start = chrono::Local::now().format("%Y-%m-01").to_string();
         let this_month: i64 = c.query_row(
             "SELECT COUNT(*) FROM documents WHERE deleted_at IS NULL AND issue_date >= ?1",
@@ -713,7 +718,7 @@ pub fn dashboard_stats(db: State<'_, Db>) -> AppResult<Value> {
         )?;
         Ok(json!({
             "total": total, "thisMonth": this_month, "drafts": drafts,
-            "byType": by_type, "recent": recent, "hasDemoData": demo > 0,
+            "byType": by_type, "byStatus": by_status, "recent": recent, "hasDemoData": demo > 0,
         }))
     })
 }

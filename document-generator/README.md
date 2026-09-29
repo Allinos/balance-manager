@@ -8,26 +8,25 @@ work orders and job completion reports. It also keeps your other business files
 Built with **Tauri 2 + React (JavaScript) + SQLite**. It works completely **offline**;
 all business data stays in one local file. A product of [RainDeal.in](https://raindeal.in).
 
-| Tally Professional GST invoice | Document Manager | Activation choices |
+| Dashboard | Document Manager | Tally Professional GST invoice |
 |---|---|---|
-| ![Invoice](docs/screenshots/09-invoice-tally-pro.png) | ![Manager](docs/screenshots/13-files-in-folder.png) | ![Activation](docs/screenshots/04-activation.png) |
+| ![Dashboard](docs/screenshots/00-dashboard.png) | ![Manager](docs/screenshots/13-files.png) | ![Invoice](docs/screenshots/09-invoice-tally-pro.png) |
 
-| Status quick edit | Cancelled invoice + history | Help & Support |
+| Activation | After 30 days | Status quick edit |
 |---|---|---|
-| ![Status](docs/screenshots/11-status-editor.png) | ![Cancelled](docs/screenshots/12-cancelled-invoice.png) | ![Help](docs/screenshots/07-help.png) |
+| ![Activation](docs/screenshots/04-activation.png) | ![Activation required](docs/screenshots/16-trial-ended.png) | ![Status](docs/screenshots/11-status-editor.png) |
 
 ---
 
 ## Features
 
-- **Document Manager**: one place for everything you created *and* uploaded. Quick-create
-  buttons for your business type, summary strip, folders, search (number, customer,
-  product), filters (type, status, date), paging for tens of thousands of documents.
+- **Dashboard**: one card per document type with the number of documents and a **+** to create
+  one; the last 10 documents below.
+- **Document Manager**: one compact summary line (total, this month, files, count per status),
+  Documents / Files, search, and **Add External Document** (PDF, images, Word/Excel/CSV, text,
+  up to 25 MB, stored inside the database so backups include them). Deleted items can be restored.
 - **Status in the list**: click the pencil next to a status, pick a new one — saved immediately.
   Each type has its own statuses (e.g. Quotation: Draft → Sent → Accepted/Rejected).
-- **Add External Document**: PDF, images, Word/Excel/CSV, text (up to 25 MB each), stored
-  inside the database so backups include them; duplicates stored once. Folders, move, copy,
-  rename, open, save a copy, delete → restore → delete forever.
 - **16 document types** with type-specific fields, required fields, numbering, statuses,
   conversions and print layout (see [Document types](#document-types)).
 - **Four print templates** — *Tally Professional* (full GST invoice, Rule 46), *Tally Standard*,
@@ -39,11 +38,13 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
 - **Preview actions**: Print, **Download PDF** (direct, no print dialog on Windows/Linux),
   **Cancel Invoice** (asks for a reason, keeps the document with a CANCELLED mark and history —
   financial documents are never silently deleted), template switcher, history.
-- **Searchable selects** for states, units, currencies, folders and filters: first 10 options
+- **Searchable selects** for states, units and currencies: first 10 options
   (recently used first), type to search long lists.
 - **Units**: 50+ product and service units (Nos, Kg, Box, Sq.ft, Hour, Visit, Lump sum …) plus your own.
-- **Licensing**: 30-day trial (no restrictions), then sign in with the DocGen account or enter
-  an activation code (`AB12-CD34-EF56`). Licenses are Ed25519-signed and bound to the computer.
+- **Activation**: two choices — *Login Using Your Account* OR *I Have a License* — plus *Skip*.
+  During the first 30 days a thin green line in the sidebar shows the days remaining. After that,
+  a popup asks for an account login or a license (`AB12-CD34-EF56`). Licenses are Ed25519-signed
+  and bound to the computer.
 - **Help & Support**: YouTube tutorials (from the server), built-in guides, FAQ, contact buttons.
 - **Remote configuration** (optional server): announcements/ads (sandboxed), help videos,
   check interval — checked monthly by default, resumed automatically after being offline.
@@ -57,7 +58,7 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
 document-generator/
 ├── src/                          React UI (JavaScript + JSDoc)
 │   ├── App.jsx                   route table, license gate, theme
-│   ├── layouts/AppLayout.jsx     collapsible sidebar, brand, license chip, "A product of RainDeal.in"
+│   ├── layouts/AppLayout.jsx     collapsible sidebar, brand, 30-day line, "A product of RainDeal.in"
 │   ├── components/               SearchSelect, StatusEditor, Modal, Form, Menu, Icon …
 │   ├── config/
 │   │   ├── documentTypes.js      ◀ document type registry (fields, statuses, templates)
@@ -66,10 +67,11 @@ document-generator/
 │   │   ├── defaults.js           default settings, per-type setting resolution
 │   │   └── appConfig.js          ◀ branding: name, tagline, icon, support contacts
 │   ├── features/
-│   │   ├── manager/              Document Manager, folders
+│   │   ├── dashboard/            Dashboard (type cards, recent documents)
+│   │   ├── manager/              Document Manager (list, files, summary)
 │   │   ├── documents/            editor, viewer (print/PDF/cancel/history), actions
 │   │   ├── customers/ products/  saved parties, products & services
-│   │   ├── license/              activation cards, trial banner, license gate, settings
+│   │   ├── license/              activation choices, 30-day line, activation popup, settings
 │   │   ├── help/                 Help & Support
 │   │   ├── ads/                  ad selection (adService.js) + sandboxed popup
 │   │   ├── settings/ setup/      settings sections, first-run wizard
@@ -137,7 +139,7 @@ dev server (`Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object
 }
 ```
 
-- `serverUrl` empty → **fully offline build**: no network requests at all; the trial works,
+- `serverUrl` empty → **fully offline build**: no network requests at all; the 30 days work,
   sign-in/activation are unavailable, the built-in DocGen message appears about every 15 days.
 - Release builds only accept `https://` URLs. The `DOCGEN_*` environment overrides work only in debug builds.
 
@@ -212,7 +214,7 @@ npx tauri build --debug --no-bundle
 xvfb-run -a node e2e/run.mjs
 ```
 
-The e2e run (100 checks, 16 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
+The e2e run (107 checks, 16 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
 
 ## Security notes
 

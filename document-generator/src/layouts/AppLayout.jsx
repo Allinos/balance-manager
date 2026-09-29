@@ -8,10 +8,10 @@ import { useToast } from '../hooks/useUi.jsx';
 import { BUSINESS_TYPES, DOCUMENT_TYPES } from '../config/documentTypes.js';
 import { APP_CONFIG } from '../config/appConfig.js';
 import { openExternal } from '../services/systemService.js';
-import { licenseSummary } from '../features/license/licenseFormat.js';
-import TrialBanner from '../features/license/TrialBanner.jsx';
+import TrialLine from '../features/license/TrialLine.jsx';
 
 const NAV = [
+  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', match: ['/dashboard'] },
   { to: '/manager', label: 'Document Manager', icon: 'documents', match: ['/manager', '/doc'] },
   { to: '/products', label: 'Products & Services', icon: 'box', match: ['/products'] },
   { to: '/customers', label: 'Customers & Vendors', icon: 'users', match: ['/customers'] },
@@ -69,7 +69,7 @@ function readCollapsed() {
 
 export default function AppLayout({ children }) {
   const { path } = useRouter();
-  const { company, license } = useAppData();
+  const { company } = useAppData();
   const toast = useToast();
   const [chooser, setChooser] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -98,8 +98,7 @@ export default function AppLayout({ children }) {
     });
   };
 
-  const active = (item) => item.match.some((m) => path === m || path.startsWith(`${m}/`));
-  const chip = licenseSummary(license);
+  const active = (item) => item.match.some((m) => path === m || path.startsWith(`${m}/`)) || (item.to === '/dashboard' && path === '/');
   const navItem = (item) => (
     <Link key={item.to} to={item.to} className={`nav-item ${active(item) ? 'active' : ''}`} title={collapsed ? item.label : undefined}>
       <Icon name={item.icon} />
@@ -125,12 +124,7 @@ export default function AppLayout({ children }) {
         </button>
         <nav className="nav">{NAV.map(navItem)}</nav>
         <div className="sidebar-bottom">
-          {chip.text && (
-            <Link to="/settings/license" className={`license-chip tone-${chip.tone}`} title={chip.text} data-testid="license-chip">
-              <Icon name={license?.licensed ? 'shield' : 'key'} size={15} />
-              <span className="nav-text">{chip.text}</span>
-            </Link>
-          )}
+          <TrialLine />
           <nav className="nav">{BOTTOM.map(navItem)}</nav>
           <div className="sidebar-company" title={company?.name}>
             {company?.logo ? <img src={company.logo} alt="" /> : <Icon name="building" size={16} />}
@@ -145,7 +139,6 @@ export default function AppLayout({ children }) {
         </div>
       </aside>
       <main className="main" id="main">
-        <TrialBanner />
         {children}
       </main>
       {chooser && <NewDocumentModal onClose={() => setChooser(false)} />}
