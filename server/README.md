@@ -14,18 +14,23 @@ Backend for the DocGen desktop app, the client portal and the admin panel.
 Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
 bcrypt, JWT sessions, zod validation, rate limits, helmet.
 
-## Quick start (development)
+## Quick start
 
 ```bash
 cd server
-npm install
-ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='change-me-now' npm run dev   # http://localhost:8787
-cd ../portal && npm install && npm run dev                                 # http://localhost:5173 (proxies /api)
+npm install                 # better-sqlite3 is optional; if it cannot be built, install still succeeds
+cp .env.example .env        # Windows: copy .env.example .env   — then edit DATABASE_URL, ADMIN_*, JWT_SECRET
+npm start                   # http://localhost:8787
+cd ../portal && npm install && npm run dev   # http://localhost:5173 (proxies /api) — or npm run build to serve it from the server
 ```
 
-On first start the server creates `data/` with the SQLite database and the **license signing
-key** and prints the **license public key** — put it into
-`document-generator/src-tauri/remote-config.json → licensePublicKey`.
+The server reads `server/.env` (real environment variables take precedence). With
+`DATABASE_URL=mysql://…` it uses MySQL. Without it, it uses a local SQLite file, which needs the
+optional `better-sqlite3` module (prebuilt for common Node versions; otherwise it needs C++ build
+tools — not needed at all when you use MySQL).
+
+On first start the server creates `data/` with the **license signing key** and prints the
+**license public key** — put it into `document-generator/src-tauri/remote-config.json → licensePublicKey`.
 
 Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, `/account`.
 
@@ -36,7 +41,7 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
 | `PORT` | `8787` | HTTP port |
 | `NODE_ENV` | — | `production` enables strict checks (JWT secret required, mock payments off, HTTPS URLs only) |
 | `DATABASE_URL` | — | `mysql://user:pass@host:3306/docgen` — MySQL 8 (recommended in production) |
-| `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty |
+| `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty (needs the optional `better-sqlite3`) |
 | `DATA_DIR` | `./data` | keys, uploads (ad images), SQLite file |
 | `JWT_SECRET` | — | long random string for portal/admin sessions (**required in production**) |
 | `LICENSE_PRIVATE_KEY` | generated in `DATA_DIR` | Ed25519 private key (PEM). Keep it secret and backed up — losing it means re-issuing all licenses |

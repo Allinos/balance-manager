@@ -15,10 +15,24 @@
  *   DATA_DIR                folder for keys, uploads and the SQLite file (default ./data)
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/** Load server/.env (KEY=value lines) if present. Real environment variables win. */
+function loadDotEnv(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!m || line.trim().startsWith('#')) continue;
+    const value = m[2].replace(/^(['"])(.*)\1$/, '$2');
+    if (process.env[m[1]] === undefined) process.env[m[1]] = value;
+  }
+}
+if (process.env.NODE_ENV !== 'test') loadDotEnv(path.join(root, '.env'));
+
 const env = process.env;
 const isProd = env.NODE_ENV === 'production';
 const dataDir = path.resolve(root, env.DATA_DIR || 'data');

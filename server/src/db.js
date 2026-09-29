@@ -4,6 +4,7 @@
  */
 
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import knexFactory from 'knex';
 import { config } from './config.js';
@@ -34,6 +35,15 @@ export function createKnex(overrides = {}) {
       connection: { uri: url, charset: 'utf8mb4', supportBigNumbers: true },
       pool: { min: 0, max: Number(process.env.DB_POOL_MAX || 10) },
     });
+  }
+  // SQLite is optional (development/tests); MySQL needs no native module.
+  try {
+    createRequire(import.meta.url).resolve('better-sqlite3');
+  } catch {
+    throw new Error(
+      'No DATABASE_URL is set and the optional SQLite driver (better-sqlite3) is not installed.\n' +
+        'Set DATABASE_URL=mysql://user:password@localhost:3306/docgen (e.g. in server/.env), or run: npm install better-sqlite3',
+    );
   }
   const file = overrides.sqliteFile ?? config.sqliteFile;
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true });
