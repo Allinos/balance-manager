@@ -257,7 +257,7 @@ export default function DocumentEditorPage({ params, query }) {
       </div>
 
       <div className="editor-body">
-        <div className="editor-form">
+        <div className="editor-form" data-keynav>
           {model.parent && (
             <div className="callout">
               <Icon name="convert" />

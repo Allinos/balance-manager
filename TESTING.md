@@ -1,13 +1,13 @@
 # DocGen — test results
 
-Last full run: **29 September 2026** (after the bug-fix & UI round and the move to MySQL), branch `claude/focused-darwin-2j53b8`.
+Last full run: **29 September 2026** (after keyboard data entry, the bug-fix & UI round and the move to MySQL), branch `claude/focused-darwin-2j53b8`.
 
 | Suite | Command | Result |
 |-------|---------|--------|
 | Desktop JS unit tests | `cd document-generator && npm test` | **20 / 20 passed** |
 | Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **132 / 132 checks passed** |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **158 / 158 checks passed** (two consecutive runs) |
 | Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
 | Server API tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… node --test test/api.test.js` | **19 / 19 passed** |
 | Portal + admin end-to-end (Chromium) | `cd portal && node e2e/portal.e2e.mjs` (SQLite and `DATABASE_URL=mysql://…`) | **14 / 14 passed** on both |
@@ -20,7 +20,7 @@ Node process.
 
 ---
 
-## 1. Desktop end-to-end (132 checks)
+## 1. Desktop end-to-end (158 checks)
 
 `document-generator/e2e/run.mjs` drives the **real debug binary** through WebDriver
 (tauri-driver) against a **real local server** (`server/`, fresh database, seeded by the
@@ -36,6 +36,7 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 | 6 | Document Manager | 20 | **saved client picked with one click** (list closes, details filled, “Save this customer” prompt removed; it returns only when details are edited); **Round Off radio directly above Grand Total** (Yes 26,553.00 / No 26,552.95); **compact summary card** with icons and status pills; **type filter next to Search**; **+ New Document** opens the chooser; quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; **no folder panel, filters or create strip**; **one compact summary line** (Total · This Month · Files · per status); search by product; **Cancel Invoice** asks for a reason → CANCELLED mark, editing disabled, reason in history, invoice **kept, not deleted** |
 | 7 | External documents + Dashboard | 8 | Dashboard: **8 cards in exactly two rows**, **round + button** (34 px circle); **Customize** adds/removes cards and keeps two rows; **Add External Document** stores a PDF and an image, listed under Files, counted in the summary; delete → Deleted → restore; Dashboard cards show **type + count** (Invoices 1, Quotations 1) with **+**; **Recent Documents** listed |
 | 8 | Settings, products, copies | 14 | custom unit "Crate" saved and listed first; **Customers & Vendors removed from the navigation** while saved customer data is kept; product form: **HSN/SAC and GST on one row (50/50)**, GST from the searchable select, **service units listed first for services**, Esc closes only the dropdown; **Triple Copy** → three copies labelled Original for Recipient / Duplicate for Transporter / Triplicate for Supplier, print-only extra copies, **downloaded PDF has 3 pages**; four templates in settings; About shows interval / last / next check |
+| 8b | Keyboard data entry | 26 | a whole invoice and a product entered **without the mouse**: new invoice starts in the customer name; **Enter → next field**, **↑ → previous**; Enter in an empty field moves on; Enter inside the address adds a line, **Enter twice leaves it** (no stray blank line); Phone → Email → GSTIN → State; state dropdown: **Enter opens, type “maha”, Enter chooses and moves on**; item name → HSN → quantity (value selected, typing replaces) → unit (Enter, Enter keeps “Nos”) → rate → discount → GST → **Add Item** → Enter starts a new row → Enter on the empty name leaves the item list; totals 3 × 1,000 + 18 % = 3,540; saved with **Ctrl+S**; product dialog starts in Name, Enter through every field (dropdown values kept), **Enter on the last field saves** |
 | 9 | Account sign-in | 4 | wrong password → clear message; sign-in → licensed (plan shown, day line hidden); server registered the computer; sign out → not activated |
 | 10 | Check schedule | 2 | restart → **no new check before due**; the same ad is not repeated |
 | 11 | 30 days ended | 5 | clock +31 days → app opens with **one activation popup**: "Your 30-day period has ended", the two cards, no Skip, "You can request through email or call for extending your time."; **cannot be dismissed** (no close button, Esc ignored); overdue monthly check runs; **activation code** closes the popup |
@@ -67,6 +68,7 @@ overflows horizontally (none found). Issues found and fixed in this round:
 
 | Issue | Fix |
 |-------|-----|
+| Dialogs moved focus to their first button, so the product dialog opened on the Product/Service toggle instead of Name | dialogs keep a field that focused itself, otherwise start in the first input |
 | Esc inside a dropdown in a dialog closed the whole dialog | dialogs let an open dropdown / suggestion list / help tip close first (e2e check) |
 | Choosing a saved client needed a second click (the suggestion list re-opened) | the chosen value no longer triggers a new search; affects all name/product pickers |
 | Dashboard card titles cut off ("Proforma…") with five columns | icon and round **+** on top, title and count below |

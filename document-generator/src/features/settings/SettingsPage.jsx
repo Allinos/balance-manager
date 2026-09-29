@@ -41,7 +41,7 @@ export default function SettingsPage({ params }) {
           </Link>
         ))}
       </nav>
-      <div className="settings-content card">
+      <div className="settings-content card" data-keynav>
         <Component key={current.id} />
       </div>
     </div>

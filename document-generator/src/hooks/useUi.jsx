@@ -72,7 +72,12 @@ export function UiProvider({ children }) {
                 maxLength={300}
                 autoFocus
                 data-testid="confirm-input"
-                onKeyDown={(e) => e.key === 'Enter' && close(text.trim())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    close(text.trim());
+                  }
+                }}
               />
             </label>
           )}

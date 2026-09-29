@@ -15,6 +15,7 @@ import HelpPage from './features/help/HelpPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
 import ActivationRequired from './features/license/ActivationRequired.jsx';
 import { useServerSync } from './hooks/useServerSync.js';
+import { useKeyboardNav } from './hooks/useKeyboardNav.js';
 
 /** Route table: first match wins. */
 const ROUTES = [
@@ -66,6 +67,7 @@ function Shell() {
   const { loading, error, settings, license, reload } = useAppData();
   const confirm = useConfirm();
   useTheme(settings?.theme);
+  useKeyboardNav();
   useServerSync(!loading && !!settings?.setupComplete);
 
   useEffect(() => {

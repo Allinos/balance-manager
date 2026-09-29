@@ -162,6 +162,33 @@ const setSelect = (css, value) =>
      set.call(el, arguments[1]); el.dispatchEvent(new Event('change',{bubbles:true}));`,
     [css, value],
   ).then(() => sleep(500));
+/** Send keys to the focused element (WebDriver key codes: Enter \uE007, ↑ \uE013, ↓ \uE015). */
+async function keys(...parts) {
+  // Each part goes to whatever is focused at that moment (focus may move after Enter).
+  for (const text of parts) {
+    const active = await wd('GET', s('/element/active'));
+    const id = active[ELEMENT] ?? Object.values(active)[0];
+    await wd('POST', s(`/element/${id}/value`), { text });
+    await sleep(300);
+  }
+}
+const ENTER = '\uE007';
+const UP = '\uE013';
+/** A short description of the focused element. */
+/** Wait until the focused element matches (keyboard steps finish asynchronously). */
+async function focusIs(expected, timeout = 2000) {
+  const end = Date.now() + timeout;
+  let now = '';
+  while (Date.now() < end) {
+    now = await focused();
+    if (expected instanceof RegExp ? expected.test(now) : now === expected) return true;
+    await sleep(100);
+  }
+  return false;
+}
+const focused = () =>
+  exec(`const a=document.activeElement; return a.dataset.testid || a.closest('.ss')?.querySelector('.ss-control')?.dataset.testid || a.getAttribute('aria-label') || a.closest('.field')?.querySelector('.field-label')?.textContent.trim() || a.className || a.tagName`);
+
 /** Choose an option in a SearchSelect by typing (when searchable) and clicking it. */
 async function pick(testId, text) {
   await clickCss(`[data-testid="${testId}"]`);
@@ -668,6 +695,69 @@ async function main() {
     await go('#/settings/about');
     await find('[data-testid="config-summary"]');
     check((await textOf('[data-testid="config-summary"]')).includes('30 days'), 'About shows config check interval, last and next check');
+
+    // ---------------------------------------------------------------- 8b
+    section('8b. Keyboard data entry (no mouse)');
+    await go('#/doc/new/TAX_INVOICE');
+    await waitForText('New Tax Invoice');
+    await sleep(400);
+    check((await focusIs('party-name')), 'new invoice starts in the customer name');
+    await keys(`Keyboard Traders${ENTER}`);
+    check((await focusIs('Company')), `Enter → next field (${await focused()})`);
+    await keys(UP);
+    check((await focusIs('party-name')), 'Arrow Up → previous field');
+    await keys(ENTER, ENTER);
+    check((await focusIs('Address')), 'Enter moves on from an empty field');
+    await keys(`12 MG Road${ENTER}`, `Shivaji Nagar`);
+    check((await focusIs('Address')), 'Enter inside a multi-line address adds a new line');
+    await keys(ENTER, ENTER);
+    const addr = await exec('return [...document.querySelectorAll("textarea")].find(t=>t.value.includes("MG Road")).value');
+    check((await focusIs('Phone')) && addr === '12 MG Road\nShivaji Nagar', `Enter twice leaves the address, no extra blank line (${JSON.stringify(addr)})`);
+    await keys(`9876500000${ENTER}`, ENTER);
+    check((await focusIs('party-gstin')), 'Phone → Email → GSTIN');
+    await keys(ENTER);
+    check((await focusIs('party-state')), 'GSTIN → State (searchable select)');
+    await keys(ENTER);
+    await find('.ss-pop');
+    await keys(`maha${ENTER}`);
+    check((await hasText('[data-testid="party-state"]', 'Maharashtra')) && (await focusIs('item-name-0')), `select: Enter opens, type to search, Enter chooses and moves on (${await focused()})`);
+    await keys(`Keyboard Desk${ENTER}`);
+    check((await focusIs('HSN/SAC')), `item name → HSN (${await focused()})`);
+    await keys(`9403${ENTER}`);
+    check((await focusIs('item-qty-0')), `HSN → quantity (${await focused()})`);
+    await keys(`3${ENTER}`);
+    check((await exec('return document.querySelector("[data-testid=item-qty-0]").value')) === '3', 'quantity replaced by typing (value selected on focus)');
+    check((await focusIs('item-unit-0')), 'quantity → unit');
+    await keys(ENTER, ENTER);
+    check((await focusIs('item-rate-0')) && (await hasText('[data-testid="item-unit-0"]', 'Nos')), `Enter, Enter on a select keeps its value and moves on (${await focused()} / ${await exec('return document.querySelector("[data-testid=item-unit-0]").innerText')})`);
+    await keys(`1000${ENTER}`, ENTER);
+    check((await focusIs('item-tax-0')), 'rate → discount → GST');
+    await keys(ENTER, ENTER);
+    check((await focusIs('add-item')), 'after the last item field focus goes to Add Item');
+    await keys(ENTER);
+    check((await focusIs('item-name-1')), 'Enter on Add Item starts a new row');
+    await keys(ENTER);
+    check((await focusIs(/Shipping/)), `Enter on an empty item name leaves the item list (${await focused()})`);
+    const kbTotal = await textOf('[data-testid="grand-total"]');
+    check(kbTotal.includes('3,540.00'), `keyboard-entered invoice totals correctly: 3 × 1,000 + 18% (${kbTotal})`);
+    await keys('\uE009s');
+    await waitForText('saved', 8000);
+    check(true, 'saved with Ctrl+S');
+    await go('#/products');
+    await clickCss('[data-testid="add-product"]');
+    await sleep(300);
+    check((await focusIs('product-name')), 'product form starts in Name');
+    await keys(`Keyboard Chair${ENTER}`, ENTER);
+    check((await focusIs('product-category')), 'Name → SKU → Category');
+    await keys(ENTER, ENTER, ENTER, ENTER);
+    check((await focusIs('product-hsn')), 'Category → Unit → HSN (values kept)');
+    await keys(`9401${ENTER}`, ENTER, ENTER);
+    check((await focusIs(/Description/)), 'HSN → GST → Description');
+    await keys(ENTER, `2500${ENTER}`);
+    check((await focusIs(/Price is/)), 'Description → Selling price → Price is');
+    await keys(ENTER);
+    await waitForText('Keyboard Chair');
+    check(!(await exists('.modal')), 'Enter on the last field saves the product');
 
     // ------------------------------------------------------------------ 9
     section('9. Sign in with account');

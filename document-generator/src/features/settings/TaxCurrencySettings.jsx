@@ -63,7 +63,12 @@ export function TaxSettings() {
                   </button>
                 </span>
               ))}
-              <NumberInput value={newRate} onChange={setNewRate} placeholder="Add rate" onKeyDown={(e) => e.key === 'Enter' && addRate()} />
+              <NumberInput value={newRate} onChange={setNewRate} placeholder="Add rate" onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addRate();
+                  }
+                }} />
               <button type="button" className="btn btn-sm" onClick={addRate}>
                 Add
               </button>

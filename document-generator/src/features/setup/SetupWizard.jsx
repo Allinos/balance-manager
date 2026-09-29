@@ -101,7 +101,7 @@ export default function SetupWizard() {
 
   return (
     <div className="setup">
-      <div className={`setup-card ${step === 4 ? 'wide' : ''}`}>
+      <div className={`setup-card ${step === 4 ? 'wide' : ''}`} data-keynav>
         <div className="setup-steps" aria-label="Setup progress">
           {STEPS.map((s, i) => (
             <span key={s} className={`setup-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} title={s} />
@@ -127,7 +127,7 @@ export default function SetupWizard() {
             <p className="muted">Printed at the top of every document. Address and bank details can be added later in Settings.</p>
             <div className="grid-2">
               <Field label="Company name" required className="span-2">
-                <TextInput value={name} onChange={setName} autoFocus placeholder="e.g. Sharma Furniture Works" onKeyDown={(e) => e.key === 'Enter' && next()} data-testid="setup-company" />
+                <TextInput value={name} onChange={setName} autoFocus placeholder="e.g. Sharma Furniture Works" data-testid="setup-company" />
               </Field>
               <Field label="GSTIN (optional)">
                 <TextInput value={gstin} onChange={onGstin} maxLength={15} placeholder="27AAPFU0939F1ZV" data-testid="setup-gstin" />
@@ -196,7 +196,7 @@ export default function SetupWizard() {
             <span />
           )}
           {step < STEPS.length - 1 && (
-            <button className="btn btn-primary" onClick={next} disabled={busy} data-testid="setup-next">
+            <button className="btn btn-primary" onClick={next} disabled={busy} data-testid="setup-next" data-keynav-submit>
               {step === 0 ? 'Get started' : busy ? 'Saving…' : 'Continue'} <Icon name="arrowRight" size={16} />
             </button>
           )}

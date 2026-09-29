@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
+import { advance } from '../utils/keynav.js';
 
 /**
  * Text input with an async suggestion list (keyboard friendly).
@@ -50,7 +51,8 @@ export default function Autocomplete({
         const result = await fetchOptions(q);
         if (mine === seq.current) {
           setOptions(result);
-          setActive(0);
+          // Nothing highlighted, so Enter keeps what was typed — unless it matches a suggestion exactly.
+          setActive(result.findIndex((o) => String(o.name || '').trim().toLowerCase() === q.toLowerCase()));
           setOpen(result.length > 0);
         }
       } catch {
@@ -61,12 +63,15 @@ export default function Autocomplete({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, minChars]);
 
-  const choose = (opt) => {
+  const input = useRef(null);
+  /** @param {boolean} [byKeyboard] Enter moves on to the next field of the form (utils/keynav.js). */
+  const choose = (opt, byKeyboard = false) => {
     seq.current += 1; // ignore any search still in flight
     setOpen(false);
     setOptions([]);
     chosen.current = opt?.name ?? null;
     onSelect(opt);
+    if (byKeyboard && input.current) setTimeout(() => advance(input.current), 0);
   };
 
   const onKeyDown = (e) => {
@@ -76,10 +81,15 @@ export default function Autocomplete({
       setActive((a) => Math.min(options.length - 1, a + 1));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActive((a) => Math.max(0, a - 1));
+      setActive((a) => Math.max(-1, a - 1));
     } else if (e.key === 'Enter') {
+      if (active < 0) {
+        // Keep the typed text; form navigation moves to the next field.
+        setOpen(false);
+        return;
+      }
       e.preventDefault();
-      choose(options[active]);
+      choose(options[active], true);
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       setOpen(false);
@@ -89,6 +99,7 @@ export default function Autocomplete({
   return (
     <div className={`autocomplete ${className}`}>
       <input
+        ref={input}
         className="input"
         value={value ?? ''}
         placeholder={placeholder}

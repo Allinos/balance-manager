@@ -32,6 +32,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Icon from './Icon.jsx';
+import { advance } from '../utils/keynav.js';
 
 const toOption = (o) => (typeof o === 'string' ? { value: o, label: o } : { label: o.value, ...o });
 
@@ -149,24 +150,37 @@ export default function SearchSelect({
 
   useEffect(() => {
     if (open) {
-      setActive(0);
+      // Start on the current value so Enter keeps it unchanged.
+      setActive(Math.max(0, visible.items.findIndex((o) => o.value === value)));
       setTimeout(() => searchRef.current?.focus(), 0);
     } else {
       setQuery('');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const choose = (opt) => {
+  /** @param {boolean} [byKeyboard] Enter moves on to the next field of the form (utils/keynav.js). */
+  const choose = (opt, byKeyboard = false) => {
     pushRecent(recentKey, opt.value);
     onChange(opt.value, opt.create ? undefined : opt);
     setOpen(false);
-    root.current?.querySelector('.ss-control')?.focus();
+    const control = root.current?.querySelector('.ss-control');
+    control?.focus();
+    if (byKeyboard && control) setTimeout(() => advance(control), 0);
   };
 
   const onKeyDown = (e) => {
-    if (!open && ['ArrowDown', 'Enter', ' '].includes(e.key) && e.target.classList.contains('ss-control')) {
-      e.preventDefault();
-      setOpen(true);
+    const onControl = e.target.classList.contains('ss-control');
+    if (!open && onControl) {
+      // ↑/↓ are left to form navigation; Enter, Space or Alt+↓ open the list; typing searches.
+      if (e.key === 'Enter' || e.key === ' ' || (e.altKey && e.key === 'ArrowDown')) {
+        e.preventDefault();
+        setOpen(true);
+      } else if (showSearch && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setQuery(e.key);
+        setOpen(true);
+      }
       return;
     }
     if (!open) return;
@@ -178,7 +192,7 @@ export default function SearchSelect({
       setActive((a) => Math.max(0, a - 1));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (visible.items[active]) choose(visible.items[active]);
+      if (visible.items[active]) choose(visible.items[active], true);
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       setOpen(false);

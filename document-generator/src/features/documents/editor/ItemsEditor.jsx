@@ -12,6 +12,8 @@ import { exclusivePrice } from '../../../utils/calc.js';
 import { formatMoney } from '../../../utils/format.js';
 import { dec } from '../../../utils/decimal.js';
 import { useToast } from '../../../hooks/useUi.jsx';
+import { useRef } from 'react';
+import { focusFirstAfter } from '../../../utils/keynav.js';
 
 /**
  * Item rows. Typing in the item name searches Products & Services; choosing one
@@ -31,7 +33,22 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
     const next = items.filter((it) => it._key !== key);
     onChange(next.length ? next : [blankItem(settings, doc.document_type)]);
   };
-  const add = () => onChange([...items, blankItem(settings, doc.document_type)]);
+  const section = useRef(null);
+  const add = () => {
+    onChange([...items, blankItem(settings, doc.document_type)]);
+    // Continue typing in the new row.
+    setTimeout(() => section.current?.querySelector(`[data-testid="item-name-${items.length}"]`)?.focus(), 0);
+  };
+
+  /** Enter on an empty item name leaves the item list (keyboard data entry). */
+  const onKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.defaultPrevented || e.shiftKey) return;
+    const t = e.target;
+    if (t.matches?.('[data-testid^="item-name-"]') && !t.value.trim()) {
+      e.preventDefault();
+      focusFirstAfter(section.current);
+    }
+  };
 
   const pickProduct = (key, p) => {
     const rate = p.tax_type === 'EXEMPT' ? '0' : p.tax_rate;
@@ -84,7 +101,7 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
   const gridStyle = { gridTemplateColumns: cols.map((c) => WIDTHS[c]).join(' ') };
 
   return (
-    <section className="card editor-section">
+    <section className="card editor-section" ref={section} onKeyDown={onKeyDown}>
       <div className="card-header">
         <h2>Items</h2>
         <span className="muted small">Tip: start typing to pick a saved product or service</span>
@@ -130,7 +147,9 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
                   )}
                   inputProps={{ 'data-testid': `item-name-${index}` }}
                 />
+                {/* Optional line: reachable with Tab or a click, skipped by Enter/↑/↓ for fast entry. */}
                 <input
+                  data-keynav-skip
                   className="input input-desc"
                   placeholder="Description (optional)"
                   value={it.description}
@@ -207,7 +226,7 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
           );
         })}
       </div>
-      <button type="button" className="btn add-item" onClick={add} data-testid="add-item">
+      <button type="button" className="btn add-item" onClick={add} data-testid="add-item" data-keynav-field>
         <Icon name="plus" /> Add Item
       </button>
     </section>

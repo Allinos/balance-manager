@@ -59,6 +59,13 @@ all business data stays in one local file. A product of [RainDeal.in](https://ra
 - **Help & Support**: YouTube tutorials (from the server), built-in guides, FAQ, contact buttons.
 - **Remote configuration** (optional server): announcements/ads (sandboxed), help videos,
   check interval — checked monthly by default, resumed automatically after being offline.
+- **Keyboard data entry** in every form (documents, products, settings, setup, sign-in):
+  type → **Enter** → next field; **↑/↓** previous/next field; in dropdowns Enter/Space opens,
+  typing searches, Enter chooses and moves on; in item rows the last field leads to *Add Item*
+  (Enter adds a row) and Enter on an empty item name leaves the list; Enter twice leaves a
+  multi-line box; Enter on the last field saves (product dialog, settings). Arrow keys keep their
+  normal meaning in dates, native dropdowns and inside multi-line text. Implemented once in
+  `src/utils/keynav.js` for every `[data-keynav]` area.
 - Light theme by default, optional dark theme; collapsible sidebar; keyboard shortcuts
   (`Ctrl+N` new, `Ctrl+S` save, `Ctrl+P` print, `Ctrl+F` search, `Esc` close).
 - Exact decimal maths, amount in words (Indian & international), backup/restore, sample data.
@@ -225,7 +232,7 @@ npx tauri build --debug --no-bundle
 xvfb-run -a node e2e/run.mjs
 ```
 
-The e2e run (132 checks, 16 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
+The e2e run (158 checks, 17 phases) is described with its results in [`../TESTING.md`](../TESTING.md).
 
 ## Security notes
 

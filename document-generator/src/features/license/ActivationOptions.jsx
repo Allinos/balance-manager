@@ -108,7 +108,7 @@ export default function ActivationOptions({ onDone, onSkip }) {
 
   return (
     <div className="activate">
-      <form className="activate-form" onSubmit={submit}>
+      <form className="activate-form" onSubmit={submit} data-keynav>
         <h3>{view === 'login' ? 'Login Using Your Account' : 'I Have a License'}</h3>
         {offlineBuild && <p className="form-error">This copy of DocGen is not connected to the license server.</p>}
         {view === 'login' ? (

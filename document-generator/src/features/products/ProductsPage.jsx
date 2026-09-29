@@ -67,7 +67,7 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
 
   return (
     <Modal title={p.id ? `Edit ${p.name}` : 'Add product or service'} onClose={onClose} size="lg">
-      <form onSubmit={submit} className="form">
+      <form onSubmit={submit} className="form" data-keynav>
         <Segmented
           value={p.type}
           onChange={(type) => set({ type, unit: type === 'SERVICE' && !SERVICE_UNITS.includes(p.unit) ? 'Service' : type === 'PRODUCT' && SERVICE_UNITS.includes(p.unit) ? 'Nos' : p.unit })}
@@ -224,7 +224,7 @@ function CategoriesModal({ categories, onClose, onChanged }) {
 
   return (
     <Modal title="Categories" onClose={onClose}>
-      <form onSubmit={add} className="inline-form">
+      <form onSubmit={add} className="inline-form" data-keynav>
         <input className="input" placeholder="New category, e.g. Furniture" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn btn-primary" type="submit">
           <Icon name="plus" /> Add

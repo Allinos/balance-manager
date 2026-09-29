@@ -10,6 +10,7 @@ export function SaveBar({ dirty, onSave, label = 'Save changes' }) {
       <span className="muted small">{dirty ? 'You have unsaved changes' : 'All changes saved'}</span>
       <button
         className="btn btn-primary"
+        data-keynav-submit
         disabled={!dirty || busy}
         onClick={async () => {
           setBusy(true);

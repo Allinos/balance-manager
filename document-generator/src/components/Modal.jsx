@@ -18,8 +18,13 @@ export default function Modal({ title, onClose, size = 'md', children, footer, c
     };
     window.addEventListener('keydown', onKey, true);
     const previous = document.activeElement;
-    const focusable = panel.current?.querySelector('[autofocus], input, select, textarea, button:not(.modal-close)');
-    focusable?.focus();
+    // Keep a field that focused itself (autoFocus); otherwise start in the first field, then the first button.
+    if (!panel.current?.contains(document.activeElement)) {
+      const first =
+        panel.current?.querySelector('[autofocus], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])') ||
+        panel.current?.querySelector('button:not(.modal-close)');
+      first?.focus();
+    }
     return () => {
       window.removeEventListener('keydown', onKey, true);
       if (previous && previous.focus) previous.focus();

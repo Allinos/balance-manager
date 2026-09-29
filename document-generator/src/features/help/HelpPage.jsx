@@ -99,7 +99,11 @@ const SHORTCUTS = [
   ['Ctrl/Cmd + S', 'Save document'],
   ['Ctrl/Cmd + P', 'Print document'],
   ['Ctrl/Cmd + F', 'Search in Document Manager'],
-  ['Esc', 'Close dialog'],
+  ['Enter', 'Next field (in a list: choose and move on)'],
+  ['↑ / ↓', 'Previous / next field'],
+  ['Enter twice', 'Leave a multi-line box (address, notes)'],
+  ['Enter / Space', 'Open a dropdown; type to search'],
+  ['Esc', 'Close dropdown or dialog'],
 ];
 
 const youtubeId = (url) => {
