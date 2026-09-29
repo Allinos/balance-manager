@@ -22,6 +22,11 @@ pub const MIGRATIONS: &[(i64, &str, &str)] = &[
         include_str!("../migrations/002_add_document_settings.sql"),
     ),
     (3, "migration_003_add_ad_state", include_str!("../migrations/003_add_ad_state.sql")),
+    (
+        4,
+        "migration_004_document_manager",
+        include_str!("../migrations/004_document_manager.sql"),
+    ),
 ];
 
 /// User-facing error. `message` is always friendly; technical detail goes to the log file.
@@ -170,24 +175,42 @@ pub fn migrate(conn: &mut Connection) -> AppResult<()> {
             applied_at  TEXT NOT NULL
         );",
     )?;
+    let mut pending = Vec::new();
     for (version, name, sql) in MIGRATIONS {
         let applied: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM schema_migrations WHERE version = ?1)",
             [version],
             |r| r.get(0),
         )?;
-        if applied {
-            continue;
+        if !applied {
+            pending.push((*version, *name, *sql));
         }
-        let tx = conn.transaction()?;
-        tx.execute_batch(sql)?;
-        tx.execute(
-            "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
-            rusqlite::params![version, name, now()],
-        )?;
-        tx.commit()?;
     }
-    Ok(())
+    if pending.is_empty() {
+        return Ok(());
+    }
+    // Table rebuilds require foreign keys to be off (SQLite "12-step" procedure).
+    // The pragma cannot change inside a transaction, so it wraps the whole run.
+    conn.execute_batch("PRAGMA foreign_keys = OFF;")?;
+    let result = (|| -> AppResult<()> {
+        for (version, name, sql) in pending {
+            let tx = conn.transaction()?;
+            tx.execute_batch(sql)?;
+            tx.execute(
+                "INSERT INTO schema_migrations (version, name, applied_at) VALUES (?1, ?2, ?3)",
+                rusqlite::params![version, name, now()],
+            )?;
+            let violations: i64 = tx.query_row("SELECT COUNT(*) FROM pragma_foreign_key_check", [], |r| r.get(0))?;
+            if violations > 0 {
+                log_error("migrate", &format!("{name}: {violations} foreign key violations"));
+                return Err(AppError::new("The data file could not be upgraded. Please contact support."));
+            }
+            tx.commit()?;
+        }
+        Ok(())
+    })();
+    conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+    result
 }
 
 /// Convert a JSON value coming from the UI into an SQLite value.

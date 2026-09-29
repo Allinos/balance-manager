@@ -3,7 +3,10 @@
 
 mod commands;
 mod db;
+mod files;
+mod license;
 mod numbering;
+mod pdf;
 mod remote;
 
 use tauri::Manager;
@@ -61,6 +64,28 @@ pub fn run() {
             commands::ad_state_set,
             commands::remote_config_fetch,
             commands::ad_event_record,
+            commands::document_set_template,
+            license::license_status,
+            license::license_login,
+            license::license_activate,
+            license::license_refresh,
+            license::license_logout,
+            license::license_debug_state,
+            files::folders_list,
+            files::folder_save,
+            files::folder_delete,
+            files::documents_move,
+            files::files_import,
+            files::files_list,
+            files::file_open,
+            files::file_export,
+            files::file_update,
+            files::files_move,
+            files::files_copy,
+            files::files_delete,
+            files::files_restore,
+            files::files_purge,
+            pdf::document_save_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DocGen");

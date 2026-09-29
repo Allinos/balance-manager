@@ -40,7 +40,7 @@ const DOCUMENT_COLUMNS: &[&str] = &[
     "place_of_supply", "reference", "issue_date", "due_date", "currency", "currency_symbol", "currency_decimals",
     "exchange_rate", "tax_mode", "tax_label", "subtotal", "discount", "taxable", "tax", "cgst", "sgst", "igst",
     "shipping", "other_charges", "other_charges_label", "round_off", "grand_total", "notes", "terms", "meta",
-    "parent_document_id", "is_demo",
+    "parent_document_id", "is_demo", "folder_id", "template",
 ];
 
 const ITEM_COLUMNS: &[&str] = &[
@@ -51,7 +51,18 @@ const ITEM_COLUMNS: &[&str] = &[
 
 const TAX_COLUMNS: &[&str] = &["document_id", "tax_rate", "taxable_amount", "cgst", "sgst", "igst", "tax_amount"];
 
-const STATUSES: &[&str] = &["DRAFT", "ISSUED", "PAID", "CANCELLED", "VOID"];
+/// All statuses a document can have. Each document type uses a subset (defined in the UI registry).
+const STATUSES: &[&str] = &["DRAFT", "ISSUED", "ACCEPTED", "REJECTED", "PARTIAL", "PAID", "COMPLETED", "CANCELLED", "VOID"];
+
+/// Append an entry to a document's history (audit trail).
+fn add_history(conn: &rusqlite::Connection, doc_id: i64, action: &str, from: &str, to: &str, note: &str) -> AppResult<()> {
+    let note: String = note.chars().take(500).collect();
+    conn.execute(
+        "INSERT INTO document_history (document_id, action, from_status, to_status, note, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        rusqlite::params![doc_id, action, from, to, note, now()],
+    )?;
+    Ok(())
+}
 
 const MAX_IMAGE_BYTES: u64 = 2 * 1024 * 1024;
 
@@ -84,7 +95,9 @@ pub fn app_info(app: AppHandle, db: State<'_, Db>) -> Value {
         "version": app.package_info().version.to_string(),
         "platform": std::env::consts::OS,
         "dataFile": db.path.to_string_lossy(),
-        "remoteConfigured": !remote::settings().config_url.is_empty(),
+        "remoteConfigured": !remote::settings().server_url.is_empty(),
+        "fileExtensions": crate::files::extensions(),
+        "clockOffsetMs": crate::license::clock_offset_ms(),
     })
 }
 
@@ -361,7 +374,7 @@ pub fn party_delete(db: State<'_, Db>, id: i64) -> AppResult<()> {
 
 const LIST_COLUMNS: &str = "d.id, d.document_type, d.document_number, d.status, d.party_name, d.party_company,
     d.issue_date, d.due_date, d.grand_total, d.currency, d.currency_symbol, d.currency_decimals,
-    d.parent_document_id, d.is_demo, d.deleted_at, d.created_at, d.updated_at";
+    d.parent_document_id, d.is_demo, d.deleted_at, d.created_at, d.updated_at, d.folder_id, d.cancelled_at";
 
 #[tauri::command]
 pub fn documents_list(db: State<'_, Db>, filter: Option<Value>) -> AppResult<Value> {
@@ -384,6 +397,12 @@ pub fn documents_list(db: State<'_, Db>, filter: Option<Value>) -> AppResult<Val
     if let Some(status) = f["status"].as_str().filter(|s| STATUSES.contains(s)) {
         where_sql.push("d.status = ?".into());
         params.push(text(status));
+    }
+    if let Some(folder) = f["folderId"].as_i64() {
+        where_sql.push("d.folder_id = ?".into());
+        params.push(SqlValue::Integer(folder));
+    } else if f["unfiled"].as_bool().unwrap_or(false) {
+        where_sql.push("d.folder_id IS NULL".into());
     }
     if let Some(from) = f["from"].as_str().filter(|s| !s.is_empty()) {
         where_sql.push("d.issue_date >= ?".into());
@@ -470,7 +489,20 @@ pub fn document_get(db: State<'_, Db>, id: i64) -> AppResult<Value> {
              WHERE parent_document_id = ?1 AND deleted_at IS NULL ORDER BY id",
             &[SqlValue::Integer(id)],
         )?;
-        Ok(json!({ "document": doc, "items": items, "taxes": taxes, "parent": parent, "children": children }))
+        let history = query_json(
+            c,
+            "SELECT id, action, from_status, to_status, note, created_at FROM document_history
+             WHERE document_id = ?1 ORDER BY id DESC LIMIT 100",
+            &[SqlValue::Integer(id)],
+        )?;
+        let folder = match doc["folder_id"].as_i64() {
+            Some(fid) => query_one(c, "SELECT id, name FROM folders WHERE id = ?1", &[SqlValue::Integer(fid)])?,
+            None => None,
+        };
+        Ok(json!({
+            "document": doc, "items": items, "taxes": taxes, "parent": parent, "children": children,
+            "history": history, "folder": folder,
+        }))
     })
 }
 
@@ -507,15 +539,11 @@ pub fn document_save(db: State<'_, Db>, payload: Value) -> AppResult<Value> {
         let mut data = doc.clone();
         let mut number = str_field(doc, "document_number").trim().to_string();
 
+        let mut previous_status = String::new();
         if let Some(id) = id {
-            let exists: bool = tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM documents WHERE id = ?1 AND deleted_at IS NULL)",
-                [id],
-                |r| r.get(0),
-            )?;
-            if !exists {
-                return Err(AppError::new("This document no longer exists."));
-            }
+            previous_status = tx
+                .query_row("SELECT status FROM documents WHERE id = ?1 AND deleted_at IS NULL", [id], |r| r.get(0))
+                .map_err(|_| AppError::new("This document no longer exists."))?;
         }
         if number.is_empty() {
             match id {
@@ -539,6 +567,14 @@ pub fn document_save(db: State<'_, Db>, payload: Value) -> AppResult<Value> {
         }
 
         let doc_id = upsert(&tx, "documents", id, &data, DOCUMENT_COLUMNS, true)?;
+        match id {
+            None => add_history(&tx, doc_id, "CREATED", "", status, "")?,
+            Some(_) if previous_status != status => add_history(&tx, doc_id, "UPDATED", &previous_status, status, "")?,
+            Some(_) => add_history(&tx, doc_id, "UPDATED", "", "", "")?,
+        }
+        if status == "CANCELLED" && previous_status != "CANCELLED" {
+            tx.execute("UPDATE documents SET cancelled_at = COALESCE(cancelled_at, ?1) WHERE id = ?2", rusqlite::params![now(), doc_id])?;
+        }
         if status == "ISSUED" || status == "PAID" {
             tx.execute(
                 "UPDATE documents SET issued_at = COALESCE(issued_at, ?1) WHERE id = ?2",
@@ -565,21 +601,43 @@ pub fn document_save(db: State<'_, Db>, payload: Value) -> AppResult<Value> {
 }
 
 #[tauri::command]
-pub fn document_set_status(db: State<'_, Db>, id: i64, status: String) -> AppResult<()> {
+pub fn document_set_status(db: State<'_, Db>, id: i64, status: String, note: Option<String>) -> AppResult<()> {
     if !STATUSES.contains(&status.as_str()) {
         return Err(AppError::new("Unknown document status."));
     }
+    let note = note.unwrap_or_default();
     db.with(|c| {
+        let tx = c.transaction()?;
         let ts = now();
-        let changed = c.execute(
-            "UPDATE documents SET status = ?1, updated_at = ?2,
-               issued_at = CASE WHEN ?1 IN ('ISSUED', 'PAID') THEN COALESCE(issued_at, ?2) ELSE issued_at END
-             WHERE id = ?3 AND deleted_at IS NULL",
-            rusqlite::params![status, ts, id],
-        )?;
-        if changed == 0 {
-            return Err(AppError::new("This document could not be found."));
+        let previous: String = tx
+            .query_row("SELECT status FROM documents WHERE id = ?1 AND deleted_at IS NULL", [id], |r| r.get(0))
+            .map_err(|_| AppError::new("This document could not be found."))?;
+        if previous == status {
+            return Ok(());
         }
+        tx.execute(
+            "UPDATE documents SET status = ?1, updated_at = ?2,
+               issued_at = CASE WHEN ?1 IN ('ISSUED', 'PAID', 'PARTIAL', 'ACCEPTED', 'COMPLETED') THEN COALESCE(issued_at, ?2) ELSE issued_at END,
+               cancelled_at = CASE WHEN ?1 IN ('CANCELLED', 'VOID') THEN ?2 ELSE NULL END,
+               cancel_reason = CASE WHEN ?1 IN ('CANCELLED', 'VOID') THEN ?4 ELSE '' END
+             WHERE id = ?3",
+            rusqlite::params![status, ts, id, note.chars().take(500).collect::<String>()],
+        )?;
+        add_history(&tx, id, "STATUS", &previous, &status, &note)?;
+        tx.commit()?;
+        Ok(())
+    })
+}
+
+/// Choose the print template for one document ('' = use the default).
+#[tauri::command]
+pub fn document_set_template(db: State<'_, Db>, id: i64, template: String) -> AppResult<()> {
+    if template.len() > 40 || !template.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
+        return Err(AppError::new("Unknown template."));
+    }
+    db.with(|c| {
+        c.execute("UPDATE documents SET template = ?1 WHERE id = ?2", rusqlite::params![template, id])?;
+        add_history(c, id, "TEMPLATE", "", "", &template)?;
         Ok(())
     })
 }
@@ -588,10 +646,13 @@ pub fn document_set_status(db: State<'_, Db>, id: i64, status: String) -> AppRes
 #[tauri::command]
 pub fn document_delete(db: State<'_, Db>, id: i64) -> AppResult<()> {
     db.with(|c| {
-        c.execute(
+        let n = c.execute(
             "UPDATE documents SET deleted_at = ?1 WHERE id = ?2 AND deleted_at IS NULL",
             rusqlite::params![now(), id],
         )?;
+        if n > 0 {
+            add_history(c, id, "DELETED", "", "", "")?;
+        }
         Ok(())
     })
 }
@@ -610,6 +671,7 @@ pub fn document_restore(db: State<'_, Db>, id: i64) -> AppResult<()> {
             ))
         })?;
         c.execute("UPDATE documents SET deleted_at = NULL, updated_at = ?1 WHERE id = ?2", rusqlite::params![now(), id])?;
+        add_history(c, id, "RESTORED", "", "", "")?;
         Ok(())
     })
 }
@@ -847,23 +909,27 @@ pub async fn remote_config_fetch() -> AppResult<Value> {
         .map_err(|_| AppError::new("Could not reach the configuration server."))?
 }
 
+/// Record an ad event locally and send an anonymous counter ({event, adId}) to the server.
+/// `ad_id` 0 = the built-in DocGen message.
 #[tauri::command]
-pub fn ad_event_record(db: State<'_, Db>, event: String, ad_version: String) -> AppResult<()> {
+pub fn ad_event_record(db: State<'_, Db>, event: String, ad_id: i64, ad_version: String) -> AppResult<()> {
     if !["AD_SHOWN", "AD_CLICKED", "AD_CLOSED"].contains(&event.as_str()) {
         return Err(AppError::new("Unknown event."));
     }
-    let ad_version: String = ad_version.chars().take(40).collect();
-    let events_enabled = !remote::settings().events_url.is_empty();
+    let ad_version: String = format!("{ad_id}:{}", ad_version.chars().take(30).collect::<String>());
+    let online = !remote::settings().server_url.is_empty() && ad_id > 0;
     db.with(|c| {
         c.execute(
             "INSERT INTO ad_events (event, ad_version, sent) VALUES (?1, ?2, ?3)",
-            rusqlite::params![event, ad_version, events_enabled as i64],
+            rusqlite::params![event, ad_version, online as i64],
         )?;
         // Keep the local event log small.
         c.execute("DELETE FROM ad_events WHERE id <= (SELECT MAX(id) - 500 FROM ad_events)", [])?;
         Ok(())
     })?;
-    remote::send_event(&event, &ad_version);
+    if online {
+        remote::send_event(&event, ad_id);
+    }
     Ok(())
 }
 
@@ -886,6 +952,42 @@ mod tests {
         let conn = open_connection(&path).unwrap();
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM schema_migrations", [], |r| r.get(0)).unwrap();
         assert_eq!(n as usize, crate::db::MIGRATIONS.len());
+    }
+
+    #[test]
+    fn upgrade_from_version_1_keeps_documents_items_and_links() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("old.sqlite");
+        {
+            // Build a database as version 1.0 left it (migrations 1-3 only).
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            conn.execute_batch("PRAGMA foreign_keys = ON; CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);").unwrap();
+            for (v, name, sql) in &crate::db::MIGRATIONS[..3] {
+                conn.execute_batch(sql).unwrap();
+                conn.execute("INSERT INTO schema_migrations VALUES (?1, ?2, 'x')", rusqlite::params![v, name]).unwrap();
+            }
+            conn.execute_batch(
+                "INSERT INTO documents (id, document_type, document_number, issue_date, status, grand_total) VALUES (1, 'QUOTATION', 'QTN-00001', '2026-09-01', 'ISSUED', '1180.00');
+                 INSERT INTO documents (id, document_type, document_number, issue_date, parent_document_id) VALUES (2, 'TAX_INVOICE', 'INV-00001', '2026-09-02', 1);
+                 INSERT INTO document_items (document_id, name, quantity, unit_price) VALUES (2, 'Chair', '2', '500');",
+            )
+            .unwrap();
+        }
+        let conn = open_connection(&path).unwrap();
+        let (number, parent): (String, i64) = conn
+            .query_row("SELECT document_number, parent_document_id FROM documents WHERE id = 2", [], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap();
+        assert_eq!((number.as_str(), parent), ("INV-00001", 1));
+        let items: i64 = conn.query_row("SELECT COUNT(*) FROM document_items WHERE document_id = 2", [], |r| r.get(0)).unwrap();
+        assert_eq!(items, 1);
+        let history: i64 = conn.query_row("SELECT COUNT(*) FROM document_history", [], |r| r.get(0)).unwrap();
+        assert_eq!(history, 2, "existing documents get a CREATED history entry");
+        // New statuses are accepted now that the CHECK constraint is gone.
+        conn.execute("UPDATE documents SET status = 'ACCEPTED' WHERE id = 1", []).unwrap();
+        // Foreign keys still enforced after the rebuild: deleting a document cascades to its items.
+        conn.execute("DELETE FROM documents WHERE id = 2", []).unwrap();
+        let orphan: i64 = conn.query_row("SELECT COUNT(*) FROM document_items", [], |r| r.get(0)).unwrap();
+        assert_eq!(orphan, 0);
     }
 
     #[test]

@@ -23,6 +23,11 @@ on:
     tags:
       - 'docgen-v*'
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the installer to the "DocGen latest build" release'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -85,7 +90,8 @@ jobs:
             --notes "Windows installer for DocGen. Download the -setup.exe file and double-click it to install."
 
       - name: Publish "latest build" release
-        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        # Skipped for manual runs with "publish" unticked and for pushes whose message contains [wip].
+        if: ${{ !startsWith(github.ref, 'refs/tags/') && (github.event_name != 'workflow_dispatch' || inputs.publish) && !contains(github.event.head_commit.message, '[wip]') }}
         run: |
           gh release delete docgen-latest --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create docgen-latest out/* \

@@ -1,5 +1,7 @@
 {
-  "configUrl": "",
-  "eventsUrl": "",
-  "requestTimeoutSecs": 8
+  "serverUrl": "",
+  "portalUrl": "https://docgen.raindeal.in",
+  "websiteUrl": "https://raindeal.in",
+  "licensePublicKey": "",
+  "requestTimeoutSecs": 10
 }

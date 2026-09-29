@@ -1,47 +1,69 @@
-//! Remote advertisement configuration.
+//! Communication with the DocGen server.
 //!
-//! This is the only part of DocGen that talks to the internet. It downloads a
-//! small JSON document from the server configured in `remote-config.json`,
-//! validates it strictly and returns a sanitised copy. Only plain values
-//! (booleans, numbers, dates, HTTPS URLs, short texts) survive validation;
-//! nothing received from the server is ever executed.
+//! Only three kinds of requests exist:
+//!  * configuration check (ads, help videos, check interval) — anonymous;
+//!  * anonymous ad counters ({event, adId});
+//!  * licensing (sign-in / activation code / refresh / release) — sends only the
+//!    account email+password or the activation code, an anonymous device id,
+//!    the computer name, platform and app version.
 //!
-//! No business data is ever sent. Event pings contain only the event name,
-//! the ad version, the app version and the operating system name.
+//! Business data (documents, customers, products, company details, the
+//! database) is never sent. Every server response is validated strictly and
+//! nothing received is ever executed.
 
 use crate::db::{log_error, AppError, AppResult};
 use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::time::Duration;
 
-const MAX_CONFIG_BYTES: u64 = 64 * 1024;
+const MAX_BODY_BYTES: u64 = 256 * 1024;
 
 #[derive(Debug, Clone)]
 pub struct RemoteSettings {
-    pub config_url: String,
-    pub events_url: String,
+    pub server_url: String,
+    pub portal_url: String,
+    pub website_url: String,
+    pub license_public_key: String,
     pub timeout_secs: u64,
 }
 
+fn raw_settings() -> Value {
+    serde_json::from_str(include_str!("../remote-config.json")).unwrap_or(Value::Null)
+}
+
+/// Debug builds accept environment overrides (for local testing); release builds never do.
+fn debug_env(name: &str) -> Option<String> {
+    if cfg!(debug_assertions) {
+        std::env::var(name).ok().filter(|s| !s.trim().is_empty())
+    } else {
+        None
+    }
+}
+
 pub fn settings() -> RemoteSettings {
-    let raw: Value = serde_json::from_str(include_str!("../remote-config.json")).unwrap_or(Value::Null);
-    let get = |k: &str| raw.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
-    let config_url = std::env::var("DOCGEN_CONFIG_URL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| get("configUrl"));
-    let events_url = std::env::var("DOCGEN_EVENTS_URL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| get("eventsUrl"));
+    let raw = raw_settings();
+    let get = |k: &str| raw.get(k).and_then(|v| v.as_str()).unwrap_or("").trim().trim_end_matches('/').to_string();
+    let server = debug_env("DOCGEN_SERVER_URL").unwrap_or_else(|| get("serverUrl"));
+    let clean = |url: String| if is_https(&url) || is_local_dev_url(&url) { url.trim_end_matches('/').to_string() } else { String::new() };
     RemoteSettings {
-        config_url: if is_https(&config_url) || is_local_dev_url(&config_url) { config_url } else { String::new() },
-        events_url: if is_https(&events_url) || is_local_dev_url(&events_url) { events_url } else { String::new() },
-        timeout_secs: raw.get("requestTimeoutSecs").and_then(|v| v.as_u64()).unwrap_or(8).clamp(2, 30),
+        server_url: clean(server),
+        portal_url: clean(debug_env("DOCGEN_PORTAL_URL").unwrap_or_else(|| get("portalUrl"))),
+        website_url: clean(get("websiteUrl")),
+        license_public_key: debug_env("DOCGEN_LICENSE_PUBLIC_KEY").unwrap_or_else(|| get("licensePublicKey")),
+        timeout_secs: raw.get("requestTimeoutSecs").and_then(|v| v.as_u64()).unwrap_or(10).clamp(3, 30),
     }
 }
 
 pub fn is_https(url: &str) -> bool {
     let lower = url.to_ascii_lowercase();
-    lower.starts_with("https://") && url.len() > 8 && url.len() <= 2048 && !url.chars().any(|c| c.is_whitespace() || c == '"' || c == '<' || c == '>')
+    lower.starts_with("https://")
+        && url.len() > 8
+        && url.len() <= 2048
+        && !url.chars().any(|c| c.is_whitespace() || c == '"' || c == '<' || c == '>' || c.is_control())
 }
 
-/// Plain-HTTP localhost URLs are accepted in debug builds only, to test a local ad server.
-fn is_local_dev_url(url: &str) -> bool {
+/// Plain-HTTP localhost URLs are accepted in debug builds only, to test with a local server.
+pub fn is_local_dev_url(url: &str) -> bool {
     cfg!(debug_assertions)
         && (url.starts_with("http://localhost:") || url.starts_with("http://127.0.0.1:"))
         && !url.chars().any(|c| c.is_whitespace())
@@ -55,148 +77,213 @@ fn agent(timeout: u64) -> ureq::Agent {
         .build()
 }
 
-/// Download and validate the remote configuration.
-pub fn fetch_config() -> AppResult<Value> {
-    let s = settings();
-    if s.config_url.is_empty() {
-        return Err(AppError::new("Remote configuration is not set up."));
-    }
-    let response = agent(s.timeout_secs).get(&s.config_url).call().map_err(|e| {
-        log_error("remote-config", &e.to_string());
-        AppError::new("Could not reach the configuration server.")
-    })?;
+fn read_body(response: ureq::Response) -> AppResult<Value> {
     let mut body = String::new();
-    response
-        .into_reader()
-        .take(MAX_CONFIG_BYTES)
-        .read_to_string(&mut body)
-        .map_err(|e| {
-            log_error("remote-config", &e.to_string());
-            AppError::new("Could not read the configuration.")
-        })?;
-    let raw: Value = serde_json::from_str(&body).map_err(|e| {
-        log_error("remote-config", &format!("invalid json: {e}"));
-        AppError::new("The configuration server returned invalid data.")
+    response.into_reader().take(MAX_BODY_BYTES).read_to_string(&mut body).map_err(|e| {
+        log_error("remote", &e.to_string());
+        AppError::new("The server response could not be read.")
     })?;
-    validate_config(&raw)
+    if body.trim().is_empty() {
+        return Ok(Value::Null);
+    }
+    serde_json::from_str(&body).map_err(|e| {
+        log_error("remote", &format!("invalid json: {e}"));
+        AppError::new("The server returned invalid data.")
+    })
 }
 
-fn clamp_u64(v: Option<&Value>, default: u64, min: u64, max: u64) -> u64 {
-    v.and_then(|x| x.as_u64().or_else(|| x.as_f64().map(|f| f.max(0.0) as u64)))
+/// Call the server. Maps server error bodies (`{error: {code, message}}`) to friendly errors
+/// whose message is prefixed with the code: "CODE|message".
+pub fn call(method: &str, path: &str, body: Option<Value>) -> AppResult<Value> {
+    let s = settings();
+    if s.server_url.is_empty() {
+        return Err(AppError::new("OFFLINE_BUILD|This copy of DocGen is not connected to a DocGen server."));
+    }
+    let url = format!("{}{}", s.server_url, path);
+    let req = agent(s.timeout_secs).request(method, &url);
+    let result = match body {
+        Some(b) => req.set("Content-Type", "application/json").send_string(&b.to_string()),
+        None => req.call(),
+    };
+    match result {
+        Ok(resp) => read_body(resp),
+        Err(ureq::Error::Status(code, resp)) => {
+            let v = read_body(resp).unwrap_or(Value::Null);
+            let err_code = v["error"]["code"].as_str().unwrap_or("SERVER_ERROR");
+            let message: String = v["error"]["message"]
+                .as_str()
+                .unwrap_or("The server could not process the request.")
+                .chars()
+                .filter(|c| !c.is_control())
+                .take(300)
+                .collect();
+            log_error("remote", &format!("{method} {path} -> {code} {err_code}"));
+            Err(AppError::new(format!("{err_code}|{message}")))
+        }
+        Err(e) => {
+            log_error("remote", &format!("{method} {path}: {e}"));
+            Err(AppError::new("NETWORK|Could not reach the DocGen server. Check your internet connection and try again."))
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Configuration validation
+// ---------------------------------------------------------------------------
+
+fn clamp_i64(v: Option<&Value>, default: i64, min: i64, max: i64) -> i64 {
+    v.and_then(|x| x.as_i64().or_else(|| x.as_f64().map(|f| f as i64)))
         .unwrap_or(default)
         .clamp(min, max)
 }
 
 fn short_text(v: Option<&Value>, max: usize) -> String {
     v.and_then(|x| x.as_str())
-        .map(|s| s.chars().filter(|c| !c.is_control()).take(max).collect())
+        .map(|s| s.chars().filter(|c| !c.is_control() || *c == '\n').take(max).collect())
         .unwrap_or_default()
 }
 
-fn valid_date(v: Option<&Value>) -> AppResult<Option<String>> {
+fn https_or_empty(v: Option<&Value>) -> String {
     match v.and_then(|x| x.as_str()) {
-        None => Ok(None),
-        Some("") => Ok(None),
-        Some(s) => chrono::DateTime::parse_from_rfc3339(s)
-            .map(|d| Some(d.to_rfc3339()))
-            .map_err(|_| AppError::new("The configuration contains an invalid date.")),
+        Some(url) if is_https(url) || is_local_dev_url(url) => url.to_string(),
+        _ => String::new(),
     }
 }
 
-fn optional_https(v: Option<&Value>) -> AppResult<String> {
+fn opt_date(v: Option<&Value>) -> Value {
     match v.and_then(|x| x.as_str()) {
-        None | Some("") => Ok(String::new()),
-        Some(url) if is_https(url) || is_local_dev_url(url) => Ok(url.to_string()),
-        Some(_) => Err(AppError::new("The configuration contains a non-HTTPS URL.")),
+        Some(s) => chrono::DateTime::parse_from_rfc3339(s).map(|d| Value::String(d.to_rfc3339())).unwrap_or(Value::Null),
+        None => Value::Null,
     }
 }
 
-/// Validate and normalise both supported shapes:
-///  * `{ version, fetchIntervalDays, ads: { enabled, monthlyLimit, ... } }`
-///  * legacy `{ adsEnabled, monthlyLimit, minimumDaysBetweenAds, ad: { ... } }`
-pub fn validate_config(raw: &Value) -> AppResult<Value> {
-    let root = raw.as_object().ok_or_else(|| AppError::new("The configuration has an unexpected format."))?;
-    let empty = Map::new();
-
-    let (ads, legacy_ad) = match (root.get("ads"), root.get("ad")) {
-        (Some(Value::Object(a)), _) => (a, None),
-        (_, Some(Value::Object(ad))) => (root, Some(ad)),
-        _ => (&empty, None),
-    };
-    let pick = |key: &str| -> Option<&Value> { legacy_ad.and_then(|a| a.get(key)).or_else(|| ads.get(key)) };
-
-    let enabled = match legacy_ad {
-        Some(ad) => {
-            root.get("adsEnabled").and_then(|v| v.as_bool()).unwrap_or(false)
-                && ad.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true)
-        }
-        None => ads.get("enabled").and_then(|v| v.as_bool()).unwrap_or(false),
-    };
-
-    let content_url = optional_https(pick("contentUrl"))?;
-    let click_url = optional_https(pick("clickUrl"))?;
-    let start_at = valid_date(pick("startAt"))?;
-    let end_at = valid_date(pick("endAt"))?;
-    if let (Some(s), Some(e)) = (&start_at, &end_at) {
-        let s = chrono::DateTime::parse_from_rfc3339(s).map_err(|_| AppError::new("Invalid date"))?;
-        let e = chrono::DateTime::parse_from_rfc3339(e).map_err(|_| AppError::new("Invalid date"))?;
-        if e < s {
-            return Err(AppError::new("The configuration has an end date before its start date."));
-        }
+fn validate_ad(ad: &Value) -> Option<Value> {
+    let id = ad.get("id").and_then(|v| v.as_i64())?;
+    let title = short_text(ad.get("title"), 80);
+    if title.is_empty() {
+        return None;
     }
-    let ad_type = short_text(pick("type"), 10).to_ascii_uppercase();
-    if !ad_type.is_empty() && ad_type != "HTML" {
-        return Err(AppError::new("Unsupported advertisement type."));
-    }
-    let ad_version = pick("version")
-        .or_else(|| pick("id"))
-        .map(|v| match v {
-            Value::String(s) => s.chars().take(40).collect::<String>(),
-            other => other.to_string().chars().take(40).collect(),
+    let target = ad.get("target").cloned().unwrap_or(json!({}));
+    let license_status = match target.get("licenseStatus").and_then(|v| v.as_str()) {
+        Some("trial") => "trial",
+        Some("licensed") => "licensed",
+        _ => "all",
+    };
+    let platforms: Vec<Value> = target
+        .get("platforms")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|p| p.as_str())
+                .filter(|p| ["windows", "macos", "linux"].contains(p))
+                .map(|p| Value::String(p.to_string()))
+                .collect()
         })
         .unwrap_or_default();
-    let probability = pick("probability").and_then(|v| v.as_f64()).unwrap_or(1.0).clamp(0.0, 1.0);
-
-    Ok(json!({
-        "version": clamp_u64(root.get("version"), 1, 0, 1_000_000),
-        "fetchIntervalDays": clamp_u64(root.get("fetchIntervalDays").or_else(|| root.get("configFetchInterval")), 7, 1, 90),
-        "ads": {
-            "enabled": enabled && !content_url.is_empty(),
-            "monthlyLimit": clamp_u64(pick("monthlyLimit"), 4, 0, 31),
-            "minimumDaysBetweenAds": clamp_u64(pick("minimumDaysBetweenAds"), 7, 0, 365),
-            "firstOpenDelayDays": clamp_u64(pick("firstOpenDelayDays"), 0, 0, 365),
-            "randomize": pick("randomize").and_then(|v| v.as_bool()).unwrap_or(false),
-            "probability": probability,
-            "contentUrl": content_url,
-            "clickUrl": click_url,
-            "title": short_text(pick("title"), 60),
-            "ctaText": short_text(pick("ctaText"), 30),
-            "startAt": start_at,
-            "endAt": end_at,
-            "adVersion": ad_version,
-        }
+    let html: String = ad.get("html").and_then(|v| v.as_str()).unwrap_or("").chars().take(20_000).collect();
+    Some(json!({
+        "id": id,
+        "version": clamp_i64(ad.get("version"), 1, 0, 1_000_000),
+        "title": title,
+        "description": short_text(ad.get("description"), 300),
+        "imageUrl": https_or_empty(ad.get("imageUrl")),
+        "linkUrl": https_or_empty(ad.get("linkUrl")),
+        "html": html,
+        "ctaText": short_text(ad.get("ctaText"), 30),
+        "frequencyDays": clamp_i64(ad.get("frequencyDays"), 7, 0, 365),
+        "maxPerMonth": clamp_i64(ad.get("maxPerMonth"), 4, 0, 31),
+        "priority": clamp_i64(ad.get("priority"), 0, -100, 100),
+        "startAt": opt_date(ad.get("startAt")),
+        "endAt": opt_date(ad.get("endAt")),
+        "target": {
+            "licenseStatus": license_status,
+            "platforms": platforms,
+            "minVersion": short_text(target.get("minVersion"), 20),
+            "maxVersion": short_text(target.get("maxVersion"), 20),
+        },
     }))
 }
 
-/// Fire-and-forget anonymous event ping. Never blocks the UI and never fails loudly.
-pub fn send_event(event: &str, ad_version: &str) {
-    let s = settings();
-    if s.events_url.is_empty() {
+/// Validate and normalise the server configuration. Invalid parts are dropped.
+pub fn validate_config(raw: &Value) -> AppResult<Value> {
+    let root = raw.as_object().ok_or_else(|| AppError::new("The configuration has an unexpected format."))?;
+    let empty = Map::new();
+    let policy = root.get("adPolicy").and_then(|v| v.as_object()).unwrap_or(&empty);
+    let help = root.get("help").and_then(|v| v.as_object()).unwrap_or(&empty);
+    let app = root.get("app").and_then(|v| v.as_object()).unwrap_or(&empty);
+    let ads: Vec<Value> = root
+        .get("ads")
+        .and_then(|v| v.as_array())
+        .map(|a| a.iter().take(20).filter_map(validate_ad).collect())
+        .unwrap_or_default();
+    let videos: Vec<Value> = help
+        .get("videos")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .take(50)
+                .filter_map(|v| {
+                    let url = https_or_empty(v.get("url"));
+                    let title = short_text(v.get("title"), 100);
+                    if url.is_empty() || title.is_empty() {
+                        return None;
+                    }
+                    Some(json!({
+                        "title": title,
+                        "url": url,
+                        "description": short_text(v.get("description"), 200),
+                        "duration": short_text(v.get("duration"), 10),
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let interval = clamp_i64(root.get("configIntervalDays"), 30, 1, 365);
+    Ok(json!({
+        "version": clamp_i64(root.get("version"), 1, 0, 1_000_000),
+        "configIntervalDays": interval,
+        "nextCheckAt": opt_date(root.get("nextCheckAt")),
+        "adPolicy": {
+            "minDaysBetweenAds": clamp_i64(policy.get("minDaysBetweenAds"), 7, 0, 365),
+            "maxPerMonth": clamp_i64(policy.get("maxPerMonth"), 4, 0, 31),
+            "firstOpenDelayDays": clamp_i64(policy.get("firstOpenDelayDays"), 3, 0, 365),
+        },
+        "defaultAdEnabled": root.get("defaultAdEnabled").and_then(|v| v.as_bool()).unwrap_or(true),
+        "ads": ads,
+        "help": { "youtubeChannel": https_or_empty(help.get("youtubeChannel")), "videos": videos },
+        "app": {
+            "latestVersion": short_text(app.get("latestVersion"), 20),
+            "downloadUrl": https_or_empty(app.get("downloadUrl")),
+            "message": short_text(app.get("message"), 300),
+        },
+    }))
+}
+
+pub fn fetch_config() -> AppResult<Value> {
+    let path = format!(
+        "/api/app/config?platform={}&version={}",
+        platform(),
+        env!("CARGO_PKG_VERSION")
+    );
+    validate_config(&call("GET", &path, None)?)
+}
+
+pub fn platform() -> &'static str {
+    match std::env::consts::OS {
+        "windows" => "windows",
+        "macos" => "macos",
+        _ => "linux",
+    }
+}
+
+/// Fire-and-forget anonymous ad counter. Never blocks the UI.
+pub fn send_event(event: &str, ad_id: i64) {
+    if settings().server_url.is_empty() {
         return;
     }
-    let payload = json!({
-        "event": event,
-        "adVersion": ad_version,
-        "appVersion": env!("CARGO_PKG_VERSION"),
-        "os": std::env::consts::OS,
-    });
+    let payload = json!({ "event": event, "adId": ad_id.max(0) });
     std::thread::spawn(move || {
-        if let Err(e) = agent(s.timeout_secs).post(&s.events_url)
-            .set("Content-Type", "application/json")
-            .send_string(&payload.to_string())
-        {
-            log_error("ad-event", &e.to_string());
-        }
+        let _ = call("POST", "/api/app/events", Some(payload));
     });
 }
 
@@ -205,38 +292,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn validates_new_format() {
+    fn validates_config_and_drops_unsafe_values() {
         let cfg = validate_config(&json!({
             "version": 3,
-            "ads": {
-                "enabled": true, "monthlyLimit": 4, "minimumDaysBetweenAds": 7,
-                "contentUrl": "https://example.com/ad.html", "clickUrl": "https://example.com",
-                "startAt": "2026-01-01T00:00:00Z", "endAt": "2026-12-31T23:59:59Z"
-            }
+            "configIntervalDays": 999,
+            "ads": [
+                { "id": 1, "title": "Offer", "imageUrl": "https://cdn.test/a.png", "linkUrl": "javascript:alert(1)",
+                  "html": "<b>x</b>", "target": { "licenseStatus": "trial", "platforms": ["windows", "dos"] } },
+                { "id": 2, "title": "" },
+                { "title": "no id" }
+            ],
+            "help": { "videos": [ { "title": "Intro", "url": "https://www.youtube.com/watch?v=abc" }, { "title": "Bad", "url": "http://x" } ] },
+            "app": { "downloadUrl": "ftp://x" }
         }))
         .unwrap();
-        assert_eq!(cfg["ads"]["enabled"], true);
-        assert_eq!(cfg["ads"]["monthlyLimit"], 4);
-        assert_eq!(cfg["fetchIntervalDays"], 7);
-    }
-
-    #[test]
-    fn validates_legacy_format() {
-        let cfg = validate_config(&json!({
-            "adsEnabled": true, "monthlyLimit": 99, "minimumDaysBetweenAds": 7,
-            "ad": { "enabled": true, "type": "HTML", "contentUrl": "https://example.com/ad.html", "version": 3 }
-        }))
-        .unwrap();
-        assert_eq!(cfg["ads"]["enabled"], true);
-        assert_eq!(cfg["ads"]["monthlyLimit"], 31);
-        assert_eq!(cfg["ads"]["adVersion"], "3");
-    }
-
-    #[test]
-    fn rejects_insecure_urls_and_scripts() {
-        assert!(validate_config(&json!({ "ads": { "enabled": true, "contentUrl": "http://evil.test/x" } })).is_err());
-        assert!(validate_config(&json!({ "ads": { "enabled": true, "contentUrl": "javascript:alert(1)" } })).is_err());
-        assert!(validate_config(&json!({ "ad": { "type": "SCRIPT", "contentUrl": "https://a.test" }, "adsEnabled": true })).is_err());
-        assert!(validate_config(&json!([1, 2])).is_err());
+        assert_eq!(cfg["configIntervalDays"], 365);
+        assert_eq!(cfg["ads"].as_array().unwrap().len(), 1);
+        assert_eq!(cfg["ads"][0]["linkUrl"], "");
+        assert_eq!(cfg["ads"][0]["imageUrl"], "https://cdn.test/a.png");
+        assert_eq!(cfg["ads"][0]["target"]["platforms"], json!(["windows"]));
+        assert_eq!(cfg["help"]["videos"].as_array().unwrap().len(), 1);
+        assert_eq!(cfg["app"]["downloadUrl"], "");
+        assert!(validate_config(&json!([1])).is_err());
     }
 }
