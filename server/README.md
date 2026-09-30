@@ -1,6 +1,7 @@
 # DocGen server
 
-Backend for the DocGen desktop app, the client portal and the admin panel.
+Backend for the DocGen desktop app **plus** the client portal and admin panel ([`portal/`](portal/)) —
+one Node.js application on **one port** (default `8787`).
 
 - **Client accounts**: registration, sign-in, business details, password change.
 - **Plans, payments, licenses**: checkout through a pluggable payment provider, activation
@@ -9,7 +10,7 @@ Backend for the DocGen desktop app, the client portal and the admin panel.
   configuration (check interval, ads, help videos), anonymous ad counters.
 - **Admin API**: clients, licenses (manual activation without payment, bulk codes, extend,
   suspend), plans, payments (mark paid), ads, app configuration, audit log, statistics.
-- Serves the React **portal/admin** (`../portal/dist`) from the same origin.
+- Serves the React **portal/admin** (`portal/`) on the same port: `/` portal, `/admin` admin panel, `/api` API.
 
 Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
 bcrypt, JWT sessions, zod validation, rate limits, helmet.
@@ -20,8 +21,25 @@ bcrypt, JWT sessions, zod validation, rate limits, helmet.
 cd server
 npm install                 # better-sqlite3 is optional; if it cannot be built, install still succeeds
 cp .env.example .env        # Windows: copy .env.example .env   — then edit DATABASE_URL, ADMIN_*, JWT_SECRET
-npm start                   # http://localhost:8787
-cd ../portal && npm install && npm run dev   # http://localhost:5173 (proxies /api) — or npm run build to serve it from the server
+npm start                   # builds the portal if needed, then API + portal + admin on http://localhost:8787
+```
+
+| Command | What it does |
+|---------|--------------|
+| `npm start` | builds `portal/dist` when the portal sources changed, then serves everything on `PORT` |
+| `npm run dev` | same port; the portal is served live from `portal/src` (instant reload) and the API restarts on changes |
+| `npm run build` | builds `portal/dist` |
+| `npm test` / `npm run test:portal` | API tests / browser end-to-end test of the portal and admin panel |
+
+Folder layout:
+
+```
+server/
+├── src/            API (Express): routes, services, payments, migrations
+├── portal/         client portal + admin panel (React + Vite) → portal/dist
+├── scripts/        migrate, create-admin, build-portal, load test …
+├── test/           API tests
+└── data/           database (SQLite), license key, uploads — created at first start
 ```
 
 The server reads `server/.env` (real environment variables take precedence). With
@@ -38,7 +56,7 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `PORT` | `8787` | HTTP port |
+| `PORT` | `8787` | HTTP port for the API, portal and admin panel |
 | `NODE_ENV` | — | `production` enables strict checks (JWT secret required, mock payments off, HTTPS URLs only) |
 | `DATABASE_URL` | — | `mysql://user:pass@host:3306/docgen` — MySQL 8 (recommended in production) |
 | `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty (needs the optional `better-sqlite3`) |
@@ -61,7 +79,7 @@ More admins: `npm run create-admin -- other@example.com 'long password' admin` (
    `CREATE USER 'docgen'@'%' IDENTIFIED BY '…'; GRANT ALL ON docgen.* TO 'docgen'@'%';`
    Then set `DATABASE_URL=mysql://docgen:…@host:3306/docgen`, `JWT_SECRET` (`openssl rand -base64 48`),
    `NODE_ENV=production`, `TRUST_PROXY=true`, `PORTAL_URL=https://docgen.example.com`.
-2. `npm ci --omit=dev && (cd ../portal && npm ci && npm run build)`.
+2. `npm ci && npm run build` (the portal build tools are dev dependencies; after building you may `npm prune --omit=dev`).
 3. `npm run migrate` (also runs automatically at start), then `npm start` under a process
    manager (systemd, PM2, Docker).
 4. Put it behind HTTPS (Caddy/Nginx). The desktop app accepts only `https://` servers in release builds.

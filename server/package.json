@@ -2,18 +2,21 @@
   "name": "docgen-server",
   "private": true,
   "version": "1.0.0",
-  "description": "DocGen backend: client accounts, licenses & activation codes, plans, payments (provider-ready), ads and remote app configuration, admin API. Also serves the React client portal.",
+  "description": "DocGen backend: client accounts, licenses & activation codes, plans, payments (provider-ready), ads and remote app configuration, admin API — plus the React client portal and admin panel (portal/), all served on one port.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js",
+    "prestart": "node scripts/build-portal.js --if-needed",
+    "dev": "node --watch src/index.js --dev",
+    "build": "node scripts/build-portal.js",
     "migrate": "node scripts/migrate.js",
     "create-admin": "node scripts/create-admin.js",
     "keys": "node scripts/generate-keys.js",
     "seed:load": "node scripts/seed-load.js",
     "loadtest": "node scripts/loadtest.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "test:portal": "node portal/e2e/portal.e2e.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -32,5 +35,12 @@
   },
   "optionalDependencies": {
     "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "vite": "^8.3.1"
   }
 }

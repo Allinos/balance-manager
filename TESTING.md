@@ -10,7 +10,7 @@ Last full run: **29 September 2026** (after keyboard data entry, the bug-fix & U
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **160 / 160 checks passed** (two consecutive runs) |
 | Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
 | Server API tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… node --test test/api.test.js` | **19 / 19 passed** |
-| Portal + admin end-to-end (Chromium) | `cd portal && node e2e/portal.e2e.mjs` (SQLite and `DATABASE_URL=mysql://…`) | **14 / 14 passed** on both |
+| Portal + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` (SQLite and `DATABASE_URL=mysql://…`) | **14 / 14 passed** on both |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows installer build (GitHub Actions) | `docgen-windows.yml` | build + unit tests passed (Windows-only PDF code compiles) |
 
@@ -155,6 +155,6 @@ npx tauri build --debug --no-bundle && xvfb-run -a node e2e/run.mjs
 # server (SQLite; add TEST_DATABASE_URL / DATABASE_URL=mysql://… for MySQL)
 cd ../server && npm ci && npm test && npm run loadtest
 
-# portal
-cd ../portal && npm ci && npm run build && node e2e/portal.e2e.mjs
+# portal + admin panel (served by the server)
+npm run build && npm run test:portal
 ```

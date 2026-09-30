@@ -16,14 +16,19 @@ import { adminRoutes } from './routes/admin.js';
 import { getProvider } from './payments/index.js';
 import { audit } from './services/common.js';
 
-export function createApp(knex, { logger = console } = {}) {
+/**
+ * @param {object} [options]
+ * @param {import('vite').ViteDevServer} [options.vite] portal served live by Vite (npm run dev)
+ */
+export function createApp(knex, { logger = console, vite = null } = {}) {
   const app = express();
   app.disable('x-powered-by');
   if (config.trustProxy) app.set('trust proxy', 1);
 
   app.use(
     helmet({
-      contentSecurityPolicy: {
+      // Vite's live reload needs inline scripts and a websocket; the built portal does not.
+      contentSecurityPolicy: vite ? false : {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'"],
@@ -85,8 +90,10 @@ export function createApp(knex, { logger = console } = {}) {
 
   app.use('/api', (_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Unknown API endpoint.')));
 
-  // React client portal + admin panel (single-page app).
-  if (fs.existsSync(path.join(config.portalDist, 'index.html'))) {
+  // React client portal + admin panel (single-page app), on the same port as the API.
+  if (vite) {
+    app.use(vite.middlewares);
+  } else if (fs.existsSync(path.join(config.portalDist, 'index.html'))) {
     app.use(express.static(config.portalDist, { index: false, maxAge: '1h' }));
     app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(config.portalDist, 'index.html')));
   }

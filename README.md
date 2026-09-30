@@ -6,8 +6,7 @@ small businesses, by [reynrel.in](https://reynrel.in).
 | Part | Folder | Stack |
 |------|--------|-------|
 | Desktop app (Windows, macOS, Linux) | [`document-generator/`](document-generator/) | Tauri 2, React (JavaScript), SQLite |
-| License & configuration server | [`server/`](server/) | Node.js, Express 5, MySQL 8 (SQLite for development) |
-| Client portal + admin panel | [`portal/`](portal/) | React, Vite |
+| Server: license & configuration API + client portal + admin panel (one port) | [`server/`](server/) (portal in [`server/portal/`](server/portal/)) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,
   notes, receipts, work orders; Dashboard with document counts; Document Manager with uploaded
@@ -22,16 +21,14 @@ small businesses, by [reynrel.in](https://reynrel.in).
 ## Getting started
 
 ```bash
-# 1. Server (creates data/, prints the license public key)
+# 1. Server + portal + admin panel, all on http://localhost:8787 (admin at /admin/login).
+#    Creates data/ and prints the license public key.
 cd server && npm install
-ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='change-me-now' npm run dev
+ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='change-me-now' npm start   # or npm run dev (live reload)
 
-# 2. Portal / admin panel (http://localhost:5173, admin at /admin/login)
-cd portal && npm install && npm run dev
-
-# 3. Desktop app
+# 2. Desktop app
 cd document-generator && npm install
-DOCGEN_SERVER_URL=http://localhost:8787 DOCGEN_PORTAL_URL=http://localhost:5173 \
+DOCGEN_SERVER_URL=http://localhost:8787 DOCGEN_PORTAL_URL=http://localhost:8787 \
 DOCGEN_LICENSE_PUBLIC_KEY=<key from step 1> npm run app:dev
 ```
 
@@ -44,5 +41,5 @@ published on the *DocGen latest build* release — no local Visual Studio needed
 
 - [Desktop app](document-generator/README.md): features, configuration, data, document types, build
 - [Server](server/README.md): configuration, deployment, licensing, payments, ads, API, security
-- [Portal](portal/README.md)
+- [Portal & admin panel](server/portal/README.md)
 - [Test results](TESTING.md): unit, API, end-to-end and performance

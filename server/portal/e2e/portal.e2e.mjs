@@ -2,7 +2,7 @@
  * Browser end-to-end test of the client portal and admin panel against a real
  * DocGen server (started by this script on a temporary SQLite database).
  *
- * Usage:  cd portal && npm run build && node e2e/portal.e2e.mjs
+ * Usage:  cd server && npm run build && npm run test:portal
  * Needs Playwright (npm i -g playwright) and a Chromium build.
  */
 
@@ -34,7 +34,7 @@ const check = (cond, label) => {
   console.log(`  ✓ ${label}`);
 };
 
-const server = spawn('node', [path.join(here, '../../server/src/index.js')], {
+const server = spawn('node', [path.join(here, '../../src/index.js')], {
   env: {
     ...process.env,
     PORT: String(port),

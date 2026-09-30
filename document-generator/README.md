@@ -107,7 +107,7 @@ document-generator/
 ```
 
 The license/config **server** and the **client portal / admin panel** live in
-[`../server`](../server) and [`../portal`](../portal).
+[`../server`](../server) (portal sources in [`../server/portal`](../server/portal)); one port serves them all.
 
 ## Prerequisites
 
@@ -134,7 +134,7 @@ To develop against a local server (debug builds only):
 ```bash
 cd ../server && npm install && ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD='change-me-now' npm run dev
 # note the "License public key" printed at startup, then in another terminal:
-DOCGEN_SERVER_URL=http://localhost:8787 DOCGEN_PORTAL_URL=http://localhost:5173 \
+DOCGEN_SERVER_URL=http://localhost:8787 DOCGEN_PORTAL_URL=http://localhost:8787 \
 DOCGEN_LICENSE_PUBLIC_KEY=<key> npm run app:dev
 ```
 

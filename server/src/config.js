@@ -13,6 +13,7 @@
  *   ENABLE_MOCK_PAYMENTS    'true' to allow the built-in test payment provider (default: on outside production)
  *   TRUST_PROXY             'true' when running behind Nginx/Caddy/a load balancer
  *   DATA_DIR                folder for keys, uploads and the SQLite file (default ./data)
+ *   PORTAL_DEV              'true' to serve the portal live from portal/src with Vite (set by npm run dev)
  */
 
 import fs from 'node:fs';
@@ -54,7 +55,9 @@ export const config = {
   enableMockPayments: env.ENABLE_MOCK_PAYMENTS ? env.ENABLE_MOCK_PAYMENTS === 'true' : !isProd,
   trustProxy: env.TRUST_PROXY === 'true',
   uploadsDir: path.join(dataDir, 'uploads'),
-  portalDist: path.resolve(root, env.PORTAL_DIST || '../portal/dist'),
+  portalDir: path.join(root, 'portal'),
+  portalDist: path.resolve(root, env.PORTAL_DIST || 'portal/dist'),
   /** Disable rate limits in automated tests unless explicitly re-enabled. */
+  portalDev: env.PORTAL_DEV === 'true' || process.argv.includes('--dev'),
   rateLimits: env.RATE_LIMITS ? env.RATE_LIMITS !== 'off' : env.NODE_ENV !== 'test',
 };
