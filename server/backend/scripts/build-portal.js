@@ -1,5 +1,5 @@
 /**
- * Build the client portal + admin panel (portal/ → portal/dist) that the server serves.
+ * Build the client portal + admin panel (server/frontend → frontend/dist) that the backend serves.
  *
  *   node scripts/build-portal.js             build
  *   node scripts/build-portal.js --if-needed build only when dist is missing or older than
@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../portal');
+const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
 const built = path.join(portal, 'dist', 'index.html');
 
 /** Newest modification time among the portal sources. */
@@ -33,7 +33,7 @@ try {
   vite = await import('vite');
 } catch {
   if (fs.existsSync(built)) {
-    console.warn('Portal build tools are not installed (npm install); serving the existing portal/dist.');
+    console.warn('Portal build tools are not installed (npm install); serving the existing frontend/dist.');
     process.exit(0);
   }
   console.warn('Portal is not built and its build tools are missing — run `npm install`. The API still starts.');
@@ -42,4 +42,4 @@ try {
 
 console.log('Building the client portal and admin panel…');
 await vite.build({ configFile: path.join(portal, 'vite.config.js'), logLevel: 'warn' });
-console.log('Portal built (portal/dist).');
+console.log('Portal built (frontend/dist).');

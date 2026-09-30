@@ -12,14 +12,14 @@ device), payments, account settings.
 payments (mark bank/UPI payments paid), ads (HTML, image, targeting, schedule, stats),
 app configuration (check interval, ad policy, help videos, latest version), audit log.
 
-Run everything from the `server` folder (one `package.json`):
+Run everything from the `server` folder (one `npm install` for backend + frontend):
 
 ```bash
 cd server
 npm install
-npm start              # builds portal/dist when the sources changed, then serves API + portal on :8787
-npm run dev            # same port, portal served live from portal/src with instant reload
-npm run build          # build portal/dist explicitly
+npm start              # builds frontend/dist when the sources changed, then serves API + portal on :8787
+npm run dev            # same port, frontend served live from frontend/src with instant reload
+npm run build          # build frontend/dist explicitly
 npm run test:portal    # browser end-to-end test (needs Playwright + a built portal)
 ```
 

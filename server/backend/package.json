@@ -1,8 +1,8 @@
 {
-  "name": "docgen-server",
+  "name": "docgen-backend",
   "private": true,
   "version": "1.0.0",
-  "description": "DocGen backend: client accounts, licenses & activation codes, plans, payments (provider-ready), ads and remote app configuration, admin API — plus the React client portal and admin panel (portal/), all served on one port.",
+  "description": "DocGen backend API: client accounts, licenses & activation codes, plans, payments (provider-ready), ads and remote app configuration, admin API. Also serves the frontend (../frontend) on the same port.",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -16,7 +16,7 @@
     "seed:load": "node scripts/seed-load.js",
     "loadtest": "node scripts/loadtest.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
-    "test:portal": "node portal/e2e/portal.e2e.mjs"
+    "test:portal": "node ../frontend/e2e/portal.e2e.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -35,12 +35,5 @@
   },
   "optionalDependencies": {
     "better-sqlite3": "^13.0.3"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^6.1.1",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-router-dom": "^7.18.4",
-    "vite": "^8.3.1"
   }
 }

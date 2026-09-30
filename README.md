@@ -6,7 +6,7 @@ small businesses, by [reynrel.in](https://reynrel.in).
 | Part | Folder | Stack |
 |------|--------|-------|
 | Desktop app (Windows, macOS, Linux) | [`document-generator/`](document-generator/) | Tauri 2, React (JavaScript), SQLite |
-| Server: license & configuration API + client portal + admin panel (one port) | [`server/`](server/) (portal in [`server/portal/`](server/portal/)) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
+| Server: license & configuration API + client portal + admin panel (one port) | [`server/`](server/): [`backend/`](server/backend/) + [`frontend/`](server/frontend/) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,
   notes, receipts, work orders; Dashboard with document counts; Document Manager with uploaded
@@ -41,5 +41,5 @@ published on the *DocGen latest build* release — no local Visual Studio needed
 
 - [Desktop app](document-generator/README.md): features, configuration, data, document types, build
 - [Server](server/README.md): configuration, deployment, licensing, payments, ads, API, security
-- [Portal & admin panel](server/portal/README.md)
+- [Portal & admin panel](server/frontend/README.md)
 - [Test results](TESTING.md): unit, API, end-to-end and performance

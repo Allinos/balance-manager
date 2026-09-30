@@ -1,7 +1,8 @@
 # DocGen server
 
-Backend for the DocGen desktop app **plus** the client portal and admin panel ([`portal/`](portal/)) —
-one Node.js application on **one port** (default `8787`).
+Backend API for the DocGen desktop app ([`backend/`](backend/)) **plus** the client portal and admin panel
+([`frontend/`](frontend/)) — run together as one Node.js application on **one port** (default `8787`).
+One `npm install` in this folder installs both (npm workspaces).
 
 - **Client accounts**: registration, sign-in, business details, password change.
 - **Plans, payments, licenses**: checkout through a pluggable payment provider, activation
@@ -10,7 +11,7 @@ one Node.js application on **one port** (default `8787`).
   configuration (check interval, ads, help videos), anonymous ad counters.
 - **Admin API**: clients, licenses (manual activation without payment, bulk codes, extend,
   suspend), plans, payments (mark paid), ads, app configuration, audit log, statistics.
-- Serves the React **portal/admin** (`portal/`) on the same port: `/` portal, `/admin` admin panel, `/api` API.
+- Serves the React **portal/admin** (`frontend/`) on the same port: `/` portal, `/admin` admin panel, `/api` API.
 
 Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
 bcrypt, JWT sessions, zod validation, rate limits, helmet.
@@ -26,19 +27,22 @@ npm start                   # builds the portal if needed, then API + portal + a
 
 | Command | What it does |
 |---------|--------------|
-| `npm start` | builds `portal/dist` when the portal sources changed, then serves everything on `PORT` |
-| `npm run dev` | same port; the portal is served live from `portal/src` (instant reload) and the API restarts on changes |
-| `npm run build` | builds `portal/dist` |
+| `npm start` | builds `frontend/dist` when the frontend sources changed, then serves everything on `PORT` |
+| `npm run dev` | same port; the frontend is served live from `frontend/src` (instant reload) and the API restarts on changes |
+| `npm run build` | builds `frontend/dist` |
 | `npm test` / `npm run test:portal` | API tests / browser end-to-end test of the portal and admin panel |
 
 Folder layout:
 
 ```
 server/
-├── src/            API (Express): routes, services, payments, migrations
-├── portal/         client portal + admin panel (React + Vite) → portal/dist
-├── scripts/        migrate, create-admin, build-portal, load test …
-├── test/           API tests
+├── package.json    workspace root — run all npm commands here
+├── .env            your settings (copy .env.example)
+├── backend/        API (Express)
+│   ├── src/        routes, services, payments, migrations
+│   ├── scripts/    migrate, create-admin, build-portal, load test …
+│   └── test/       API tests
+├── frontend/       client portal + admin panel (React + Vite) → frontend/dist
 └── data/           database (SQLite), license key, uploads — created at first start
 ```
 

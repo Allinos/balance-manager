@@ -1,0 +1,26 @@
+{
+  "name": "docgen-server",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DocGen server: backend API (backend/) + client portal and admin panel (frontend/), run together on one port.",
+  "type": "module",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "start": "npm run start -w backend",
+    "dev": "npm run dev -w backend",
+    "build": "npm run build -w backend",
+    "test": "npm run test -w backend",
+    "test:portal": "npm run test:portal -w backend",
+    "migrate": "npm run migrate -w backend",
+    "create-admin": "npm run create-admin -w backend --",
+    "keys": "npm run keys -w backend",
+    "seed:load": "npm run seed:load -w backend --",
+    "loadtest": "npm run loadtest -w backend --"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "docgen-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DocGen client portal and admin panel (React + Vite). Served by the backend on its port.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "react-router-dom": "^7.18.4",
+    "vite": "^8.3.1",
+    "@vitejs/plugin-react": "^6.1.1"
+  }
+}

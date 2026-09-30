@@ -34,7 +34,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const serverDir = path.resolve(root, '../server');
+const serverDir = path.resolve(root, '../server/backend');
 const APP = process.env.DOCGEN_BINARY || path.join(root, 'src-tauri/target/debug/docgen');
 const DATA_DIR = path.join(process.env.XDG_DATA_HOME || path.join(homedir(), '.local/share'), 'com.docgen.desktop');
 const OUT = path.join(root, 'e2e/screenshots');

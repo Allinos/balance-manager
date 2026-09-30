@@ -34,7 +34,7 @@ const check = (cond, label) => {
   console.log(`  ✓ ${label}`);
 };
 
-const server = spawn('node', [path.join(here, '../../src/index.js')], {
+const server = spawn('node', [path.join(here, '../../backend/src/index.js')], {
   env: {
     ...process.env,
     PORT: String(port),

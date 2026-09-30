@@ -107,7 +107,7 @@ document-generator/
 ```
 
 The license/config **server** and the **client portal / admin panel** live in
-[`../server`](../server) (portal sources in [`../server/portal`](../server/portal)); one port serves them all.
+[`../server`](../server) ([`backend`](../server/backend) + [`frontend`](../server/frontend)); one port serves them all.
 
 ## Prerequisites
 

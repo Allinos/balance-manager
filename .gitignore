@@ -13,4 +13,4 @@ server/data/
 # desktop build output and test artefacts
 document-generator/src-tauri/target/
 document-generator/e2e/screenshots/
-server/portal/e2e/screenshots/
+server/frontend/e2e/screenshots/
