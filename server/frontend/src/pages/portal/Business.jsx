@@ -79,6 +79,11 @@ export default function Business() {
           </Field>
         </div>
         <div className="row end">
+          {params.get('welcome') && (
+            <button type="button" className="btn" onClick={() => navigate(`/account/plans${params.get('plan') ? `?plan=${params.get('plan')}` : ''}`)} data-testid="skip-business">
+              Skip for now
+            </button>
+          )}
           <button className="btn btn-primary" data-testid="save-business">
             {params.get('welcome') ? 'Save & choose a plan' : 'Save'}
           </button>

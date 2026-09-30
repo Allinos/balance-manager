@@ -14,7 +14,9 @@ import { appRoutes } from './routes/app.js';
 import { portalRoutes, markPaid } from './routes/portal.js';
 import { adminRoutes } from './routes/admin.js';
 import { getProvider } from './payments/index.js';
-import { audit } from './services/common.js';
+import { audit, bumpStat } from './services/common.js';
+import { PLATFORMS, platformDir } from './services/downloads.js';
+import { verifyPurposeToken } from './lib/security.js';
 
 /**
  * @param {object} [options]
@@ -31,10 +33,11 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
       contentSecurityPolicy: vite ? false : {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
+          // Razorpay Checkout loads its script from checkout.razorpay.com and talks to *.razorpay.com.
+          scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", 'https://*.razorpay.com'],
           frameSrc: ["'self'", 'https:'],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
@@ -45,7 +48,8 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
   );
   const allowed = new Set([config.portalUrl, ...config.corsOrigins]);
   app.use('/api', cors({ origin: (origin, cb) => cb(null, !origin || allowed.has(origin)), maxAge: 600 }));
-  app.use('/api', express.json({ limit: '100kb' }));
+  // Keep the raw body: payment webhooks are signed over the exact bytes received.
+  app.use('/api', express.json({ limit: '100kb', verify: (req, _res, buf) => (req.rawBody = buf) }));
   app.use('/api', limits.api);
 
   app.get('/api/health', async (_req, res) => {
@@ -61,15 +65,27 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
   app.post('/api/payments/webhook/:provider', async (req, res) => {
     const provider = getProvider(req.params.provider);
     const event = await provider.parseWebhook(req);
+    if (event.status === 'ignored') return res.json({ received: true });
     const payment = await knex('payments').where({ provider: provider.name, provider_order_id: event.providerOrderId }).first();
     if (!payment) throw new ApiError(404, 'NOT_FOUND', 'Unknown order.');
-    if (event.status === 'paid') {
+    let action = `payment.webhook.${event.status}`;
+    if (event.status === 'paid' && event.amountPaise != null && Number(event.amountPaise) !== Number(payment.amount_paise)) {
+      // Never issue a license for less than the plan price; an admin can still confirm it manually.
+      action = 'payment.webhook.amount_mismatch';
+    } else if (event.status === 'paid') {
       await markPaid(knex, payment, event.providerPaymentId, event.meta);
     } else if (payment.status !== 'paid') {
       await knex('payments').where({ id: payment.id }).update({ status: 'failed', updated_at: new Date().toISOString() });
     }
-    await audit(knex, { actorType: 'system', action: `payment.webhook.${event.status}`, entity: 'payment', entityId: payment.id, ip: clientIp(req) });
-    res.json({ received: true });
+    await audit(knex, {
+      actorType: 'system',
+      action,
+      entity: 'payment',
+      entityId: payment.id,
+      details: { amountPaise: event.amountPaise ?? null, ...event.meta },
+      ip: clientIp(req),
+    });
+    return res.json({ received: true });
   });
 
   // Ad images uploaded by admins (served publicly, 2 MB, images only).
@@ -87,6 +103,16 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
     res.status(201).json({ url: `${config.portalUrl}/uploads/${req.file.filename}` });
   });
   app.use('/uploads', express.static(config.uploadsDir, { maxAge: '7d', fallthrough: false }));
+
+  /** Personal installer link from the client portal (a browser download, so the token is in the URL). */
+  app.get('/api/downloads/:token', async (req, res) => {
+    const link = verifyPurposeToken(req.params.token, 'download');
+    const file = link && PLATFORMS[link.p] && path.basename(String(link.f)) === link.f ? path.join(platformDir(link.p), link.f) : '';
+    if (!file || !fs.existsSync(file)) return res.redirect(302, '/account?download=expired');
+    await bumpStat(knex, `download:${link.p}`);
+    await audit(knex, { actorType: 'client', actorId: Number(link.sub), action: 'download', entity: 'download', details: { platform: link.p, fileName: link.f }, ip: clientIp(req) });
+    return res.download(file, link.f, { headers: { 'Cache-Control': 'private, no-store' } });
+  });
 
   app.use('/api', (_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Unknown API endpoint.')));
 

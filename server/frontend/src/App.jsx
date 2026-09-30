@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { BrowserRouter, Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { clientApi, adminApi, session } from './api.js';
-import { Spinner, ToastProvider } from './components/ui.jsx';
+import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
 import Home from './pages/portal/Home.jsx';
-import { LoginPage, RegisterPage } from './pages/portal/Auth.jsx';
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
 import Overview from './pages/portal/Overview.jsx';
 import Business from './pages/portal/Business.jsx';
 import Plans from './pages/portal/Plans.jsx';
@@ -174,11 +174,14 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+        <DialogProvider>
         <AuthProvider>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/account" element={<PortalLayout />}>
               <Route index element={<Overview />} />
               <Route path="plans" element={<Plans />} />
@@ -201,6 +204,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </AuthProvider>
+        </DialogProvider>
       </ToastProvider>
     </BrowserRouter>
   );

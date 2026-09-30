@@ -2,11 +2,14 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
-import { insertOne, nowIso, parseJson, updateOne } from '../db.js';
+import { insertOne, isMysql, nowIso, parseJson, updateOne } from '../db.js';
 import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib/http.js';
+import { config } from '../config.js';
 import { limits, requireClient } from '../lib/auth.js';
-import { burnPasswordCheck, hashPassword, signSession, verifyPassword } from '../lib/security.js';
-import { audit } from '../services/common.js';
+import { burnPasswordCheck, hashPassword, passwordFingerprint, signPurposeToken, signSession, verifyPassword, verifyPurposeToken } from '../lib/security.js';
+import { audit, getAppConfig } from '../services/common.js';
+import { isEntitled, listInstallers } from '../services/downloads.js';
+import { mailEnabled, sendPasswordReset, sendPaymentReceipt } from '../services/mail.js';
 import { fulfillPayment, publicLicense } from '../services/licenses.js';
 import { getProvider, listProviders } from '../payments/index.js';
 
@@ -32,6 +35,47 @@ export const businessSchema = z.object({
   country: z.string().trim().max(60).optional(),
 });
 
+// Tracking data must never block a sign-up: over-long values are shortened, malformed ones dropped.
+const shortText = (max) => z.string().trim().max(4000).transform((v) => v.slice(0, max)).optional().default('');
+const attributionSchema = z
+  .object({
+    utm_source: shortText(60),
+    utm_medium: shortText(60),
+    utm_campaign: shortText(120),
+    utm_term: shortText(120),
+    utm_content: shortText(120),
+    gclid: shortText(200),
+    fbclid: shortText(300),
+    landing: shortText(300),
+    referrer: shortText(300),
+  })
+  .partial()
+  .optional()
+  .catch({});
+
+/** Where a new client came from: explicit UTM tags win; ad click ids and referrers fill the gaps. */
+export function signupSource(a = {}) {
+  let source = (a.utm_source || '').toLowerCase();
+  let medium = (a.utm_medium || '').toLowerCase();
+  if (!source && a.gclid) [source, medium] = ['google', medium || 'cpc'];
+  if (!source && a.fbclid) [source, medium] = ['facebook', medium || 'paid-social'];
+  if (!source && a.referrer) {
+    try {
+      source = new URL(a.referrer).hostname.replace(/^www\./, '');
+      medium = medium || 'referral';
+    } catch {
+      /* not a URL */
+    }
+  }
+  const details = Object.fromEntries(['utm_term', 'utm_content', 'gclid', 'fbclid', 'landing', 'referrer'].filter((k) => a[k]).map((k) => [k, a[k]]));
+  return {
+    ref_source: (source || 'direct').slice(0, 60),
+    ref_medium: medium.slice(0, 60),
+    ref_campaign: (a.utm_campaign || '').slice(0, 120),
+    ref_details: JSON.stringify(details),
+  };
+}
+
 export const publicClient = (c) => ({
   id: c.id,
   email: c.email,
@@ -48,6 +92,7 @@ export const publicClient = (c) => ({
   status: c.status,
   createdAt: c.created_at,
   lastLoginAt: c.last_login_at,
+  signup: { source: c.ref_source || '', medium: c.ref_medium || '', campaign: c.ref_campaign || '', details: parseJson(c.ref_details, {}) },
 });
 
 export const publicPayment = (p) => ({
@@ -88,7 +133,7 @@ export function portalRoutes(knex) {
 
   r.get('/plans', async (_req, res) => {
     const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
-    res.json({ plans: rows.map(publicPlan), providers: listProviders() });
+    res.json({ plans: rows.map(publicPlan), providers: listProviders(), emailEnabled: mailEnabled() });
   });
 
   r.post('/auth/register', limits.auth, async (req, res) => {
@@ -98,6 +143,7 @@ export function portalRoutes(knex) {
         email: z.string().trim().toLowerCase().email().max(190),
         password,
         phone: z.string().trim().max(30).optional().default(''),
+        attribution: attributionSchema,
       }),
       req.body,
     );
@@ -105,6 +151,7 @@ export function portalRoutes(knex) {
     if (exists) throw new ApiError(409, 'EMAIL_TAKEN', 'An account with this email already exists. Please sign in.');
     const ts = nowIso();
     const client = await insertOne(knex, 'clients', {
+        ...signupSource(body.attribution),
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -125,6 +172,38 @@ export function portalRoutes(knex) {
     if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'Your account is suspended. Please contact support.');
     await knex('clients').where({ id: client.id }).update({ last_login_at: nowIso() });
     res.json({ token: signSession('client', client), client: publicClient(client) });
+  });
+
+  /** Email a password reset link. Same answer whether or not the email exists. */
+  r.post('/auth/forgot', limits.auth, async (req, res) => {
+    const body = parse(z.object({ email: z.string().trim().toLowerCase().email().max(190) }), req.body);
+    if (!mailEnabled()) return res.json({ emailEnabled: false, supportEmail: config.supportEmail });
+    const client = await knex('clients').where({ email: body.email }).first();
+    if (client && client.status === 'active') {
+      const token = signPurposeToken('reset', { sub: String(client.id), tv: client.token_version, ph: passwordFingerprint(client.password_hash) }, '1h');
+      await sendPasswordReset(client, `${config.portalUrl}/reset-password?token=${encodeURIComponent(token)}`);
+      await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.password_reset_requested', entity: 'client', entityId: client.id, ip: clientIp(req) });
+    }
+    return res.json({ emailEnabled: true });
+  });
+
+  /** Set a new password with a reset link; signs the client in. */
+  r.post('/auth/reset', limits.auth, async (req, res) => {
+    const body = parse(z.object({ token: z.string().min(10).max(2000), password }), req.body);
+    const payload = verifyPurposeToken(body.token, 'reset');
+    const client = payload && (await knex('clients').where({ id: Number(payload.sub) }).first());
+    if (!client || client.token_version !== payload.tv || passwordFingerprint(client.password_hash) !== payload.ph) {
+      throw new ApiError(400, 'INVALID_RESET_LINK', 'This link has expired or was already used. Please request a new one.');
+    }
+    if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'Your account is suspended. Please contact support.');
+    const updated = await updateOne(knex, 'clients', { id: client.id }, {
+      password_hash: await hashPassword(body.password),
+      token_version: client.token_version + 1,
+      last_login_at: nowIso(),
+      updated_at: nowIso(),
+    });
+    await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.password_reset', entity: 'client', entityId: client.id, ip: clientIp(req) });
+    res.json({ token: signSession('client', updated), client: publicClient(updated) });
   });
 
   r.get('/me', auth, (req, res) => res.json({ client: publicClient(req.client) }));
@@ -177,6 +256,19 @@ export function portalRoutes(knex) {
     res.status(204).end();
   });
 
+  /** Installers for paying customers, with personal links that expire after 30 minutes. */
+  r.get('/downloads', auth, async (req, res) => {
+    const { config: appConfig } = await getAppConfig(knex);
+    const version = appConfig.app.latestVersion;
+    if (!(await isEntitled(knex, req.client.id))) return res.json({ entitled: false, version, files: [] });
+    const files = listInstallers().map((i) => ({
+      ...i,
+      url: `/api/downloads/${signPurposeToken('download', { sub: String(req.client.id), p: i.platform, f: i.fileName }, '30m')}`,
+    }));
+    res.set('Cache-Control', 'no-store');
+    res.json({ entitled: true, version, files, externalUrl: files.length ? '' : appConfig.app.downloadUrl });
+  });
+
   r.get('/payments', auth, async (req, res) => {
     const q = parse(pageQuery, req.query);
     const result = await paginate(
@@ -204,8 +296,12 @@ export function portalRoutes(knex) {
     if (!plan) throw notFound('Plan');
     const provider = getProvider(body.provider);
     if (body.renewLicenseId) {
-      const owned = await knex('licenses').where({ id: body.renewLicenseId, client_id: req.client.id }).first('id');
+      const owned = await knex('licenses').where({ id: body.renewLicenseId, client_id: req.client.id }).first();
       if (!owned) throw notFound('License');
+      if (owned.status === 'suspended' || owned.status === 'revoked') {
+        throw new ApiError(409, 'LICENSE_BLOCKED', 'This license is suspended. Please contact support before renewing it.');
+      }
+      if (!owned.expires_at && owned.duration_days === 0) throw new ApiError(409, 'LICENSE_LIFETIME', 'This license is already valid for life.');
     }
     const ts = nowIso();
     const payment = await insertOne(knex, 'payments', {
@@ -249,12 +345,19 @@ export function portalRoutes(knex) {
   return r;
 }
 
-/** Mark a payment paid and issue/extend its license (idempotent). */
+/**
+ * Mark a payment paid and issue/extend its license (idempotent: the webhook, the customer's
+ * confirmation and an admin may all report the same payment). The receipt email is sent once.
+ */
 export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
-  return knex.transaction(async (trx) => {
-    const fresh = await trx('payments').where({ id: payment.id }).first();
+  const result = await knex.transaction(async (trx) => {
+    // Lock the payment row: the provider's webhook and the customer's confirmation often arrive together,
+    // and only one of them may issue the license. (SQLite runs one write transaction at a time anyway.)
+    const query = trx('payments').where({ id: payment.id });
+    const fresh = await (isMysql(trx) ? query.forUpdate() : query).first();
     let paid = fresh;
-    if (fresh.status !== 'paid') {
+    const newlyPaid = fresh.status !== 'paid';
+    if (newlyPaid) {
       paid = await updateOne(trx, 'payments', { id: payment.id }, {
           status: 'paid',
           provider_payment_id: providerPaymentId || fresh.provider_payment_id,
@@ -264,6 +367,8 @@ export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
         });
     }
     const license = await fulfillPayment(trx, paid);
-    return { paid: { ...paid, license_id: license.id }, license };
+    return { paid: { ...paid, license_id: license.id }, license, newlyPaid };
   });
+  if (result.newlyPaid) sendPaymentReceipt(knex, result.paid, result.license).catch((e) => console.error('Receipt email failed:', e.message));
+  return result;
 }

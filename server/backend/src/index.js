@@ -33,6 +33,8 @@ await bootstrapAdmin(knex);
 const { publicKeyB64 } = loadLicenseKeys();
 
 const server = http.createServer();
+// Installer uploads in the admin panel can take a while on slow connections (Node's default is 5 minutes).
+server.requestTimeout = 30 * 60 * 1000;
 let vite = null;
 if (config.portalDev) {
   // Live portal (npm run dev): Vite runs inside this server, its reload socket shares the port.

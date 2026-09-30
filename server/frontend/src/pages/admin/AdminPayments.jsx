@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { adminApi, dateTime, money, qs } from '../../api.js';
-import { Badge, Empty, ErrorText, Pagination, Spinner, useLoad, useToast } from '../../components/ui.jsx';
+import { Badge, Empty, ErrorText, Pagination, Spinner, useDialog, useLoad, useToast } from '../../components/ui.jsx';
 
 export default function AdminPayments() {
   const toast = useToast();
@@ -11,8 +11,14 @@ export default function AdminPayments() {
   const page = Number(params.get('page') || 1);
   const { data, loading, error, reload } = useLoad(() => adminApi.get(`/payments${qs({ q: params.get('q') || '', status, page, pageSize: 25 })}`), [params.toString()]);
 
+  const dialog = useDialog();
   const markPaid = async (p) => {
-    const reference = window.prompt(`Confirm payment #${p.id} of ${money(p.amount, p.currency)} from ${p.client.email}.\nPayment reference (UTR / cheque no.):`, '');
+    const reference = await dialog.prompt({
+      title: `Confirm payment #${p.id}`,
+      message: `${money(p.amount, p.currency)} from ${p.client.email} (${p.planName}). The license is issued immediately and the client gets an email.`,
+      label: 'Payment reference (UTR / cheque no.)',
+      confirmLabel: 'Mark as paid',
+    });
     if (reference === null) return;
     try {
       const r = await adminApi.post(`/payments/${p.id}/mark-paid`, { reference });

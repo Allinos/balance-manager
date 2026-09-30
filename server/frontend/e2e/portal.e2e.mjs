@@ -7,6 +7,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import http from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -34,6 +35,44 @@ const check = (cond, label) => {
   console.log(`  ✓ ${label}`);
 };
 
+// A stand-in for Razorpay: its Orders API (called by the server) and its Checkout window (loaded by the
+// browser from checkout.razorpay.com, intercepted below). The server code and the portal code are the real ones.
+const RZP_SECRET = 'rzp_e2e_secret';
+const rzpOrders = [];
+const fakeRazorpayApi = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    const order = { id: `order_e2e${rzpOrders.length + 1}`, ...JSON.parse(raw || '{}'), status: 'created' };
+    rzpOrders.push(order);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(order));
+  });
+});
+await new Promise((resolve) => fakeRazorpayApi.listen(0, '127.0.0.1', resolve));
+const fakeCheckoutJs = `
+window.Razorpay = function (options) { this.options = options; };
+window.Razorpay.prototype.on = function () {};
+window.Razorpay.prototype.open = function () {
+  const o = this.options;
+  window.__rzpOptions = o;
+  const box = document.createElement('div');
+  box.setAttribute('data-testid', 'rzp-window');
+  box.style.cssText = 'position:fixed;top:120px;left:50%;transform:translateX(-50%);width:360px;background:#fff;border:1px solid #ccc;border-radius:10px;padding:20px;z-index:9999;box-shadow:0 12px 40px rgba(0,0,0,.25);font:14px sans-serif';
+  box.innerHTML = '<b>Razorpay (test)</b><p>' + o.description + ' · ₹' + (o.amount / 100) + '</p><p>' + o.prefill.email + '</p>' +
+    '<button data-testid="rzp-pay">Pay with UPI</button> <button data-testid="rzp-close">Cancel</button>';
+  document.body.appendChild(box);
+  box.querySelector('[data-testid=rzp-pay]').onclick = async () => {
+    const paymentId = 'pay_e2e' + Date.now();
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode('${RZP_SECRET}'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(o.order_id + '|' + paymentId));
+    const hex = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('');
+    box.remove();
+    o.handler({ razorpay_order_id: o.order_id, razorpay_payment_id: paymentId, razorpay_signature: hex });
+  };
+  box.querySelector('[data-testid=rzp-close]').onclick = () => { box.remove(); o.modal && o.modal.ondismiss && o.modal.ondismiss(); };
+};`;
+
 const server = spawn('node', [path.join(here, '../../backend/src/index.js')], {
   env: {
     ...process.env,
@@ -42,7 +81,10 @@ const server = spawn('node', [path.join(here, '../../backend/src/index.js')], {
     PORTAL_URL: base,
     ADMIN_EMAIL: 'owner@docgen.test',
     ADMIN_PASSWORD: 'owner-password-1',
-    ENABLE_MOCK_PAYMENTS: 'true',
+    ENABLE_MOCK_PAYMENTS: '',
+    RAZORPAY_KEY_ID: 'rzp_e2e_key',
+    RAZORPAY_KEY_SECRET: RZP_SECRET,
+    RAZORPAY_API_BASE: `http://127.0.0.1:${fakeRazorpayApi.address().port}`,
   },
   stdio: ['ignore', 'pipe', 'pipe'],
 });
@@ -53,18 +95,35 @@ await new Promise((resolve, reject) => {
 });
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
-page.on('dialog', (d) => d.accept(d.defaultValue()));
+const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true });
+const page = await context.newPage();
+await page.route('https://checkout.razorpay.com/v1/checkout.js', (route) => route.fulfill({ contentType: 'application/javascript', body: fakeCheckoutJs }));
+// The portal must never use browser alert/confirm/prompt boxes.
+let nativeDialogs = 0;
+page.on('dialog', (d) => {
+  nativeDialogs += 1;
+  d.dismiss();
+});
 const shot = (name) => page.screenshot({ path: path.join(shots, `${name}.png`), fullPage: true });
 
+/** Admin API helper (used to prepare the installer before the customer journey). */
+async function adminFetch(method, url, body) {
+  const login = await (await fetch(`${base}/api/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'owner@docgen.test', password: 'owner-password-1' }) })).json();
+  return fetch(`${base}/api/admin${url}`, { method, headers: { Authorization: `Bearer ${login.token}` }, body });
+}
+
 try {
-  console.log('Client portal');
-  await page.goto(`${base}/`);
+  const installer = new FormData();
+  installer.append('file', new Blob([Buffer.alloc(200000, 1)]), 'DocGen_1.1.0_x64-setup.exe');
+  check((await adminFetch('POST', '/downloads/windows', installer)).status === 201, 'admin uploaded the Windows installer');
+
+  console.log('Customer journey: ad → sign up → pay → download');
+  await page.goto(`${base}/?utm_source=google&utm_medium=cpc&utm_campaign=gst-oct&gclid=e2e-click`);
   await page.getByText('Most popular').waitFor();
-  check((await page.locator('.plan-card').count()) === 3, 'home page lists 3 plans');
+  check((await page.locator('.plan-card').count()) === 3, 'landing page from an ad lists 3 plans');
   await shot('01-home');
 
-  await page.goto(`${base}/register`);
+  await page.locator('.plan-card', { hasText: 'Starter' }).getByRole('button').click();
   await page.getByLabel('Your name').fill('Meera Sharma');
   await page.getByLabel('Email').fill('meera@example.com');
   await page.getByLabel('Password').fill('meera-pass-123');
@@ -75,18 +134,23 @@ try {
   await page.getByLabel('State').selectOption('Karnataka');
   await shot('02-business');
   await page.getByTestId('save-business').click();
-  await page.getByText('Choose a plan').first().waitFor();
-  check(true, 'register → business details → plans');
-
-  await page.locator('label.radio', { hasText: 'Test payment' }).locator('input').check();
-  await page.locator('.plan-card', { hasText: 'Starter' }).getByRole('button').click();
-  await page.getByTestId('mock-pay').click();
+  // The plan chosen on the landing page goes straight to the Razorpay checkout.
+  await page.getByTestId('rzp-window').waitFor();
+  const rzp = await page.evaluate(() => window.__rzpOptions);
+  check(rzp.key === 'rzp_e2e_key' && rzp.amount === 99900 && rzp.order_id === rzpOrders.at(-1).id && rzp.prefill.email === 'meera@example.com',
+    'plan chosen on the landing page opens Razorpay checkout after sign-up (₹999, order from the server, email prefilled)');
+  await shot('02b-razorpay');
+  await page.getByTestId('rzp-pay').click();
   const code = (await page.getByTestId('new-code').textContent()).trim();
   check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code), `payment issued activation code ${code}`);
+  await page.getByTestId('download-windows').waitFor();
   await shot('03-paid');
-  await page.getByRole('link', { name: 'Go to my licenses' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-windows').click()]);
+  check(download.suggestedFilename() === 'DocGen_1.1.0_x64-setup.exe', 'installer downloads right after payment');
+  await page.getByRole('link', { name: 'Go to my account' }).click();
   await page.getByTestId('license-card').first().waitFor();
   check((await page.getByTestId('license-card').first().textContent()).includes(code), 'license visible on overview');
+  check(await page.getByTestId('download-card').isVisible(), 'download card on the account overview');
   await shot('04-overview');
 
   // Desktop login (API) with the new account activates the license.
@@ -99,6 +163,29 @@ try {
   await page.reload();
   await page.getByText('Front desk PC').waitFor();
   check(true, 'activated computer listed in portal');
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await page.getByTestId('dialog').waitFor();
+  check((await page.getByTestId('dialog').textContent()).includes('Front desk PC'), 'removing a computer asks in an in-app dialog');
+  await page.getByTestId('dialog-ok').click();
+  await page.getByText('Computer removed').waitFor();
+  check(!(await page.getByText('Front desk PC').isVisible()), 'computer removed after confirming');
+
+  // A second purchase by bank transfer, confirmed later by the admin.
+  await page.getByRole('link', { name: 'Plans & Renewal' }).click();
+  await page.locator('label.radio', { hasText: 'Bank transfer' }).locator('input').check();
+  await page.locator('.plan-card', { hasText: 'Business' }).getByRole('button').click();
+  await page.getByRole('button', { name: 'I have paid' }).click();
+  await page.getByText('as soon as the payment is confirmed').waitFor();
+  check(true, 'bank transfer order waits for confirmation');
+
+  // Forgotten password (no SMTP in this test → the page explains how to get help).
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('link', { name: 'Forgot your password?' }).click();
+  await page.getByRole('heading', { name: 'Forgot your password?' }).waitFor();
+  await page.getByLabel('Email').fill('meera@example.com');
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+  await page.getByText('reset your password').first().waitFor();
+  check(true, 'forgot password page answers');
 
   console.log('Admin panel');
   await page.goto(`${base}/admin/login`);
@@ -106,6 +193,9 @@ try {
   await page.getByLabel('Password').fill('owner-password-1');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByText('Active licenses').waitFor();
+  const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
+  await campaign.waitFor();
+  check(/google.*gst-oct.*1.*1.*100%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-up and sale attributed to the Google ad campaign');
   await shot('05-admin-dashboard');
 
   await page.locator('.admin-side').getByRole('link', { name: 'Clients', exact: true }).click();
@@ -115,6 +205,10 @@ try {
   await modal.getByLabel('Email').fill('ravi@example.com');
   await modal.getByLabel('Business name').fill('Ravi Constructions');
   await modal.getByRole('button', { name: 'Save' }).click();
+  await page.getByTestId('dialog').waitFor();
+  const pwDialog = page.locator('.modal', { has: page.getByTestId('dialog') });
+  check(/Client created/.test(await pwDialog.textContent()) && (await pwDialog.locator('.code').textContent()).length >= 8, 'temporary password shown in an in-app dialog');
+  await page.getByTestId('dialog-ok').click();
   await page.getByRole('heading', { name: 'Ravi Constructions' }).waitFor();
   check(true, 'admin created client manually');
   await page.getByTestId('client-new-license').click();
@@ -149,6 +243,12 @@ try {
   check(true, 'ad created');
 
   await page.locator('.admin-side').getByRole('link', { name: 'App configuration', exact: true }).click();
+  await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_x64-setup.exe' }).waitFor();
+  const dmg = path.join(dataDir, 'DocGen_1.1.0_universal.dmg');
+  fs.writeFileSync(dmg, Buffer.alloc(1000, 2));
+  await page.getByTestId('upload-macos').setInputFiles(dmg);
+  await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_universal.dmg' }).waitFor();
+  check(true, 'admin sees the Windows installer and uploads the macOS one');
   await page.getByTestId('config-interval').fill('15');
   await page.getByRole('button', { name: 'Add video' }).click();
   const rows = page.locator('table tbody tr');
@@ -163,10 +263,21 @@ try {
   await page.locator('.admin-side').getByRole('link', { name: 'Payments', exact: true }).click();
   await page.getByText('meera@example.com').first().waitFor();
   check(true, 'payments list shows client payment');
+  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await page.getByTestId('dialog-input').fill('UTR998877');
+  await page.getByTestId('dialog-ok').click();
+  await page.getByText(/Payment confirmed\. License .* issued/).waitFor();
+  check(true, 'admin confirms the bank transfer in an in-app dialog; license issued');
+
+  await page.locator('.admin-side').getByRole('link', { name: 'Clients', exact: true }).click();
+  const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });
+  await meera.waitFor();
+  check((await meera.textContent()).includes('google / cpc · gst-oct'), 'clients list shows which ad each client came from');
   await page.locator('.admin-side').getByRole('link', { name: 'Audit log', exact: true }).click();
   await page.getByText('license.extend').first().waitFor();
   check(true, 'audit log shows admin actions');
 
+  check(nativeDialogs === 0, 'no browser alert/confirm/prompt boxes were used');
   console.log(`\nAll ${passed} portal checks passed.`);
 } catch (e) {
   await shot('failure').catch(() => {});
@@ -175,5 +286,6 @@ try {
 } finally {
   await browser.close();
   server.kill();
+  fakeRazorpayApi.close();
   fs.rmSync(dataDir, { recursive: true, force: true });
 }

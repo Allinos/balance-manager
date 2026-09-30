@@ -160,6 +160,22 @@ export function licenseToken(license, client, deviceId) {
 
 export const getLicenseWithPlan = (knex, id) => withPlan(knex).where('licenses.id', id).first();
 
+/**
+ * Renew (or upgrade) a license with a paid plan: the plan's period is added to the current expiry,
+ * the license moves to the paid plan and keeps the larger computer limit. A lifetime plan makes it lifetime.
+ */
+export async function renewWithPlan(trx, license, plan) {
+  const patch = { plan_id: plan.id, max_devices: Math.max(license.max_devices, plan.max_devices), updated_at: nowIso() };
+  if (plan.duration_days === 0) {
+    patch.expires_at = null;
+    patch.duration_days = 0;
+    return updateOne(trx, 'licenses', { id: license.id }, patch);
+  }
+  await trx('licenses').where({ id: license.id }).update(patch);
+  const updated = await trx('licenses').where({ id: license.id }).first();
+  return extendLicense(trx, updated, plan.duration_days);
+}
+
 /** Create or extend the license paid for by a payment. Idempotent per payment. */
 export async function fulfillPayment(trx, payment) {
   if (payment.license_id) return getLicenseWithPlan(trx, payment.license_id);
@@ -167,7 +183,7 @@ export async function fulfillPayment(trx, payment) {
   let license;
   if (payment.renew_license_id) {
     const current = await trx('licenses').where({ id: payment.renew_license_id, client_id: payment.client_id }).first();
-    if (current) license = await extendLicense(trx, current, plan.duration_days || 36500);
+    if (current) license = await renewWithPlan(trx, current, plan);
   }
   if (!license) {
     license = await createLicense(trx, {

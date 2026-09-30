@@ -1,6 +1,6 @@
 /** Shared UI building blocks for the portal and the admin panel. */
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 export function Field({ label, hint, error, children, span }) {
   return (
@@ -139,3 +139,72 @@ export function CopyButton({ text, label = 'Copy' }) {
     </button>
   );
 }
+
+// ----------------------------------------------------------------- dialogs
+/**
+ * In-app replacements for window.confirm / window.prompt:
+ *   const dialog = useDialog();
+ *   if (!(await dialog.confirm({ title, message, confirmLabel, danger }))) return;
+ *   const ref = await dialog.prompt({ title, message, label });        // null when cancelled
+ *   await dialog.show({ title, message, value });                      // e.g. a temporary password to copy
+ */
+const DialogCtx = createContext(null);
+
+export function DialogProvider({ children }) {
+  const [dialog, setDialog] = useState(null);
+  const open = useCallback((kind, options) => new Promise((resolve) => setDialog({ kind, ...options, resolve })), []);
+  const api = useRef({
+    confirm: (o) => open('confirm', o),
+    prompt: (o) => open('prompt', o),
+    show: (o) => open('show', o),
+  }).current;
+  const close = (result) => {
+    dialog.resolve(result);
+    setDialog(null);
+  };
+  return (
+    <DialogCtx.Provider value={api}>
+      {children}
+      {dialog && <DialogView dialog={dialog} close={close} />}
+    </DialogCtx.Provider>
+  );
+}
+
+function DialogView({ dialog, close }) {
+  const [value, setValue] = useState(dialog.defaultValue || '');
+  const cancel = () => close(dialog.kind === 'confirm' ? false : dialog.kind === 'prompt' ? null : undefined);
+  const ok = (e) => {
+    e?.preventDefault();
+    close(dialog.kind === 'confirm' ? true : dialog.kind === 'prompt' ? value : undefined);
+  };
+  return (
+    <Modal title={dialog.title || 'Please confirm'} onClose={cancel}>
+      <form className="form" onSubmit={ok} data-testid="dialog">
+        {dialog.message && <p className="dialog-message">{dialog.message}</p>}
+        {dialog.kind === 'prompt' && (
+          <Field label={dialog.label}>
+            <Input value={value} onChange={setValue} autoFocus data-testid="dialog-input" />
+          </Field>
+        )}
+        {dialog.kind === 'show' && (
+          <div className="code-box">
+            <span className="code">{dialog.value}</span>
+            <CopyButton text={dialog.value} />
+          </div>
+        )}
+        <div className="row end">
+          {dialog.kind !== 'show' && (
+            <button type="button" className="btn" onClick={cancel}>
+              Cancel
+            </button>
+          )}
+          <button className={`btn ${dialog.danger ? 'btn-danger' : 'btn-primary'}`} autoFocus={dialog.kind !== 'prompt'} data-testid="dialog-ok">
+            {dialog.confirmLabel || (dialog.kind === 'show' ? 'Done' : 'OK')}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+export const useDialog = () => useContext(DialogCtx);

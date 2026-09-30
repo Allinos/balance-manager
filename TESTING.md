@@ -8,9 +8,9 @@ Last full run: **29 September 2026** (after keyboard data entry, the bug-fix & U
 | Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **160 / 160 checks passed** (two consecutive runs) |
-| Server API tests (SQLite) | `cd server && npm test` | **20 / 20 passed** (19 API + 1 rate-limit) |
-| Server API tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… node --test test/api.test.js` | **19 / 19 passed** |
-| Portal + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` (SQLite and `DATABASE_URL=mysql://…`) | **14 / 14 passed** on both |
+| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **38 / 38 passed** (19 API, 18 journey/payments/downloads/email, 1 rate-limit) |
+| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **38 / 38 passed** |
+| Portal + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **27 / 27 passed** (two consecutive runs) |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows installer build (GitHub Actions) | `docgen-windows.yml` | build + unit tests passed (Windows-only PDF code compiles) |
 
@@ -129,6 +129,14 @@ Review notes:
   scripts never run (e2e).
 - Financial documents are cancelled, never deleted; history is kept (e2e).
 - Business data is never sent: the desktop only sends license/device identifiers and anonymous ad counters.
+- Payments (`business-flow.test.js`, against a local stand-in for the Razorpay API): the order amount
+  comes from the plan; forged signatures and payments for another order are refused; the webhook and
+  the browser confirmation arriving at the same moment issue exactly one license (SQLite and MySQL);
+  retried webhooks change nothing; underpaid, unsigned and failed payments never issue a license;
+  test payments are off unless explicitly enabled and never in production.
+- Downloads: nothing before paying; personal links; wrong/expired links redirect to the account page.
+- Password reset: same answer for unknown emails; links work once and expire with a password change.
+- Portal/admin never use browser alert/confirm/prompt boxes (e2e counts them: 0).
 
 ## 5. Known limitations
 
@@ -136,9 +144,9 @@ Review notes:
   (WebKitGTK). Linux is covered by the e2e test; the Windows code is compiled and packaged by CI
   but was not clicked through on Windows in this run. On macOS the button falls back to the
   print dialog ("Save as PDF").
-- Payment gateways: the provider interface, checkout, confirmation and webhook flow are tested
-  with the built-in *mock* and *manual* providers. A real gateway (e.g. Razorpay) needs its keys
-  and a small provider module (see `server/README.md`).
+- Razorpay is tested against a local stand-in for its Orders API and Checkout window (same
+  signatures and webhook format), not against Razorpay's servers; do one real test payment with
+  `rzp_test_…` keys before going live. Emails are tested with a captured outbox, not a real SMTP server.
 - Ad images must be HTTPS URLs; the e2e test used an HTML ad (no external image) because the test
   machine has no public HTTPS image host.
 - The Tally Professional layout is modelled on the standard GST invoice particulars (CGST Rule 46)
@@ -155,6 +163,6 @@ npx tauri build --debug --no-bundle && xvfb-run -a node e2e/run.mjs
 # server (SQLite; add TEST_DATABASE_URL / DATABASE_URL=mysql://… for MySQL)
 cd ../server && npm ci && npm test && npm run loadtest
 
-# portal + admin panel (served by the server)
+# portal + admin panel (served by the server): ad → sign-up → Razorpay (stand-in) → download → admin
 npm run build && npm run test:portal
 ```

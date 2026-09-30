@@ -4,13 +4,17 @@ Backend API for the DocGen desktop app ([`backend/`](backend/)) **plus** the cli
 ([`frontend/`](frontend/)) — run together as one Node.js application on **one port** (default `8787`).
 One `npm install` in this folder installs both (npm workspaces).
 
-- **Client accounts**: registration, sign-in, business details, password change.
-- **Plans, payments, licenses**: checkout through a pluggable payment provider, activation
-  codes (`AB12-CD34-EF56`), validity, device limits, renewals and extensions.
+- **Sales funnel**: landing page with plans → account → payment (Razorpay: UPI, cards, netbanking,
+  wallets; or bank transfer confirmed by an admin) → **download** of the installer → activation.
+  Ad clicks (UTM tags, Google `gclid`, Facebook `fbclid`) are tracked per sign-up and reported per campaign.
+- **Client accounts**: registration, sign-in, business details, password change, forgotten password by email.
+- **Plans, payments, licenses**: activation codes (`AB12-CD34-EF56`), validity, device limits,
+  renewals and upgrades; receipt email with the code and download link.
 - **Desktop API**: account sign-in, code activation, license refresh/release, remote
   configuration (check interval, ads, help videos), anonymous ad counters.
 - **Admin API**: clients, licenses (manual activation without payment, bulk codes, extend,
-  suspend), plans, payments (mark paid), ads, app configuration, audit log, statistics.
+  suspend), plans, payments (mark paid), installers for download, in-app ads, app configuration,
+  audit log, statistics (incl. sign-ups/sales per ad campaign).
 - Serves the React **portal/admin** (`frontend/`) on the same port: `/` portal, `/admin` admin panel, `/api` API.
 
 Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
@@ -54,7 +58,64 @@ tools — not needed at all when you use MySQL).
 On first start the server creates `data/` with the **license signing key** and prints the
 **license public key** — put it into `document-generator/src-tauri/remote-config.json → licensePublicKey`.
 
-Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, `/account`.
+Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, `/forgot-password`, `/account`.
+
+## Architecture
+
+```
+ Ad (Google / Meta / …)                         DocGen desktop app (customer's PC)
+        │  https://docgen.reynrel.in/?utm_…            │ /api/app: sign in, activate, refresh,
+        ▼                                              │ config & in-app ads (no business data)
+ ┌───────────────────────────── one Node.js process, one port ─────────────────────────────┐
+ │ frontend/ (React SPA)            backend/ (Express 5)                                    │
+ │  /            landing + plans     /api/portal  accounts, checkout, licenses, downloads    │
+ │  /register, /login, /account      /api/admin   admin panel API                            │
+ │  /admin       admin panel         /api/app     desktop app API                            │
+ │                                   /api/payments/webhook/razorpay   /api/downloads/<link>  │
+ └───────────────┬───────────────────────────────┬───────────────────────────┬─────────────┘
+                 │                               │                           │
+            MySQL 8 (Knex)               data/ (license key,           Razorpay, SMTP
+                                         installers, ad images)
+```
+
+Customer journey, and what guarantees each step:
+
+1. **Ad click → landing page.** The first page stores the ad tags (`utm_*`, `gclid`, `fbclid`, referrer)
+   in the browser for 60 days; they are saved with the account at sign-up.
+2. **Choose a plan → create account.** The chosen plan is kept through sign-up and the (skippable)
+   business-details step, then its checkout opens directly.
+3. **Pay.** The server creates a Razorpay order for the plan price — the browser never decides the
+   amount. The payment counts only with a valid Razorpay signature (browser callback) or signed
+   webhook with the full amount. Webhook and callback arriving together issue **one** license
+   (row lock). Test payments are impossible unless `ENABLE_MOCK_PAYMENTS=true` outside production.
+4. **License + receipt.** The license (activation code) is created at once and emailed with the
+   download link. Renewals add time to the same license; buying a bigger plan upgrades it.
+5. **Download.** Only customers with a license see the Download button. Each link is personal
+   and expires after 30 minutes, so shared links stop working.
+6. **Activate.** The desktop app signs in with the same email/password (or the code) and gets a
+   signed, device-bound license token that works offline.
+
+## Going live (with ads)
+
+1. **Server**: a VPS with Node.js 20+ and MySQL 8, behind HTTPS (Caddy is the simplest). Set in
+   `.env`: `NODE_ENV=production`, `PORTAL_URL=https://docgen.reynrel.in`, `TRUST_PROXY=true`,
+   `DATABASE_URL`, `JWT_SECRET`, `ADMIN_*`. Back up `data/license-private-key.pem` and the database.
+2. **Razorpay**: activate the account (KYC), put the API keys in `.env`, add the webhook
+   (`https://<domain>/api/payments/webhook/razorpay`, events `payment.captured`, `order.paid`,
+   `payment.failed`) and its secret. Test with `rzp_test_…` keys first, then switch to `rzp_live_…`.
+3. **Email**: set `SMTP_URL` and `MAIL_FROM` (Zoho Mail, Google Workspace, SES, Brevo…) so customers
+   get receipts and can reset forgotten passwords.
+4. **Installer**: Admin → App configuration → *Downloads for paying customers* → upload the
+   Windows `.exe` (from the "DocGen latest build" release). Set "Latest version".
+5. **Desktop app**: in `document-generator/src-tauri/remote-config.json` set `serverUrl`/`portalUrl`
+   to your domain and `licensePublicKey` to the key printed at server start, then build the installer
+   and upload it (step 4).
+6. **Plans & prices**: Admin → Plans.
+7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
+   (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
+   come from* shows sign-ups, paying customers, conversion and revenue per campaign.
+8. **Legal pages** for Razorpay approval and ad platforms: privacy policy, terms, refund/cancellation
+   policy and contact details — publish them on reynrel.in and link them from your ads/site.
 
 ## Configuration (environment variables)
 
@@ -64,13 +125,17 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
 | `NODE_ENV` | — | `production` enables strict checks (JWT secret required, mock payments off, HTTPS URLs only) |
 | `DATABASE_URL` | — | `mysql://user:pass@host:3306/docgen` — MySQL 8 (recommended in production) |
 | `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty (needs the optional `better-sqlite3`) |
-| `DATA_DIR` | `./data` | keys, uploads (ad images), SQLite file |
+| `DATA_DIR` | `server/data` | license key, installers for download, ad images, SQLite file |
 | `JWT_SECRET` | — | long random string for portal/admin sessions (**required in production**) |
-| `LICENSE_PRIVATE_KEY` | generated in `DATA_DIR` | Ed25519 private key (PEM). Keep it secret and backed up — losing it means re-issuing all licenses |
+| `LICENSE_PRIVATE_KEY` | `DATA_DIR/license-private-key.pem` | Ed25519 private key (PEM), created on first start outside production. Keep it secret and backed up — losing it means re-issuing all licenses |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | — | first owner admin, created when no admin exists |
 | `PORTAL_URL` | `http://localhost:PORT` | public portal URL used in links |
 | `CORS_ORIGINS` | — | extra allowed origins (comma separated) |
-| `ENABLE_MOCK_PAYMENTS` | on outside production | instant test payments |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | — | enable Razorpay checkout (UPI, cards, netbanking, wallets) |
+| `RAZORPAY_WEBHOOK_SECRET` | — | verifies Razorpay webhooks (`/api/payments/webhook/razorpay`) |
+| `SMTP_URL` / `MAIL_FROM` | — | email receipts and password-reset links (without it the portal tells customers to contact support) |
+| `SUPPORT_EMAIL` | `support@reynrel.in` | shown to customers and used as reply-to |
+| `ENABLE_MOCK_PAYMENTS` | off | `true` = instant fake payments for local testing (ignored in production) |
 | `TRUST_PROXY` | — | `true` behind Nginx/Caddy/a load balancer (correct client IPs for rate limits) |
 | `RATE_LIMITS` | on (off in tests) | `off` disables rate limiting (load tests only) |
 
@@ -83,15 +148,17 @@ More admins: `npm run create-admin -- other@example.com 'long password' admin` (
    `CREATE USER 'docgen'@'%' IDENTIFIED BY '…'; GRANT ALL ON docgen.* TO 'docgen'@'%';`
    Then set `DATABASE_URL=mysql://docgen:…@host:3306/docgen`, `JWT_SECRET` (`openssl rand -base64 48`),
    `NODE_ENV=production`, `TRUST_PROXY=true`, `PORTAL_URL=https://docgen.example.com`.
-2. `npm ci && npm run build` (the portal build tools are dev dependencies; after building you may `npm prune --omit=dev`).
+2. `npm ci && npm run build` (or just `npm start`, which builds the frontend when needed).
 3. `npm run migrate` (also runs automatically at start), then `npm start` under a process
    manager (systemd, PM2, Docker).
 4. Put it behind HTTPS (Caddy/Nginx). The desktop app accepts only `https://` servers in release builds.
-5. Back up the database and `DATA_DIR/license-private-key.pem` (or the `LICENSE_PRIVATE_KEY` value).
+5. Back up the database and `DATA_DIR` (license key, uploaded installers). Production uses the existing
+   `license-private-key.pem` but never generates a new one silently.
 6. In `document-generator/src-tauri/remote-config.json` set `serverUrl`, `portalUrl`,
    `licensePublicKey`, then build the desktop installers.
 
-Everything scales horizontally except the SQLite mode: use MySQL for more than one instance.
+One instance handles thousands of customers. For several instances: use MySQL, put `DATA_DIR` on shared
+storage (installers, ad images), and note that rate limits are counted per instance.
 Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does not matter.
 
 ## How licensing works
@@ -108,12 +175,12 @@ Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does
   paid and a license is issued or extended — idempotently.
 - Admins can create and activate licenses without payment, extend, suspend, revoke, release devices.
 
-### Connecting a payment provider
+### Payment providers
 
-Add an object to `src/payments/index.js` implementing `createOrder`, `verifyConfirmation`
-and `parseWebhook` (see the comment at the top of that file) and register it. The portal
-shows every enabled provider at checkout. Built in: `mock` (testing) and `manual`
-(bank transfer/UPI — an admin marks the payment paid).
+Built in: `razorpay` (when its keys are set; preselected), `manual` (bank transfer/UPI — an admin
+marks the payment paid in Admin → Payments) and `mock` (local testing only). Another gateway is an
+object implementing `createOrder`, `verifyConfirmation` and `parseWebhook` in
+`backend/src/payments/` (see `index.js` and `razorpay.js`).
 
 ## Remote configuration and ads
 
@@ -135,9 +202,10 @@ back online if a check was missed).
 | Area | Base | Auth |
 |------|------|------|
 | Desktop | `/api/app` — `public-key`, `config`, `events`, `login`, `activate`, `license/refresh`, `license/release` | device token for refresh/release |
-| Portal | `/api/portal` — `auth/register`, `auth/login`, `me`, `me/password`, `plans`, `licenses`, `payments`, `checkout` | client JWT |
-| Admin | `/api/admin` — `auth/login`, `stats`, `clients`, `licenses`, `plans`, `payments`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
+| Portal | `/api/portal` — `auth/register`, `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `plans`, `licenses`, `payments`, `checkout`, `downloads` | client JWT |
+| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans`, `payments`, `downloads`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
 | Payments | `/api/payments/webhook/:provider` | provider signature |
+| Downloads | `/api/downloads/<personal link>` | signed link, 30 minutes |
 
 Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists are paginated
 (`page`, `pageSize` ≤ 100, `q` search) and return `{ rows, total, page, pageSize, pages }`.
@@ -148,14 +216,17 @@ Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists ar
   via `token_version`. Admin roles: owner / admin / support.
 - Rate limits per IP: 30 sign-in/registration/activation attempts per 15 min; 60 desktop
   requests per minute; 600 API requests per minute.
-- Input validation with zod on every endpoint; body limit 100 KB; uploads: images ≤ 2 MB.
+- Input validation with zod on every endpoint; body limit 100 KB; uploads: images ≤ 2 MB, installers ≤ 600 MB (admins only).
+- Payments: amount fixed by the server, HMAC-verified callbacks/webhooks, one license per payment,
+  underpaid webhooks never issue a license. Password-reset links expire after 1 hour and work once.
 - helmet with a strict CSP for the portal; CORS limited to the portal origin and `CORS_ORIGINS`.
 - Audit log of admin and licensing actions. No business data from the desktop app is ever received.
 
 ## Tests
 
 ```bash
-npm test                     # API tests (SQLite); TEST_DATABASE_URL=mysql://… runs them on MySQL
+npm test                     # API + customer-journey tests (SQLite); TEST_DATABASE_URL=mysql://… runs them on MySQL
+npm run test:portal          # browser test: ad → sign-up → Razorpay (simulated) → download → admin
 npm run loadtest             # seeds 10,000 clients + licenses, measures key endpoints (LOAD_CLIENTS=…)
 npm run seed:load -- 10000   # seed an existing (test!) database
 ```

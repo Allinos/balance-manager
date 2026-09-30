@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { adminApi, date, request } from '../../api.js';
-import { Badge, Check, Empty, ErrorText, Field, Input, Modal, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui.jsx';
+import { Badge, Check, Empty, ErrorText, Field, Input, Modal, Select, Spinner, Textarea, useDialog, useLoad, useToast } from '../../components/ui.jsx';
 
 const blank = {
   title: '', description: '', imageUrl: '', html: '', linkUrl: '', ctaText: 'Learn more', isActive: true, startAt: '', endAt: '',
@@ -171,10 +171,12 @@ function AdForm({ ad, onClose }) {
 
 export default function AdminAds() {
   const toast = useToast();
+  const dialog = useDialog();
   const { data, loading, error, reload } = useLoad(() => adminApi.get('/ads?pageSize=100'), []);
   const [editing, setEditing] = useState(null);
   const remove = async (a) => {
-    if (!window.confirm(`Delete the ad "${a.title}"?`)) return;
+    const ok = await dialog.confirm({ title: 'Delete this ad?', message: `"${a.title}" stops showing in the app at its next configuration check.`, confirmLabel: 'Delete ad', danger: true });
+    if (!ok) return;
     await adminApi.del(`/ads/${a.id}`);
     toast('Ad deleted');
     reload();

@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { clientApi, money } from '../../api.js';
 import { Spinner, useLoad } from '../../components/ui.jsx';
 import { Footer, useAuth } from '../../App.jsx';
@@ -31,6 +31,7 @@ export function PlanCards({ plans, onChoose, busyId, actionLabel = 'Choose plan'
 
 export default function Home() {
   const { client } = useAuth();
+  const navigate = useNavigate();
   const { data, loading } = useLoad(() => clientApi.get('/plans'), []);
   return (
     <div className="shell">
@@ -82,7 +83,7 @@ export default function Home() {
           <PlanCards
             plans={data?.plans || []}
             actionLabel="Get this plan"
-            onChoose={(p) => (window.location.href = client.user ? `/account/plans?plan=${p.id}` : `/register?plan=${p.id}`)}
+            onChoose={(p) => navigate(client.user ? `/account/plans?plan=${p.id}` : `/register?plan=${p.id}`)}
           />
         )}
         <section className="steps">
@@ -92,11 +93,11 @@ export default function Home() {
           </div>
           <div>
             <strong>2. Choose a plan &amp; pay</strong>
-            <p className="muted">Your activation code appears instantly after payment.</p>
+            <p className="muted">UPI, cards or netbanking. Your activation code appears instantly.</p>
           </div>
           <div>
-            <strong>3. Activate DocGen</strong>
-            <p className="muted">Sign in from the desktop app, or enter the code.</p>
+            <strong>3. Download &amp; activate</strong>
+            <p className="muted">Download DocGen from your account and sign in with the same email.</p>
           </div>
         </section>
       </main>

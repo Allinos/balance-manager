@@ -1,6 +1,9 @@
 /** Admin API: clients, licenses & activation codes, plans, payments, ads, app configuration, audit log. */
 
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import multer from 'multer';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
@@ -11,6 +14,7 @@ import { burnPasswordCheck, hashPassword, normaliseCode, signSession, verifyPass
 import { audit, getAppConfig, saveAppConfig } from '../services/common.js';
 import { createLicense, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
 import { businessSchema, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
+import { PLATFORMS, listInstallers, removeInstaller, storeInstaller } from '../services/downloads.js';
 
 const httpsUrl = z
   .string()
@@ -165,6 +169,38 @@ export function adminRoutes(knex) {
       revenue: Number(revenue[0].total || 0) / 100,
       last30Days: Object.fromEntries(stats.map((s) => [s.metric, Number(s.total)])),
     });
+  });
+
+  /** Ads & campaigns: sign-ups, paying customers and revenue per source/campaign. */
+  r.get('/stats/acquisition', auth, async (req, res) => {
+    const { days } = parse(z.object({ days: z.coerce.number().int().min(1).max(3650).default(30) }), req.query);
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+    const signups = await knex('clients')
+      .where('created_at', '>=', since)
+      .select('ref_source', 'ref_campaign')
+      .count({ signups: '*' })
+      .groupBy('ref_source', 'ref_campaign');
+    // Payments by clients who signed up in the period (the ad's result), whenever they paid.
+    const paid = await knex('payments')
+      .join('clients', 'clients.id', 'payments.client_id')
+      .where('clients.created_at', '>=', since)
+      .where('payments.status', 'paid')
+      .select('clients.ref_source', 'clients.ref_campaign')
+      .countDistinct({ customers: 'payments.client_id' })
+      .sum({ revenue: 'payments.amount_paise' })
+      .groupBy('clients.ref_source', 'clients.ref_campaign');
+    const key = (r) => `${r.ref_source}\u0000${r.ref_campaign}`;
+    const rows = new Map();
+    for (const r of signups) rows.set(key(r), { source: r.ref_source || 'direct', campaign: r.ref_campaign, signups: Number(r.signups), customers: 0, revenue: 0 });
+    for (const r of paid) {
+      const row = rows.get(key(r)) || { source: r.ref_source || 'direct', campaign: r.ref_campaign, signups: 0, customers: 0, revenue: 0 };
+      row.customers = Number(r.customers);
+      row.revenue = Number(r.revenue || 0) / 100;
+      rows.set(key(r), row);
+    }
+    const list = [...rows.values()].map((r) => ({ ...r, conversion: r.signups ? Math.round((r.customers / r.signups) * 1000) / 10 : 0 }));
+    list.sort((a, b) => b.revenue - a.revenue || b.signups - a.signups);
+    res.json({ days, rows: list });
   });
 
   // -------------------------------------------------------------- clients
@@ -512,6 +548,55 @@ export function adminRoutes(knex) {
     const saved = await saveAppConfig(knex, body, req.admin.id);
     await log(req, 'config.update', 'config', null, { version: saved.version });
     res.json(saved);
+  });
+
+  // ------------------------------------------------------------ downloads
+  // Installers that paying customers download from their account (one per platform).
+  const tmpDir = path.join(config.downloadsDir, '.incoming');
+  const installerUpload = multer({
+    storage: multer.diskStorage({
+      destination: (_req, _file, cb) => {
+        fs.mkdirSync(tmpDir, { recursive: true });
+        cb(null, tmpDir);
+      },
+      filename: (_req, _file, cb) => cb(null, crypto.randomUUID()),
+    }),
+    limits: { fileSize: 600 * 1024 * 1024, files: 1 },
+  });
+  const platformParam = (req) => {
+    const platform = String(req.params.platform);
+    if (!PLATFORMS[platform]) throw new ApiError(400, 'UNKNOWN_PLATFORM', 'Choose Windows, macOS or Linux.');
+    return platform;
+  };
+
+  r.get('/downloads', auth, async (_req, res) => {
+    const { config: appConfig } = await getAppConfig(knex);
+    res.json({
+      installers: listInstallers(),
+      platforms: Object.entries(PLATFORMS).map(([id, p]) => ({ id, label: p.label, extensions: p.extensions })),
+      externalUrl: appConfig.app.downloadUrl,
+      latestVersion: appConfig.app.latestVersion,
+    });
+  });
+
+  r.post('/downloads/:platform', ownerOnly, installerUpload.single('file'), async (req, res) => {
+    const platform = platformParam(req);
+    if (!req.file) throw new ApiError(400, 'INVALID_FILE', 'Choose the installer file to upload.');
+    const ext = path.extname(req.file.originalname).toLowerCase();
+    if (!PLATFORMS[platform].extensions.includes(ext)) {
+      fs.rmSync(req.file.path, { force: true });
+      throw new ApiError(400, 'INVALID_FILE', `A ${PLATFORMS[platform].label} installer must be ${PLATFORMS[platform].extensions.join(', ')}.`);
+    }
+    const installer = storeInstaller(platform, req.file.path, req.file.originalname);
+    await log(req, 'download.upload', 'download', null, { platform, fileName: installer.fileName, size: installer.size });
+    res.status(201).json({ installer });
+  });
+
+  r.delete('/downloads/:platform', ownerOnly, async (req, res) => {
+    const platform = platformParam(req);
+    removeInstaller(platform);
+    await log(req, 'download.delete', 'download', null, { platform });
+    res.status(204).end();
   });
 
   // ----------------------------------------------------------- audit log

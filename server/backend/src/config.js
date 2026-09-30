@@ -10,7 +10,11 @@
  *   ADMIN_EMAIL / ADMIN_PASSWORD   bootstrap admin created on first start if no admin exists
  *   PORTAL_URL              public URL of the client portal (used in links)
  *   CORS_ORIGINS            comma-separated extra allowed origins
- *   ENABLE_MOCK_PAYMENTS    'true' to allow the built-in test payment provider (default: on outside production)
+ *   ENABLE_MOCK_PAYMENTS    'true' to allow the built-in test payment provider (default: off — anyone could get a free license)
+ *   RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET   Razorpay payments (card, UPI, netbanking, wallets)
+ *   SMTP_URL                smtps://user:pass@smtp.example.com:465 — emails (password reset, payment receipt)
+ *   MAIL_FROM               sender, e.g. "DocGen <no-reply@reynrel.in>"
+ *   SUPPORT_EMAIL           shown to customers (default support@reynrel.in)
  *   TRUST_PROXY             'true' when running behind Nginx/Caddy/a load balancer
  *   DATA_DIR                folder for keys, uploads and the SQLite file (default server/data)
  *   PORTAL_DEV              'true' to serve the frontend live from frontend/src with Vite (set by npm run dev)
@@ -61,12 +65,24 @@ export const config = {
   adminPassword: env.ADMIN_PASSWORD || '',
   portalUrl: (env.PORTAL_URL || `http://localhost:${env.PORT || 8787}`).replace(/\/$/, ''),
   corsOrigins: (env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
-  enableMockPayments: env.ENABLE_MOCK_PAYMENTS ? env.ENABLE_MOCK_PAYMENTS === 'true' : !isProd,
+  // Off unless explicitly enabled: with it on, anyone can "pay" with the test provider and get a real license.
+  enableMockPayments: env.ENABLE_MOCK_PAYMENTS === 'true' && !isProd,
+  razorpay: {
+    keyId: env.RAZORPAY_KEY_ID || '',
+    keySecret: env.RAZORPAY_KEY_SECRET || '',
+    webhookSecret: env.RAZORPAY_WEBHOOK_SECRET || '',
+    apiBase: (env.RAZORPAY_API_BASE || 'https://api.razorpay.com').replace(/\/$/, ''),
+  },
+  smtpUrl: env.SMTP_URL || '',
+  mailFrom: env.MAIL_FROM || 'DocGen <no-reply@reynrel.in>',
+  supportEmail: env.SUPPORT_EMAIL || 'support@reynrel.in',
   trustProxy: env.TRUST_PROXY === 'true',
   uploadsDir: path.join(dataDir, 'uploads'),
+  /** Installers customers download after paying (one per platform). */
+  downloadsDir: path.join(dataDir, 'downloads'),
   portalDir: path.join(serverRoot, 'frontend'),
   portalDist: path.resolve(serverRoot, env.PORTAL_DIST || 'frontend/dist'),
-  /** Disable rate limits in automated tests unless explicitly re-enabled. */
   portalDev: env.PORTAL_DEV === 'true' || process.argv.includes('--dev'),
+  /** Disable rate limits in automated tests unless explicitly re-enabled. */
   rateLimits: env.RATE_LIMITS ? env.RATE_LIMITS !== 'off' : env.NODE_ENV !== 'test',
 };

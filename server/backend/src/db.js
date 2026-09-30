@@ -9,9 +9,10 @@ import path from 'node:path';
 import knexFactory from 'knex';
 import { config } from './config.js';
 import * as initial from './migrations/001_initial.js';
+import * as signupSource from './migrations/002_signup_source.js';
 
 /** Ordered migrations. Append new ones; never edit an applied migration. */
-const MIGRATIONS = { '001_initial': initial };
+const MIGRATIONS = { '001_initial': initial, '002_signup_source': signupSource };
 
 class InlineMigrationSource {
   getMigrations() {

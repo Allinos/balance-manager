@@ -1,14 +1,30 @@
-import { Link } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { clientApi, date, dateTime, validity } from '../../api.js';
-import { Badge, CopyButton, Empty, ErrorText, Spinner, useLoad, useToast } from '../../components/ui.jsx';
+import { Badge, CopyButton, Empty, ErrorText, Spinner, useDialog, useLoad, useToast } from '../../components/ui.jsx';
+import { DownloadCard } from '../../components/Downloads.jsx';
 import { useAuth } from '../../App.jsx';
 
 export default function Overview() {
   const { client } = useAuth();
   const toast = useToast();
   const { data, loading, error, reload } = useLoad(() => clientApi.get('/licenses'), []);
+  const dialog = useDialog();
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('download') === 'expired') {
+      toast('That download link has expired — use the Download button below.', 'info');
+      setParams({}, { replace: true });
+    }
+  }, [params, setParams, toast]);
   const release = async (lic, dev) => {
-    if (!window.confirm(`Remove "${dev.name || 'this computer'}" from the license? DocGen on that computer will ask to activate again.`)) return;
+    const ok = await dialog.confirm({
+      title: 'Remove this computer?',
+      message: `"${dev.name || 'This computer'}" will be removed from the license. DocGen on that computer will ask to be activated again.`,
+      confirmLabel: 'Remove computer',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await clientApi.post(`/licenses/${lic.id}/devices/${dev.id}/release`);
       toast('Computer removed');
@@ -30,10 +46,12 @@ export default function Overview() {
         </Link>
       </div>
 
+      <DownloadCard />
+
       <div className="card how">
         <strong>Activate the DocGen desktop app</strong>
         <ol>
-          <li>Open DocGen on your computer.</li>
+          <li>Download and install DocGen, then open it.</li>
           <li>
             Choose <b>Login using your account</b> and sign in with <b>{client.user.email}</b> — or choose <b>I have a license</b> and
             enter the activation code shown below.

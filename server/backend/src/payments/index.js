@@ -11,17 +11,19 @@
  *     // Verify a payment confirmation posted by the portal after checkout (signature check etc.).
  *     async verifyConfirmation({ payment, body }) → { paid: boolean, providerPaymentId, meta },
  *     // Verify and parse a server-to-server webhook.
- *     async parseWebhook(req) → { providerOrderId, providerPaymentId, status: 'paid'|'failed', meta },
+ *     async parseWebhook(req) → { providerOrderId, providerPaymentId, status: 'paid'|'failed'|'ignored', amountPaise?, meta },
  *   }
  *
  * Built in:
- *   - mock   : instant test payments for development/testing (disabled in production by default)
- *   - manual : bank transfer / UPI / cash; an admin marks the payment as paid in the admin panel
+ *   - razorpay : UPI, cards, netbanking, wallets — when RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET are set
+ *   - manual   : bank transfer / UPI / cash; an admin marks the payment as paid in the admin panel
+ *   - mock     : instant test payments, only with ENABLE_MOCK_PAYMENTS=true (never in production)
  */
 
 import crypto from 'node:crypto';
 import { config } from '../config.js';
 import { ApiError } from '../lib/http.js';
+import { razorpay } from './razorpay.js';
 
 const mock = {
   name: 'mock',
@@ -60,7 +62,10 @@ const manual = {
   },
 };
 
-const providers = new Map([[manual.name, manual]]);
+// Order = order shown at checkout; the first online provider is preselected.
+const providers = new Map();
+if (config.razorpay.keyId && config.razorpay.keySecret) providers.set(razorpay.name, razorpay);
+providers.set(manual.name, manual);
 if (config.enableMockPayments) providers.set(mock.name, mock);
 
 /** Register an additional provider (call from src/index.js once you add one). */

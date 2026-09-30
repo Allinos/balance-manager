@@ -1,14 +1,18 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { adminApi, date, dateTime, money, qs, validity } from '../../api.js';
-import { Badge, CopyButton, Empty, ErrorText, Field, Input, Modal, Pagination, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui.jsx';
+import { Badge, CopyButton, Empty, ErrorText, Field, Input, Modal, Pagination, Select, Spinner, Textarea, useDialog, useLoad, useToast } from '../../components/ui.jsx';
 import { BUSINESS_TYPES, STATES } from '../portal/Business.jsx';
 import { LicenseEditor } from './AdminLicenses.jsx';
 
 const blank = { name: '', email: '', phone: '', business_name: '', business_type: '', gstin: '', address: '', city: '', state: '', pin: '', password: '' };
 
+/** "google / cpc · gst-invoice-oct" */
+const signupLabel = (s) => (s?.source ? [s.source, s.medium].filter(Boolean).join(' / ') + (s.campaign ? ` · ${s.campaign}` : '') : '—');
+
 function ClientForm({ initial, onSaved, onCancel, isNew }) {
   const toast = useToast();
+  const dialog = useDialog();
   const [form, setForm] = useState(initial);
   const [error, setError] = useState(null);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
@@ -18,7 +22,9 @@ function ClientForm({ initial, onSaved, onCancel, isNew }) {
       const body = { ...form };
       if (!body.password) delete body.password;
       const r = isNew ? await adminApi.post('/clients', body) : await adminApi.put(`/clients/${initial.id}`, body);
-      if (r.temporaryPassword) window.prompt('Client created. Share this temporary password with the client:', r.temporaryPassword);
+      if (r.temporaryPassword) {
+        await dialog.show({ title: 'Client created', message: 'Share this temporary password with the client. It is shown only once.', value: r.temporaryPassword });
+      }
       toast(isNew ? 'Client created' : 'Client updated');
       onSaved(r.client);
     } catch (err) {
@@ -122,6 +128,7 @@ export default function AdminClients() {
                 <th>Client</th>
                 <th>Business</th>
                 <th>State</th>
+                <th>Came from</th>
                 <th>Joined</th>
                 <th>Status</th>
               </tr>
@@ -138,6 +145,7 @@ export default function AdminClients() {
                     {c.gstin && <div className="muted small">{c.gstin}</div>}
                   </td>
                   <td>{c.state || '—'}</td>
+                  <td className="small">{signupLabel(c.signup)}</td>
                   <td>{date(c.createdAt)}</td>
                   <td>
                     <Badge status={c.status} />
@@ -170,6 +178,7 @@ export default function AdminClients() {
 export function AdminClientDetail() {
   const { id } = useParams();
   const toast = useToast();
+  const dialog = useDialog();
   const { data, loading, error, reload } = useLoad(() => adminApi.get(`/clients/${id}`), [id]);
   const [editing, setEditing] = useState(false);
   const [newLicense, setNewLicense] = useState(false);
@@ -180,10 +189,20 @@ export function AdminClientDetail() {
   const c = data.client;
 
   const resetPassword = async () => {
-    if (!window.confirm(`Reset the password for ${c.email}? They will be signed out everywhere.`)) return;
-    const r = await adminApi.post(`/clients/${c.id}/reset-password`);
-    window.prompt('New temporary password:', r.temporaryPassword);
-    toast('Password reset');
+    const ok = await dialog.confirm({
+      title: 'Reset password?',
+      message: `${c.email} gets a new temporary password and is signed out everywhere.`,
+      confirmLabel: 'Reset password',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const r = await adminApi.post(`/clients/${c.id}/reset-password`);
+      await dialog.show({ title: 'Password reset', message: `Share this temporary password with ${c.email}.`, value: r.temporaryPassword });
+      toast('Password reset');
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
   };
 
   return (
@@ -225,6 +244,11 @@ export function AdminClientDetail() {
           <dd>{dateTime(c.createdAt)}</dd>
           <dt>Last sign-in</dt>
           <dd>{dateTime(c.lastLoginAt)}</dd>
+          <dt>Came from</dt>
+          <dd>
+            {signupLabel(c.signup)}
+            {c.signup?.details?.landing && <div className="muted small mono">{c.signup.details.landing}</div>}
+          </dd>
         </dl>
       </div>
       <h2 className="section-title">Licenses</h2>
