@@ -25,7 +25,7 @@ bcrypt, JWT sessions, zod validation, rate limits, helmet.
 ```bash
 cd server
 npm install                 # better-sqlite3 is optional; if it cannot be built, install still succeeds
-cp .env.example .env        # Windows: copy .env.example .env   — then edit DATABASE_URL, ADMIN_*, JWT_SECRET
+cp .env.example .env        # Windows: copy .env.example .env   — then edit DB_*, ADMIN_*, JWT_SECRET
 npm start                   # builds the portal if needed, then API + portal + admin on http://localhost:8787
 ```
 
@@ -51,7 +51,8 @@ server/
 ```
 
 The server reads `server/.env` (real environment variables take precedence). With
-`DATABASE_URL=mysql://…` it uses MySQL. Without it, it uses a local SQLite file, which needs the
+`DB_NAME` (+ `DB_HOST`, `DB_USER`, `DB_PASSWORD`) or `DATABASE_URL=mysql://…` it uses MySQL; if
+it cannot connect, it says why (wrong password, missing database, MySQL not running) and how to fix it. Without it, it uses a local SQLite file, which needs the
 optional `better-sqlite3` module (prebuilt for common Node versions; otherwise it needs C++ build
 tools — not needed at all when you use MySQL).
 
@@ -123,7 +124,8 @@ Customer journey, and what guarantees each step:
 |----------|---------|---------|
 | `PORT` | `8787` | HTTP port for the API, portal and admin panel |
 | `NODE_ENV` | — | `production` enables strict checks (JWT secret required, mock payments off, HTTPS URLs only) |
-| `DATABASE_URL` | — | `mysql://user:pass@host:3306/docgen` — MySQL 8 (recommended in production) |
+| `DB_HOST` `DB_PORT` `DB_USER` `DB_PASSWORD` `DB_NAME` | `localhost` `3306` `root` — — | MySQL 8 (recommended in production); used when `DB_NAME` is set. The password is taken as-is |
+| `DATABASE_URL` | — | alternative: `mysql://user:pass@host:3306/docgen` (encode `@ # / ? %` in the password) |
 | `SQLITE_FILE` | `data/docgen.sqlite` | used when `DATABASE_URL` is empty (needs the optional `better-sqlite3`) |
 | `DATA_DIR` | `server/data` | license key, installers for download, ad images, SQLite file |
 | `JWT_SECRET` | — | long random string for portal/admin sessions (**required in production**) |

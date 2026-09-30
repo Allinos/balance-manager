@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config } from './config.js';
-import { createKnex, migrate, nowIso } from './db.js';
+import { createKnex, explainDatabaseError, migrate, nowIso, usesMysql } from './db.js';
 import { createApp } from './app.js';
 import { hashPassword, loadLicenseKeys } from './lib/security.js';
 import { seedDefaults } from './services/common.js';
@@ -27,7 +27,14 @@ async function bootstrapAdmin(knex) {
 }
 
 const knex = createKnex();
-await migrate(knex);
+try {
+  await migrate(knex);
+} catch (err) {
+  if (!usesMysql()) throw err;
+  console.error(`\n${explainDatabaseError(err)}\n`);
+  await knex.destroy().catch(() => {});
+  process.exit(1);
+}
 await seedDefaults(knex);
 await bootstrapAdmin(knex);
 const { publicKeyB64 } = loadLicenseKeys();
@@ -52,7 +59,7 @@ server.on('request', createApp(knex, { vite }));
 server.listen(config.port, () => {
   console.log(`DocGen server listening on http://localhost:${config.port}`);
   console.log(`Portal: http://localhost:${config.port}/ · Admin: http://localhost:${config.port}/admin${vite ? ' (live reload)' : ''}`);
-  console.log(`Database: ${config.databaseUrl ? 'MySQL' : `SQLite (${config.sqliteFile})`}`);
+  console.log(`Database: ${usesMysql() ? 'MySQL' : `SQLite (${config.sqliteFile})`}`);
   console.log(`License public key (put in document-generator/src-tauri/remote-config.json → licensePublicKey): ${publicKeyB64}`);
 });
 

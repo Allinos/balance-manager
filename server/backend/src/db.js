@@ -26,15 +26,28 @@ class InlineMigrationSource {
   }
 }
 
+/** True when the server is configured for MySQL (DATABASE_URL or DB_NAME). */
+export const usesMysql = () => !!(config.databaseUrl || config.db);
+
 export function createKnex(overrides = {}) {
   const url = overrides.databaseUrl ?? config.databaseUrl;
-  if (url) {
-    if (!/^mysql:\/\//i.test(url)) throw new Error('DATABASE_URL must be a MySQL URL: mysql://user:password@host:3306/database');
+  // Separate DB_* settings apply unless a test passes its own database explicitly.
+  const parts = overrides.databaseUrl === undefined ? config.db : null;
+  if (url || parts) {
+    if (url && !/^mysql:\/\//i.test(url)) throw new Error('DATABASE_URL must be a MySQL URL: mysql://user:password@host:3306/database');
+    const common = { charset: 'utf8mb4', supportBigNumbers: true };
     return knexFactory({
       client: 'mysql2',
       // utf8mb4 for all text; timestamps are stored as ISO-8601 text (see migrations).
-      connection: { uri: url, charset: 'utf8mb4', supportBigNumbers: true },
+      connection: url ? { uri: url, ...common } : { ...parts, ...common },
       pool: { min: 0, max: Number(process.env.DB_POOL_MAX || 10) },
+      // Connection failures are thrown and explained (explainDatabaseError); don't also dump knex's stack trace.
+      log: {
+        warn: (m) => !/^Acquire connection error/.test(String(m)) && console.warn(m),
+        error: (m) => console.error(m),
+        deprecate: (m) => console.warn(m),
+        debug: () => {},
+      },
     });
   }
   // SQLite is optional (development/tests); MySQL needs no native module.
@@ -107,4 +120,63 @@ export function whereContains(qb, columns, term) {
   qb.where((w) => {
     for (const col of columns) w.orWhereRaw(`lower(${col}) like ?${escape}`, [pattern]);
   });
+}
+
+/** The MySQL account the server tries to use (for error messages; never includes the password). */
+function mysqlTarget() {
+  if (config.db) return { ...config.db, password: undefined, source: 'DB_HOST / DB_USER / DB_PASSWORD / DB_NAME' };
+  const m = /^mysql:\/\/(?:([^:@/]*)(?::(.*))?@)?([^:/?#]+)(?::(\d+))?\/?([^?#]*)/i.exec(config.databaseUrl) || [];
+  return { user: decodeSafe(m[1] || ''), host: m[3] || '?', port: Number(m[4] || 3306), database: decodeSafe(m[5] || ''), rawPassword: m[2] || '', source: 'DATABASE_URL' };
+}
+function decodeSafe(v) {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
+/**
+ * Turn a failed MySQL connection into a clear explanation with the fix,
+ * instead of a stack trace (shown by src/index.js at startup).
+ */
+export function explainDatabaseError(err) {
+  const t = mysqlTarget();
+  const where = `${t.user || '(no user)'}@${t.host}:${t.port}${t.database ? `, database "${t.database}"` : ''}`;
+  const files = config.envFiles.length ? config.envFiles.join(', ') : 'no .env file found (expected server/.env)';
+  const lines = [`Cannot connect to MySQL as ${where}.`, `Settings come from ${t.source} in: ${files}`, ''];
+  const code = err?.code || '';
+  // Characters that break a mysql:// address (the driver then reads a wrong host, user or password).
+  const brokenUrl = t.source === 'DATABASE_URL' && /[@#/?]|%(?![0-9a-f]{2})/i.test(t.rawPassword);
+  if (brokenUrl || code === 'ER_ACCESS_DENIED_ERROR' || code === 'ER_ACCESS_DENIED_NO_PASSWORD_ERROR') {
+    lines.push(
+      brokenUrl
+        ? 'The password in DATABASE_URL contains @ # / ? or %, which breaks a mysql:// address — MySQL never receives the real password.'
+        : 'MySQL rejected the user name or password.',
+    );
+    lines.push(
+      'Fix one of these:',
+      '  • Check the password: can you log in with   mysql -u ' + (t.user || 'root') + ' -p   ?',
+      '  • Easiest: use separate settings instead of DATABASE_URL (no special-character rules):',
+      '        DB_HOST=localhost',
+      '        DB_PORT=3306',
+      '        DB_USER=docgen',
+      '        DB_PASSWORD=your password exactly as it is',
+      '        DB_NAME=docgen',
+      '    and remove or comment out the DATABASE_URL line.',
+      '  • Or keep DATABASE_URL and encode special characters in the password: @ → %40  # → %23  / → %2F  ? → %3F  % → %25  : → %3A',
+      '  • Recommended: a dedicated MySQL user instead of root. In MySQL (as root):',
+      "        CREATE DATABASE IF NOT EXISTS docgen CHARACTER SET utf8mb4;",
+      "        CREATE USER 'docgen'@'localhost' IDENTIFIED BY 'choose-a-password';",
+      "        GRANT ALL PRIVILEGES ON docgen.* TO 'docgen'@'localhost';",
+    );
+  } else if (code === 'ER_BAD_DB_ERROR') {
+    lines.push(`The database "${t.database}" does not exist. Create it in MySQL:`, `    CREATE DATABASE ${t.database || 'docgen'} CHARACTER SET utf8mb4;`);
+  } else if (code === 'ECONNREFUSED' || code === 'ENOTFOUND' || code === 'ETIMEDOUT' || code === 'EAI_AGAIN') {
+    lines.push(`Nothing answered at ${t.host}:${t.port}. Is MySQL running (Windows: Services → MySQL80) and is the host/port right?`);
+  } else {
+    lines.push(`MySQL error: ${err?.message || err}`);
+  }
+  lines.push('', 'Without any MySQL settings the server uses a local SQLite file instead (good for trying it out).');
+  return lines.join('\n');
 }

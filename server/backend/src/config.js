@@ -4,6 +4,7 @@
  *   PORT                    HTTP port (default 8787)
  *   NODE_ENV                'production' enables strict checks
  *   DATABASE_URL            mysql://user:pass@host:3306/docgen  (MySQL 8, recommended in production)
+ *   DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME   the same as separate settings (no URL encoding needed)
  *   SQLITE_FILE             SQLite file used when DATABASE_URL is not set (default server/data/docgen.sqlite)
  *   JWT_SECRET              secret for portal/admin sessions (required in production)
  *   LICENSE_PRIVATE_KEY     Ed25519 private key (PEM) used to sign desktop license tokens
@@ -31,9 +32,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** server/ — holds .env, data/ and the frontend */
 const serverRoot = path.resolve(root, '..');
 
+const envFiles = [];
+
 /** Load a .env file (KEY=value lines) if present. Real environment variables and earlier files win. */
 function loadDotEnv(file) {
   if (!fs.existsSync(file)) return;
+  envFiles.push(file);
   for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
     const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
     if (!m || line.trim().startsWith('#')) continue;
@@ -57,7 +61,13 @@ export const config = {
   isTest: env.NODE_ENV === 'test',
   port: Number(env.PORT || 8787),
   dataDir,
+  /** .env files that were read (shown in startup errors). */
+  envFiles,
   databaseUrl: env.DATABASE_URL || '',
+  /** MySQL as separate settings — used when DATABASE_URL is empty and DB_NAME is set. */
+  db: env.DB_NAME
+    ? { host: env.DB_HOST || 'localhost', port: Number(env.DB_PORT || 3306), user: env.DB_USER || 'root', password: env.DB_PASSWORD || '', database: env.DB_NAME }
+    : null,
   sqliteFile: path.resolve(serverRoot, env.SQLITE_FILE || path.join(dataDir, 'docgen.sqlite')),
   jwtSecret: env.JWT_SECRET || '',
   licensePrivateKey: env.LICENSE_PRIVATE_KEY || '',
