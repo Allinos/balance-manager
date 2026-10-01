@@ -2,18 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { BrowserRouter, Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { clientApi, adminApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
-import Home from './pages/portal/Home.jsx';
-import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
-import Overview from './pages/portal/Overview.jsx';
-import Business from './pages/portal/Business.jsx';
-import Plans from './pages/portal/Plans.jsx';
-import Payments from './pages/portal/Payments.jsx';
+import Icon from './components/Icons.jsx';
+import ProductPage from './pages/portal/ProductPage.jsx';
+import CheckoutPage from './pages/portal/Checkout.jsx';
+import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
+import ClientHome from './pages/portal/ClientHome.jsx';
 import Account from './pages/portal/Account.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
 import AdminClients, { AdminClientDetail } from './pages/admin/AdminClients.jsx';
 import AdminLicenses from './pages/admin/AdminLicenses.jsx';
-import AdminPlans from './pages/admin/AdminPlans.jsx';
+import AdminProducts from './pages/admin/AdminProducts.jsx';
+import AdminDownloads from './pages/admin/AdminDownloads.jsx';
+import AdminWebsite from './pages/admin/AdminWebsite.jsx';
 import AdminPayments from './pages/admin/AdminPayments.jsx';
 import AdminAds from './pages/admin/AdminAds.jsx';
 import AdminConfig from './pages/admin/AdminConfig.jsx';
@@ -59,15 +60,63 @@ function AuthProvider({ children }) {
 export const useAuth = () => useContext(AuthCtx);
 
 // ------------------------------------------------------------------ layouts
-function Brand({ to = '/' }) {
+export function Brand({ to = '/', tagline = true }) {
   return (
-    <Link to={to} className="brand">
+    <Link to={to} className="brand" aria-label="DocGen home">
       <img src="/logo.png" alt="" />
       <span>
         <strong className="wordmark"><span className="brand-doc">Doc</span><span className="brand-gen">Gen</span></strong>
-        <small>Create. Manage. Grow.</small>
+        {tagline && <small>Create. Manage. Grow.</small>}
       </span>
     </Link>
+  );
+}
+
+/** Header of the public pages (product page, checkout). */
+export function SiteHeader({ nav = false }) {
+  const { client } = useAuth();
+  return (
+    <header className="site-header">
+      <div className="site-header-inner">
+        <Brand />
+        {nav && (
+          <nav className="site-nav">
+            <a href="/#features">Features</a>
+            <a href="/#screenshots">Screenshots</a>
+            <a href="/#pricing">Pricing</a>
+          </nav>
+        )}
+        <div className="site-actions">
+          {client.user ? (
+            <Link className="btn btn-sm" to="/account">
+              My account
+            </Link>
+          ) : (
+            <Link className="btn btn-sm btn-ghost hide-sm" to="/login">
+              Sign in
+            </Link>
+          )}
+          {nav && (
+            <Link className="btn btn-sm btn-primary" to="/buy" data-testid="header-buy">
+              Buy now
+            </Link>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <div className="site-footer-inner">
+        <span>© {new Date().getFullYear()} DocGen · a product of <a href="https://reynrel.in" target="_blank" rel="noreferrer">reynrel.in</a></span>
+        <span>
+          <a href="mailto:support@reynrel.in">support@reynrel.in</a> · <Link to="/login">Sign in</Link>
+        </span>
+      </div>
+    </footer>
   );
 }
 
@@ -80,16 +129,15 @@ function PortalLayout() {
   return (
     <div className="shell">
       <header className="topbar">
-        <Brand to="/account" />
+        <Brand to="/account" tagline={false} />
         <nav className="tabs">
-          <NavLink to="/account" end>Overview</NavLink>
-          <NavLink to="/account/plans">Plans &amp; Renewal</NavLink>
-          <NavLink to="/account/business">Business details</NavLink>
-          <NavLink to="/account/payments">Payments</NavLink>
+          <NavLink to="/account" end>
+            My license
+          </NavLink>
           <NavLink to="/account/settings">Account</NavLink>
         </nav>
         <div className="topbar-user">
-          <span className="muted">{client.user.email}</span>
+          <span className="muted small hide-sm">{client.user.email}</span>
           <button
             className="btn btn-sm"
             onClick={() => {
@@ -109,38 +157,50 @@ function PortalLayout() {
   );
 }
 
+const ADMIN_NAV = [
+  ['Sales', [
+    ['/admin', 'Dashboard', 'chart', true],
+    ['/admin/clients', 'Customers', 'users'],
+    ['/admin/payments', 'Payments', 'card'],
+    ['/admin/licenses', 'Licenses', 'key'],
+  ]],
+  ['Product', [
+    ['/admin/products', 'Products & pricing', 'box'],
+    ['/admin/downloads', 'Downloads', 'download'],
+    ['/admin/website', 'Website', 'globe'],
+  ]],
+  ['Desktop app', [
+    ['/admin/config', 'App settings', 'monitor'],
+    ['/admin/ads', 'In-app ads', 'megaphone'],
+    ['/admin/audit', 'Activity log', 'log'],
+  ]],
+];
+
 function AdminLayout() {
   const { admin } = useAuth();
   const navigate = useNavigate();
   if (admin.user === undefined) return <Spinner />;
   if (!admin.user) return <Navigate to="/admin/login" replace />;
-  const links = [
-    ['/admin', 'Dashboard', true],
-    ['/admin/clients', 'Clients'],
-    ['/admin/licenses', 'Licenses & Codes'],
-    ['/admin/payments', 'Payments'],
-    ['/admin/plans', 'Plans'],
-    ['/admin/ads', 'Ads'],
-    ['/admin/config', 'App configuration'],
-    ['/admin/audit', 'Audit log'],
-  ];
   return (
     <div className="admin-shell">
       <aside className="admin-side">
-        <Brand to="/admin" />
-        <div className="admin-tag">Admin</div>
-        <nav>
-          {links.map(([to, label, end]) => (
-            <NavLink key={to} to={to} end={end}>
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        <Brand to="/admin" tagline={false} />
+        {ADMIN_NAV.map(([group, links]) => (
+          <nav key={group} aria-label={group}>
+            <div className="admin-side-label">{group}</div>
+            {links.map(([to, label, icon, end]) => (
+              <NavLink key={to} to={to} end={end}>
+                <Icon name={icon} size={17} />
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        ))}
         <div className="admin-user">
-          <div>{admin.user.name}</div>
-          <small className="muted">
+          <strong>{admin.user.name}</strong>
+          <span className="muted">
             {admin.user.email} · {admin.user.role}
-          </small>
+          </span>
           <button
             className="btn btn-sm"
             onClick={() => {
@@ -165,9 +225,16 @@ export function Footer() {
       DocGen · A product of{' '}
       <a href="https://reynrel.in" target="_blank" rel="noreferrer">
         reynrel.in
-      </a>
+      </a>{' '}
+      · <a href="mailto:support@reynrel.in">support@reynrel.in</a>
     </footer>
   );
+}
+
+/** Old addresses keep working (links in earlier emails, bookmarks). */
+function KeepQuery({ to }) {
+  const location = useLocation();
+  return <Navigate to={`${to}${location.search}`} replace />;
 }
 
 export default function App() {
@@ -175,35 +242,37 @@ export default function App() {
     <BrowserRouter>
       <ToastProvider>
         <DialogProvider>
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/account" element={<PortalLayout />}>
-              <Route index element={<Overview />} />
-              <Route path="plans" element={<Plans />} />
-              <Route path="business" element={<Business />} />
-              <Route path="payments" element={<Payments />} />
-              <Route path="settings" element={<Account />} />
-            </Route>
-            <Route path="/admin/login" element={<AdminLogin />} />
-            <Route path="/admin" element={<AdminLayout />}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="clients" element={<AdminClients />} />
-              <Route path="clients/:id" element={<AdminClientDetail />} />
-              <Route path="licenses" element={<AdminLicenses />} />
-              <Route path="payments" element={<AdminPayments />} />
-              <Route path="plans" element={<AdminPlans />} />
-              <Route path="ads" element={<AdminAds />} />
-              <Route path="config" element={<AdminConfig />} />
-              <Route path="audit" element={<AdminAudit />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </AuthProvider>
+          <AuthProvider>
+            <Routes>
+              <Route path="/" element={<ProductPage />} />
+              <Route path="/buy" element={<CheckoutPage />} />
+              <Route path="/register" element={<KeepQuery to="/buy" />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/account" element={<PortalLayout />}>
+                <Route index element={<ClientHome />} />
+                <Route path="settings" element={<Account />} />
+                <Route path="*" element={<Navigate to="/account" replace />} />
+              </Route>
+              <Route path="/admin/login" element={<AdminLogin />} />
+              <Route path="/admin" element={<AdminLayout />}>
+                <Route index element={<AdminDashboard />} />
+                <Route path="clients" element={<AdminClients />} />
+                <Route path="clients/:id" element={<AdminClientDetail />} />
+                <Route path="licenses" element={<AdminLicenses />} />
+                <Route path="payments" element={<AdminPayments />} />
+                <Route path="products" element={<AdminProducts />} />
+                <Route path="plans" element={<Navigate to="/admin/products" replace />} />
+                <Route path="downloads" element={<AdminDownloads />} />
+                <Route path="website" element={<AdminWebsite />} />
+                <Route path="ads" element={<AdminAds />} />
+                <Route path="config" element={<AdminConfig />} />
+                <Route path="audit" element={<AdminAudit />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </AuthProvider>
         </DialogProvider>
       </ToastProvider>
     </BrowserRouter>

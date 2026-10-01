@@ -7,13 +7,19 @@ import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib
 import { config } from '../config.js';
 import { limits, requireClient } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, passwordFingerprint, signPurposeToken, signSession, verifyPassword, verifyPurposeToken } from '../lib/security.js';
-import { audit, getAppConfig } from '../services/common.js';
-import { isEntitled, listInstallers } from '../services/downloads.js';
+import { audit, getAppConfig, getSiteConfig } from '../services/common.js';
+import { downloadLinks, isEntitled } from '../services/downloads.js';
 import { mailEnabled, sendPasswordReset, sendPaymentReceipt } from '../services/mail.js';
 import { fulfillPayment, publicLicense } from '../services/licenses.js';
 import { getProvider, listProviders } from '../payments/index.js';
 
 const password = z.string().min(8, 'must be at least 8 characters').max(200);
+/** Mobile number: digits with an optional +country code; spaces and dashes are ignored. */
+const mobile = z
+  .string()
+  .trim()
+  .transform((v) => v.replace(/[\s()-]/g, ''))
+  .refine((v) => /^\+?\d{10,15}$/.test(v), 'must be a valid mobile number');
 const gstin = z
   .string()
   .trim()
@@ -92,6 +98,8 @@ export const publicClient = (c) => ({
   status: c.status,
   createdAt: c.created_at,
   lastLoginAt: c.last_login_at,
+  hasPassword: !!c.password_hash,
+  source: c.source,
   signup: { source: c.ref_source || '', medium: c.ref_medium || '', campaign: c.ref_campaign || '', details: parseJson(c.ref_details, {}) },
 });
 
@@ -136,6 +144,78 @@ export function portalRoutes(knex) {
     res.json({ plans: rows.map(publicPlan), providers: listProviders(), emailEnabled: mailEnabled() });
   });
 
+  /** Everything the product page and checkout show: website content, the product(s) for sale, payment methods. */
+  r.get('/site', async (_req, res) => {
+    const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
+    res.set('Cache-Control', 'no-cache');
+    res.json({
+      site: await getSiteConfig(knex),
+      products: rows.map(publicPlan),
+      providers: listProviders(),
+      emailEnabled: mailEnabled(),
+      supportEmail: config.supportEmail,
+    });
+  });
+
+  /**
+   * Buy without an account: name, mobile and email → payment. The account is created now (without a
+   * password) so the payment, the license and the receipt belong to it; after payment the buyer is
+   * signed in and can set a password. An email that already has an account must sign in instead.
+   */
+  r.post('/checkout/start', limits.auth, async (req, res) => {
+    const body = parse(
+      z.object({
+        name: z.string().trim().min(2, 'please enter your name').max(120),
+        email: z.string().trim().toLowerCase().email('please enter a valid email').max(190),
+        phone: mobile,
+        planId: z.coerce.number().int().positive().optional(),
+        provider: z.string().max(30).optional(),
+        attribution: attributionSchema,
+      }),
+      req.body,
+    );
+    const plan = await saleProduct(knex, body.planId);
+    const provider = getProvider(body.provider || defaultProvider());
+    let client = await knex('clients').where({ email: body.email }).first();
+    if (client) {
+      const paid = await knex('payments').where({ client_id: client.id, status: 'paid' }).first('id');
+      if (client.password_hash || paid) {
+        throw new ApiError(409, 'ACCOUNT_EXISTS', 'You already have an account with this email. Please sign in to buy or renew.');
+      }
+      if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Please contact support.');
+      client = await updateOne(knex, 'clients', { id: client.id }, { name: body.name, phone: body.phone, updated_at: nowIso() });
+    } else {
+      const ts = nowIso();
+      client = await insertOne(knex, 'clients', {
+        ...signupSource(body.attribution),
+        name: body.name,
+        email: body.email,
+        phone: body.phone,
+        password_hash: '',
+        source: 'checkout',
+        created_at: ts,
+        updated_at: ts,
+      });
+      await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.checkout_signup', entity: 'client', entityId: client.id, ip: clientIp(req) });
+    }
+    const started = await startPayment(knex, { client, plan, provider, req });
+    res.status(201).json({ ...started, checkoutToken: signPurposeToken('checkout', { sub: String(client.id), pid: started.payment.id }, '6h') });
+  });
+
+  /** Payment confirmation for /checkout/start. When paid: the license, and a session (the buyer is signed in). */
+  r.post('/checkout/confirm', limits.auth, async (req, res) => {
+    const { checkoutToken, ...rest } = req.body || {};
+    const link = verifyPurposeToken(checkoutToken, 'checkout');
+    const payment = link && (await knex('payments').where({ id: Number(link.pid), client_id: Number(link.sub) }).first());
+    if (!payment) throw new ApiError(400, 'CHECKOUT_EXPIRED', 'This checkout has expired. Please start again.');
+    const result = await confirmPayment(knex, payment, rest, req);
+    if (!result.license) return res.status(202).json(result);
+    const client = await knex('clients').where({ id: payment.client_id }).first();
+    if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Please contact support.');
+    await knex('clients').where({ id: client.id }).update({ last_login_at: nowIso() });
+    return res.json({ ...result, token: signSession('client', client), client: publicClient(client) });
+  });
+
   r.post('/auth/register', limits.auth, async (req, res) => {
     const body = parse(
       z.object({
@@ -168,6 +248,9 @@ export function portalRoutes(knex) {
     const body = parse(z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200) }), req.body);
     const client = await knex('clients').where({ email: body.email }).first();
     const ok = client ? await verifyPassword(body.password, client.password_hash) : await burnPasswordCheck(body.password);
+    if (client && !client.password_hash) {
+      throw new ApiError(401, 'NO_PASSWORD', 'This account has no password yet. Use “Forgot password?” to create one — we will email you a link.');
+    }
     if (!client || !ok) throw new ApiError(401, 'INVALID_LOGIN', 'Incorrect email or password.');
     if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'Your account is suspended. Please contact support.');
     await knex('clients').where({ id: client.id }).update({ last_login_at: nowIso() });
@@ -215,13 +298,14 @@ export function portalRoutes(knex) {
   });
 
   r.put('/me/password', auth, limits.auth, async (req, res) => {
-    const body = parse(z.object({ currentPassword: z.string().min(1), newPassword: password }), req.body);
-    if (!(await verifyPassword(body.currentPassword, req.client.password_hash))) {
+    const firstPassword = !req.client.password_hash;
+    const body = parse(z.object({ currentPassword: firstPassword ? z.string().max(200).optional() : z.string().min(1), newPassword: password }), req.body);
+    if (!firstPassword && !(await verifyPassword(body.currentPassword, req.client.password_hash))) {
       throw new ApiError(400, 'WRONG_PASSWORD', 'Your current password is incorrect.');
     }
     const client = await updateOne(knex, 'clients', { id: req.client.id }, { password_hash: await hashPassword(body.newPassword), token_version: req.client.token_version + 1, updated_at: nowIso() });
     await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.password', entity: 'client', entityId: client.id, ip: clientIp(req) });
-    res.json({ token: signSession('client', client) });
+    res.json({ token: signSession('client', client), client: publicClient(client) });
   });
 
   r.get('/licenses', auth, async (req, res) => {
@@ -261,10 +345,7 @@ export function portalRoutes(knex) {
     const { config: appConfig } = await getAppConfig(knex);
     const version = appConfig.app.latestVersion;
     if (!(await isEntitled(knex, req.client.id))) return res.json({ entitled: false, version, files: [] });
-    const files = listInstallers().map((i) => ({
-      ...i,
-      url: `/api/downloads/${signPurposeToken('download', { sub: String(req.client.id), p: i.platform, f: i.fileName }, '30m')}`,
-    }));
+    const files = downloadLinks(req.client.id, '30m').map((i) => ({ ...i, url: i.path }));
     res.set('Cache-Control', 'no-store');
     res.json({ entitled: true, version, files, externalUrl: files.length ? '' : appConfig.app.downloadUrl });
   });
@@ -286,15 +367,14 @@ export function portalRoutes(knex) {
   r.post('/checkout', auth, async (req, res) => {
     const body = parse(
       z.object({
-        planId: z.coerce.number().int().positive(),
-        provider: z.string().max(30).optional().default('manual'),
+        planId: z.coerce.number().int().positive().optional(),
+        provider: z.string().max(30).optional(),
         renewLicenseId: z.coerce.number().int().positive().optional(),
       }),
       req.body,
     );
-    const plan = await knex('plans').where({ id: body.planId, is_active: true }).first();
-    if (!plan) throw notFound('Plan');
-    const provider = getProvider(body.provider);
+    const plan = await saleProduct(knex, body.planId);
+    const provider = getProvider(body.provider || defaultProvider());
     if (body.renewLicenseId) {
       const owned = await knex('licenses').where({ id: body.renewLicenseId, client_id: req.client.id }).first();
       if (!owned) throw notFound('License');
@@ -303,46 +383,68 @@ export function portalRoutes(knex) {
       }
       if (!owned.expires_at && owned.duration_days === 0) throw new ApiError(409, 'LICENSE_LIFETIME', 'This license is already valid for life.');
     }
-    const ts = nowIso();
-    const payment = await insertOne(knex, 'payments', {
-        client_id: req.client.id,
-        plan_id: plan.id,
-        renew_license_id: body.renewLicenseId ?? null,
-        provider: provider.name,
-        amount_paise: plan.price_paise,
-        currency: plan.currency,
-        status: 'created',
-        meta: '{}',
-        created_at: ts,
-        updated_at: ts,
-      });
-    const order = await provider.createOrder({ payment, plan, client: req.client });
-    const updated = await updateOne(knex, 'payments', { id: payment.id }, { provider_order_id: order.providerOrderId, status: 'pending', updated_at: nowIso() });
-    await audit(knex, { actorType: 'client', actorId: req.client.id, action: 'payment.create', entity: 'payment', entityId: payment.id, details: { plan: plan.code, provider: provider.name }, ip: clientIp(req) });
-    res.status(201).json({ payment: publicPayment({ ...updated, plan_name: plan.name }), checkout: order.checkout });
+    res.status(201).json(await startPayment(knex, { client: req.client, plan, provider, renewLicenseId: body.renewLicenseId, req }));
   });
 
   /** Confirmation posted by the portal after the provider's checkout completes. */
   r.post('/payments/:id/confirm', auth, async (req, res) => {
     const payment = await knex('payments').where({ id: Number(req.params.id), client_id: req.client.id }).first();
     if (!payment) throw notFound('Payment');
-    if (payment.status === 'paid') {
-      const license = await knex.transaction((trx) => fulfillPayment(trx, payment));
-      return res.json({ payment: publicPayment(payment), license: publicLicense(license) });
-    }
-    const provider = getProvider(payment.provider);
-    const result = await provider.verifyConfirmation({ payment, body: req.body || {} });
-    if (!result.paid) {
-      const status = result.meta?.outcome === 'failed' ? 'failed' : payment.status;
-      const p = await updateOne(knex, 'payments', { id: payment.id }, { status, updated_at: nowIso() });
-      return res.status(202).json({ payment: publicPayment(p), license: null });
-    }
-    const { paid, license } = await markPaid(knex, payment, result.providerPaymentId, result.meta);
-    await audit(knex, { actorType: 'client', actorId: req.client.id, action: 'payment.paid', entity: 'payment', entityId: payment.id, ip: clientIp(req) });
-    return res.json({ payment: publicPayment(paid), license: publicLicense(license) });
+    const result = await confirmPayment(knex, payment, req.body || {}, req);
+    return res.status(result.license ? 200 : 202).json(result);
   });
 
   return r;
+}
+
+/** First online payment method (Razorpay when configured). */
+const defaultProvider = () => listProviders().find((p) => p.name !== 'manual')?.name || 'manual';
+
+/** The product being bought: the one asked for, else the first product on the website. */
+async function saleProduct(knex, planId) {
+  const q = knex('plans').where({ is_active: true });
+  const plan = planId ? await q.where({ id: planId }).first() : await q.where({ is_public: true }).orderBy('sort_order').first();
+  if (!plan) throw notFound('Product');
+  return plan;
+}
+
+/** Create a payment and the provider's order. */
+async function startPayment(knex, { client, plan, provider, renewLicenseId = null, req }) {
+  const ts = nowIso();
+  const payment = await insertOne(knex, 'payments', {
+    client_id: client.id,
+    plan_id: plan.id,
+    renew_license_id: renewLicenseId ?? null,
+    provider: provider.name,
+    amount_paise: plan.price_paise,
+    currency: plan.currency,
+    status: 'created',
+    meta: '{}',
+    created_at: ts,
+    updated_at: ts,
+  });
+  const order = await provider.createOrder({ payment, plan, client });
+  const updated = await updateOne(knex, 'payments', { id: payment.id }, { provider_order_id: order.providerOrderId, status: 'pending', updated_at: nowIso() });
+  await audit(knex, { actorType: 'client', actorId: client.id, action: 'payment.create', entity: 'payment', entityId: payment.id, details: { plan: plan.code, provider: provider.name }, ip: clientIp(req) });
+  return { payment: publicPayment({ ...updated, plan_name: plan.name }), checkout: order.checkout };
+}
+
+/** Check a confirmation from the browser with the provider; when paid, issue the license. */
+async function confirmPayment(knex, payment, body, req) {
+  if (payment.status === 'paid') {
+    const license = await knex.transaction((trx) => fulfillPayment(trx, payment));
+    return { payment: publicPayment({ ...payment, license_id: license.id }), license: publicLicense(license) };
+  }
+  const provider = getProvider(payment.provider);
+  const result = await provider.verifyConfirmation({ payment, body });
+  if (!result.paid) {
+    const status = result.meta?.outcome === 'failed' ? 'failed' : payment.status;
+    const p = await updateOne(knex, 'payments', { id: payment.id }, { status, updated_at: nowIso() });
+    return { payment: publicPayment(p), license: null };
+  }
+  const { paid, license } = await markPaid(knex, payment, result.providerPaymentId, result.meta);
+  await audit(knex, { actorType: 'client', actorId: payment.client_id, action: 'payment.paid', entity: 'payment', entityId: payment.id, ip: clientIp(req) });
+  return { payment: publicPayment(paid), license: publicLicense(license) };
 }
 
 /**

@@ -1,16 +1,16 @@
 # DocGen — test results
 
-Last full run: **29 September 2026** (after keyboard data entry, the bug-fix & UI round and the move to MySQL), branch `claude/focused-darwin-2j53b8`.
+Last full run: **1 October 2026** (after the product page, one-step checkout, client/admin panel redesign and licensing review), branch `claude/focused-darwin-2j53b8`.
 
 | Suite | Command | Result |
 |-------|---------|--------|
 | Desktop JS unit tests | `cd document-generator && npm test` | **20 / 20 passed** |
 | Desktop Rust tests | `npm run test:rust` | **15 / 15 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **160 / 160 checks passed** (two consecutive runs) |
-| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **38 / 38 passed** (19 API, 18 journey/payments/downloads/email, 1 rate-limit) |
-| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **38 / 38 passed** |
-| Portal + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **27 / 27 passed** (two consecutive runs) |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **165 / 165 checks passed** |
+| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **47 / 47 passed** (19 API, 27 journey/checkout/payments/licensing/downloads/email, 1 rate-limit) |
+| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **47 / 47 passed** |
+| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **47 / 47 passed** (two consecutive runs) |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows installer build (GitHub Actions) | `docgen-windows.yml` | build + unit tests passed (Windows-only PDF code compiles) |
 
@@ -20,7 +20,7 @@ Node process.
 
 ---
 
-## 1. Desktop end-to-end (160 checks)
+## 1. Desktop end-to-end (165 checks)
 
 `document-generator/e2e/run.mjs` drives the **real debug binary** through WebDriver
 (tauri-driver) against a **real local server** (`server/`, fresh database, seeded by the
@@ -34,7 +34,7 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 | 4 | Tally Professional invoice | 25 | GST picked in the **searchable GST select**; **? help** beside Round Off opens a short explanation and closes with Esc; created from the Dashboard **+**; customer GSTIN → Karnataka; place of supply follows; unit from the searchable unit list; additional details; inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory |
 | 5 | Preview actions | 6 | **Download PDF** without a print dialog (valid `%PDF`); template switcher renders **Tally Standard, Modern, Simple, Tally Professional** from the same data; history |
 | 6 | Document Manager | 20 | **saved client picked with one click** (list closes, details filled, “Save this customer” prompt removed; it returns only when details are edited); **Round Off radio directly above Grand Total** (Yes 26,553.00 / No 26,552.95); **compact summary card** with icons and status pills; **type filter next to Search**; **+ New Document** opens the chooser; quotation statuses Draft/Sent/Accepted/Rejected/Cancelled; **pencil → Accepted saves immediately** and persists; **no folder panel, filters or create strip**; **one compact summary line** (Total · This Month · Files · per status); search by product; **Cancel Invoice** asks for a reason → CANCELLED mark, editing disabled, reason in history, invoice **kept, not deleted** |
-| 7 | External documents + Dashboard | 8 | Dashboard: **8 cards in exactly two rows**, **round + button** (34 px circle); **Customize** adds/removes cards and keeps two rows; **Add External Document** stores a PDF and an image, listed under Files, counted in the summary; delete → Deleted → restore; Dashboard cards show **type + count** (Invoices 1, Quotations 1) with **+**; **Recent Documents** listed |
+| 7 | External documents + Dashboard | 11 | Dashboard: **8 cards in exactly two rows**, **round + button** (34 px circle); **Customize** button in the title line, adds/removes cards and keeps two rows; **card widths: 1 card ≈ 33 %, 2 cards ≈ 25 % each, 5 cards ≈ 20 % each**; **Add External Document** stores a PDF and an image, listed under Files, counted in the summary; delete → Deleted → restore; Dashboard cards show **type + count** (Invoices 1, Quotations 1) with **+**; **Recent Documents** listed |
 | 8 | Settings, products, copies | 14 | custom unit "Crate" saved and listed first; **Customers & Vendors removed from the navigation** while saved customer data is kept; product form: **HSN/SAC and GST on one row (50/50)**, GST from the searchable select, **service units listed first for services**, Esc closes only the dropdown; **Triple Copy** → three copies labelled Original for Recipient / Duplicate for Transporter / Triplicate for Supplier, print-only extra copies, **downloaded PDF has 3 pages**; four templates in settings; About shows interval / last / next check |
 | 8b | Keyboard data entry | 26 | a whole invoice and a product entered **without the mouse**: new invoice starts in the customer name; **Enter → next field**, **↑ → previous**; Enter in an empty field moves on; Enter inside the address adds a line, **Enter twice leaves it** (no stray blank line); Phone → Email → GSTIN → State; state dropdown: **Enter opens, type “maha”, Enter chooses and moves on**; item name → HSN → quantity (value selected, typing replaces) → unit (Enter, Enter keeps “Nos”) → rate → discount → GST → **Add Item** → Enter starts a new row → Enter on the empty name leaves the item list; totals 3 × 1,000 + 18 % = 3,540; saved with **Ctrl+S**; product dialog starts in Name, Enter through every field (dropdown values kept), **Enter on the last field saves** |
 | 9 | Account sign-in | 4 | wrong password → clear message; sign-in → licensed (plan shown, day line hidden); server registered the computer; sign out → not activated |
@@ -42,7 +42,7 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 | 11 | 30 days ended | 5 | clock +31 days → app opens with **one activation popup**: "Your 30-day period has ended", the two cards, no Skip, "You can request through email or call for extending your time."; **cannot be dismissed** (no close button, Esc ignored); overdue monthly check runs; **activation code** closes the popup |
 | 12 | Server offline | 3 | clock +62 days, server stopped → license works offline; failed attempt recorded, cached config kept; help videos still shown |
 | 13 | Server back | 2 | clock +63 days → check succeeds and is **rescheduled 30 days later** |
-| 14 | License expired | 1 | admin sets the end date to yesterday → "Check license now" → popup "Your DocGen license has expired" |
+| 14 | License ending / expired / renewed | 3 | 10 days left → sidebar shows **"10 Days"** in amber; end date yesterday → "Check license now" → popup "Your DocGen license has expired" with **Renew online**; admin extends → **"I have renewed — check again"** unlocks the app |
 | 15 | Offline build | 6 | no server configured → login form says the license server is not connected; no ad on day 1; **built-in DocGen message after ~15 days**, its button opens License & Account; not repeated within 15 days; **setting the clock back does not extend the 30 days** |
 | 16 | 20,000 documents | 6 | see performance below |
 
@@ -129,12 +129,21 @@ Review notes:
   scripts never run (e2e).
 - Financial documents are cancelled, never deleted; history is kept (e2e).
 - Business data is never sent: the desktop only sends license/device identifiers and anonymous ad counters.
+- Checkout without an account (`business-flow.test.js`): name/mobile/email validated; the account is created
+  without a password; an email that already has an account (password or purchase) must sign in; the buyer
+  is signed in only after a verified payment; the license is valid for the product period from the payment
+  date; the email carries the code, end date, a working 7-day download link and a 7-day create-password link;
+  the admin's new price and period apply to the next purchase.
+- Licensing (`business-flow.test.js`): a suspended account blocks its licenses (refresh → suspended, code
+  activation refused); an expired license gives a clear "expired on … renew" message at sign-in; a refund
+  revokes the license it bought.
 - Payments (`business-flow.test.js`, against a local stand-in for the Razorpay API): the order amount
-  comes from the plan; forged signatures and payments for another order are refused; the webhook and
+  comes from the product; forged signatures and payments for another order are refused; the webhook and
   the browser confirmation arriving at the same moment issue exactly one license (SQLite and MySQL);
   retried webhooks change nothing; underpaid, unsigned and failed payments never issue a license;
   test payments are off unless explicitly enabled and never in production.
-- Downloads: nothing before paying; personal links; wrong/expired links redirect to the account page.
+- Downloads: nothing before paying; personal links checked against an active license at download time;
+  wrong/expired links redirect to the account page.
 - Password reset: same answer for unknown emails; links work once and expire with a password change.
 - Portal/admin never use browser alert/confirm/prompt boxes (e2e counts them: 0).
 

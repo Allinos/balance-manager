@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { adminApi, date, dateTime, money, qs, validity } from '../../api.js';
 import { Badge, CopyButton, Empty, ErrorText, Field, Input, Modal, Pagination, Select, Spinner, Textarea, useDialog, useLoad, useToast } from '../../components/ui.jsx';
-import { BUSINESS_TYPES, STATES } from '../portal/Business.jsx';
+import { BUSINESS_TYPES, STATES } from '../../constants.js';
 import { LicenseEditor } from './AdminLicenses.jsx';
 
 const blank = { name: '', email: '', phone: '', business_name: '', business_type: '', gstin: '', address: '', city: '', state: '', pin: '', password: '' };
@@ -23,9 +23,9 @@ function ClientForm({ initial, onSaved, onCancel, isNew }) {
       if (!body.password) delete body.password;
       const r = isNew ? await adminApi.post('/clients', body) : await adminApi.put(`/clients/${initial.id}`, body);
       if (r.temporaryPassword) {
-        await dialog.show({ title: 'Client created', message: 'Share this temporary password with the client. It is shown only once.', value: r.temporaryPassword });
+        await dialog.show({ title: 'Customer added', message: 'Share this temporary password with the customer. It is shown only once.', value: r.temporaryPassword });
       }
-      toast(isNew ? 'Client created' : 'Client updated');
+      toast(isNew ? 'Customer added' : 'Customer updated');
       onSaved(r.client);
     } catch (err) {
       setError(err);
@@ -95,9 +95,12 @@ export default function AdminClients() {
   return (
     <>
       <div className="page-head">
-        <h1>Clients</h1>
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          New client
+        <div>
+          <h1>Customers</h1>
+          <p className="muted">Everyone who bought DocGen or started a checkout.</p>
+        </div>
+        <button className="btn" onClick={() => setCreating(true)}>
+          Add customer
         </button>
       </div>
       <form
@@ -107,7 +110,7 @@ export default function AdminClients() {
           setParams({ q, status });
         }}
       >
-        <input className="input" placeholder="Search name, email, business, phone, GSTIN" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Search name, email, mobile, business" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={status} onChange={(e) => setParams({ q, status: e.target.value })}>
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -119,37 +122,44 @@ export default function AdminClients() {
       {loading ? (
         <Spinner />
       ) : !data?.rows.length ? (
-        <Empty>No clients found.</Empty>
+        <Empty>No customers found.</Empty>
       ) : (
         <div className="card table-card">
           <table className="table">
             <thead>
               <tr>
-                <th>Client</th>
-                <th>Business</th>
-                <th>State</th>
+                <th>Customer</th>
+                <th>License</th>
+                <th>Valid until</th>
+                <th className="right">Paid</th>
                 <th>Came from</th>
                 <th>Joined</th>
-                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {data.rows.map((c) => (
                 <tr key={c.id} className="clickable" onClick={() => navigate(`/admin/clients/${c.id}`)}>
                   <td>
-                    <strong>{c.name}</strong>
-                    <div className="muted small">{c.email}</div>
+                    <strong>{c.name}</strong> {c.status !== 'active' && <Badge status={c.status} />}
+                    <div className="muted small">
+                      {c.email}
+                      {c.phone && ` · ${c.phone}`}
+                    </div>
                   </td>
                   <td>
-                    {c.businessName || '—'}
-                    {c.gstin && <div className="muted small">{c.gstin}</div>}
+                    {c.license ? (
+                      <>
+                        <Badge status={c.license.status} />
+                        <div className="muted small mono">{c.license.code}</div>
+                      </>
+                    ) : (
+                      <span className="muted small">Not bought</span>
+                    )}
                   </td>
-                  <td>{c.state || '—'}</td>
+                  <td>{c.license ? (c.license.lifetime ? 'Lifetime' : date(c.license.expiresAt)) : '—'}</td>
+                  <td className="right">{c.paidTotal ? money(c.paidTotal) : '—'}</td>
                   <td className="small">{signupLabel(c.signup)}</td>
                   <td>{date(c.createdAt)}</td>
-                  <td>
-                    <Badge status={c.status} />
-                  </td>
                 </tr>
               ))}
             </tbody>
@@ -158,7 +168,7 @@ export default function AdminClients() {
         </div>
       )}
       {creating && (
-        <Modal title="New client" onClose={() => setCreating(false)} wide>
+        <Modal title="Add customer" onClose={() => setCreating(false)} wide>
           <ClientForm
             isNew
             initial={blank}
@@ -210,7 +220,7 @@ export function AdminClientDetail() {
       <div className="page-head">
         <div>
           <Link to="/admin/clients" className="muted small">
-            ← Clients
+            ← Customers
           </Link>
           <h1>{c.businessName || c.name}</h1>
           <p className="muted">
@@ -226,7 +236,7 @@ export function AdminClientDetail() {
             Edit
           </button>
           <button className="btn btn-primary" onClick={() => setNewLicense(true)} data-testid="client-new-license">
-            Activate a license
+            Give a license
           </button>
         </div>
       </div>
@@ -260,7 +270,7 @@ export function AdminClientDetail() {
             <thead>
               <tr>
                 <th>Code</th>
-                <th>Plan</th>
+                <th>Product</th>
                 <th>Status</th>
                 <th>Valid until</th>
                 <th>Computers</th>
@@ -324,7 +334,7 @@ export function AdminClientDetail() {
         </div>
       )}
       {editing && (
-        <Modal title="Edit client" onClose={() => setEditing(false)} wide>
+        <Modal title="Edit customer" onClose={() => setEditing(false)} wide>
           <ClientForm
             initial={{ ...blank, ...c, business_name: c.businessName, business_type: c.businessType }}
             onCancel={() => setEditing(false)}
@@ -360,7 +370,7 @@ export function AdminClientDetail() {
 
 export function NewLicenseModal({ clientId, onClose, onDone }) {
   const toast = useToast();
-  const plans = useLoad(() => adminApi.get('/plans'), []);
+  const plans = useLoad(async () => ({ plans: (await adminApi.get('/plans')).plans.filter((p) => p.isActive) }), []);
   const [form, setForm] = useState({ planId: '', count: 1, activateNow: !!clientId, durationDays: '', maxDevices: '', expiresAt: '', notes: '' });
   const [error, setError] = useState(null);
   const [created, setCreated] = useState(null);
@@ -388,7 +398,7 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
   if (created) {
     return (
       <Modal title="Licenses created" onClose={onDone}>
-        <p className="muted">Share these activation codes with the client. They can also sign in with their account in the app.</p>
+        <p className="muted">Share these license codes with the customer. They enter them in DocGen under “I Have a License”.</p>
         <textarea className="input mono" rows={Math.min(12, created.length + 1)} readOnly value={created.map((l) => l.code).join('\n')} data-testid="created-codes" />
         <div className="row end">
           <CopyButton text={created.map((l) => l.code).join('\n')} label="Copy all" />
@@ -400,14 +410,14 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
     );
   }
   return (
-    <Modal title={clientId ? 'Activate a license (no payment)' : 'Create licenses / activation codes'} onClose={onClose}>
+    <Modal title={clientId ? 'Give a license (no payment)' : 'Create license codes'} onClose={onClose}>
       {plans.loading ? (
         <Spinner />
       ) : (
         <form className="form" onSubmit={submit}>
           <ErrorText error={error} />
           <div className="grid-2">
-            <Field label="Plan">
+            <Field label="Product" hint="Validity and computers come from the product unless set below">
               <Select
                 value={form.planId}
                 onChange={set('planId')}
@@ -419,7 +429,7 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
                 <Input type="number" min="1" max="500" value={form.count} onChange={set('count')} />
               </Field>
             )}
-            <Field label="Validity in days (optional)" hint="Overrides the plan; 0 = lifetime">
+            <Field label="Validity in days (optional)" hint="Overrides the product; 0 = lifetime">
               <Input type="number" min="0" value={form.durationDays} onChange={set('durationDays')} />
             </Field>
             <Field label="Computers allowed (optional)">
@@ -434,7 +444,7 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
           </div>
           <label className="check">
             <input type="checkbox" checked={form.activateNow} onChange={(e) => set('activateNow')(e.target.checked)} />
-            <span>Start validity now (otherwise it starts when first activated on a computer)</span>
+            <span>Validity starts today (otherwise it starts when the code is first used on a computer)</span>
           </label>
           <div className="row end">
             <button type="button" className="btn" onClick={onClose}>

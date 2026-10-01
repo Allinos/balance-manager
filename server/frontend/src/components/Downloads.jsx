@@ -25,10 +25,10 @@ export function DownloadCard({ compact = false }) {
       <div className="card download-card" data-testid="download-locked">
         <div className="download-text">
           <strong>Download DocGen</strong>
-          <p className="muted">The download is available as soon as you buy a plan.</p>
+          <p className="muted">The download is available as soon as you buy DocGen.</p>
         </div>
-        <Link to="/account/plans" className="btn btn-primary">
-          Choose a plan
+        <Link to="/buy" className="btn btn-primary">
+          Buy DocGen
         </Link>
       </div>
     );
@@ -52,7 +52,7 @@ export function DownloadCard({ compact = false }) {
     <div className="card download-card" data-testid="download-card">
       <div className="download-text">
         <strong>Download DocGen{data.version ? ` ${data.version}` : ''}</strong>
-        <p className="muted">Install it, open it and sign in with this account — or enter your activation code.</p>
+        <p className="muted">Install it, open it and enter your license code.</p>
       </div>
       <div className="download-buttons">
         {files.map((f, i) => (

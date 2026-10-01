@@ -7,6 +7,8 @@
 
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
+import { passwordFingerprint, signPurposeToken } from '../lib/security.js';
+import { downloadLinks } from './downloads.js';
 
 /** Messages "sent" during tests. */
 export const outbox = [];
@@ -23,23 +25,37 @@ export const mailEnabled = () => !!(config.smtpUrl || config.isTest);
 
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-/** Plain paragraphs + optional button → simple, mail-client-safe HTML. */
-function layout(paragraphs, button) {
+/** Plain paragraphs + optional buttons (first one filled) → simple, mail-client-safe HTML. */
+function layout(paragraphs, buttons, highlight) {
   const body = paragraphs.map((p) => `<p style="margin:0 0 14px">${escapeHtml(p).replace(/\n/g, '<br>')}</p>`).join('');
-  const cta = button
-    ? `<p style="margin:22px 0"><a href="${escapeHtml(button.url)}" style="background:#224cc8;color:#fff;padding:11px 18px;border-radius:8px;text-decoration:none;font-weight:600">${escapeHtml(button.label)}</a></p>`
+  const box = highlight
+    ? `<div style="border:1px solid #dbe3f5;background:#f5f8ff;border-radius:10px;padding:16px 18px;margin:0 0 18px">${highlight
+        .map(([k, v, big]) => `<div style="margin:2px 0"><span style="color:#6b7280">${escapeHtml(k)}:</span> <strong style="${big ? 'font-family:Consolas,monospace;font-size:20px;letter-spacing:1px;color:#111827' : ''}">${escapeHtml(v)}</strong></div>`)
+        .join('')}</div>`
+    : '';
+  const cta = buttons.length
+    ? `<p style="margin:22px 0">${buttons
+        .map(
+          (b, i) =>
+            `<a href="${escapeHtml(b.url)}" style="display:inline-block;margin:0 8px 8px 0;${i === 0 ? 'background:#224cc8;color:#fff;' : 'background:#fff;color:#224cc8;border:1px solid #224cc8;'}padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600">${escapeHtml(b.label)}</a>`,
+        )
+        .join('')}</p>`
     : '';
   return `<div style="font-family:Segoe UI,Arial,sans-serif;font-size:15px;color:#1f2937;max-width:560px">
 <p style="font-size:20px;font-weight:700;margin:0 0 18px"><span style="color:#224cc8">Doc</span><span style="color:#d8943e">Gen</span></p>
-${body}${cta}
+${box}${body}${cta}
 <p style="color:#6b7280;font-size:13px;margin-top:28px">Questions? Reply to this email or write to ${escapeHtml(config.supportEmail)}.<br>DocGen · a product of reynrel.in</p></div>`;
 }
 
-export async function sendMail({ to, subject, paragraphs, button }) {
+export async function sendMail({ to, subject, paragraphs, button, buttons = button ? [button] : [], highlight = null }) {
   const t = getTransport();
   if (!t) return false;
-  const text = [...paragraphs, button ? `${button.label}: ${button.url}` : ''].filter(Boolean).join('\n\n');
-  const message = { from: config.mailFrom, replyTo: config.supportEmail, to, subject, text, html: layout(paragraphs, button) };
+  const text = [
+    ...(highlight ? [highlight.map(([k, v]) => `${k}: ${v}`).join('\n')] : []),
+    ...paragraphs,
+    ...buttons.map((b) => `${b.label}: ${b.url}`),
+  ].join('\n\n');
+  const message = { from: config.mailFrom, replyTo: config.supportEmail, to, subject, text, html: layout(paragraphs, buttons, highlight) };
   await t.sendMail(message);
   if (config.isTest) outbox.push(message);
   return true;
@@ -48,6 +64,10 @@ export async function sendMail({ to, subject, paragraphs, button }) {
 const money = (paise, currency) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: currency || 'INR' }).format(paise / 100);
 const day = (iso) => new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
+/**
+ * After a payment: license code, validity, download links (7 days) and — for an account created at
+ * checkout — a link to choose a password (7 days); otherwise a link to the account.
+ */
 export async function sendPaymentReceipt(knex, payment, license) {
   if (!mailEnabled()) return false;
   const client = await knex('clients').where({ id: payment.client_id }).first();
@@ -57,18 +77,37 @@ export async function sendPaymentReceipt(knex, payment, license) {
     !license.expires_at && license.duration_days === 0
       ? 'Lifetime'
       : license.expires_at
-        ? `until ${day(license.expires_at)}`
+        ? day(license.expires_at)
         : `${license.duration_days} days from the first activation`;
+  const renewal = payment.renew_license_id && payment.renew_license_id === license.id;
+  const buttons = downloadLinks(client.id, '7d').map((d) => ({ label: `Download for ${d.label}`, url: `${config.portalUrl}${d.path}` }));
+  if (!buttons.length && client.password_hash) buttons.push({ label: 'Download DocGen', url: `${config.portalUrl}/account` });
+  if (!client.password_hash) {
+    const token = signPurposeToken('reset', { sub: String(client.id), tv: client.token_version, ph: passwordFingerprint(client.password_hash) }, '7d');
+    buttons.push({ label: 'Create your password', url: `${config.portalUrl}/reset-password?setup=1&token=${encodeURIComponent(token)}` });
+  } else {
+    if (buttons[0]?.label !== 'Download DocGen') buttons.push({ label: 'Open my account', url: `${config.portalUrl}/account` });
+  }
   return sendMail({
     to: client.email,
-    subject: `Payment received — your DocGen ${plan?.name || ''} license`.replace(/\s+/g, ' '),
+    subject: renewal ? 'Your DocGen license is renewed' : 'Your DocGen license and download',
+    highlight: [
+      ['License code', license.code, true],
+      ['Valid until', validity],
+      ['Computers', String(license.max_devices)],
+    ],
     paragraphs: [
       `Hi ${client.name},`,
-      `Thank you! We received ${money(payment.amount_paise, payment.currency)} for the DocGen ${plan?.name || ''} plan (order #${payment.id}).`,
-      `Activation code: ${license.code}\nValid: ${validity} · Computers: ${license.max_devices}`,
-      'Download DocGen from your account, install it, then choose "Login Using Your Account" (same email and password) or "I Have a License" and enter the code above.',
-    ],
-    button: { label: 'Download DocGen', url: `${config.portalUrl}/account` },
+      `Thank you for ${renewal ? 'renewing' : 'buying'} ${plan?.name || 'DocGen'}. We received ${money(payment.amount_paise, payment.currency)} (order #${payment.id}, one-time payment).`,
+      renewal
+        ? 'Your license has been extended. DocGen picks up the new date automatically; in the app you can also use Settings → License → "Check license now".'
+        : 'To start: download and install DocGen, open it, choose "I Have a License" and enter the code above.',
+      buttons.length > 1 ? 'The download links below work for 7 days. You can always download DocGen again from your account.' : '',
+      !client.password_hash
+        ? `Create a password to sign in to your account on our website${buttons.length === 1 ? ' (where you can download DocGen)' : ''}, or to sign in to the app with your email instead of the code.`
+        : '',
+    ].filter(Boolean),
+    buttons,
   });
 }
 

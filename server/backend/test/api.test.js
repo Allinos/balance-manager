@@ -19,6 +19,7 @@ const { createKnex, migrate, nowIso } = await import('../src/db.js');
 const { createApp } = await import('../src/app.js');
 const { hashPassword, loadLicenseKeys } = await import('../src/lib/security.js');
 const { seedDefaults } = await import('../src/services/common.js');
+const { addSamplePlans } = await import('./sample-plans.js');
 
 let knex;
 let server;
@@ -55,6 +56,7 @@ before(async () => {
   }
   await migrate(knex);
   await seedDefaults(knex);
+  await addSamplePlans(knex);
   await knex('admins').insert({ email: 'owner@test.local', name: 'Owner', role: 'owner', password_hash: await hashPassword('owner-password-1'), created_at: nowIso() });
   server = createApp(knex, { logger: { error() {} } }).listen(0);
   base = `http://127.0.0.1:${server.address().port}`;
@@ -112,7 +114,8 @@ describe('client portal', () => {
     assert.equal(paid.status, 200);
     assert.equal(paid.body.payment.status, 'paid');
     assert.match(paid.body.license.code, /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
-    assert.equal(paid.body.license.status, 'unused');
+    assert.equal(paid.body.license.status, 'active', 'a bought license is valid from the payment date');
+    assert.equal(paid.body.license.daysLeft, 365);
     // Confirming twice is idempotent.
     const again = await api('POST', `/api/portal/payments/${co.body.payment.id}/confirm`, { token, body: {} });
     assert.equal(again.body.license.id, paid.body.license.id);

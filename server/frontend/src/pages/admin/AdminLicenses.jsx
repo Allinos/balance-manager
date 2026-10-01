@@ -40,10 +40,13 @@ export function LicenseEditor({ id, onClose }) {
         <span className="muted">{l.planName}</span>
       </div>
       <dl className="kv kv-3">
-        <dt>Client</dt>
+        <dt>Customer</dt>
         <dd>{data.client ? <Link to={`/admin/clients/${data.client.id}`}>{data.client.businessName || data.client.email}</Link> : 'Not assigned'}</dd>
         <dt>Valid until</dt>
-        <dd>{validity(l)}</dd>
+        <dd>
+          {validity(l)}
+          {l.daysLeft !== null && l.status === 'active' && <span className="muted"> · {l.daysLeft} days left</span>}
+        </dd>
         <dt>Activated</dt>
         <dd>{date(l.activatedAt)}</dd>
         <dt>Source</dt>
@@ -85,7 +88,12 @@ export function LicenseEditor({ id, onClose }) {
       >
         <div className="grid-3">
           <Field label="Status">
-            <Select value={form.status} onChange={(v) => setEdit({ ...form, status: v })} options={['unused', 'active', 'suspended', 'revoked']} />
+            <Select value={form.status} onChange={(v) => setEdit({ ...form, status: v })} options={[
+                { value: 'unused', label: 'Not used yet' },
+                { value: 'active', label: 'Active' },
+                { value: 'suspended', label: 'Suspended (can be re-activated)' },
+                { value: 'revoked', label: 'Revoked (cancelled)' },
+              ]} />
           </Field>
           <Field label="Expiry date">
             <Input type="date" value={form.expiresAt} onChange={(v) => setEdit({ ...form, expiresAt: v })} />
@@ -163,9 +171,12 @@ export default function AdminLicenses() {
   return (
     <>
       <div className="page-head">
-        <h1>Licenses &amp; activation codes</h1>
+        <div>
+          <h1>Licenses</h1>
+          <p className="muted">Every license code, its status and validity. Click one to extend, suspend or change it.</p>
+        </div>
         <button className="btn btn-primary" onClick={() => setCreating(true)}>
-          Create licenses / codes
+          Create license codes
         </button>
       </div>
       <form
@@ -175,7 +186,7 @@ export default function AdminLicenses() {
           setParams({ q, status });
         }}
       >
-        <input className="input" placeholder="Search code, client email or business" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Search code, customer name or email" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={status} onChange={(e) => setParams({ q, status: e.target.value })}>
           <option value="">All statuses</option>
           {['unused', 'active', 'expired', 'suspended', 'revoked'].map((s) => (
@@ -197,8 +208,8 @@ export default function AdminLicenses() {
             <thead>
               <tr>
                 <th>Code</th>
-                <th>Client</th>
-                <th>Plan</th>
+                <th>Customer</th>
+                <th>Product</th>
                 <th>Status</th>
                 <th>Valid until</th>
                 <th>Created</th>
@@ -208,7 +219,7 @@ export default function AdminLicenses() {
               {data.rows.map((l) => (
                 <tr key={l.id} className="clickable" onClick={() => setOpen(l.id)}>
                   <td className="mono">{l.code}</td>
-                  <td>{l.client ? l.client.businessName || l.client.email : <span className="muted">Unassigned</span>}</td>
+                  <td>{l.client ? <>{l.client.name}<div className="muted small">{l.client.email}</div></> : <span className="muted">Not assigned</span>}</td>
                   <td>{l.planName}</td>
                   <td>
                     <Badge status={l.status} />

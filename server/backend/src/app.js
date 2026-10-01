@@ -15,7 +15,7 @@ import { portalRoutes, markPaid } from './routes/portal.js';
 import { adminRoutes } from './routes/admin.js';
 import { getProvider } from './payments/index.js';
 import { audit, bumpStat } from './services/common.js';
-import { PLATFORMS, platformDir } from './services/downloads.js';
+import { PLATFORMS, installerPath, isEntitled } from './services/downloads.js';
 import { verifyPurposeToken } from './lib/security.js';
 
 /**
@@ -39,6 +39,8 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
           imgSrc: ["'self'", 'data:', 'https:'],
           connectSrc: ["'self'", 'https://*.razorpay.com'],
           frameSrc: ["'self'", 'https:'],
+          // Product videos: YouTube / Vimeo embeds (frames) or a direct .mp4 link.
+          mediaSrc: ["'self'", 'https:'],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
         },
@@ -104,14 +106,15 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
   });
   app.use('/uploads', express.static(config.uploadsDir, { maxAge: '7d', fallthrough: false }));
 
-  /** Personal installer link from the client portal (a browser download, so the token is in the URL). */
+  /** Personal installer link (website or purchase email). A browser download, so the token is in the URL. */
   app.get('/api/downloads/:token', async (req, res) => {
     const link = verifyPurposeToken(req.params.token, 'download');
-    const file = link && PLATFORMS[link.p] && path.basename(String(link.f)) === link.f ? path.join(platformDir(link.p), link.f) : '';
-    if (!file || !fs.existsSync(file)) return res.redirect(302, '/account?download=expired');
+    const file = link && PLATFORMS[link.p] ? installerPath(link.p) : '';
+    if (!file || !(await isEntitled(knex, Number(link.sub)))) return res.redirect(302, '/account?download=expired');
+    const fileName = path.basename(file);
     await bumpStat(knex, `download:${link.p}`);
-    await audit(knex, { actorType: 'client', actorId: Number(link.sub), action: 'download', entity: 'download', details: { platform: link.p, fileName: link.f }, ip: clientIp(req) });
-    return res.download(file, link.f, { headers: { 'Cache-Control': 'private, no-store' } });
+    await audit(knex, { actorType: 'client', actorId: Number(link.sub), action: 'download', entity: 'download', details: { platform: link.p, fileName }, ip: clientIp(req) });
+    return res.download(file, fileName, { headers: { 'Cache-Control': 'private, no-store' } });
   });
 
   app.use('/api', (_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Unknown API endpoint.')));

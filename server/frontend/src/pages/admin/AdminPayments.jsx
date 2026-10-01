@@ -15,7 +15,7 @@ export default function AdminPayments() {
   const markPaid = async (p) => {
     const reference = await dialog.prompt({
       title: `Confirm payment #${p.id}`,
-      message: `${money(p.amount, p.currency)} from ${p.client.email} (${p.planName}). The license is issued immediately and the client gets an email.`,
+      message: `${money(p.amount, p.currency)} from ${p.client.email} (${p.planName}). The license is issued immediately and the customer gets an email.`,
       label: 'Payment reference (UTR / cheque no.)',
       confirmLabel: 'Mark as paid',
     });
@@ -29,10 +29,30 @@ export default function AdminPayments() {
     }
   };
 
+  const refund = async (p) => {
+    const ok = await dialog.confirm({
+      title: `Record refund for order #${p.id}?`,
+      message: `First refund ${money(p.amount, p.currency)} to ${p.client.email} in your Razorpay dashboard. This marks the payment as refunded and cancels the license it bought.`,
+      confirmLabel: 'Mark refunded',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      const r = await adminApi.post(`/payments/${p.id}/refund`, { revokeLicense: true });
+      toast(r.licenseRevoked ? 'Refund recorded; license cancelled.' : 'Refund recorded.');
+      reload();
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
+  };
+
   return (
     <>
       <div className="page-head">
-        <h1>Payments</h1>
+        <div>
+          <h1>Payments</h1>
+          <p className="muted">Every order. Unfinished checkouts stay “pending”; Razorpay payments are confirmed automatically.</p>
+        </div>
       </div>
       <form
         className="toolbar"
@@ -41,7 +61,7 @@ export default function AdminPayments() {
           setParams({ q, status });
         }}
       >
-        <input className="input" placeholder="Search client, order or payment id" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Search customer, order or payment id" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={status} onChange={(e) => setParams({ q, status: e.target.value })}>
           <option value="">All statuses</option>
           {['pending', 'paid', 'failed', 'created', 'cancelled', 'refunded'].map((s) => (
@@ -63,8 +83,8 @@ export default function AdminPayments() {
             <thead>
               <tr>
                 <th>Order</th>
-                <th>Client</th>
-                <th>Plan</th>
+                <th>Customer</th>
+                <th>Product</th>
                 <th>Method</th>
                 <th className="right">Amount</th>
                 <th>Status</th>
@@ -91,9 +111,14 @@ export default function AdminPayments() {
                   </td>
                   <td>{dateTime(p.paidAt || p.createdAt)}</td>
                   <td className="right">
-                    {p.status !== 'paid' && (
+                    {['pending', 'created', 'failed'].includes(p.status) && (
                       <button className="btn btn-sm" onClick={() => markPaid(p)}>
                         Mark paid
+                      </button>
+                    )}
+                    {p.status === 'paid' && (
+                      <button className="btn btn-sm btn-ghost" onClick={() => refund(p)}>
+                        Refund
                       </button>
                     )}
                   </td>

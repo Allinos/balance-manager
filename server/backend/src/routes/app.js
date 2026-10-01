@@ -13,7 +13,7 @@ import { ApiError, clientIp, parse } from '../lib/http.js';
 import { limits } from '../lib/auth.js';
 import { CODE_PATTERN, burnPasswordCheck, loadLicenseKeys, normaliseCode, verifyLicenseToken, verifyPassword } from '../lib/security.js';
 import { audit, bumpStat, getAppConfig } from '../services/common.js';
-import { activateOnDevice, effectiveStatus, getLicenseWithPlan, licenseForClient, licenseToken } from '../services/licenses.js';
+import { activateOnDevice, daysLeft, effectiveStatus, getLicenseWithPlan, licenseForClient, licenseToken } from '../services/licenses.js';
 
 const device = {
   deviceId: z.string().trim().min(8).max(80).regex(/^[A-Za-z0-9_-]+$/, 'invalid device id'),
@@ -98,13 +98,7 @@ export function appRoutes(knex) {
 
     const result = await knex.transaction(async (trx) => {
       const candidates = await licenseForClient(trx, client.id, body.deviceId);
-      if (!candidates) {
-        throw new ApiError(
-          403,
-          'NO_LICENSE',
-          'Your account has no active license yet. Choose a plan in the client portal, or enter an activation code.',
-        );
-      }
+      if (!candidates) throw await noUsableLicense(trx, client.id);
       let lastError;
       for (const candidate of candidates) {
         try {
@@ -117,7 +111,7 @@ export function appRoutes(knex) {
       throw lastError;
     });
     await logActivation(knex, client, result, body, req, 'app.login');
-    res.json({ token: licenseToken(result, client, body.deviceId), license: { status: effectiveStatus(result), expiresAt: result.expires_at } });
+    res.json(licenseResponse(result, client, body.deviceId));
   });
 
   /** Activate this computer with an activation code (AB12-CD34-EF56). */
@@ -127,10 +121,12 @@ export function appRoutes(knex) {
     if (!CODE_PATTERN.test(code)) throw new ApiError(400, 'INVALID_CODE_FORMAT', 'Activation codes look like AB12-CD34-EF56.');
     const license = await knex('licenses').where({ code }).first();
     if (!license) throw new ApiError(404, 'INVALID_CODE', 'This activation code is not valid. Please check it and try again.');
+    const owner = license.client_id ? await knex('clients').where({ id: license.client_id }).first() : null;
+    if (owner && owner.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Please contact support.');
     const result = await knex.transaction((trx) => activateOnDevice(trx, license, body));
-    const client = result.client_id ? await knex('clients').where({ id: result.client_id }).first() : null;
+    const client = owner;
     await logActivation(knex, client, result, body, req, 'app.activate');
-    res.json({ token: licenseToken(result, client, body.deviceId), license: { status: effectiveStatus(result), expiresAt: result.expires_at } });
+    res.json(licenseResponse(result, client, body.deviceId));
   });
 
   /** Refresh a stored license (picks up renewals, extensions, suspensions). */
@@ -146,7 +142,7 @@ export function appRoutes(knex) {
     }
     await knex('devices').where({ id: deviceRow.id }).update({ last_seen_at: nowIso() });
     const client = license.client_id ? await knex('clients').where({ id: license.client_id }).first() : null;
-    res.json({ token: licenseToken(license, client, body.deviceId), license: { status: effectiveStatus(license), expiresAt: license.expires_at } });
+    res.json(licenseResponse(license, client, body.deviceId));
   });
 
   /** Sign out / release this computer so the license can be used elsewhere. */
@@ -160,6 +156,32 @@ export function appRoutes(knex) {
   });
 
   return r;
+}
+
+/** Token for the desktop app plus a readable summary (the app trusts only the signed token). */
+function licenseResponse(license, client, deviceId) {
+  return {
+    token: licenseToken(license, client, deviceId),
+    license: {
+      status: client && client.status !== 'active' ? 'suspended' : effectiveStatus(license),
+      expiresAt: license.expires_at,
+      daysLeft: daysLeft(license),
+    },
+  };
+}
+
+/** Why an account cannot activate DocGen: an expired or blocked license, or none bought yet. */
+async function noUsableLicense(knex, clientId) {
+  const rows = await knex('licenses').where({ client_id: clientId }).orderBy('expires_at', 'desc');
+  const expired = rows.find((l) => effectiveStatus(l) === 'expired');
+  if (expired) {
+    const day = new Date(expired.expires_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    return new ApiError(403, 'LICENSE_EXPIRED', `Your DocGen license expired on ${day}. Renew it in your account on our website, then sign in again.`);
+  }
+  if (rows.some((l) => l.status === 'suspended' || l.status === 'revoked')) {
+    return new ApiError(403, 'LICENSE_SUSPENDED', 'Your DocGen license is not active. Please contact support.');
+  }
+  return new ApiError(403, 'NO_LICENSE', 'This account has no DocGen license yet. Buy DocGen on our website, or enter your license code.');
 }
 
 async function logActivation(knex, client, license, body, req, action) {

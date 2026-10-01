@@ -67,26 +67,55 @@ export async function saveAppConfig(knex, value, adminId) {
   return getAppConfig(knex);
 }
 
-/** Seed plans on an empty database so the portal has something to show. */
+/** The product sold on the website (Admin → Products changes price, validity and computers). */
+export const DEFAULT_PRODUCT = {
+  code: 'DOCGEN',
+  name: 'DocGen',
+  description: 'Professional invoices, quotations and business documents on your computer.',
+  price_paise: 125000,
+  currency: 'INR',
+  duration_days: 365,
+  max_devices: 1,
+  features: JSON.stringify([
+    'GST invoices, quotations, challans, receipts and more',
+    'Works offline — your data stays on your computer',
+    'Free updates and support during the license',
+  ]),
+  is_active: true,
+  is_public: true,
+  sort_order: 0,
+};
+
+/** Seed the product on an empty database so the website has something to sell. */
 export async function seedDefaults(knex) {
   const [{ count }] = await knex('plans').count({ count: '*' });
   if (Number(count) > 0) return;
   const ts = nowIso();
-  await knex('plans').insert([
-    {
-      code: 'STARTER', name: 'Starter', description: 'For a single computer.', price_paise: 99900, duration_days: 365,
-      max_devices: 1, features: JSON.stringify(['1 computer', 'All document types', 'Email support', 'No ads']),
-      sort_order: 1, created_at: ts, updated_at: ts,
-    },
-    {
-      code: 'BUSINESS', name: 'Business', description: 'For growing teams.', price_paise: 249900, duration_days: 365,
-      max_devices: 3, features: JSON.stringify(['3 computers', 'All document types', 'Priority WhatsApp support', 'No ads']),
-      sort_order: 2, created_at: ts, updated_at: ts,
-    },
-    {
-      code: 'LIFETIME', name: 'Lifetime', description: 'Pay once, use forever.', price_paise: 699900, duration_days: 0,
-      max_devices: 2, features: JSON.stringify(['2 computers', 'Lifetime updates', 'Priority support', 'No ads']),
-      sort_order: 3, created_at: ts, updated_at: ts,
-    },
-  ]);
+  await knex('plans').insert({ ...DEFAULT_PRODUCT, created_at: ts, updated_at: ts });
+}
+
+/** Website content (Admin → Website). Screenshots default to the images bundled with the website. */
+export const DEFAULT_SITE = {
+  headline: 'Professional business documents in minutes',
+  subheadline:
+    'Create GST invoices, quotations, delivery challans and receipts on your computer. Simple to learn, works offline, looks professional.',
+  screenshots: [
+    { url: '/screenshots/dashboard.png', caption: 'Dashboard' },
+    { url: '/screenshots/invoice.png', caption: 'GST invoice' },
+    { url: '/screenshots/documents.png', caption: 'All your documents in one place' },
+  ],
+  videos: [],
+  showComparison: true,
+};
+
+export async function getSiteConfig(knex) {
+  const row = await knex('app_config').where({ key: 'site' }).first();
+  return { ...DEFAULT_SITE, ...parseJson(row?.value, {}) };
+}
+
+export async function saveSiteConfig(knex, value, adminId) {
+  const row = { key: 'site', value: JSON.stringify(value), updated_by: adminId, updated_at: nowIso() };
+  if (await knex('app_config').where({ key: 'site' }).first('key')) await knex('app_config').where({ key: 'site' }).update(row);
+  else await knex('app_config').insert(row);
+  return getSiteConfig(knex);
 }

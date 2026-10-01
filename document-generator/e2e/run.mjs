@@ -278,7 +278,7 @@ async function api(method, url, body, token = adminToken) {
 async function seedServer() {
   adminToken = (await api('POST', '/api/admin/auth/login', ADMIN, '')).token;
   const plans = (await api('GET', '/api/admin/plans')).plans;
-  const business = plans.find((p) => p.code === 'BUSINESS');
+  const business = plans.find((p) => p.code === 'DOCGEN');
   const { client } = await api('POST', '/api/admin/clients', { ...CLIENT, phone: '9876543210', state: 'Maharashtra' });
   const [accountLicense] = (await api('POST', '/api/admin/licenses', { planId: business.id, clientId: client.id, activateNow: false })).licenses;
   const [spare] = (await api('POST', '/api/admin/licenses', { planId: business.id })).licenses;
@@ -633,6 +633,25 @@ async function main() {
     await clickCss('[data-testid="customize-save"]');
     await sleep(600);
     check((await exists('[data-testid="card-PAYMENT_RECEIPT"]')) && !(await exists('[data-testid="card-GOODS_RECEIPT"]')) && (await rows()) === 2, 'Customize adds/removes cards; still two rows');
+    check(await exec('return !!document.querySelector(".page-header [data-testid=customize-dashboard]")'), 'Customize button is in the Dashboard title line');
+    // Few cards keep a sensible width: 2 cards → a quarter of the row each.
+    const cardIds = await exec('return [...document.querySelectorAll("[data-testid^=card-]")].map(c=>c.dataset.testid.slice(5))');
+    const setCards = async (ids) => {
+      await clickCss('[data-testid="customize-dashboard"]');
+      await exec(`const want=${JSON.stringify(ids)}; [...document.querySelectorAll('[data-testid^=customize-]')].filter(b=>b.type==='checkbox').forEach(b=>{ const id=b.dataset.testid.slice(10); if (b.checked!==want.includes(id)) b.click(); });`);
+      await clickCss('[data-testid="customize-save"]');
+      await sleep(600);
+    };
+    const cardShare = () => exec('const g=document.querySelector("[data-testid=type-cards]").getBoundingClientRect().width; return [...document.querySelectorAll("[data-testid^=card-]")].map(c=>Math.round(c.getBoundingClientRect().width/g*100))');
+    await setCards(cardIds.slice(0, 2));
+    const two = await cardShare();
+    await setCards(cardIds.slice(0, 1));
+    const one = await cardShare();
+    await setCards(cardIds.slice(0, 5));
+    const five = await cardShare();
+    check(two.length === 2 && two.every((w) => w >= 20 && w <= 30) && one[0] >= 25 && one[0] <= 34 && five.every((w) => w >= 16 && w <= 21), `card widths: 1 → ${one}%, 2 → ${two}%, 5 → ${five}%`);
+    await setCards(cardIds);
+    check((await exec('return document.querySelectorAll("[data-testid^=card-]").length')) === cardIds.length, 'cards restored');
     const recent = await textOf('[data-testid="recent-documents"]');
     check(recent.includes('INV-00001') && recent.includes('QTN-00001'), 'Recent Documents listed');
     await shot('00-dashboard');
@@ -775,7 +794,7 @@ async function main() {
     await type('[data-testid="license-password"]', CLIENT.password);
     await clickCss('[data-testid="license-login"]');
     await waitForText('DocGen is activated', 15000);
-    check(!(await exists('[data-testid="trial-line"]')) && (await textOf('[data-testid="license-status"]')).includes('Business'), 'licensed: plan shown, day line hidden');
+    check(!(await exists('[data-testid="trial-line"]')) && (await textOf('[data-testid="license-status"]')).includes('DocGen'), 'licensed: plan shown, day line hidden');
     await shot('15-licensed');
     const devices = (await api('GET', `/api/admin/clients/${seed.client.id}`)).licenses.flatMap((l) => l.devices);
     check(devices.length === 1 && !devices[0].released_at, 'server registered this computer');
@@ -838,13 +857,23 @@ async function main() {
 
     // ----------------------------------------------------------------- 14
     section('14. License expired on the server');
-    await api('PUT', `/api/admin/licenses/${seed.spare.id}`, { expiresAt: new Date(Date.now() - 86400000).toISOString() });
+    // The app runs 63 days ahead here; 73 days from now is 10 days left for the app.
+    await api('PUT', `/api/admin/licenses/${seed.spare.id}`, { expiresAt: new Date(Date.now() + 73 * 86400000).toISOString() });
     await go('#/settings/license');
+    await clickText('Check license now');
+    await find('[data-testid="license-line"]', 10000);
+    const ending = (await textOf('[data-testid="license-line"]')).trim();
+    check(/^1[01] Days$/.test(ending), `sidebar shows the remaining license days when 30 or fewer are left (${ending})`);
+    await api('PUT', `/api/admin/licenses/${seed.spare.id}`, { expiresAt: new Date(Date.now() - 86400000).toISOString() });
     await clickText('Check license now');
     await find('[data-testid="activation-required"]', 10000);
     await waitForText('Your DocGen license has expired', 10000);
-    check(true, 'expired license locks the app with a renewal message');
+    check(await exists('[data-testid="renew-online"]'), 'expired license locks the app with a renewal message and a Renew online button');
     await shot('17-license-expired');
+    await api('POST', `/api/admin/licenses/${seed.spare.id}/extend`, { days: 365 });
+    await clickCss('[data-testid="check-again"]');
+    await waitFor(async () => !(await exists('[data-testid="activation-required"]')), 'renewed license unlocks the app with “check again”', 15000);
+    check((await invoke('license_status')).licensed, 'license active again after renewal');
     await stopApp();
     stopDriver();
 

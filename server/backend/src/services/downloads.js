@@ -1,12 +1,14 @@
 /**
  * Installers customers download after paying. One file per platform, stored in
  * DATA_DIR/downloads/<platform>/<file name> and uploaded from Admin → App configuration.
- * Customers get personal links that expire after 30 minutes (see routes/portal.js).
+ * Customers get personal links: 30 minutes on the website, 7 days in the purchase email.
+ * A link names the platform, not the file, so it keeps working after a new version is uploaded.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from '../config.js';
+import { signPurposeToken } from '../lib/security.js';
 import { effectiveStatus } from './licenses.js';
 
 export const PLATFORMS = {
@@ -49,4 +51,18 @@ export function removeInstaller(platform) {
 export async function isEntitled(knex, clientId) {
   const rows = await knex('licenses').where({ client_id: clientId }).whereIn('status', ['active', 'unused']);
   return rows.some((l) => ['active', 'unused'].includes(effectiveStatus(l)));
+}
+
+/** Personal download links of a customer: [{ platform, label, fileName, size, path }]. */
+export function downloadLinks(clientId, expiresIn) {
+  return listInstallers().map((i) => ({
+    ...i,
+    path: `/api/downloads/${signPurposeToken('download', { sub: String(clientId), p: i.platform }, expiresIn)}`,
+  }));
+}
+
+/** Current installer file of a platform (absolute path), or ''. */
+export function installerPath(platform) {
+  const file = listInstallers().find((i) => i.platform === platform);
+  return file ? path.join(platformDir(platform), file.fileName) : '';
 }

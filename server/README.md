@@ -4,17 +4,19 @@ Backend API for the DocGen desktop app ([`backend/`](backend/)) **plus** the cli
 ([`frontend/`](frontend/)) — run together as one Node.js application on **one port** (default `8787`).
 One `npm install` in this folder installs both (npm workspaces).
 
-- **Sales funnel**: landing page with plans → account → payment (Razorpay: UPI, cards, netbanking,
-  wallets; or bank transfer confirmed by an admin) → **download** of the installer → activation.
-  Ad clicks (UTM tags, Google `gclid`, Facebook `fbclid`) are tracked per sign-up and reported per campaign.
-- **Client accounts**: registration, sign-in, business details, password change, forgotten password by email.
-- **Plans, payments, licenses**: activation codes (`AB12-CD34-EF56`), validity, device limits,
-  renewals and upgrades; receipt email with the code and download link.
+- **Sales funnel**: product page (one product, one price) → name, mobile, email → payment (Razorpay:
+  UPI, cards, netbanking, wallets) → account created and signed in → license code + **download**.
+  Ad clicks (UTM tags, Google `gclid`, Facebook `fbclid`) are tracked per customer and reported per campaign.
+- **Client panel**: license status, remaining validity, license code, download, computers, purchases,
+  renew; password (created after the purchase), forgotten password by email.
+- **Products, payments, licenses**: price, license validity (default 1 year) and computers are set in the
+  admin panel; license codes (`AB12-CD34-EF56`), renewals; email with the code, validity and download links.
 - **Desktop API**: account sign-in, code activation, license refresh/release, remote
   configuration (check interval, ads, help videos), anonymous ad counters.
-- **Admin API**: clients, licenses (manual activation without payment, bulk codes, extend,
-  suspend), plans, payments (mark paid), installers for download, in-app ads, app configuration,
-  audit log, statistics (incl. sign-ups/sales per ad campaign).
+- **Admin panel**: dashboard (sales this month, revenue, recent sales, licenses ending soon, ad campaigns),
+  customers, payments (mark paid, refund), licenses (give without payment, bulk codes, extend, suspend,
+  revoke), products & pricing, downloads (installers), website content (headline, screenshots, videos),
+  desktop app settings, in-app ads, activity log.
 - Serves the React **portal/admin** (`frontend/`) on the same port: `/` portal, `/admin` admin panel, `/api` API.
 
 Stack: Node.js 20+, Express 5, Knex (MySQL 8 in production, SQLite for development),
@@ -59,7 +61,8 @@ tools — not needed at all when you use MySQL).
 On first start the server creates `data/` with the **license signing key** and prints the
 **license public key** — put it into `document-generator/src-tauri/remote-config.json → licensePublicKey`.
 
-Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, `/forgot-password`, `/account`.
+Admin panel: `/admin/login`. Website: `/` (product page), `/buy` (checkout; `/register` leads here), `/login`,
+`/forgot-password`, `/account` (client panel).
 
 ## Architecture
 
@@ -69,8 +72,8 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
         ▼                                              │ config & in-app ads (no business data)
  ┌───────────────────────────── one Node.js process, one port ─────────────────────────────┐
  │ frontend/ (React SPA)            backend/ (Express 5)                                    │
- │  /            landing + plans     /api/portal  accounts, checkout, licenses, downloads    │
- │  /register, /login, /account      /api/admin   admin panel API                            │
+ │  /            product page        /api/portal  site, checkout, account, licenses, downloads│
+ │  /buy, /login, /account           /api/admin   admin panel API                            │
  │  /admin       admin panel         /api/app     desktop app API                            │
  │                                   /api/payments/webhook/razorpay   /api/downloads/<link>  │
  └───────────────┬───────────────────────────────┬───────────────────────────┬─────────────┘
@@ -81,19 +84,21 @@ Admin panel: `/admin/login`. Client portal: `/` (plans), `/register`, `/login`, 
 
 Customer journey, and what guarantees each step:
 
-1. **Ad click → landing page.** The first page stores the ad tags (`utm_*`, `gclid`, `fbclid`, referrer)
-   in the browser for 60 days; they are saved with the account at sign-up.
-2. **Choose a plan → create account.** The chosen plan is kept through sign-up and the (skippable)
-   business-details step, then its checkout opens directly.
-3. **Pay.** The server creates a Razorpay order for the plan price — the browser never decides the
+1. **Ad click → product page.** The first page stores the ad tags (`utm_*`, `gclid`, `fbclid`, referrer)
+   in the browser for 60 days; they are saved with the customer at checkout.
+2. **Buy now → name, mobile, email.** `POST /api/portal/checkout/start` creates the account (no password
+   yet) and the order. An email that already has an account (with a password or a purchase) must sign in.
+3. **Pay.** The server creates a Razorpay order for the product price — the browser never decides the
    amount. The payment counts only with a valid Razorpay signature (browser callback) or signed
    webhook with the full amount. Webhook and callback arriving together issue **one** license
    (row lock). Test payments are impossible unless `ENABLE_MOCK_PAYMENTS=true` outside production.
-4. **License + receipt.** The license (activation code) is created at once and emailed with the
-   download link. Renewals add time to the same license; buying a bigger plan upgrades it.
-5. **Download.** Only customers with a license see the Download button. Each link is personal
-   and expires after 30 minutes, so shared links stop working.
-6. **Activate.** The desktop app signs in with the same email/password (or the code) and gets a
+4. **Account + license + email.** After payment the customer is signed in automatically and sees the
+   license code (valid 1 year from today by default), validity and Download button. The email has the
+   code, the end date, download links (7 days) and a link to create a password (7 days).
+   Renewing from the client panel adds the product's period to the end date of the same license.
+5. **Download.** Only customers with an active license can download. Links are personal (30 minutes on
+   the website, 7 days in the email) and always serve the latest uploaded installer.
+6. **Activate.** The desktop app takes the license code (or the email + password) and gets a
    signed, device-bound license token that works offline.
 
 ## Going live (with ads)
@@ -106,12 +111,13 @@ Customer journey, and what guarantees each step:
    `payment.failed`) and its secret. Test with `rzp_test_…` keys first, then switch to `rzp_live_…`.
 3. **Email**: set `SMTP_URL` and `MAIL_FROM` (Zoho Mail, Google Workspace, SES, Brevo…) so customers
    get receipts and can reset forgotten passwords.
-4. **Installer**: Admin → App configuration → *Downloads for paying customers* → upload the
-   Windows `.exe` (from the "DocGen latest build" release). Set "Latest version".
+4. **Installer**: Admin → Downloads → upload the Windows `.exe` (from the "DocGen latest build" release).
+   Set "Latest version" in Admin → App settings.
 5. **Desktop app**: in `document-generator/src-tauri/remote-config.json` set `serverUrl`/`portalUrl`
    to your domain and `licensePublicKey` to the key printed at server start, then build the installer
    and upload it (step 4).
-6. **Plans & prices**: Admin → Plans.
+6. **Price & website**: Admin → Products & pricing (default DocGen, ₹1,250 one-time, 1-year license) and
+   Admin → Website (headline, screenshots, up to two YouTube/Vimeo videos).
 7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
@@ -165,17 +171,24 @@ Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does
 
 ## How licensing works
 
-- A **license** has a unique activation code, a plan, a status (`unused`, `active`,
-  `suspended`, `revoked`; `expired` is derived from `expires_at`), a device limit and a validity.
-  Validity starts at the first activation (`duration_days`), or at a fixed `expires_at`;
-  `duration_days = 0` without an end date = lifetime.
+- A **license** has a unique code, a product, a status (`unused`, `active`,
+  `suspended`, `revoked`; `expired` is derived from `expires_at`), a computer limit and a validity.
+  A license **bought on the website is valid from the payment date** for the product's period
+  (Admin → Products & pricing, default 365 days). Codes an admin creates without a date start at the
+  first activation (`duration_days`); `duration_days = 0` without an end date = lifetime.
+- The desktop app works only while the license is valid: on sign-in the server checks the account
+  (password, not suspended), that a paid or admin-issued license exists, its status and its end date;
+  a suspended account blocks all its licenses. The app shows the remaining days in the sidebar when
+  30 or fewer are left, checks the license weekly (and at every start near or after the end date), and
+  an expired license locks the app until it is renewed ("I have renewed — check again").
 - The desktop app signs in (`POST /api/app/login`) or activates a code (`POST /api/app/activate`)
   and receives a **signed token** (Ed25519) bound to its device ID. The app verifies it offline
-  with the public key, so it works without internet; it refreshes it on the configuration schedule.
-- Payments: `POST /api/portal/checkout` creates a pending payment; when the provider confirms
+  with the public key, so it works without internet.
+- Payments: `POST /api/portal/checkout/start` (new customer) or `/checkout` (signed in) creates a pending payment; when the provider confirms
   (portal callback or webhook `POST /api/payments/webhook/:provider`), the payment is marked
   paid and a license is issued or extended — idempotently.
-- Admins can create and activate licenses without payment, extend, suspend, revoke, release devices.
+- Admins can create licenses without payment, extend, suspend, revoke, release computers, and record a
+  refund (which revokes the license that payment bought).
 
 ### Payment providers
 
@@ -204,8 +217,8 @@ back online if a check was missed).
 | Area | Base | Auth |
 |------|------|------|
 | Desktop | `/api/app` — `public-key`, `config`, `events`, `login`, `activate`, `license/refresh`, `license/release` | device token for refresh/release |
-| Portal | `/api/portal` — `auth/register`, `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `plans`, `licenses`, `payments`, `checkout`, `downloads` | client JWT |
-| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans`, `payments`, `downloads`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
+| Portal | `/api/portal` — `site`, `checkout/start`, `checkout/confirm` (public); `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `licenses`, `payments`, `checkout`, `downloads` | client JWT |
+| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans` (products), `payments` (+ `mark-paid`, `refund`), `downloads`, `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
 | Payments | `/api/payments/webhook/:provider` | provider signature |
 | Downloads | `/api/downloads/<personal link>` | signed link, 30 minutes |
 
@@ -228,7 +241,7 @@ Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists ar
 
 ```bash
 npm test                     # API + customer-journey tests (SQLite); TEST_DATABASE_URL=mysql://… runs them on MySQL
-npm run test:portal          # browser test: ad → sign-up → Razorpay (simulated) → download → admin
+npm run test:portal          # browser test: ad → product page → checkout → Razorpay (simulated) → license, download → admin
 npm run loadtest             # seeds 10,000 clients + licenses, measures key endpoints (LOAD_CLIENTS=…)
 npm run seed:load -- 10000   # seed an existing (test!) database
 ```

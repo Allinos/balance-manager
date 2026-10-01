@@ -5,8 +5,9 @@
  *                                    │
  *                                    └──(admin)──▶ suspended / revoked
  *
- * Validity starts at the first activation (duration_days) unless an admin set
- * an explicit expiry. duration_days = 0 means lifetime.
+ * A license bought on the website is valid from the payment date (e.g. 1 year). Codes created by
+ * an admin without a date start their period at the first activation (duration_days).
+ * duration_days = 0 means lifetime. A suspended customer account blocks all its licenses.
  */
 
 import { insertOne, nowIso, updateOne } from '../db.js';
@@ -19,6 +20,12 @@ export function effectiveStatus(license, now = Date.now()) {
   if (license.status === 'suspended' || license.status === 'revoked' || license.status === 'unused') return license.status;
   if (license.expires_at && new Date(license.expires_at).getTime() < now) return 'expired';
   return 'active';
+}
+
+/** Whole days until expiry (0 on the last day), null for lifetime / not yet started. */
+export function daysLeft(license, now = Date.now()) {
+  if (!license.expires_at) return null;
+  return Math.max(0, Math.ceil((new Date(license.expires_at).getTime() - now) / DAY));
 }
 
 export function publicLicense(l) {
@@ -34,6 +41,7 @@ export function publicLicense(l) {
     maxDevices: l.max_devices,
     activatedAt: l.activated_at,
     expiresAt: l.expires_at,
+    daysLeft: daysLeft(l),
     lifetime: !l.expires_at && l.duration_days === 0,
     source: l.source,
     notes: l.notes,
@@ -139,6 +147,7 @@ export async function licenseForClient(trx, clientId, deviceId) {
 
 /** Signed token the desktop app stores and verifies offline. */
 export function licenseToken(license, client, deviceId) {
+  const status = client && client.status !== 'active' ? 'suspended' : effectiveStatus(license);
   return signLicenseToken({
     v: 1,
     lid: license.id,
@@ -149,7 +158,7 @@ export function licenseToken(license, client, deviceId) {
     plan: license.plan_code || '',
     planName: license.plan_name || '',
     code: license.code,
-    status: effectiveStatus(license),
+    status,
     activatedAt: license.activated_at,
     expiresAt: license.expires_at,
     maxDevices: license.max_devices,
@@ -186,9 +195,14 @@ export async function fulfillPayment(trx, payment) {
     if (current) license = await renewWithPlan(trx, current, plan);
   }
   if (!license) {
+    // Valid from the payment date, so the customer sees the same end date everywhere.
+    const now = nowIso();
     license = await createLicense(trx, {
       client_id: payment.client_id,
       plan_id: plan.id,
+      status: 'active',
+      activated_at: now,
+      expires_at: plan.duration_days > 0 ? new Date(Date.now() + plan.duration_days * DAY).toISOString() : null,
       duration_days: plan.duration_days,
       max_devices: plan.max_devices,
       source: 'payment',

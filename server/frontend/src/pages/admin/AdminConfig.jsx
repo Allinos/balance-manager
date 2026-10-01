@@ -1,94 +1,6 @@
 import { useEffect, useState } from 'react';
 import { adminApi, dateTime } from '../../api.js';
-import { Check, ErrorText, Field, Input, Spinner, useDialog, useLoad, useToast } from '../../components/ui.jsx';
-
-const size = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
-
-/** Installers paying customers download from their account (one per platform). */
-function Installers() {
-  const toast = useToast();
-  const dialog = useDialog();
-  const { data, loading, error, reload } = useLoad(() => adminApi.get('/downloads'), []);
-  const [busy, setBusy] = useState('');
-  if (loading) return <Spinner />;
-  if (error) return <ErrorText error={error} />;
-
-  const upload = async (platform, file) => {
-    if (!file) return;
-    const form = new FormData();
-    form.append('file', file);
-    setBusy(platform);
-    try {
-      await adminApi.post(`/downloads/${platform}`, form);
-      toast(`${file.name} uploaded. Paying customers can download it now.`);
-      reload();
-    } catch (e) {
-      toast(e.message, 'bad');
-    } finally {
-      setBusy('');
-    }
-  };
-  const remove = async (p, installer) => {
-    const ok = await dialog.confirm({
-      title: `Remove the ${p.label} installer?`,
-      message: `${installer.fileName} will no longer be offered to customers.`,
-      confirmLabel: 'Remove',
-      danger: true,
-    });
-    if (!ok) return;
-    await adminApi.del(`/downloads/${p.id}`);
-    toast('Installer removed');
-    reload();
-  };
-
-  return (
-    <div className="card">
-      <h3>Downloads for paying customers</h3>
-      <p className="muted small">
-        Customers see a Download button in their account after paying. Links are personal and expire after 30 minutes.
-        {!data.installers.length && data.externalUrl && ' Until you upload an installer, they get the "Download page" link below.'}
-      </p>
-      {data.platforms.map((p) => {
-        const installer = data.installers.find((i) => i.platform === p.id);
-        return (
-          <div key={p.id} className="installer-row">
-            <strong>{p.label}</strong>
-            <span className={installer ? '' : 'muted'}>
-              {installer ? (
-                <>
-                  {installer.fileName} <span className="muted small">· {size(installer.size)} · uploaded {dateTime(installer.uploadedAt)}</span>
-                </>
-              ) : (
-                `No installer (${p.extensions.join(', ')})`
-              )}
-            </span>
-            <span className="row">
-              <label className={`btn btn-sm ${installer ? '' : 'btn-primary'}`}>
-                {busy === p.id ? 'Uploading…' : installer ? 'Replace' : 'Upload'}
-                <input
-                  type="file"
-                  hidden
-                  accept={p.extensions.join(',')}
-                  disabled={!!busy}
-                  onChange={(e) => {
-                    upload(p.id, e.target.files[0]);
-                    e.target.value = '';
-                  }}
-                  data-testid={`upload-${p.id}`}
-                />
-              </label>
-              {installer && (
-                <button type="button" className="btn btn-sm" onClick={() => remove(p, installer)}>
-                  Remove
-                </button>
-              )}
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
+import { Check, ErrorText, Field, Input, Spinner, useLoad, useToast } from '../../components/ui.jsx';
 
 export default function AdminConfig() {
   const toast = useToast();
@@ -136,13 +48,12 @@ export default function AdminConfig() {
     <>
       <div className="page-head">
         <div>
-          <h1>App configuration</h1>
+          <h1>Desktop app settings</h1>
           <p className="muted">
             Version {data.version} · last updated {dateTime(data.updatedAt)}
           </p>
         </div>
       </div>
-      <Installers />
       <form className="form" onSubmit={save}>
         <ErrorText error={saveError} />
         <div className="card">
@@ -184,7 +95,7 @@ export default function AdminConfig() {
             <Field label="Latest version">
               <Input value={form.app.latestVersion} onChange={(v) => set('app.latestVersion', v)} />
             </Field>
-            <Field label="Download page (https)" hint="Used only when no installer is uploaded above">
+            <Field label="Download page (https)" hint="Used only when no installer is uploaded under Downloads">
               <Input value={form.app.downloadUrl} onChange={(v) => set('app.downloadUrl', v)} />
             </Field>
             <Field label="Message shown in the app (optional)">

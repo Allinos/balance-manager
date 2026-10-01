@@ -11,8 +11,8 @@ import { insertOne, nowIso, parseJson, updateOne, whereContains } from '../db.js
 import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib/http.js';
 import { limits, requireAdmin } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, normaliseCode, signSession, verifyPassword } from '../lib/security.js';
-import { audit, getAppConfig, saveAppConfig } from '../services/common.js';
-import { createLicense, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
+import { audit, getAppConfig, getSiteConfig, saveAppConfig, saveSiteConfig } from '../services/common.js';
+import { createLicense, effectiveStatus, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
 import { businessSchema, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
 import { PLATFORMS, listInstallers, removeInstaller, storeInstaller } from '../services/downloads.js';
 
@@ -31,7 +31,7 @@ const isoDate = z
   .transform((v) => (v ? new Date(v).toISOString() : null));
 
 const planSchema = z.object({
-  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_]{2,40}$/, 'use letters, numbers and _'),
+  code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_]{2,40}$/, 'use letters, numbers and _').optional(),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(500).default(''),
   price: z.coerce.number().min(0).max(10000000),
@@ -42,6 +42,17 @@ const planSchema = z.object({
   isActive: z.boolean().default(true),
   isPublic: z.boolean().default(true),
   sortOrder: z.coerce.number().int().min(0).max(1000).default(0),
+});
+
+const siteSchema = z.object({
+  headline: z.string().trim().min(3).max(120),
+  subheadline: z.string().trim().max(300).default(''),
+  screenshots: z
+    .array(z.object({ url: z.string().trim().max(500).refine((v) => v.startsWith('/') || /^https?:\/\//.test(v), 'must be an image address'), caption: z.string().trim().max(80).default('') }))
+    .max(6)
+    .default([]),
+  videos: z.array(z.object({ title: z.string().trim().max(80).default(''), url: httpsUrl.refine((v) => v !== '', 'enter the video address') })).max(2).default([]),
+  showComparison: z.boolean().default(true),
 });
 
 const adSchema = z.object({
@@ -155,18 +166,39 @@ export function adminRoutes(knex) {
   r.get('/stats', auth, async (_req, res) => {
     const count = async (table, build = (q) => q) => Number((await build(knex(table)).count({ c: '*' }))[0].c);
     const now = nowIso();
+    const monthStart = `${now.slice(0, 7)}-01T00:00:00.000Z`;
+    const in30 = new Date(Date.now() + 30 * 86400000).toISOString();
     const since = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
     const stats = await knex('usage_stats').where('day', '>=', since).select('metric').sum({ total: 'count' }).groupBy('metric');
-    const revenue = await knex('payments').where({ status: 'paid' }).sum({ total: 'amount_paise' });
+    const sum = async (build) => Number((await build(knex('payments').where({ status: 'paid' })).sum({ total: 'amount_paise' }))[0].total || 0) / 100;
+    const recent = await knex('payments')
+      .leftJoin('clients', 'clients.id', 'payments.client_id')
+      .where('payments.status', 'paid')
+      .orderBy('payments.paid_at', 'desc')
+      .limit(6)
+      .select('payments.*', 'clients.name as client_name', 'clients.email as client_email');
+    const expiring = await knex('licenses')
+      .leftJoin('clients', 'clients.id', 'licenses.client_id')
+      .where('licenses.status', 'active')
+      .whereBetween('licenses.expires_at', [now, in30])
+      .orderBy('licenses.expires_at')
+      .limit(8)
+      .select('licenses.id', 'licenses.code', 'licenses.expires_at', 'licenses.client_id', 'clients.name as client_name', 'clients.email as client_email');
     res.json({
       clients: await count('clients'),
+      customers: Number((await knex('payments').where({ status: 'paid' }).countDistinct({ c: 'client_id' }))[0].c),
       licenses: await count('licenses'),
       activeLicenses: await count('licenses', (q) => q.where({ status: 'active' }).andWhere((w) => w.whereNull('expires_at').orWhere('expires_at', '>=', now))),
+      expiringSoon: await count('licenses', (q) => q.where({ status: 'active' }).whereBetween('expires_at', [now, in30])),
       unusedCodes: await count('licenses', (q) => q.where({ status: 'unused' })),
       devices: await count('devices', (q) => q.whereNull('released_at')),
       paidPayments: await count('payments', (q) => q.where({ status: 'paid' })),
       pendingPayments: await count('payments', (q) => q.where({ status: 'pending' })),
-      revenue: Number(revenue[0].total || 0) / 100,
+      monthSales: await count('payments', (q) => q.where({ status: 'paid' }).where('paid_at', '>=', monthStart)),
+      monthRevenue: await sum((q) => q.where('paid_at', '>=', monthStart)),
+      revenue: await sum((q) => q),
+      recentSales: recent.map((p) => ({ ...publicPayment(p), client: { id: p.client_id, name: p.client_name, email: p.client_email } })),
+      expiring: expiring.map((l) => ({ id: l.id, code: l.code, expiresAt: l.expires_at, client: { id: l.client_id, name: l.client_name, email: l.client_email } })),
       last30Days: Object.fromEntries(stats.map((s) => [s.metric, Number(s.total)])),
     });
   });
@@ -210,7 +242,25 @@ export function adminRoutes(knex) {
       if (q.q) whereContains(qb, ['email', 'name', 'business_name', 'phone', 'gstin'], q.q);
       if (q.status) qb.where({ status: q.status });
     });
-    res.json({ ...result, rows: result.rows.map(publicClient) });
+    const ids = result.rows.map((c) => c.id);
+    const licenses = ids.length ? await knex('licenses').whereIn('client_id', ids).orderBy('id', 'desc') : [];
+    const paid = ids.length
+      ? await knex('payments').whereIn('client_id', ids).where({ status: 'paid' }).select('client_id').sum({ total: 'amount_paise' }).groupBy('client_id')
+      : [];
+    const paidBy = Object.fromEntries(paid.map((p) => [p.client_id, Number(p.total) / 100]));
+    res.json({
+      ...result,
+      rows: result.rows.map((c) => {
+        const mine = licenses.filter((l) => l.client_id === c.id);
+        // The license that matters most: active first, then the latest one.
+        const main = mine.find((l) => effectiveStatus(l) === 'active') || mine[0];
+        return {
+          ...publicClient(c),
+          paidTotal: paidBy[c.id] || 0,
+          license: main ? { id: main.id, code: main.code, status: effectiveStatus(main), expiresAt: main.expires_at, lifetime: !main.expires_at && main.duration_days === 0 } : null,
+        };
+      }),
+    });
   });
 
   r.post('/clients', auth, async (req, res) => {
@@ -317,7 +367,7 @@ export function adminRoutes(knex) {
   r.post('/licenses', auth, async (req, res) => {
     const body = parse(
       z.object({
-        planId: z.coerce.number().int().positive(),
+        planId: z.coerce.number().int().positive().optional(),
         clientId: z.coerce.number().int().positive().optional(),
         count: z.coerce.number().int().min(1).max(500).default(1),
         durationDays: z.coerce.number().int().min(0).max(3650).optional(),
@@ -328,8 +378,10 @@ export function adminRoutes(knex) {
       }),
       req.body,
     );
-    const plan = await knex('plans').where({ id: body.planId }).first();
-    if (!plan) throw notFound('Plan');
+    const plan = body.planId
+      ? await knex('plans').where({ id: body.planId }).first()
+      : await knex('plans').where({ is_active: true }).orderBy([{ column: 'is_public', order: 'desc' }, 'sort_order']).first();
+    if (!plan) throw notFound('Product');
     if (body.clientId && !(await knex('clients').where({ id: body.clientId }).first('id'))) throw notFound('Client');
     const created = await knex.transaction(async (trx) => {
       const out = [];
@@ -426,6 +478,13 @@ export function adminRoutes(knex) {
     res.json({ plans: (await knex('plans').orderBy('sort_order')).map(publicPlan) });
   });
 
+  /** Product code: given, or made from the name (DocGen Pro → DOCGEN_PRO), unique. */
+  const productCode = async (b, id = null) => {
+    const base = (b.code || b.name.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'PRODUCT').slice(0, 34);
+    let code = base;
+    for (let i = 2; await knex('plans').where({ code }).whereNot({ id: id ?? 0 }).first('id'); i += 1) code = `${base}_${i}`;
+    return code;
+  };
   const planRow = (b) => ({
     code: b.code,
     name: b.name,
@@ -442,6 +501,7 @@ export function adminRoutes(knex) {
 
   r.post('/plans', ownerOnly, async (req, res) => {
     const body = parse(planSchema, req.body);
+    body.code = await productCode(body);
     const ts = nowIso();
     const plan = await insertOne(knex, 'plans', { ...planRow(body), created_at: ts, updated_at: ts });
     await log(req, 'plan.create', 'plan', plan.id, { code: plan.code });
@@ -450,7 +510,10 @@ export function adminRoutes(knex) {
 
   r.put('/plans/:id', ownerOnly, async (req, res) => {
     const body = parse(planSchema, req.body);
-    const plan = await updateOne(knex, 'plans', { id: Number(req.params.id) }, { ...planRow(body), updated_at: nowIso() });
+    const current = await knex('plans').where({ id: Number(req.params.id) }).first();
+    if (!current) throw notFound('Product');
+    body.code = body.code ? await productCode(body, current.id) : current.code;
+    const plan = await updateOne(knex, 'plans', { id: current.id }, { ...planRow(body), updated_at: nowIso() });
     if (!plan) throw notFound('Plan');
     await log(req, 'plan.update', 'plan', plan.id, { code: plan.code });
     res.json({ plan: publicPlan(plan) });
@@ -485,6 +548,32 @@ export function adminRoutes(knex) {
     const { paid, license } = await markPaid(knex, payment, body.reference || `manual-${payment.id}`, { confirmedBy: req.admin.email });
     await log(req, 'payment.mark_paid', 'payment', payment.id, body);
     res.json({ payment: publicPayment(paid), license: publicLicense(license) });
+  });
+
+  /** Record a refund (made in the payment provider's dashboard) and revoke the license it bought. */
+  r.post('/payments/:id/refund', ownerOnly, async (req, res) => {
+    const body = parse(z.object({ revokeLicense: z.boolean().default(true) }), req.body);
+    const payment = await knex('payments').where({ id: Number(req.params.id) }).first();
+    if (!payment) throw notFound('Payment');
+    if (payment.status !== 'paid') throw new ApiError(409, 'NOT_PAID', 'Only paid payments can be refunded.');
+    const updated = await updateOne(knex, 'payments', { id: payment.id }, { status: 'refunded', updated_at: nowIso() });
+    let revoked = false;
+    if (body.revokeLicense && payment.license_id) {
+      // Only a license this payment created; a renewal refund leaves the earlier license alone.
+      revoked = (await knex('licenses').where({ id: payment.license_id, payment_id: payment.id }).update({ status: 'revoked', updated_at: nowIso() })) > 0;
+    }
+    await log(req, 'payment.refund', 'payment', payment.id, { revoked });
+    res.json({ payment: publicPayment(updated), licenseRevoked: revoked });
+  });
+
+  // ----------------------------------------------------------------- website
+  r.get('/site', auth, async (_req, res) => res.json({ site: await getSiteConfig(knex) }));
+
+  r.put('/site', ownerOnly, async (req, res) => {
+    const body = parse(siteSchema, req.body);
+    const site = await saveSiteConfig(knex, body, req.admin.id);
+    await log(req, 'site.update', 'config', null, {});
+    res.json({ site });
   });
 
   // ------------------------------------------------------------------ ads

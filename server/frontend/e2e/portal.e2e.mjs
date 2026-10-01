@@ -117,52 +117,67 @@ try {
   installer.append('file', new Blob([Buffer.alloc(200000, 1)]), 'DocGen_1.1.0_x64-setup.exe');
   check((await adminFetch('POST', '/downloads/windows', installer)).status === 201, 'admin uploaded the Windows installer');
 
-  console.log('Customer journey: ad → sign up → pay → download');
+  console.log('Customer journey: ad → product page → details → pay → license + download');
   await page.goto(`${base}/?utm_source=google&utm_medium=cpc&utm_campaign=gst-oct&gclid=e2e-click`);
-  await page.getByText('Most popular').waitFor();
-  check((await page.locator('.plan-card').count()) === 3, 'landing page from an ad lists 3 plans');
-  await shot('01-home');
+  await page.getByTestId('headline').waitFor();
+  check((await page.getByTestId('price-card').count()) === 1 && (await page.getByTestId('price').textContent()).includes('1,250'), 'product page: one product, ₹1,250');
+  check((await page.getByTestId('price-card').textContent()).includes('one-time payment') && (await page.getByTestId('price-card').textContent()).includes('1-year license'), 'price card: one-time payment, 1-year license');
+  check(await page.getByTestId('comparison').isVisible(), 'simple comparison table');
+  check((await page.locator('.app-frame img').count()) >= 1, 'product screenshot shown');
+  await shot('01-product');
 
-  await page.locator('.plan-card', { hasText: 'Starter' }).getByRole('button').click();
-  await page.getByLabel('Your name').fill('Meera Sharma');
-  await page.getByLabel('Email').fill('meera@example.com');
-  await page.getByLabel('Password').fill('meera-pass-123');
-  await page.getByRole('button', { name: 'Create account' }).click();
-  await page.getByText('Tell us about your business').waitFor();
-  await page.getByTestId('business-name').fill('Sharma Furniture Works');
-  await page.getByLabel('GSTIN (optional)').fill('29ABCDE1234F1Z5');
-  await page.getByLabel('State').selectOption('Karnataka');
-  await shot('02-business');
-  await page.getByTestId('save-business').click();
-  // The plan chosen on the landing page goes straight to the Razorpay checkout.
+  await page.getByTestId('hero-buy').click();
+  await page.getByTestId('checkout-form').waitFor();
+  check((await page.getByTestId('order-total').textContent()).includes('1,250'), 'checkout: order summary ₹1,250');
+  await page.getByLabel('Full name').fill('Meera Sharma');
+  await page.getByLabel('Mobile number').fill('12345');
+  await page.getByLabel('Email address').fill('meera@example.com');
+  await page.getByTestId('co-pay').click();
+  await page.getByText('must be a valid mobile number').waitFor();
+  check(true, 'invalid mobile number is explained next to the field');
+  await page.getByLabel('Mobile number').fill('98765 43210');
+  await shot('02-checkout');
+  await page.getByTestId('co-pay').click();
   await page.getByTestId('rzp-window').waitFor();
   const rzp = await page.evaluate(() => window.__rzpOptions);
-  check(rzp.key === 'rzp_e2e_key' && rzp.amount === 99900 && rzp.order_id === rzpOrders.at(-1).id && rzp.prefill.email === 'meera@example.com',
-    'plan chosen on the landing page opens Razorpay checkout after sign-up (₹999, order from the server, email prefilled)');
+  check(rzp.key === 'rzp_e2e_key' && rzp.amount === 125000 && rzp.order_id === rzpOrders.at(-1).id && rzp.prefill.email === 'meera@example.com',
+    'name, mobile, email → straight to Razorpay (₹1,250, order from the server, email prefilled)');
   await shot('02b-razorpay');
   await page.getByTestId('rzp-pay').click();
+  await page.getByTestId('purchase-success').waitFor();
   const code = (await page.getByTestId('new-code').textContent()).trim();
-  check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code), `payment issued activation code ${code}`);
+  check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code), `payment → account created and license code ${code} shown`);
+  check(/\(365 days\)/.test(await page.getByTestId('valid-until').textContent()), 'license valid for 1 year from today');
   await page.getByTestId('download-windows').waitFor();
   await shot('03-paid');
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-windows').click()]);
   check(download.suggestedFilename() === 'DocGen_1.1.0_x64-setup.exe', 'installer downloads right after payment');
-  await page.getByRole('link', { name: 'Go to my account' }).click();
-  await page.getByTestId('license-card').first().waitFor();
-  check((await page.getByTestId('license-card').first().textContent()).includes(code), 'license visible on overview');
-  check(await page.getByTestId('download-card').isVisible(), 'download card on the account overview');
-  await shot('04-overview');
+  check(await page.locator('.site-header').getByRole('link', { name: 'My account', exact: true }).isVisible(), 'customer is signed in automatically');
 
-  // Desktop login (API) with the new account activates the license.
+  await page.getByTestId('go-account').click();
+  await page.getByTestId('license-card').waitFor();
+  check((await page.getByTestId('license-code').textContent()).trim() === code, 'client panel: license code');
+  check((await page.getByTestId('days-left').textContent()).includes('365 days left'), 'client panel: remaining validity');
+  await page.getByTestId('download-card').waitFor();
+  await page.getByTestId('purchases').waitFor();
+  check((await page.getByTestId('purchases').textContent()).includes('1,250'), 'client panel: download and purchase');
+  await page.getByTestId('new-password').fill('meera-pass-123');
+  await page.getByRole('button', { name: 'Save password' }).click();
+  await page.getByText('Password saved').waitFor();
+  check(!(await page.getByTestId('set-password').isVisible()), 'customer creates a password from the panel');
+  await shot('04-account');
+
+  // Desktop sign-in with the account activates the license.
   const res = await fetch(`${base}/api/app/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: 'meera@example.com', password: 'meera-pass-123', deviceId: 'e2e-device-00000001', deviceName: 'Front desk PC', platform: 'windows', appVersion: '1.0.0' }),
   });
-  check(res.status === 200, 'desktop app can sign in with the portal account');
+  const appLogin = await res.json();
+  check(res.status === 200 && appLogin.license.daysLeft === 365, 'desktop app signs in with the account: license active, 365 days');
   await page.reload();
   await page.getByText('Front desk PC').waitFor();
-  check(true, 'activated computer listed in portal');
+  check(true, 'activated computer listed in the client panel');
   await page.getByRole('button', { name: 'Remove' }).click();
   await page.getByTestId('dialog').waitFor();
   check((await page.getByTestId('dialog').textContent()).includes('Front desk PC'), 'removing a computer asks in an in-app dialog');
@@ -170,36 +185,92 @@ try {
   await page.getByText('Computer removed').waitFor();
   check(!(await page.getByText('Front desk PC').isVisible()), 'computer removed after confirming');
 
-  // A second purchase by bank transfer, confirmed later by the admin.
-  await page.getByRole('link', { name: 'Plans & Renewal' }).click();
-  await page.locator('label.radio', { hasText: 'Bank transfer' }).locator('input').check();
-  await page.locator('.plan-card', { hasText: 'Business' }).getByRole('button').click();
-  await page.getByRole('button', { name: 'I have paid' }).click();
-  await page.getByText('as soon as the payment is confirmed').waitFor();
-  check(true, 'bank transfer order waits for confirmation');
+  // Renew from the client panel: one more year on top of the current end date.
+  await page.getByTestId('renew').click();
+  await page.getByTestId('rzp-window').waitFor();
+  check((await page.evaluate(() => window.__rzpOptions.amount)) === 125000, 'renewal opens Razorpay for ₹1,250');
+  await page.getByTestId('rzp-pay').click();
+  await page.getByText('your license is now valid until').waitFor();
+  await page.getByText('730 days left').waitFor();
+  check(true, 'renewal adds a year (730 days left)');
+
+  // Someone else at the same desk starts buying but closes the payment window.
+  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.goto(`${base}/buy`);
+  await page.getByLabel('Full name').fill('Meera Sharma');
+  await page.getByLabel('Mobile number').fill('9876543210');
+  await page.getByLabel('Email address').fill('meera@example.com');
+  await page.getByTestId('co-pay').click();
+  await page.getByTestId('signin-instead').waitFor();
+  check(true, 'an email that already has an account is asked to sign in');
+  await page.getByLabel('Email address').fill('lead@example.com');
+  await page.getByTestId('co-pay').click();
+  await page.getByTestId('rzp-close').click();
+  await page.getByText('Payment not completed').waitFor();
+  check(true, 'closing the payment window keeps the visitor on the checkout');
 
   // Forgotten password (no SMTP in this test → the page explains how to get help).
-  await page.getByRole('button', { name: 'Sign out' }).click();
-  await page.getByRole('link', { name: 'Forgot your password?' }).click();
+  await page.goto(`${base}/login`);
+  await page.getByLabel('Email').fill('lead@example.com');
+  await page.getByLabel('Password').fill('anything-123');
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await page.getByRole('link', { name: 'Email me a link to create a password' }).click();
   await page.getByRole('heading', { name: 'Forgot your password?' }).waitFor();
   await page.getByLabel('Email').fill('meera@example.com');
   await page.getByRole('button', { name: 'Send reset link' }).click();
   await page.getByText('reset your password').first().waitFor();
-  check(true, 'forgot password page answers');
+  check(true, 'account without a password is pointed to the password link; forgot password page answers');
 
   console.log('Admin panel');
   await page.goto(`${base}/admin/login`);
   await page.getByLabel('Email').fill('owner@docgen.test');
   await page.getByLabel('Password').fill('owner-password-1');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.getByText('Active licenses').waitFor();
+  await page.getByTestId('stats').waitFor();
+  check(/Sales in .*₹2,500/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹2,500');
+  check((await page.getByTestId('recent-sales').textContent()).includes('meera@example.com'), 'dashboard: recent sales');
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
   await campaign.waitFor();
-  check(/google.*gst-oct.*1.*1.*100%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-up and sale attributed to the Google ad campaign');
+  check(/google.*gst-oct.*2.*1.*50%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-ups and sale attributed to the Google ad campaign');
   await shot('05-admin-dashboard');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Clients', exact: true }).click();
-  await page.getByRole('button', { name: 'New client' }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'Products & pricing' }).click();
+  await page.getByTestId('edit-product-DOCGEN').click();
+  await page.getByTestId('product-price').fill('1500');
+  await page.getByTestId('product-period').selectOption('730');
+  await page.waitForTimeout(300);
+  await shot('08-products');
+  await page.getByTestId('save-product').click();
+  await page.getByText('Product saved').waitFor();
+  const site = await (await fetch(`${base}/api/portal/site`)).json();
+  check(site.products[0].price === 1500 && site.products[0].durationDays === 730, 'admin changes the price (₹1,500) and validity (2 years) without code changes');
+  check((await page.getByTestId('products').textContent()).includes('₹1,500'), 'products table shows the new price');
+
+  await page.locator('.admin-side').getByRole('link', { name: 'Website' }).click();
+  await page.getByTestId('site-headline').fill('Invoices your customers trust');
+  await page.getByTestId('add-video').click();
+  await page.getByTestId('video-url-0').fill('https://www.youtube.com/watch?v=abcdefghijk');
+  await page.getByTestId('upload-screenshot').setInputFiles(path.join(here, '../public/logo.png'));
+  await page.locator('.thumb').nth(3).waitFor();
+  await page.getByTestId('save-site').click();
+  await page.getByText('Website updated').waitFor();
+  await shot('09-website');
+  const page2 = await context.newPage();
+  await page2.goto(base);
+  await page2.getByTestId('videos').waitFor();
+  check((await page2.getByTestId('headline').textContent()) === 'Invoices your customers trust', 'website headline changed by the admin');
+  check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
+  check((await page2.getByTestId('price').textContent()).includes('1,500') && (await page2.getByTestId('price-card').textContent()).includes('2-year license'), 'website shows the new price at once');
+  await page2.close();
+
+  await page.locator('.admin-side').getByRole('link', { name: 'Customers' }).click();
+  const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });
+  await meera.waitFor();
+  const meeraRow = (await meera.textContent()).replace(/\s+/g, ' ');
+  check(meeraRow.includes(code) && meeraRow.includes('₹2,500') && meeraRow.includes('google / cpc · gst-oct'), 'customers: license, amount paid and ad source per customer');
+  check((await page.locator('tr', { hasText: 'lead@example.com' }).textContent()).includes('Not bought'), 'customers: unfinished checkout listed as not bought');
+  await shot('10-customers');
+  await page.getByRole('button', { name: 'Add customer' }).click();
   const modal = page.locator('.modal');
   await modal.getByLabel('Contact name').fill('Ravi Kumar');
   await modal.getByLabel('Email').fill('ravi@example.com');
@@ -207,14 +278,14 @@ try {
   await modal.getByRole('button', { name: 'Save' }).click();
   await page.getByTestId('dialog').waitFor();
   const pwDialog = page.locator('.modal', { has: page.getByTestId('dialog') });
-  check(/Client created/.test(await pwDialog.textContent()) && (await pwDialog.locator('.code').textContent()).length >= 8, 'temporary password shown in an in-app dialog');
+  check(/Customer added/.test(await pwDialog.textContent()) && (await pwDialog.locator('.code').textContent()).length >= 8, 'temporary password shown in an in-app dialog');
   await page.getByTestId('dialog-ok').click();
   await page.getByRole('heading', { name: 'Ravi Constructions' }).waitFor();
-  check(true, 'admin created client manually');
+  check(true, 'admin added a customer manually');
   await page.getByTestId('client-new-license').click();
   await page.getByTestId('create-license').click();
   const created = await page.getByTestId('created-codes').inputValue();
-  check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(created.trim()), 'admin activated a license without payment');
+  check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(created.trim()), 'admin gave a license without payment');
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Manage' }).click();
   await page.getByTestId('extend-license').click();
@@ -223,18 +294,18 @@ try {
   await shot('06-admin-license');
   await page.keyboard.press('Escape');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Licenses & Codes', exact: true }).click();
-  await page.getByRole('button', { name: 'Create licenses / codes' }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'Licenses' }).click();
+  await page.getByRole('button', { name: 'Create license codes' }).click();
   await page.locator('.modal').getByLabel('How many codes').fill('5');
   await page.getByTestId('create-license').click();
   const batch = (await page.getByTestId('created-codes').inputValue()).trim().split('\n');
-  check(batch.length === 5, 'bulk generated 5 activation codes');
+  check(batch.length === 5, 'bulk generated 5 license codes');
   await page.getByRole('button', { name: 'Done' }).click();
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Ads', exact: true }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'In-app ads' }).click();
   await page.getByTestId('new-ad').click();
   await page.getByTestId('ad-title').fill('Diwali offer: 20% off');
-  await page.locator('.modal').getByLabel('Description').fill('Upgrade to Business before 31 Oct.');
+  await page.locator('.modal').getByLabel('Description').fill('Renew before 31 Oct.');
   await page.locator('.modal').getByLabel('Link (opens in browser)').fill('https://reynrel.in/offer');
   await page.locator('.modal').getByLabel('HTML content (optional)').fill('<p style="color:#2f5bea">Limited time</p>');
   await shot('07-ad-editor');
@@ -242,13 +313,15 @@ try {
   await page.getByText('Diwali offer: 20% off').waitFor();
   check(true, 'ad created');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'App configuration', exact: true }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'Downloads' }).click();
   await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_x64-setup.exe' }).waitFor();
   const dmg = path.join(dataDir, 'DocGen_1.1.0_universal.dmg');
   fs.writeFileSync(dmg, Buffer.alloc(1000, 2));
   await page.getByTestId('upload-macos').setInputFiles(dmg);
   await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_universal.dmg' }).waitFor();
   check(true, 'admin sees the Windows installer and uploads the macOS one');
+
+  await page.locator('.admin-side').getByRole('link', { name: 'App settings' }).click();
   await page.getByTestId('config-interval').fill('15');
   await page.getByRole('button', { name: 'Add video' }).click();
   const rows = page.locator('table tbody tr');
@@ -258,24 +331,23 @@ try {
   await page.getByText('Configuration saved').waitFor();
   const cfg = await (await fetch(`${base}/api/app/config`)).json();
   check(cfg.configIntervalDays === 15 && cfg.ads.length === 1 && cfg.help.videos.length === 1, 'app config endpoint reflects admin changes');
-  await shot('08-config');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Payments', exact: true }).click();
-  await page.getByText('meera@example.com').first().waitFor();
-  check(true, 'payments list shows client payment');
-  await page.getByRole('button', { name: 'Mark paid' }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'Payments' }).click();
+  const leadRow = page.locator('tr', { hasText: 'lead@example.com' });
+  await leadRow.waitFor();
+  await leadRow.getByRole('button', { name: 'Mark paid' }).click();
   await page.getByTestId('dialog-input').fill('UTR998877');
   await page.getByTestId('dialog-ok').click();
   await page.getByText(/Payment confirmed\. License .* issued/).waitFor();
-  check(true, 'admin confirms the bank transfer in an in-app dialog; license issued');
+  check(true, 'admin confirms a bank transfer for an unfinished checkout; license issued');
+  await page.locator('tr', { hasText: 'lead@example.com' }).getByRole('button', { name: 'Refund' }).click();
+  await page.getByTestId('dialog-ok').click();
+  await page.getByText('Refund recorded; license cancelled.').waitFor();
+  check(true, 'admin records a refund; the license is cancelled');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Clients', exact: true }).click();
-  const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });
-  await meera.waitFor();
-  check((await meera.textContent()).includes('google / cpc · gst-oct'), 'clients list shows which ad each client came from');
-  await page.locator('.admin-side').getByRole('link', { name: 'Audit log', exact: true }).click();
+  await page.locator('.admin-side').getByRole('link', { name: 'Activity log' }).click();
   await page.getByText('license.extend').first().waitFor();
-  check(true, 'audit log shows admin actions');
+  check(true, 'activity log shows admin actions');
 
   check(nativeDialogs === 0, 'no browser alert/confirm/prompt boxes were used');
   console.log(`\nAll ${passed} portal checks passed.`);

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { clientApi } from '../../api.js';
-import { getAttribution } from '../../attribution.js';
 import { ErrorText, Field, Input } from '../../components/ui.jsx';
 import { useAuth } from '../../App.jsx';
 
@@ -46,9 +45,14 @@ export function LoginPage() {
     }
   };
   return (
-    <AuthCard title="Sign in" subtitle="Use the same email and password in the DocGen desktop app.">
+    <AuthCard title="Sign in to your account" subtitle="See your license, download DocGen and renew.">
       <form onSubmit={submit} className="form">
         <ErrorText error={error} />
+        {error?.code === 'NO_PASSWORD' && (
+          <Link className="btn btn-block" to="/forgot-password">
+            Email me a link to create a password
+          </Link>
+        )}
         <Field label="Email">
           <Input type="email" value={form.email} onChange={(v) => setForm({ ...form, email: v })} autoFocus required />
         </Field>
@@ -63,56 +67,7 @@ export function LoginPage() {
         </p>
       </form>
       <p className="muted center">
-        New to DocGen? <Link to="/register">Create an account</Link>
-      </p>
-    </AuthCard>
-  );
-}
-
-export function RegisterPage() {
-  const { client } = useAuth();
-  const navigate = useNavigate();
-  const [params] = useSearchParams();
-  const [form, setForm] = useState({ name: '', email: '', phone: '', password: '' });
-  const [error, setError] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const set = (k) => (v) => setForm({ ...form, [k]: v });
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const r = await clientApi.post('/auth/register', { ...form, attribution: getAttribution() });
-      client.signIn(r.token, r.client);
-      navigate(`/account/business?welcome=1${params.get('plan') ? `&plan=${params.get('plan')}` : ''}`);
-    } catch (err) {
-      setError(err);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <AuthCard title="Create your account" subtitle="After signing up you can choose a plan and activate the desktop app.">
-      <form onSubmit={submit} className="form">
-        <ErrorText error={error} />
-        <Field label="Your name">
-          <Input value={form.name} onChange={set('name')} autoFocus required minLength={2} />
-        </Field>
-        <Field label="Email">
-          <Input type="email" value={form.email} onChange={set('email')} required />
-        </Field>
-        <Field label="Mobile (optional)">
-          <Input value={form.phone} onChange={set('phone')} />
-        </Field>
-        <Field label="Password" hint="At least 8 characters">
-          <Input type="password" value={form.password} onChange={set('password')} required minLength={8} />
-        </Field>
-        <button className="btn btn-primary btn-block" disabled={busy}>
-          {busy ? 'Creating account…' : 'Create account'}
-        </button>
-      </form>
-      <p className="muted center">
-        Already registered? <Link to="/login">Sign in</Link>
+        New to DocGen? <Link to="/buy">Buy DocGen</Link>
       </p>
     </AuthCard>
   );
@@ -154,7 +109,7 @@ export function ForgotPasswordPage() {
     );
   }
   return (
-    <AuthCard title="Forgot your password?" subtitle="Enter your account email and we will send you a link to choose a new one.">
+    <AuthCard title="Forgot your password?" subtitle="Enter the email you used when buying DocGen. We will send you a link to choose a password.">
       <form onSubmit={submit} className="form">
         <ErrorText error={error} />
         <Field label="Email">
@@ -193,7 +148,10 @@ export function ResetPasswordPage() {
     }
   };
   return (
-    <AuthCard title="Choose a new password" subtitle="Use it on this website and in the DocGen desktop app.">
+    <AuthCard
+      title={params.get('setup') ? 'Create your password' : 'Choose a new password'}
+      subtitle="Use it to sign in on this website and in the DocGen app."
+    >
       <form onSubmit={submit} className="form">
         <ErrorText error={error} />
         <Field label="New password" hint="At least 8 characters">

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { adminApi, money } from '../../api.js';
+import { adminApi, date, dateTime, money } from '../../api.js';
 import { Empty, ErrorText, Spinner, useLoad } from '../../components/ui.jsx';
 
 /** Sign-ups, paying customers and revenue per ad source / campaign. */
@@ -11,7 +11,7 @@ function Acquisition() {
     <>
       <div className="page-head">
         <div>
-          <h2 className="section-title">Where customers come from</h2>
+          <h2 className="section-title">Where customers come from (ads)</h2>
           <p className="muted small">
             Tag ad links with <span className="mono">?utm_source=google&amp;utm_medium=cpc&amp;utm_campaign=your-campaign</span>. Google and Facebook ad clicks are recognised even without tags.
           </p>
@@ -69,37 +69,100 @@ export default function AdminDashboard() {
   const downloads = Object.entries(data.last30Days)
     .filter(([k]) => k.startsWith('download:'))
     .reduce((sum, [, v]) => sum + v, 0);
+  const month = new Date().toLocaleDateString('en-IN', { month: 'long' });
   const cards = [
-    ['Clients', data.clients, '/admin/clients'],
-    ['Active licenses', data.activeLicenses, '/admin/licenses?status=active'],
-    ['Unused codes', data.unusedCodes, '/admin/licenses?status=unused'],
-    ['Active computers', data.devices, '/admin/licenses'],
-    ['Paid payments', data.paidPayments, '/admin/payments?status=paid'],
-    ['Pending payments', data.pendingPayments, '/admin/payments?status=pending'],
-    ['Revenue', money(data.revenue), '/admin/payments?status=paid'],
-    ['Downloads (30 days)', downloads, '/admin/config'],
-    ['Config checks (30 days)', data.last30Days.config_check || 0, '/admin/config'],
+    [`Sales in ${month}`, money(data.monthRevenue), `${data.monthSales} ${data.monthSales === 1 ? 'sale' : 'sales'}`, '/admin/payments?status=paid'],
+    ['Total revenue', money(data.revenue), `${data.paidPayments} paid orders`, '/admin/payments?status=paid'],
+    ['Customers', data.customers, `${data.clients} accounts in total`, '/admin/clients'],
+    ['Active licenses', data.activeLicenses, `${data.expiringSoon} ending in 30 days`, '/admin/licenses?status=active'],
   ];
   return (
     <>
       <div className="page-head">
-        <h1>Dashboard</h1>
+        <div>
+          <h1>Dashboard</h1>
+          <p className="muted">Sales and licenses at a glance.</p>
+        </div>
         <div className="row">
-          <Link className="btn" to="/admin/clients?new=1">
-            New client
+          <Link className="btn" to="/admin/products">
+            Edit price
           </Link>
           <Link className="btn btn-primary" to="/admin/licenses?new=1">
-            Create license / codes
+            Create license
           </Link>
         </div>
       </div>
-      <div className="stat-grid">
-        {cards.map(([label, value, to]) => (
+      <div className="stat-grid" data-testid="stats">
+        {cards.map(([label, value, sub, to]) => (
           <Link key={label} to={to} className="stat">
+            <span className="stat-label">{label}</span>
             <span className="stat-value">{value}</span>
-            <span className="muted">{label}</span>
+            <span className="stat-sub">{sub}</span>
           </Link>
         ))}
+      </div>
+      <div className="dash-grid">
+        <section className="card table-card">
+          <div className="card-head" style={{ padding: '16px 20px 0' }}>
+            <h3>Recent sales</h3>
+            <Link to="/admin/payments?status=paid" className="small">
+              All payments
+            </Link>
+          </div>
+          {!data.recentSales.length ? (
+            <p className="muted" style={{ padding: '8px 20px 18px' }}>
+              No sales yet.
+            </p>
+          ) : (
+            <table className="table" data-testid="recent-sales">
+              <thead>
+                <tr>
+                  <th>Customer</th>
+                  <th>Date</th>
+                  <th className="right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentSales.map((p) => (
+                  <tr key={p.id}>
+                    <td>
+                      <Link to={`/admin/clients/${p.client.id}`}>{p.client.name}</Link>
+                      <div className="muted small">{p.client.email}</div>
+                    </td>
+                    <td>{dateTime(p.paidAt)}</td>
+                    <td className="right">{money(p.amount, p.currency)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+        <section className="card">
+          <div className="card-head">
+            <h3>Licenses ending soon</h3>
+            <Link to="/admin/licenses?status=active" className="small">
+              All licenses
+            </Link>
+          </div>
+          {!data.expiring.length ? (
+            <p className="muted">No license ends in the next 30 days.</p>
+          ) : (
+            <ul className="list">
+              {data.expiring.map((l) => (
+                <li key={l.id}>
+                  <span>
+                    {l.client.id ? <Link to={`/admin/clients/${l.client.id}`}>{l.client.name}</Link> : <span className="mono">{l.code}</span>}
+                    <div className="muted small">{l.client.email || l.code}</div>
+                  </span>
+                  <span className="small">{date(l.expiresAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="muted small" style={{ marginTop: 12 }}>
+            {data.devices} computers activated · {downloads} downloads in 30 days · {data.pendingPayments} unfinished checkouts
+          </div>
+        </section>
       </div>
       <Acquisition />
     </>

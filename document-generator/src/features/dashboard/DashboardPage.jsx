@@ -34,6 +34,17 @@ const PLURAL = {
 const MAX_CARDS = 12; // two rows of up to six
 const DEFAULT_CARDS = 8; // two rows of four
 
+/**
+ * Grid columns for n cards, so a few cards never stretch across the whole page:
+ * 1 card → a third of the width, 2 → a quarter each, 3–5 → one row, more → two rows.
+ */
+export function cardColumns(n) {
+  if (n <= 1) return 3;
+  if (n === 2) return 4;
+  if (n <= 5) return n;
+  return Math.ceil(n / 2);
+}
+
 /** Document types shown on the Dashboard (Customize), in registry order. */
 export function dashboardTypes(settings) {
   const known = new Set(DOCUMENT_TYPES.map((t) => t.id));
@@ -57,7 +68,7 @@ function CustomizeModal({ selected, onClose, onSave }) {
           <span className="muted small">
             {ids.length} of {MAX_CARDS} cards
           </span>
-          <button className="btn btn-primary" disabled={ids.length < 2} onClick={() => onSave(DOCUMENT_TYPES.map((t) => t.id).filter((id) => ids.includes(id)))} data-testid="customize-save">
+          <button className="btn btn-primary" disabled={ids.length < 1} onClick={() => onSave(DOCUMENT_TYPES.map((t) => t.id).filter((id) => ids.includes(id)))} data-testid="customize-save">
             Save
           </button>
         </>
@@ -128,8 +139,15 @@ export default function DashboardPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Dashboard" />
-      <div className="type-cards" style={{ '--cols': Math.max(1, Math.ceil(types.length / 2)) }} data-testid="type-cards">
+      <PageHeader
+        title="Dashboard"
+        actions={
+          <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
+            <Icon name="sliders" size={15} /> Customize
+          </button>
+        }
+      />
+      <div className="type-cards" style={{ '--cols': cardColumns(types.length) }} data-testid="type-cards">
         {types.map((t) => (
           <div key={t.id} className="type-count-card" data-testid={`card-${t.id}`}>
             <button className="type-count-main" onClick={() => navigate(`/manager?q=${encodeURIComponent(t.short)}`)} title={`Show ${PLURAL[t.id] || t.label}`}>
@@ -156,11 +174,6 @@ export default function DashboardPage() {
         <RecentDocuments rows={stats.recent} />
       </section>
 
-      <div className="dashboard-foot">
-        <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
-          <Icon name="sliders" size={15} /> Customize
-        </button>
-      </div>
       {customize && (
         <CustomizeModal
           selected={types.map((t) => t.id)}

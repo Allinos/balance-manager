@@ -2725,6 +2725,9 @@ div.folder-item {
 .activation-modal > p {
   margin: 0;
 }
+.activation-renew {
+  justify-content: center;
+}
 .activation-note {
   text-align: center;
   border-top: 1px solid var(--border);
@@ -2751,6 +2754,12 @@ div.folder-item {
   font-weight: 600;
   color: var(--success);
   white-space: nowrap;
+}
+.license-ending .trial-line-bar span {
+  background: var(--warning, #d97706);
+}
+.license-ending .trial-line-days {
+  color: var(--warning, #d97706);
 }
 .sidebar-collapsed .trial-line {
   padding: 2px 0;
@@ -2779,7 +2788,7 @@ div.folder-item {
 /* ------------------------------ Dashboard ------------------------------ */
 .type-cards {
   display: grid;
-  /* exactly two rows: columns = half the number of cards */
+  /* columns from cardColumns(): few cards keep a sensible width, many cards make two rows */
   grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr));
   gap: 12px;
 }
@@ -2849,10 +2858,6 @@ div.folder-item {
   color: #fff;
   box-shadow: 0 2px 8px rgba(31, 79, 216, 0.3);
   outline: none;
-}
-.dashboard-foot {
-  display: flex;
-  justify-content: center;
 }
 .customize-list {
   list-style: none;
