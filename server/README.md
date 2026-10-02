@@ -111,7 +111,8 @@ Customer journey, and what guarantees each step:
    `payment.failed`) and its secret. Test with `rzp_test_…` keys first, then switch to `rzp_live_…`.
 3. **Email**: set `SMTP_URL` and `MAIL_FROM` (Zoho Mail, Google Workspace, SES, Brevo…) so customers
    get receipts and can reset forgotten passwords.
-4. **Installer**: Admin → Downloads → upload the Windows `.exe` (from the "DocGen latest build" release).
+4. **Installer**: Admin → Downloads → upload the Windows `.exe` and the macOS `.dmg` (both from the
+   "DocGen latest build" release); customers get the one for their computer first.
    Set "Latest version" in Admin → App settings.
 5. **Desktop app**: in `document-generator/src-tauri/remote-config.json` set `serverUrl`/`portalUrl`
    to your domain and `licensePublicKey` to the key printed at server start, then build the installer

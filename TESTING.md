@@ -12,7 +12,7 @@ Last full run: **1 October 2026** (after the product page, one-step checkout, cl
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **47 / 47 passed** |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **47 / 47 passed** (two consecutive runs) |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
-| Windows installer build (GitHub Actions) | `docgen-windows.yml` | build + unit tests passed (Windows-only PDF code compiles) |
+| Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
 
 Test machine: Linux container, 4 vCPU, 15 GB RAM, Node 22, WebKitGTK (the Linux webview).
 Numbers on a normal office PC are similar or better; the server figures are for a single

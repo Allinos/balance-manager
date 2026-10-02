@@ -208,15 +208,27 @@ pick it up automatically. Unknown types from older data still open with safe def
 npm run app:build      # optimized build + installers for the current OS
 ```
 
-### Windows installer
+### Windows and macOS installers
 
-Without installing Visual Studio: push to the repository and let **GitHub Actions** build it
-(`.github/workflows/docgen-windows.yml`, uses only shell commands). Download the `.exe`/`.msi`
-from the *"DocGen latest build"* pre-release, or push a tag `docgen-v1.1.0` for a versioned
-release. Manual runs: Actions → *DocGen Windows build* → *Run workflow*.
+Without installing Visual Studio or Xcode: push to the repository and let **GitHub Actions** build
+both (`.github/workflows/docgen-build.yml`, uses only shell commands). Download from the
+*"DocGen latest build"* pre-release:
+
+- **Windows**: `DocGen_<version>_x64-setup.exe` (or the `.msi`).
+- **macOS**: `DocGen_<version>_universal.dmg` — one file for Apple Silicon and Intel Macs, macOS 10.15+.
+  Open it and drag DocGen into Applications. Without an Apple Developer certificate the app is
+  ad-hoc signed, so the first time macOS asks you to confirm: right-click DocGen → **Open** → **Open**
+  (or System Settings → Privacy & Security → **Open Anyway**). To ship a signed and notarized app,
+  add the `APPLE_*` repository secrets listed at the top of the workflow file.
+
+Push a tag `docgen-v1.1.0` for a versioned release. Manual runs: Actions → *DocGen build* → *Run workflow*.
 
 Locally on Windows: `npm install && npm run app:build` →
 `src-tauri\target\release\bundle\nsis\DocGen_<version>_x64-setup.exe` and `…\msi\…msi`.
+Locally on a Mac (Xcode command line tools + Rust): `rustup target add x86_64-apple-darwin aarch64-apple-darwin`
+then `npx tauri build --target universal-apple-darwin --bundles app,dmg`.
+
+On macOS the **Download PDF** button opens the print dialog; choose **Save as PDF** there.
 
 ## Tests
 

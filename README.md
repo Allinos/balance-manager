@@ -34,8 +34,9 @@ DOCGEN_LICENSE_PUBLIC_KEY=<key from step 1> npm run app:dev
 
 Without a server the desktop app runs as a fully offline build (30 days + built-in messages only).
 
-Windows installers are built by GitHub Actions (`.github/workflows/docgen-windows.yml`) and
-published on the *DocGen latest build* release — no local Visual Studio needed.
+Windows (`.exe`, `.msi`) and macOS (`.dmg`, Apple Silicon + Intel) installers are built by GitHub Actions
+(`.github/workflows/docgen-build.yml`) and published on the *DocGen latest build* release — no local
+Visual Studio or Xcode needed.
 
 ## Documentation
 
