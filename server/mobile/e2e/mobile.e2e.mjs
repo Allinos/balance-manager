@@ -5,8 +5,8 @@
  *   cd server && npm run build && npm run test:mobile
  *
  * Covers the desktop features on the phone: setup, documents of every kind in the 4 templates, numbering, statuses,
- * convert / duplicate / cancel / delete / restore, files, sales CSV, products & categories, settings, backup, sample
- * data, licensing (phone limit, expiry, removed phone) and data from the first mobile version.
+ * convert / duplicate / cancel / delete / restore, sales CSV, products & categories, settings, backup,
+ * licensing (phone limit, expiry, removed phone) and data from the first mobile version.
  * Also saves the phone screenshots used on the website (frontend/public/screenshots/mobile-*.png).
  */
 
@@ -323,35 +323,7 @@ try {
   check(true, 'delete → Deleted → restore');
   await a.page.getByTestId('show-deleted').click();
 
-  console.log('Files');
-  await a.page.getByTestId('manager-tab-files').click();
-  const pdf = path.join(dataDir, 'Supplier Bill 118.pdf');
-  fs.writeFileSync(pdf, '%PDF-1.4\n% DocGen e2e\n');
-  const [chooser] = await Promise.all([a.page.waitForEvent('filechooser'), a.page.getByTestId('add-file').first().click()]);
-  await chooser.setFiles(pdf);
-  await a.page.getByTestId('files-list').getByText('Supplier Bill 118').waitFor();
-  check(true, 'external document (PDF) added from the phone');
-  const fileMore = a.page.getByTestId('files-list').locator('[data-testid^=file-more-]').first();
-  await fileMore.click();
-  await a.page.getByTestId('file-rename').click();
-  await a.page.getByTestId('rename-input').fill('Teak supplier bill');
-  await a.page.getByTestId('rename-save').click();
-  await a.page.getByTestId('files-list').getByText('Teak supplier bill').waitFor();
-  check(true, 'file renamed');
-  await fileMore.click();
-  const [fileDownload] = await Promise.all([a.page.waitForEvent('download'), a.page.getByTestId('file-export').click()]);
-  check(fileDownload.suggestedFilename() === 'Teak supplier bill.pdf', 'file saved to the phone (Downloads)');
-  await fileMore.click();
-  await a.page.getByTestId('file-delete').click();
-  await a.page.getByTestId('confirm-ok').click();
-  await a.page.getByText('No files yet').waitFor();
-  await a.page.getByTestId('show-deleted').click();
-  await a.page.getByTestId('files-list').locator('[data-testid^=file-more-]').first().click();
-  await a.page.getByTestId('file-restore').click();
-  await a.page.getByText('Restored').waitFor();
-  check(true, 'file deleted and restored');
-  await a.page.getByTestId('show-deleted').click();
-  await a.page.getByTestId('manager-tab-documents').click();
+  check(!(await a.page.getByText('Files', { exact: true }).count()) && !(await a.page.getByTestId('add-external').count()), 'no uploaded-files section on the phone');
 
   console.log('Sales data download');
   await a.page.getByTestId('sales-download').click();
@@ -387,6 +359,7 @@ try {
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();
   await shot(a.page, '07a-settings');
+  for (const removed of ['units', 'general', 'currency']) check(!(await a.page.getByTestId(`settings-${removed}`).count()), `no ${removed} settings on the phone`);
   await a.page.getByTestId('settings-documents').click();
   await a.page.getByTestId('settings-template-modern').click();
   await a.page.getByTestId('sample-preview').locator('.doc-modern').waitFor();
@@ -402,13 +375,6 @@ try {
   await a.page.getByText('Invoice numbering saved').waitFor();
   check(/^INV\/\d{4}-\d{2}\/0003$/.test(await a.page.getByTestId('seq-preview-TAX_INVOICE').textContent()), 'numbering format INV/2026-27/0003');
   await a.page.getByTestId('back').click();
-  await a.page.getByTestId('settings-units').click();
-  await a.page.getByTestId('unit-new').fill('Crate');
-  await a.page.getByTestId('unit-add').click();
-  await a.page.getByTestId('settings-save').click();
-  await a.page.getByText('Settings saved').waitFor();
-  check((await a.page.getByTestId('custom-units').textContent()).includes('Crate'), 'own unit added');
-  await a.page.getByTestId('back').click();
   await a.page.getByTestId('settings-types').click();
   await pick(a.page, 'type-choose', 'Delivery Challan');
   await a.page.getByTestId('type-title').fill('DELIVERY NOTE');
@@ -420,37 +386,38 @@ try {
   await a.page.getByTestId('create-DELIVERY_CHALLAN').click();
   await a.page.getByTestId('party-name').fill('Site office');
   await a.page.getByTestId('item-name-0').fill('Teak Dining Table');
-  await pick(a.page, 'item-unit-0', 'Crate');
+  await pick(a.page, 'item-unit-0', 'Box');
   check(!(await a.page.getByTestId('item-rate-0').count()), 'delivery challan: no prices');
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('view').waitFor();
   check((await page1().textContent()).includes('DELIVERY NOTE') && (await page1().locator('.doc-modern').count()) >= 1, 'challan printed with its own title in the default template');
   check((await page1().locator('.doc-extra-copy').count()) === 1, 'second copy prepared for printing');
 
-  console.log('Backup, sample data');
-  await a.page.getByTestId('tab-settings').click().catch(() => {});
+  console.log('Backup');
   await a.page.goto(`${base}/app/#/settings/backup`);
   await a.page.getByTestId('settings-backup').waitFor();
   const [backupDownload] = await Promise.all([a.page.waitForEvent('download'), a.page.getByTestId('backup').click()]);
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 5 && backup.stores.blobs.length === 1 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents, files and logo');
-  await a.page.goto(`${base}/app/#/settings/general`);
-  await a.page.getByTestId('demo-load').click();
-  await a.page.getByText('Sample data added').waitFor();
-  await a.page.goto(`${base}/app/#/documents`);
-  await a.page.getByTestId('documents-list').getByText('Sample').first().waitFor();
-  check(true, 'sample data loaded');
+  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 5 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
+  await a.page.goto(`${base}/app/#/products`);
+  await a.page.getByTestId('add-product').click();
+  await a.page.getByTestId('product-name').fill('Added after the backup');
+  await a.page.getByTestId('product-save').click();
+  await a.page.getByTestId('product-list').getByText('Added after the backup').waitFor();
   await a.page.goto(`${base}/app/#/settings/backup`);
   await a.page.getByTestId('restore').click();
   await a.page.getByTestId('confirm-ok').click();
   const [restoreChooser] = await Promise.all([a.page.waitForEvent('filechooser'), a.page.getByTestId('restore-choose').click()]);
   await restoreChooser.setFiles(backupFile);
   await a.page.getByText('Backup restored').waitFor();
+  await a.page.goto(`${base}/app/#/products`);
+  await a.page.getByTestId('product-list').getByText('Office Chair').waitFor();
+  check(!(await a.page.getByTestId('product-list').textContent()).includes('Added after the backup'), 'backup restored (product added later is gone)');
   await a.page.goto(`${base}/app/#/documents`);
   await rows().nth(4).waitFor();
-  check((await rows().count()) === 5 && !(await a.page.getByTestId('documents-list').textContent()).includes('Sample'), 'backup restored (sample data gone, 5 documents back)');
+  check((await rows().count()) === 5, 'all 5 documents back after the restore');
 
   console.log('Works offline, no repeated login');
   await a.page.goto(`${base}/app/`);

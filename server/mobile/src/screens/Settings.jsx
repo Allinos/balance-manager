@@ -4,7 +4,7 @@ import Icon from '../components/Icon.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
 import { Header, go } from '../components/ui.jsx';
 import { CompanySection, DocumentTypesSection, DocumentsSection } from './settings/business.jsx';
-import { AboutSection, BackupSection, CurrencySection, GeneralSection, HelpSection, LicenseSection, NumberingSection, TaxSection, UnitsSection } from './settings/system.jsx';
+import { AboutSection, BackupSection, HelpSection, LicenseSection, NumberingSection, TaxSection } from './settings/system.jsx';
 import { useApp } from '../data.jsx';
 
 export const SECTIONS = [
@@ -12,10 +12,7 @@ export const SECTIONS = [
   { id: 'documents', label: 'Documents', icon: 'documents', detail: 'Template, copies, colour, what is printed', Component: DocumentsSection },
   { id: 'types', label: 'Document Types', icon: 'layers', detail: 'Title, template and terms per type', Component: DocumentTypesSection },
   { id: 'tax', label: 'Tax', icon: 'percent', detail: 'GST / VAT, rates', Component: TaxSection },
-  { id: 'currency', label: 'Currency', icon: 'coins', detail: 'Base currency, other currencies', Component: CurrencySection },
   { id: 'numbering', label: 'Numbering', icon: 'hash', detail: 'Prefix, format, next number', Component: NumberingSection },
-  { id: 'units', label: 'Units', icon: 'box', detail: 'Your own units', Component: UnitsSection },
-  { id: 'general', label: 'General', icon: 'sliders', detail: 'Date format, sample data', Component: GeneralSection },
   { id: 'license', label: 'License & Account', icon: 'key', detail: 'Key, validity, sign out', Component: LicenseSection },
   { id: 'backup', label: 'Backup', icon: 'database', detail: 'Save or restore all data', Component: BackupSection },
   { id: 'help', label: 'Help & Support', icon: 'help', detail: 'Guides, questions, contact', Component: HelpSection },

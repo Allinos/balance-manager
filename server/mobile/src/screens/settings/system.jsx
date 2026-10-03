@@ -1,19 +1,16 @@
-/** Settings → Tax, Currency, Numbering, Units, General, License, Backup, Help, About. */
+/** Settings → Tax, Numbering, License, Backup, Help, About. */
 
 import { useEffect, useState } from 'react';
-import { CURRENCY_PRESETS } from '@desktop/config/defaults.js';
 import { DOCUMENT_TYPES } from '@desktop/config/documentTypes.js';
-import { DEFAULT_UNITS, PRODUCT_UNITS, SERVICE_UNITS } from '@desktop/config/units.js';
 import { isValidRate, rateValue, taxRateOptions } from '@desktop/config/taxRates.js';
 import { listSequences, previewNumber, saveSequence } from '@desktop/services/settingsService.js';
 import { exportBackup, restoreBackup } from '@desktop/services/systemService.js';
-import { loadDemoData, removeDemoData } from '@desktop/services/demoService.js';
-import { DATE_FORMATS, todayISO } from '@desktop/utils/dates.js';
+import { todayISO } from '@desktop/utils/dates.js';
 import { dec } from '@desktop/utils/decimal.js';
 import Icon from '../../components/Icon.jsx';
 import { Field, Input, NumberInput, Picker, Segmented, Select, Toggle, useUi } from '../../components/ui.jsx';
 import { APP_VERSION, signOut } from '../../lib/license.js';
-import { shortDate, useApp, useDocContext } from '../../data.jsx';
+import { shortDate, useApp } from '../../data.jsx';
 import { SaveBar, useSettingsDraft } from './parts.jsx';
 
 export function TaxSection() {
@@ -74,79 +71,6 @@ export function TaxSection() {
               <Picker value={rateValue(draft.defaultTaxRate)} onChange={(v) => v !== '' && isValidRate(v) && set({ defaultTaxRate: v })} options={taxRateOptions(draft, draft.defaultTaxRate)} creatable title="Default rate" testId="default-tax-rate" />
             </Field>
           </>
-        )}
-      </div>
-      <SaveBar dirty={dirty} onSave={save} />
-    </>
-  );
-}
-
-export function CurrencySection() {
-  const { draft, set, dirty, save } = useSettingsDraft(['baseCurrency', 'currencies']);
-  const [preset, setPreset] = useState('');
-  const available = CURRENCY_PRESETS.filter((p) => !draft.currencies.some((c) => c.code === p.code));
-  const update = (code, patch) => set({ currencies: draft.currencies.map((c) => (c.code === code ? { ...c, ...patch } : c)) });
-  return (
-    <>
-      <div className="page form" data-testid="settings-currency">
-        <p className="small muted" style={{ margin: 0 }}>
-          Exchange rates are entered by you (no internet needed). Each document keeps the rate used when it was created.
-        </p>
-        <Field label="Base currency">
-          <Select
-            value={draft.baseCurrency}
-            onChange={(code) => {
-              const list = draft.currencies.some((c) => c.code === code) ? draft.currencies : [...draft.currencies, { ...CURRENCY_PRESETS.find((p) => p.code === code), rate: '1' }];
-              set({ baseCurrency: code, currencies: list.map((c) => (c.code === code ? { ...c, rate: '1' } : c)) });
-            }}
-            options={CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}` }))}
-          />
-        </Field>
-        {draft.currencies.map((c) => (
-          <div key={c.code} className="card mini form" data-testid={`currency-${c.code}`}>
-            <div className="card-title">
-              <h2>{c.code}</h2>
-              {c.code !== draft.baseCurrency ? (
-                <button className="icon-btn sm danger" onClick={() => set({ currencies: draft.currencies.filter((x) => x.code !== c.code) })} aria-label={`Remove ${c.code}`}>
-                  <Icon name="trash" size={18} />
-                </button>
-              ) : (
-                <span className="pill">Base</span>
-              )}
-            </div>
-            <div className="grid-3">
-              <Field label="Symbol">
-                <Input value={c.symbol} onChange={(v) => update(c.code, { symbol: v })} />
-              </Field>
-              <Field label="Decimals">
-                <Select value={String(c.decimals)} onChange={(v) => update(c.code, { decimals: Number(v) })} options={['0', '1', '2', '3']} />
-              </Field>
-              <Field label={`Rate (${draft.baseCurrency})`}>{c.code === draft.baseCurrency ? <span className="muted">1</span> : <NumberInput value={c.rate} onChange={(v) => update(c.code, { rate: v })} />}</Field>
-            </div>
-          </div>
-        ))}
-        {available.length > 0 && (
-          <div className="row">
-            <select className="input" value={preset} onChange={(e) => setPreset(e.target.value)} data-testid="currency-add-choose">
-              <option value="">Add a currency…</option>
-              {available.map((p) => (
-                <option key={p.code} value={p.code}>
-                  {p.code} — {p.name}
-                </option>
-              ))}
-            </select>
-            <button
-              className="btn"
-              disabled={!preset}
-              onClick={() => {
-                set({ currencies: [...draft.currencies, { ...CURRENCY_PRESETS.find((x) => x.code === preset), rate: '1' }] });
-                setPreset('');
-              }}
-              data-testid="currency-add"
-            >
-              Add
-            </button>
-          </div>
         )}
       </div>
       <SaveBar dirty={dirty} onSave={save} />
@@ -275,109 +199,6 @@ export function NumberingSection() {
   );
 }
 
-export function UnitsSection() {
-  const { draft, set, dirty, save } = useSettingsDraft(['units']);
-  const [unit, setUnit] = useState('');
-  const units = draft.units?.length ? draft.units : DEFAULT_UNITS;
-  const custom = units.filter((u) => !DEFAULT_UNITS.includes(u));
-  const add = (e) => {
-    e.preventDefault();
-    const u = unit.trim().slice(0, 20);
-    if (!u) return;
-    if (!units.some((x) => x.toLowerCase() === u.toLowerCase())) set({ units: [...units, u] });
-    setUnit('');
-  };
-  return (
-    <>
-      <div className="page form" data-testid="settings-units">
-        <form className="row" onSubmit={add}>
-          <input className="input" placeholder="New unit, e.g. Crate" value={unit} onChange={(e) => setUnit(e.target.value)} maxLength={20} data-testid="unit-new" />
-          <button className="btn" disabled={!unit.trim()} data-testid="unit-add">
-            Add
-          </button>
-        </form>
-        <div className="section-label">Your units</div>
-        {custom.length ? (
-          <div className="chip-editor" data-testid="custom-units">
-            {custom.map((u) => (
-              <span key={u} className="chip static">
-                {u}
-                <button type="button" onClick={() => set({ units: units.filter((x) => x !== u) })} aria-label={`Remove ${u}`}>
-                  <Icon name="x" size={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-        ) : (
-          <p className="small muted">None yet.</p>
-        )}
-        <div className="section-label">Standard units</div>
-        <p className="small">
-          <strong>Products: </strong>
-          <span className="muted">{PRODUCT_UNITS.join(', ')}</span>
-        </p>
-        <p className="small">
-          <strong>Services: </strong>
-          <span className="muted">{SERVICE_UNITS.join(', ')}</span>
-        </p>
-      </div>
-      <SaveBar dirty={dirty} onSave={save} />
-    </>
-  );
-}
-
-export function GeneralSection() {
-  const { draft, set, dirty, save } = useSettingsDraft(['dateFormat']);
-  const ctx = useDocContext();
-  const { toast, confirm } = useUi();
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <div className="page form" data-testid="settings-general">
-        <Field label="Date format">
-          <Select value={draft.dateFormat} onChange={(v) => set({ dateFormat: v })} options={DATE_FORMATS} data-testid="date-format" />
-        </Field>
-        <div className="section-label">Sample data</div>
-        <p className="small muted" style={{ margin: 0 }}>
-          Add a sample customer, products, an invoice and a quotation to explore DocGen. Sample records are marked and can be removed at any time.
-        </p>
-        <div className="grid-2">
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await loadDemoData(ctx);
-                toast('Sample data added. Look for items marked "Sample".');
-              } catch (e) {
-                toast(e.message, 'bad');
-              } finally {
-                setBusy(false);
-              }
-            }}
-            data-testid="demo-load"
-          >
-            <Icon name="sparkle" size={18} /> Load sample
-          </button>
-          <button
-            className="btn btn-danger"
-            onClick={async () => {
-              if (!(await confirm({ title: 'Remove sample data?', message: 'All sample documents, products and customers are deleted. Your own data is not affected.', confirmLabel: 'Remove sample data', danger: true }))) return;
-              await removeDemoData();
-              toast('Sample data removed');
-            }}
-            data-testid="demo-remove"
-          >
-            <Icon name="trash" size={18} /> Remove sample
-          </button>
-        </div>
-      </div>
-      <SaveBar dirty={dirty} onSave={save} />
-    </>
-  );
-}
-
 export function LicenseSection() {
   const { lic, check, reload } = useApp();
   const { toast, confirm } = useUi();
@@ -473,7 +294,7 @@ export function BackupSection() {
   return (
     <div className="page form" data-testid="settings-backup">
       <p className="small muted" style={{ margin: 0 }}>
-        Your documents are stored only on this phone. Save a backup regularly (e.g. to Google Drive) — it contains documents, files, products, customers,
+        Your documents are stored only on this phone. Save a backup regularly (e.g. to Google Drive) — it contains documents, products, customers,
         settings, logo and signature.
       </p>
       <div className="card form">
@@ -518,7 +339,7 @@ export function BackupSection() {
           <button
             className="btn"
             onClick={async () => {
-              if (await confirm({ title: 'Restore from a backup?', message: 'All documents, files, products, customers and settings on this phone are replaced by the backup.', confirmLabel: 'Continue', danger: true })) setArmed(true);
+              if (await confirm({ title: 'Restore from a backup?', message: 'All documents, products, customers and settings on this phone are replaced by the backup.', confirmLabel: 'Continue', danger: true })) setArmed(true);
             }}
             data-testid="restore"
           >
@@ -533,7 +354,7 @@ export function BackupSection() {
 const GUIDES = [
   ['Create your first invoice', ['On the Dashboard tap + on the Invoices card (or the round + button).', 'Type the customer name or pick a saved one — "Save this customer" keeps it for next time.', 'Add items: pick a saved product or type name, quantity, unit and rate. GST is calculated automatically.', 'Tap Save. The number comes from your series (Settings → Numbering).', 'Tap Print / PDF and choose "Save as PDF" to send it on WhatsApp or email.']],
   ['GST invoice checklist', ['Enter your GSTIN, state and PAN in Settings → Company.', "Enter the customer's GSTIN — the state is filled in from it.", 'Place of supply decides CGST + SGST (same state) or IGST (other state).', 'Add HSN / SAC codes to products — the HSN summary is printed on the invoice.', 'The Tally Professional template has the complete GST layout.']],
-  ['Documents & files', ['Documents lists everything you created. Search by number, customer or product.', 'Tap the status of a document to change it.', 'The paperclip adds files (PDF, photos, Excel…) such as supplier bills — they appear under Files.', 'Deleted items can be restored from "Deleted".']],
+  ['Documents', ['Documents lists everything you created. Search by number, customer or product.', 'Tap the status of a document to change it.', 'Deleted documents can be restored from "Deleted".']],
   ['Templates', ['Settings → Documents: the default template (Tally Professional, Tally Standard, Modern, Simple).', 'Settings → Document Types: a different template for one type.', 'On a document, the Template switch changes only that document.']],
   ['Cancel an invoice correctly', ['Open the invoice → ⋯ → Cancel invoice, and give a reason.', 'It is kept, marked CANCELLED on screen and in print, and the change is recorded in its history.', 'The number stays used so your series has no gaps.']],
   ['Back up your data', ['Everything is stored only on this phone.', 'Settings → Backup → Save backup file, then keep the file in Google Drive or send it to yourself.', 'On a new phone: install DocGen Mobile, activate, then Restore backup.']],
@@ -607,7 +428,7 @@ export function AboutSection() {
       <div className="card">
         <strong>Privacy</strong>
         <p className="small muted" style={{ marginBottom: 0 }}>
-          Your documents, customers, products, files and company details are stored only on this phone and are never uploaded. When online, DocGen checks your
+          Your documents, customers, products and company details are stored only on this phone and are never uploaded. When online, DocGen checks your
           license with an anonymous device ID — never business data.
         </p>
       </div>

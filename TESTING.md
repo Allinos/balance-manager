@@ -11,7 +11,7 @@ Last full run: **3 October 2026** (after prices per duration, license extension,
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **54 / 54 passed** (19 API, 34 journey/checkout/payments/licensing/durations/phones/downloads/email, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **84 / 84 passed** (two consecutive runs) |
-| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **95 / 95 passed** (two consecutive runs; incl. a plain http:// network address) |
+| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **94 / 94 passed** (two consecutive runs; incl. a plain http:// network address) |
 | Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 91 files, 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
@@ -139,7 +139,7 @@ for Razorpay (same signatures):
   to 3, website updates at once; Downloads: Linux link added, macOS and Mobile switched off → the
   customer's downloads follow (windows, linux) and the website hides the mobile section; switched on again.
 
-`npm run test:mobile` (95 checks) runs DocGen Mobile in a phone-sized touch browser against the real server. The phone
+`npm run test:mobile` (94 checks) runs DocGen Mobile in a phone-sized touch browser against the real server. The phone
 app uses the desktop app's document engine and templates, so these checks also cover that shared code on a phone:
 
 - Installation page, manifest, service worker, install banner; activation (wrong key refused, key, email + password).
@@ -153,11 +153,11 @@ app uses the desktop app's document engine and templates, so these checks also c
   (kept, marked CANCELLED).
 - Quotation: saved customer and product picked from suggestions, 10 % discount (26,550.00), no bank details by default.
 - Documents: list, status summary, search by number and by product, type filter, status quick change, delete → Deleted →
-  restore. Files: add a PDF, rename, save a copy, delete and restore. Sales CSV with the party GSTIN.
+  restore; no uploaded-files section on the phone. Sales CSV with the party GSTIN.
 - Products: category, HSN, price including GST, purchase price, category filter.
-- Settings: default template + 2 copies (second copy prepared for printing), numbering format `INV/2026-27/0003`, own
-  unit (Crate) used in a challan, per-type title (DELIVERY NOTE), challan without prices.
-- Backup file (documents, files, logo), sample data load, restore (sample data gone); works offline; reopened without
+- Settings: no Units, General or Currency sections on the phone; default template + 2 copies (second copy prepared for
+  printing), numbering format `INV/2026-27/0003`, per-type title (DELIVERY NOTE), challan without prices.
+- Backup file (documents, logo); restore removes a product added after the backup; works offline; reopened without
   signing in.
 - Second phone: data saved by the first mobile version is converted (invoice INV-00007) and numbering continues at
   INV-00008; phone limit enforced by the server; fake localStorage does not unlock; sign out frees a place; expiry locks

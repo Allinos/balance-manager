@@ -19,7 +19,7 @@ small businesses, by [reynrel.in](https://reynrel.in).
   Downloads (Windows, macOS, Linux, Mobile), Account. **Admin panel**: customers, payments, licenses,
   products & pricing, downloads, website, app settings, ads, activity log. Both work on phones.
 - **DocGen Mobile**: install from the client panel (Downloads → Mobile), enter the license key once and use the
-  desktop app's features on the phone — all document types, the same 4 templates, documents & files, products and
+  desktop app's features on the phone — all document types, the same 4 templates, documents, products and
   settings (it shares the desktop app's code); data stays on the phone.
 
 ![Tally Professional invoice](document-generator/docs/screenshots/09-invoice-tally-pro.png)

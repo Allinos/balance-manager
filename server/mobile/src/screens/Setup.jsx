@@ -5,11 +5,10 @@ import { CURRENCY_PRESETS } from '@desktop/config/defaults.js';
 import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
-import { loadDemoData } from '@desktop/services/demoService.js';
 import Icon from '../components/Icon.jsx';
 import { Field, Input, Picker, useUi } from '../components/ui.jsx';
 import { ImagePicker, SamplePreview } from '../components/docs.jsx';
-import { loadData, useApp } from '../data.jsx';
+import { useApp } from '../data.jsx';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
@@ -26,7 +25,6 @@ export default function Setup() {
   const [business, setBusiness] = useState('trading');
   const [currency, setCurrency] = useState('INR');
   const [style, setStyle] = useState('tally-pro');
-  const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const overrides = useMemo(() => ({ documentStyle: style, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }), [style, currency]);
   const previewCompany = useMemo(() => ({ name: name.trim() || 'Your Company', state, gstin, logo }), [name, state, gstin, logo]);
@@ -51,10 +49,6 @@ export default function Setup() {
         taxSystem: currency === 'INR' ? 'GST' : 'VAT',
         showHsn: currency === 'INR',
       });
-      if (demo) {
-        const data = await loadData();
-        await loadDemoData({ settings: data.settings, company: data.company, docSettings: data.docSettings });
-      }
       await saveSettings({ setupComplete: true });
       await reloadData();
     } catch (e) {
@@ -133,10 +127,6 @@ export default function Setup() {
             ))}
           </div>
           <SamplePreview overrides={overrides} company={previewCompany} />
-          <label className="check-row">
-            <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} data-testid="setup-demo" />
-            <span>Add sample data so I can explore (can be removed later)</span>
-          </label>
         </div>
       )}
       <div className="setup-actions">

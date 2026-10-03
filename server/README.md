@@ -29,7 +29,7 @@ Client panel → Services: product → duration → Razorpay payment → server 
   and phones are counted separately and the limits are enforced by the server — plus remote
   configuration (check interval, ads, help videos) and anonymous ad counters for the desktop app.
 - **DocGen Mobile**: installable web app (PWA) for Android and iPhone at `/app/` with the desktop app's features
-  (all document types, the 4 templates, documents & files, products, settings) — works on the phone (IndexedDB),
+  (all document types, the 4 templates, documents, products, settings) — works on the phone (IndexedDB),
   license key stored on the device, no repeated sign-in while the license is valid. See [DocGen Mobile](#docgen-mobile).
 - **Admin panel** (sidebar; a menu on phones): dashboard (sales this month, revenue, recent sales,
   licenses ending soon, ad campaigns), customers, payments (with the duration bought; mark paid, refund),
@@ -259,17 +259,18 @@ screenshots, a QR code and the install button.
   Documents · Products · Settings). The desktop app itself is not changed. Because of this, build the server from
   the whole repository (the `document-generator/src` folder must be present next to `server/`).
 - **What is on the phone:** Dashboard (cards per document type with +, Customize, recent documents); Documents
-  (search, type filter, status change, view / edit / print / duplicate / convert / cancel / delete / restore,
-  uploaded files — PDF, photos, Excel … — with rename, save a copy, delete / restore, and the sales CSV download);
-  editor (saved customers and products, GSTIN → state, CGST/SGST or IGST from the place of supply, discounts,
-  shipping, other charges, round off, additional details per type, receipts and payment vouchers, live preview);
-  document view (template per document, Print / Save as PDF with 1–4 copies, share, history, contact the customer
-  by call / WhatsApp / email); Products & Services with categories; Settings (Company with logo, signature and stamp,
-  Documents, Document Types, Tax, Currency, Numbering, Units, General with sample data, License, Backup, Help, About).
-  Left out on purpose: the desktop's ads, theme switch and keyboard shortcuts.
+  (search, type filter, status change, view / edit / print / duplicate / convert / cancel / delete / restore, and the
+  sales CSV download); editor (saved customers and products, GSTIN → state, CGST/SGST or IGST from the place of supply,
+  discounts, shipping, other charges, round off, additional details per type, receipts and payment vouchers, live
+  preview); document view (template per document, Print / Save as PDF with 1–4 copies, share, history, contact the
+  customer by call / WhatsApp / email); Products & Services with categories; Settings (Company with logo, signature and
+  stamp, Documents, Document Types, Tax, Numbering, License, Backup, Help, About).
+  Left out on the phone: uploaded files (Document Manager → Files), the Units, General (date format, sample data) and
+  Currency settings, and the desktop's ads, theme switch and keyboard shortcuts. The built-in units, the default date
+  format and the currency chosen at setup are used.
 - **Storage:** the desktop's backend commands (Rust/SQLite on a computer) are implemented over IndexedDB in
   [`mobile/src/engine/`](mobile/src/engine/) — same allow-lists, validation messages, numbering and history. Backup
-  is one JSON file (documents, files, images, settings); restoring keeps a safety copy. Data saved by the first
+  is one JSON file (documents, products, customers, images, settings); restoring keeps a safety copy. Data saved by the first
   mobile version is converted automatically on first start.
 - **License on the device**: the customer enters the license key (or email + password) once. The signed token is
   stored in IndexedDB encrypted with a non-extractable AES-GCM key (when the browser allows it); a summary (key,
@@ -352,8 +353,8 @@ npm test                     # API + customer-journey tests (SQLite); TEST_DATAB
 npm run test:portal          # browser test: ad → product page → duration → checkout → Razorpay (simulated) → license, download,
                              #   extend, phones, client panel at phone width → admin (prices, downloads, licenses …)
 npm run test:mobile          # browser test of DocGen Mobile in a phone-sized window: install page, activation, setup, invoices
-                             #   in the 4 templates, convert / cancel / delete / restore, files, sales CSV, products, settings,
-                             #   backup, sample data, offline, phone limit, expiry lock, data from the first mobile version
+                             #   in the 4 templates, convert / cancel / delete / restore, sales CSV, products, settings,
+                             #   backup, offline, phone limit, expiry lock, data from the first mobile version
 npm run loadtest             # seeds 10,000 clients + licenses, measures key endpoints (LOAD_CLIENTS=…)
 npm run seed:load -- 10000   # seed an existing (test!) database
 ```
