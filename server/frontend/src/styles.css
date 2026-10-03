@@ -1995,7 +1995,7 @@ a.stat:hover {
 }
 .price-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.2fr) auto;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 1.2fr) 76px;
   gap: 8px;
   align-items: center;
 }
@@ -2040,5 +2040,8 @@ a.stat:hover {
   .installer-row {
     grid-template-columns: 1fr;
     gap: 6px;
+  }
+  .table .hide-sm {
+    display: none;
   }
 }

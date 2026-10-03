@@ -124,11 +124,20 @@ try {
   check((await page.getByTestId('price-card').textContent()).includes('one-time payment') && (await page.getByTestId('price-card').textContent()).includes('1-year license'), 'price card: one-time payment, 1-year license');
   check(await page.getByTestId('comparison').isVisible(), 'simple comparison table');
   check((await page.locator('.app-frame img').count()) >= 1, 'product screenshot shown');
+  const options = (await page.getByTestId('price-options').textContent()).replace(/\s+/g, ' ');
+  check(/1 year.*1,250.*2 years.*2,250.*5 years.*4,999/.test(options), 'price card lists every duration with its price (1, 2 and 5 years)');
+  await page.getByTestId('mobile-section').scrollIntoViewIfNeeded();
+  check((await page.getByTestId('mobile-section').locator('img').count()) === 2, 'landing page: "DocGen on Mobile" section with screenshots');
+  check((await page.getByTestId('get-mobile').getAttribute('href')) === '/mobile', 'landing page: "Get the mobile app" opens the installation page');
   await shot('01-product');
 
   await page.getByTestId('hero-buy').click();
   await page.getByTestId('checkout-form').waitFor();
   check((await page.getByTestId('order-total').textContent()).includes('1,250'), 'checkout: order summary ₹1,250');
+  await page.getByTestId('price-1825').click();
+  check((await page.getByTestId('order-total').textContent()).includes('4,999') && (await page.getByTestId('co-pay').textContent()).includes('4,999'), 'checkout: choosing 5 years updates the total (₹4,999)');
+  await page.getByTestId('price-365').click();
+  check((await page.getByTestId('order-total').textContent()).includes('1,250'), 'checkout: back to 1 year (₹1,250)');
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('12345');
   await page.getByLabel('Email address').fill('meera@example.com');
@@ -158,9 +167,15 @@ try {
   await page.getByTestId('license-card').waitFor();
   check((await page.getByTestId('license-code').textContent()).trim() === code, 'client panel: license code');
   check((await page.getByTestId('days-left').textContent()).includes('365 days left'), 'client panel: remaining validity');
-  await page.getByTestId('download-card').waitFor();
+  const today = new Date();
+  const inAYear = new Date(today.getTime() + 365 * 86400000);
+  const shortDate = (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  check((await page.getByTestId('start-date').textContent()) === shortDate(today) && (await page.getByTestId('expiry-date').textContent()) === shortDate(inAYear),
+    'client panel: start date and expiry date');
+  check(await page.getByTestId('devices-desktop').isVisible() && await page.getByTestId('devices-mobile').isVisible(), 'client panel: computers and phones listed separately');
   await page.getByTestId('purchases').waitFor();
-  check((await page.getByTestId('purchases').textContent()).includes('1,250'), 'client panel: download and purchase');
+  check(/1,250/.test(await page.getByTestId('purchases').textContent()) && /1 year/.test(await page.getByTestId('purchases').textContent()), 'client panel: purchase with its duration');
+  for (const nav of ['nav-my-license', 'nav-services', 'nav-downloads', 'nav-account']) check(await page.getByTestId(nav).isVisible(), `client sidebar: ${nav.slice(4)}`);
   await page.getByTestId('new-password').fill('meera-pass-123');
   await page.getByRole('button', { name: 'Save password' }).click();
   await page.getByText('Password saved').waitFor();
@@ -182,20 +197,95 @@ try {
   await page.getByTestId('dialog').waitFor();
   check((await page.getByTestId('dialog').textContent()).includes('Front desk PC'), 'removing a computer asks in an in-app dialog');
   await page.getByTestId('dialog-ok').click();
-  await page.getByText('Computer removed').waitFor();
+  await page.getByText('Device removed').waitFor();
   check(!(await page.getByText('Front desk PC').isVisible()), 'computer removed after confirming');
 
-  // Renew from the client panel: one more year on top of the current end date.
-  await page.getByTestId('renew').click();
+  // DocGen Mobile: the same license on phones, limited by the server (2 phones for this product).
+  const activatePhone = (n) =>
+    fetch(`${base}/api/app/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, deviceId: `e2e-phone-0000000${n}`, deviceName: `Phone ${n}`, platform: 'android', appVersion: '1.0.0', deviceKind: 'mobile' }),
+    });
+  const phone1 = await activatePhone(1);
+  const phone1Body = await phone1.json();
+  check(phone1.status === 200 && phone1Body.license.maxMobileDevices === 2 && phone1Body.license.key === code, 'mobile app activates with the license key (2 phones allowed)');
+  check((await activatePhone(2)).status === 200, 'second phone activates');
+  const phone3 = await activatePhone(3);
+  check(phone3.status === 409 && (await phone3.json()).error.code === 'DEVICE_LIMIT', 'third phone is refused by the server (device limit)');
+  await page.reload();
+  await page.getByTestId('devices-mobile').getByText('Phone 2').waitFor();
+  check((await page.getByTestId('devices-mobile').textContent()).includes('2 of 2'), 'client panel: phones in use (2 of 2)');
+
+  // Extend from the client panel: Extend → Services with the license selected → choose 2 years → new expiry → pay.
+  await page.getByTestId('extend').click();
+  await page.getByTestId('service-card').waitFor();
+  check(await page.getByTestId('nav-services').evaluate((a) => a.classList.contains('active')), 'Extend opens Services');
+  check((await page.getByTestId('services-summary').textContent()).includes(shortDate(inAYear)), 'services: current expiry shown');
+  check((await page.getByTestId('new-expiry').textContent()) === shortDate(new Date(inAYear.getTime() + 365 * 86400000)), 'services: new expiry after 1 more year');
+  await page.getByTestId('price-730').click();
+  const extendedTo = shortDate(new Date(inAYear.getTime() + 730 * 86400000));
+  check((await page.getByTestId('new-expiry').textContent()) === extendedTo, 'services: choosing 2 years shows the new expiry (current end + 730 days)');
+  check((await page.getByTestId('services-pay').textContent()).includes('2,250'), 'services: pay ₹2,250 for 2 years');
+  await shot('04b-services');
+  await page.getByTestId('services-pay').click();
   await page.getByTestId('rzp-window').waitFor();
-  check((await page.evaluate(() => window.__rzpOptions.amount)) === 125000, 'renewal opens Razorpay for ₹1,250');
+  check((await page.evaluate(() => window.__rzpOptions.amount)) === 225000 && (await page.evaluate(() => window.__rzpOptions.description)).includes('2 years'), 'extension opens Razorpay for ₹2,250 (2 years)');
   await page.getByTestId('rzp-pay').click();
-  await page.getByText('your license is now valid until').waitFor();
-  await page.getByText('730 days left').waitFor();
-  check(true, 'renewal adds a year (730 days left)');
+  await page.getByTestId('services-done').waitFor();
+  check((await page.getByTestId('done-expiry').textContent()) === extendedTo, 'payment verified by the server → license extended to the new expiry');
+  await page.getByTestId('nav-my-license').click();
+  await page.getByText('1095 days left').waitFor();
+  check(true, 'My License: 1095 days left after the extension');
+
+  // Downloads: the platforms the admin offers, plus the mobile app.
+  await page.getByTestId('nav-downloads').click();
+  await page.getByTestId('download-list').waitFor();
+  check(await page.getByTestId('tile-windows').isVisible(), 'downloads: Windows installer offered');
+  check((await page.getByTestId('download-mobile').getAttribute('href')) === '/mobile', 'downloads: mobile app → installation page');
+  const [download2] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-windows').click()]);
+  check(download2.suggestedFilename() === 'DocGen_1.1.0_x64-setup.exe', 'downloads: installer downloads from the client panel');
+  await shot('04c-downloads');
+
+  await page.getByTestId('nav-account').click();
+  await page.getByRole('heading', { name: 'Account information' }).waitFor();
+  await page.getByLabel('Business name (optional)').fill('Sharma Traders');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.getByText('Details saved').waitFor();
+  check(true, 'account: customer updates their details');
+
+  // Phone width: the sidebar becomes a menu.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId('nav-my-license').evaluate((a) => a.click());
+  await page.getByTestId('license-card').waitFor();
+  await page.waitForTimeout(400);
+  check(!(await page.getByTestId('nav-services').isVisible()) || (await page.getByTestId('nav-services').boundingBox()).x < 0, 'phone: menu hidden until opened');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'phone: no sideways scrolling');
+  await shot('04d-phone-license');
+  await page.getByTestId('menu-open').click();
+  await page.waitForTimeout(300);
+  check((await page.getByTestId('nav-services').boundingBox()).x >= 0, 'phone: menu button opens the sidebar');
+  await shot('04e-phone-menu');
+  await page.getByTestId('nav-services').click();
+  await page.getByTestId('service-card').waitFor();
+  await page.waitForTimeout(300);
+  check(!(await page.locator('.panel.menu-open').count()), 'phone: menu closes after choosing a section');
+  check(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'phone: services page fits the screen');
+  await shot('04f-phone-services');
+  await page.setViewportSize({ width: 1280, height: 860 });
+
+  // Mobile installation page.
+  await page.goto(`${base}/mobile`);
+  await page.getByTestId('mobile-page').waitFor();
+  check((await page.getByTestId('install-mobile').getAttribute('href')) === '/app/?install=1' && (await page.getByTestId('install-qr').count()) === 1,
+    'mobile page: install button and QR code for the phone');
+  const appPage = await fetch(`${base}/app/`);
+  check(appPage.status === 200 && (await appPage.text()).includes('manifest.webmanifest'), 'DocGen Mobile is served at /app/ with its manifest');
+  await shot('04g-mobile-page');
 
   // Someone else at the same desk starts buying but closes the payment window.
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.goto(`${base}/account`);
+  await page.getByTestId('sign-out').click();
   await page.goto(`${base}/buy`);
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('9876543210');
@@ -227,26 +317,33 @@ try {
   await page.getByLabel('Password').fill('owner-password-1');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByTestId('stats').waitFor();
-  check(/Sales in .*₹2,500/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹2,500');
+  check(/Sales in .*₹3,500/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹3,500 (1 year + 2-year extension)');
   check((await page.getByTestId('recent-sales').textContent()).includes('meera@example.com'), 'dashboard: recent sales');
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
   await campaign.waitFor();
   check(/google.*gst-oct.*2.*1.*50%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-ups and sale attributed to the Google ad campaign');
   await shot('05-admin-dashboard');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Products & pricing' }).click();
+  await page.getByTestId('nav-products-pricing').click();
   await page.getByTestId('edit-product-DOCGEN').click();
-  await page.getByTestId('product-price').fill('1500');
-  await page.getByTestId('product-period').selectOption('730');
+  await page.getByTestId('price-rows').waitFor();
+  check((await page.locator('.price-row:not(.price-row-head)').count()) === 3, 'product editor: one row per duration (1, 2 and 5 years)');
+  await page.getByTestId('price-amount-0').fill('1500');
+  await page.getByTestId('add-price').click();
+  await page.getByTestId('price-duration-3').selectOption('1095');
+  await page.getByTestId('price-amount-3').fill('3600');
+  await page.getByTestId('product-mobile-devices').fill('3');
   await page.waitForTimeout(300);
   await shot('08-products');
   await page.getByTestId('save-product').click();
   await page.getByText('Product saved').waitFor();
   const site = await (await fetch(`${base}/api/portal/site`)).json();
-  check(site.products[0].price === 1500 && site.products[0].durationDays === 730, 'admin changes the price (₹1,500) and validity (2 years) without code changes');
+  const prices = site.products[0].prices.map((p) => `${p.durationDays}:${p.price}`).join(' ');
+  check(site.products[0].price === 1500 && prices === '365:1500 730:2250 1095:3600 1825:4999', `admin sets the price per duration and adds 3 years without code changes (${prices})`);
+  check(site.products[0].maxMobileDevices === 3, 'admin raises the phone limit to 3');
   check((await page.getByTestId('products').textContent()).includes('₹1,500'), 'products table shows the new price');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Website' }).click();
+  await page.getByTestId('nav-website').click();
   await page.getByTestId('site-headline').fill('Invoices your customers trust');
   await page.getByTestId('add-video').click();
   await page.getByTestId('video-url-0').fill('https://www.youtube.com/watch?v=abcdefghijk');
@@ -260,14 +357,14 @@ try {
   await page2.getByTestId('videos').waitFor();
   check((await page2.getByTestId('headline').textContent()) === 'Invoices your customers trust', 'website headline changed by the admin');
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
-  check((await page2.getByTestId('price').textContent()).includes('1,500') && (await page2.getByTestId('price-card').textContent()).includes('2-year license'), 'website shows the new price at once');
+  check((await page2.getByTestId('price').textContent()).includes('1,500') && (await page2.getByTestId('price-options').textContent()).includes('3 years'), 'website shows the new prices at once');
   await page2.close();
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Customers' }).click();
+  await page.getByTestId('nav-customers').click();
   const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });
   await meera.waitFor();
   const meeraRow = (await meera.textContent()).replace(/\s+/g, ' ');
-  check(meeraRow.includes(code) && meeraRow.includes('₹2,500') && meeraRow.includes('google / cpc · gst-oct'), 'customers: license, amount paid and ad source per customer');
+  check(meeraRow.includes(code) && meeraRow.includes('₹3,500') && meeraRow.includes('google / cpc · gst-oct'), 'customers: license, amount paid and ad source per customer');
   check((await page.locator('tr', { hasText: 'lead@example.com' }).textContent()).includes('Not bought'), 'customers: unfinished checkout listed as not bought');
   await shot('10-customers');
   await page.getByRole('button', { name: 'Add customer' }).click();
@@ -294,7 +391,7 @@ try {
   await shot('06-admin-license');
   await page.keyboard.press('Escape');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Licenses' }).click();
+  await page.getByTestId('nav-licenses').click();
   await page.getByRole('button', { name: 'Create license codes' }).click();
   await page.locator('.modal').getByLabel('How many codes').fill('5');
   await page.getByTestId('create-license').click();
@@ -302,7 +399,7 @@ try {
   check(batch.length === 5, 'bulk generated 5 license codes');
   await page.getByRole('button', { name: 'Done' }).click();
 
-  await page.locator('.admin-side').getByRole('link', { name: 'In-app ads' }).click();
+  await page.getByTestId('nav-in-app-ads').click();
   await page.getByTestId('new-ad').click();
   await page.getByTestId('ad-title').fill('Diwali offer: 20% off');
   await page.locator('.modal').getByLabel('Description').fill('Renew before 31 Oct.');
@@ -313,15 +410,31 @@ try {
   await page.getByText('Diwali offer: 20% off').waitFor();
   check(true, 'ad created');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Downloads' }).click();
+  await page.getByTestId('nav-downloads').click();
   await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_x64-setup.exe' }).waitFor();
   const dmg = path.join(dataDir, 'DocGen_1.1.0_universal.dmg');
   fs.writeFileSync(dmg, Buffer.alloc(1000, 2));
   await page.getByTestId('upload-macos').setInputFiles(dmg);
   await page.locator('.installer-row', { hasText: 'DocGen_1.1.0_universal.dmg' }).waitFor();
   check(true, 'admin sees the Windows installer and uploads the macOS one');
+  await page.getByTestId('link-linux').fill('https://downloads.example.com/DocGen.AppImage');
+  await page.getByTestId('admin-download-macos').getByText('Offer to customers').click();
+  await page.getByTestId('admin-download-mobile').getByText('Offer to customers').click();
+  await shot('11-downloads');
+  await page.getByTestId('save-downloads').click();
+  await page.getByText('Downloads updated').waitFor();
+  const meeraLogin = await (await fetch(`${base}/api/portal/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'meera@example.com', password: 'meera-pass-123' }) })).json();
+  const meeraDownloads = async () => (await (await fetch(`${base}/api/portal/downloads`, { headers: { Authorization: `Bearer ${meeraLogin.token}` } })).json()).files.map((f) => f.platform).join(' ');
+  const offered = await meeraDownloads();
+  check(offered === 'windows linux', `customer downloads follow the admin settings (${offered}: Linux link added, macOS and mobile switched off)`);
+  check((await (await fetch(`${base}/api/portal/site`)).json()).mobileAvailable === false, 'mobile app hidden on the website when switched off');
+  await page.getByTestId('admin-download-macos').getByText('Offer to customers').click();
+  await page.getByTestId('admin-download-mobile').getByText('Offer to customers').click();
+  await page.getByTestId('save-downloads').click();
+  await page.getByText('Downloads updated').last().waitFor();
+  check((await meeraDownloads()) === 'windows macos linux mobile', 'macOS and the mobile app offered again');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'App settings' }).click();
+  await page.getByTestId('nav-app-settings').click();
   await page.getByTestId('config-interval').fill('15');
   await page.getByRole('button', { name: 'Add video' }).click();
   const rows = page.locator('table tbody tr');
@@ -332,7 +445,7 @@ try {
   const cfg = await (await fetch(`${base}/api/app/config`)).json();
   check(cfg.configIntervalDays === 15 && cfg.ads.length === 1 && cfg.help.videos.length === 1, 'app config endpoint reflects admin changes');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Payments' }).click();
+  await page.getByTestId('nav-payments').click();
   const leadRow = page.locator('tr', { hasText: 'lead@example.com' });
   await leadRow.waitFor();
   await leadRow.getByRole('button', { name: 'Mark paid' }).click();
@@ -345,7 +458,7 @@ try {
   await page.getByText('Refund recorded; license cancelled.').waitFor();
   check(true, 'admin records a refund; the license is cancelled');
 
-  await page.locator('.admin-side').getByRole('link', { name: 'Activity log' }).click();
+  await page.getByTestId('nav-activity-log').click();
   await page.getByText('license.extend').first().waitFor();
   check(true, 'activity log shows admin actions');
 

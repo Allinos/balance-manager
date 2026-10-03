@@ -1,6 +1,6 @@
 # DocGen — test results
 
-Last full run: **1 October 2026** (after the product page, one-step checkout, client/admin panel redesign and licensing review), branch `claude/focused-darwin-2j53b8`.
+Last full run: **3 October 2026** (after prices per duration, license extension, the new client/admin panels, phone limits and DocGen Mobile), branch `claude/focused-darwin-2j53b8`. The desktop app was not changed in this round; its results below are from the previous run.
 
 | Suite | Command | Result |
 |-------|---------|--------|
@@ -8,9 +8,11 @@ Last full run: **1 October 2026** (after the product page, one-step checkout, cl
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **171 / 171 checks passed** |
-| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **47 / 47 passed** (19 API, 27 journey/checkout/payments/licensing/downloads/email, 1 rate-limit) |
-| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **47 / 47 passed** |
-| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **47 / 47 passed** (two consecutive runs) |
+| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **54 / 54 passed** (19 API, 34 journey/checkout/payments/licensing/durations/phones/downloads/email, 1 rate-limit) |
+| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** |
+| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **84 / 84 passed** (two consecutive runs) |
+| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **47 / 47 passed** |
+| Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 81 files, 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
 
@@ -118,6 +120,41 @@ Review notes:
   Timestamps are stored as ISO-8601 UTC text on both databases (no year-2038 limit, no time-zone
   surprises).
 
+## 3b. Client panel, admin panel and DocGen Mobile (end-to-end)
+
+`npm run test:portal` (84 checks) drives the real server, website and panels in Chromium with a stand-in
+for Razorpay (same signatures):
+
+- Product page lists every duration with its price (1 / 2 / 5 years); "DocGen on Mobile" section with
+  screenshots and a button to the `/mobile` installation page. Checkout: choosing 5 years changes the total.
+- Payment → license key; **My License** shows the key, start and expiry date, days left, computers and
+  phones separately, payments with their duration; sidebar: My License, Services, Downloads, Account.
+- Two phones activate with the key; the **third is refused by the server** (409 `DEVICE_LIMIT`), listed as 2 of 2.
+- **Extend** → Services with the license selected; 2 years shows the new expiry (current end + 730 days)
+  before paying; Razorpay opens for ₹2,250; after the server verifies the signature the expiry moves (1,095 days left).
+- **Downloads**: Windows installer downloads; Mobile → installation page. **Account**: details saved.
+- **Phone width (390 px)**: the sidebar becomes a menu (hidden until opened, closes after choosing),
+  no sideways scrolling; `/mobile` has the install button and QR code; `/app/` serves the PWA with its manifest.
+- Admin: prices per duration edited and a 3-year price added (stored shortest first), phone limit raised
+  to 3, website updates at once; Downloads: Linux link added, macOS and Mobile switched off → the
+  customer's downloads follow (windows, linux) and the website hides the mobile section; switched on again.
+
+`npm run test:mobile` (47 checks) runs DocGen Mobile in a phone-sized touch browser against the real server:
+
+- Installation page: Install button, Android and iPhone steps; manifest installable (standalone, maskable
+  icon); service worker active; install banner in the browser.
+- Activation: a wrong key is refused by the server; activation with the key (business name taken from the
+  account) and on a second phone with email + password; the server records the device as a phone.
+- License on the device: key, start and expiry in localStorage, the token encrypted in IndexedDB; writing a
+  fake license into localStorage does **not** unlock the app; **reopened without logging in** while valid.
+- Phone limit enforced by the server: the third phone is refused; signing out frees the place; a phone
+  removed in the client/admin panel must activate again.
+- Documents: GST invoice (customer GSTIN → state and place of supply, IGST, grand total), status change,
+  saved customers and products suggested, quotation printed without bank details by default, document
+  list and search, Products & Services; dashboard sales this month; **works offline**.
+- Expiry: an expired license (checked with the server) locks the app; after extending, "Check again"
+  unlocks it and shows the new expiry date.
+
 ## 4. Security checks covered by tests
 
 - Rate limiting: 30 sign-in/activation attempts per 15 minutes per IP, then HTTP 429 (`ratelimit.test.js`).
@@ -146,6 +183,14 @@ Review notes:
   wrong/expired links redirect to the account page.
 - Password reset: same answer for unknown emails; links work once and expire with a password change.
 - Portal/admin never use browser alert/confirm/prompt boxes (e2e counts them: 0).
+- Prices and durations (`business-flow.test.js` + portal e2e): the amount comes from the chosen price row in
+  the database (the browser sends only ids); inactive or foreign price ids are refused; the duration
+  bought is stored with the payment, so a later price change never alters it; an extension adds the
+  duration to the current expiry (or to today when expired).
+- Phones (`business-flow.test.js`, both e2e tests): computers and phones are counted separately on the server;
+  one more than the license allows is refused; a product with 0 phones refuses the mobile app.
+- Secrets: the Razorpay Key Secret, webhook secret, JWT secret and license private key never leave the
+  server; the browser and the apps get only the Key ID (with a server-created order) and the license public key.
 
 ## 5. Known limitations
 
@@ -172,6 +217,9 @@ npx tauri build --debug --no-bundle && xvfb-run -a node e2e/run.mjs
 # server (SQLite; add TEST_DATABASE_URL / DATABASE_URL=mysql://… for MySQL)
 cd ../server && npm ci && npm test && npm run loadtest
 
-# portal + admin panel (served by the server): ad → sign-up → Razorpay (stand-in) → download → admin
+# website + client panel + admin panel (served by the server): ad → duration → Razorpay (stand-in) → license,
+# extend, downloads, phone width → admin
 npm run build && npm run test:portal
+# DocGen Mobile (phone-sized browser)
+npm run test:mobile
 ```

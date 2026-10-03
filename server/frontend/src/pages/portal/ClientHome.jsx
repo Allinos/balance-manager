@@ -182,7 +182,7 @@ function Payments() {
           <tr>
             <th>Date</th>
             <th>Item</th>
-            <th>Order</th>
+            <th className="hide-sm">Order</th>
             <th className="right">Amount</th>
             <th>Status</th>
           </tr>
@@ -201,7 +201,7 @@ function Payments() {
                   </span>
                 )}
               </td>
-              <td className="muted">#{p.id}</td>
+              <td className="muted hide-sm">#{p.id}</td>
               <td className="right nowrap">{money(p.amount, p.currency)}</td>
               <td>
                 <Badge status={p.status}>{p.status === 'pending' ? 'awaiting payment' : p.status}</Badge>

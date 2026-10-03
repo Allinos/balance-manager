@@ -6,15 +6,20 @@ small businesses, by [reynrel.in](https://reynrel.in).
 | Part | Folder | Stack |
 |------|--------|-------|
 | Desktop app (Windows, macOS, Linux) | [`document-generator/`](document-generator/) | Tauri 2, React (JavaScript), SQLite |
-| Server: license & configuration API + client portal + admin panel (one port) | [`server/`](server/): [`backend/`](server/backend/) + [`frontend/`](server/frontend/) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
+| Server: license & configuration API + website, client panel + admin panel (one port) | [`server/`](server/): [`backend/`](server/backend/) + [`frontend/`](server/frontend/) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
+| DocGen Mobile (Android, iPhone — installable web app, served by the server at `/app/`) | [`server/mobile/`](server/mobile/) | React + Vite PWA, IndexedDB |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,
   notes, receipts, work orders; Dashboard with document counts; Document Manager with uploaded
   files; 30 days to try, then account login or license; works fully offline.
-- **Server**: client accounts, plans, payments (provider-ready), activation codes and licenses,
-  devices, remote app configuration and ads, admin API, audit log.
-- **Portal**: clients register, add business details, buy/renew a plan, see activation codes,
-  devices and payments. Admins manage clients, licenses, plans, payments, ads and app configuration.
+- **Server**: customer accounts, products with a price per duration (1, 2, 5 years …), Razorpay payments
+  verified on the server, license keys with start and expiry date, computer and phone limits enforced
+  by the server, remote app configuration and ads, admin API, audit log.
+- **Client panel**: My License (key, validity, devices), Services (buy or extend — shows the new expiry),
+  Downloads (Windows, macOS, Linux, Mobile), Account. **Admin panel**: customers, payments, licenses,
+  products & pricing, downloads, website, app settings, ads, activity log. Both work on phones.
+- **DocGen Mobile**: install from the client panel (Downloads → Mobile), enter the license key once and
+  create GST invoices, quotations and more on the phone; data stays on the phone.
 
 ![Tally Professional invoice](document-generator/docs/screenshots/09-invoice-tally-pro.png)
 
@@ -43,4 +48,5 @@ Visual Studio or Xcode needed.
 - [Desktop app](document-generator/README.md): features, configuration, data, document types, build
 - [Server](server/README.md): configuration, deployment, licensing, payments, ads, API, security
 - [Portal & admin panel](server/frontend/README.md)
+- [DocGen Mobile](server/README.md#docgen-mobile)
 - [Test results](TESTING.md): unit, API, end-to-end and performance

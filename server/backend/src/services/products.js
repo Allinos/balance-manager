@@ -52,9 +52,11 @@ export async function resolvePrice(knex, plan, priceId) {
 
 /**
  * Replace a product's price list. Prices already used by payments are switched off instead of deleted.
- * @param {{id?: number, durationDays: number, price: number, label?: string}[]} prices
+ * @param {{id?: number, durationDays: number, price: number, label?: string}[]} input
  */
-export async function saveProductPrices(trx, planId, prices) {
+export async function saveProductPrices(trx, planId, input) {
+  // Shown to customers shortest first, lifetime last, whatever order the admin typed them in.
+  const prices = [...input].sort((a, b) => (a.durationDays || 1e9) - (b.durationDays || 1e9));
   if (!prices.length) throw new ApiError(400, 'VALIDATION', 'Add at least one price.');
   const seen = new Set();
   for (const p of prices) {
@@ -79,6 +81,6 @@ export async function saveProductPrices(trx, planId, prices) {
     if (used) await trx('plan_prices').where({ id: old.id }).update({ is_active: false, updated_at: ts });
     else await trx('plan_prices').where({ id: old.id }).del();
   }
-  // The product's own columns mirror its first price.
+  // The product's own columns mirror its first (shortest) price.
   await trx('plans').where({ id: planId }).update({ price_paise: Math.round(prices[0].price * 100), duration_days: prices[0].durationDays, updated_at: ts });
 }
