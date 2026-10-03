@@ -109,7 +109,7 @@ export function Locked() {
     lic.state === 'expired'
       ? `Your DocGen license expired on ${shortDate(l.expiresAt)}. Extend it in your account, then tap “Check again”. Your documents are safe on this phone.`
       : lic.state === 'blocked'
-        ? 'Your DocGen license is not active. Please contact support@reynrel.in.'
+        ? 'Your DocGen license is not active. Please contact info.reynrel@gmail.com.'
         : 'DocGen needs to check your license once. Please connect to the internet and tap “Check again”.';
   const again = async () => {
     setBusy(true);

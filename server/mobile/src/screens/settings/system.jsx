@@ -400,7 +400,7 @@ export function HelpSection() {
       ))}
       <div className="section-label">Contact us</div>
       <div className="grid-2">
-        <a className="btn" href="mailto:support@reynrel.in">
+        <a className="btn" href="mailto:info.reynrel@gmail.com">
           <Icon name="mail" size={18} /> Email
         </a>
         <a className="btn" href="https://www.youtube.com/@reynrel" target="_blank" rel="noreferrer">

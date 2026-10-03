@@ -1,7 +1,7 @@
 {
   "name": "DocGen Mobile",
   "short_name": "DocGen",
-  "description": "GST invoices, quotations and business documents on your phone. Works offline.",
+  "description": "GST invoices, quotations, challans and all your business documents on your phone — the same templates as DocGen on your computer. Works offline.",
   "id": "/app/",
   "start_url": "/app/",
   "scope": "/app/",

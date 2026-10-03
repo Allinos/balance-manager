@@ -85,9 +85,10 @@ export function SiteHeader({ nav = false }) {
         {nav && (
           <nav className="site-nav">
             <a href="/#features">Features</a>
-            <a href="/#screenshots">Screenshots</a>
             <a href="/#pricing">Pricing</a>
             <Link to="/mobile">Mobile app</Link>
+            <a href="/#compare">Compare</a>
+            <a href="/#faq">FAQ</a>
           </nav>
         )}
         <div className="site-actions">
@@ -117,7 +118,7 @@ export function SiteFooter() {
       <div className="site-footer-inner">
         <span>© {new Date().getFullYear()} DocGen · a product of <a href="https://reynrel.in" target="_blank" rel="noreferrer">reynrel.in</a></span>
         <span>
-          <a href="mailto:support@reynrel.in">support@reynrel.in</a> · <Link to="/login">Sign in</Link>
+          <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a> · <Link to="/login">Sign in</Link>
         </span>
       </div>
     </footer>
@@ -208,7 +209,7 @@ export function Footer() {
       <a href="https://reynrel.in" target="_blank" rel="noreferrer">
         reynrel.in
       </a>{' '}
-      · <a href="mailto:support@reynrel.in">support@reynrel.in</a>
+      · <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>
     </footer>
   );
 }

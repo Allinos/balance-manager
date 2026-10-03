@@ -32,7 +32,7 @@ export default function InstallBanner() {
           {help
             ? isIos()
               ? 'In Safari tap Share → Add to Home Screen.'
-              : 'In Chrome tap the menu ⋮ → Install app (or Add to Home screen).'
+              : 'In Chrome tap the menu ⋮ → “Install and create shortcut” → Install.'
             : 'Opens like an app, works offline.'}
         </div>
       </div>

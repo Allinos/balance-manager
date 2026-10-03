@@ -54,7 +54,7 @@ export default function Settings() {
           ))}
         </div>
         <p className="center small muted">
-          DocGen Mobile · a product of reynrel.in · <a href="mailto:support@reynrel.in">support@reynrel.in</a>
+          DocGen Mobile · a product of reynrel.in · <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>
         </p>
       </div>
     </>

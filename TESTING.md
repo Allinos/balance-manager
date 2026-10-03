@@ -10,7 +10,7 @@ Last full run: **3 October 2026** (after prices per duration, license extension,
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **171 / 171 checks passed** |
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **54 / 54 passed** (19 API, 34 journey/checkout/payments/licensing/durations/phones/downloads/email, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** |
-| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **84 / 84 passed** (two consecutive runs) |
+| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **89 / 89 passed** |
 | DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **94 / 94 passed** (two consecutive runs; incl. a plain http:// network address) |
 | Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 91 files, 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
@@ -122,11 +122,13 @@ Review notes:
 
 ## 3b. Client panel, admin panel and DocGen Mobile (end-to-end)
 
-`npm run test:portal` (84 checks) drives the real server, website and panels in Chromium with a stand-in
+`npm run test:portal` (89 checks) drives the real server, website and panels in Chromium with a stand-in
 for Razorpay (same signatures):
 
-- Product page lists every duration with its price (1 / 2 / 5 years); "DocGen on Mobile" section with
-  screenshots and a button to the `/mobile` installation page. Checkout: choosing 5 years changes the total.
+- Product page: one pricing card per duration (1 / 2 / 5 years, 5 years marked *Best value*), "Buy now"
+  jumps to the cards; the comparison includes DocGen Desktop and DocGen Mobile; FAQ; contact
+  info.reynrel@gmail.com; "DocGen on Mobile" section with screenshots and a button to the `/mobile`
+  installation page, which has the 4-step Android guide with pictures. Checkout: choosing 5 years changes the total.
 - Payment → license key; **My License** shows the key, start and expiry date, days left, computers and
   phones separately, payments with their duration; sidebar: My License, Services, Downloads, Account.
 - Two phones activate with the key; the **third is refused by the server** (409 `DEVICE_LIMIT`), listed as 2 of 2.

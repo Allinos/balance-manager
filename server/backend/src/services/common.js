@@ -110,7 +110,7 @@ export const DEFAULT_PRICES = [
 export const DEFAULT_SITE = {
   headline: 'Professional business documents in minutes',
   subheadline:
-    'Create GST invoices, quotations, delivery challans and receipts on your computer. Simple to learn, works offline, looks professional.',
+    'Create GST invoices, quotations, delivery challans and receipts on your computer and phone. Simple to learn, works offline, looks professional.',
   screenshots: [
     { url: '/screenshots/dashboard.png', caption: 'Dashboard' },
     { url: '/screenshots/invoice.png', caption: 'GST invoice' },

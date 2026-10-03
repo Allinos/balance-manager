@@ -161,7 +161,7 @@ function LicenseCard({ license: l, onRelease, main }) {
           This license has expired, so DocGen asks for activation. Extend it — the apps pick up the new date automatically.
         </div>
       )}
-      {(l.status === 'suspended' || l.status === 'revoked') && <div className="alert alert-error">This license is not active. Please contact support@reynrel.in.</div>}
+      {(l.status === 'suspended' || l.status === 'revoked') && <div className="alert alert-error">This license is not active. Please contact info.reynrel@gmail.com.</div>}
       <Devices license={l} onRelease={(d) => onRelease(l, d)} />
     </section>
   );

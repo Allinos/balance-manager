@@ -120,18 +120,23 @@ try {
   console.log('Customer journey: ad → product page → details → pay → license + download');
   await page.goto(`${base}/?utm_source=google&utm_medium=cpc&utm_campaign=gst-oct&gclid=e2e-click`);
   await page.getByTestId('headline').waitFor();
-  check((await page.getByTestId('price-card').count()) === 1 && (await page.getByTestId('price').textContent()).includes('1,250'), 'product page: one product, ₹1,250');
-  check((await page.getByTestId('price-card').textContent()).includes('one-time payment') && (await page.getByTestId('price-card').textContent()).includes('1-year license'), 'price card: one-time payment, 1-year license');
-  check(await page.getByTestId('comparison').isVisible(), 'simple comparison table');
+  const cards = page.getByTestId('price-card');
+  check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
+  const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
+  check(/1 year.*1,250.*2 years.*2,250.*5 years.*4,999/.test(pricing) && pricing.includes('one-time payment'), 'pricing cards: 1, 2 and 5 years with their prices, one-time payment');
+  check(pricing.includes('Best value') && (await cards.nth(2).textContent()).includes('Best value'), 'pricing cards: lowest price per year marked "Best value"');
+  check((await page.getByTestId('hero-buy').getAttribute('href')) === '#pricing', 'hero "Buy now" jumps to the pricing cards');
+  const compare = (await page.getByTestId('comparison').textContent()).replace(/\s+/g, ' ');
+  check(compare.includes('DocGen Desktop') && compare.includes('DocGen Mobile'), 'comparison table includes DocGen Desktop and DocGen Mobile');
   check((await page.locator('.app-frame img').count()) >= 1, 'product screenshot shown');
-  const options = (await page.getByTestId('price-options').textContent()).replace(/\s+/g, ' ');
-  check(/1 year.*1,250.*2 years.*2,250.*5 years.*4,999/.test(options), 'price card lists every duration with its price (1, 2 and 5 years)');
+  check((await page.getByTestId('faq').locator('details').count()) >= 4, 'FAQ shown');
+  check((await page.content()).includes('info.reynrel@gmail.com'), 'contact email info.reynrel@gmail.com');
   await page.getByTestId('mobile-section').scrollIntoViewIfNeeded();
   check((await page.getByTestId('mobile-section').locator('img').count()) === 2, 'landing page: "DocGen on Mobile" section with screenshots');
   check((await page.getByTestId('get-mobile').getAttribute('href')) === '/mobile', 'landing page: "Get the mobile app" opens the installation page');
   await shot('01-product');
 
-  await page.getByTestId('hero-buy').click();
+  await page.getByTestId('buy-365').click();
   await page.getByTestId('checkout-form').waitFor();
   check((await page.getByTestId('order-total').textContent()).includes('1,250'), 'checkout: order summary ₹1,250');
   await page.getByTestId('price-1825').click();
@@ -279,6 +284,10 @@ try {
   await page.getByTestId('mobile-page').waitFor();
   check((await page.getByTestId('install-mobile').getAttribute('href')) === '/app/?install=1' && (await page.getByTestId('install-qr').count()) === 1,
     'mobile page: install button and QR code for the phone');
+  const guide = page.getByTestId('android-guide');
+  check((await guide.locator('figure').count()) === 4 && (await guide.textContent()).includes('Install and create shortcut'), 'mobile page: Android install guide in 4 steps with pictures');
+  const stepImg = await fetch(`${base}/install/android-1-menu.jpg`);
+  check(stepImg.status === 200 && stepImg.headers.get('content-type').includes('image'), 'install guide pictures are served');
   const appPage = await fetch(`${base}/app/`);
   check(appPage.status === 200 && (await appPage.text()).includes('manifest.webmanifest'), 'DocGen Mobile is served at /app/ with its manifest');
   await shot('04g-mobile-page');
@@ -357,7 +366,7 @@ try {
   await page2.getByTestId('videos').waitFor();
   check((await page2.getByTestId('headline').textContent()) === 'Invoices your customers trust', 'website headline changed by the admin');
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
-  check((await page2.getByTestId('price').textContent()).includes('1,500') && (await page2.getByTestId('price-options').textContent()).includes('3 years'), 'website shows the new prices at once');
+  check((await page2.getByTestId('price').first().textContent()).includes('1,500') && (await page2.getByTestId('pricing-cards').textContent()).includes('3 years'), 'website shows the new prices at once');
   await page2.close();
 
   await page.getByTestId('nav-customers').click();

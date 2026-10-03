@@ -15,7 +15,7 @@
  *   RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET   Razorpay payments (card, UPI, netbanking, wallets)
  *   SMTP_URL                smtps://user:pass@smtp.example.com:465 — emails (password reset, payment receipt)
  *   MAIL_FROM               sender, e.g. "DocGen <no-reply@reynrel.in>"
- *   SUPPORT_EMAIL           shown to customers (default support@reynrel.in)
+ *   SUPPORT_EMAIL           shown to customers (default info.reynrel@gmail.com)
  *   TRUST_PROXY             'true' when running behind Nginx/Caddy/a load balancer
  *   DATA_DIR                folder for keys, uploads and the SQLite file (default server/data)
  *   PORTAL_DEV              'true' to serve the frontend live from frontend/src with Vite (set by npm run dev)
@@ -85,7 +85,7 @@ export const config = {
   },
   smtpUrl: env.SMTP_URL || '',
   mailFrom: env.MAIL_FROM || 'DocGen <no-reply@reynrel.in>',
-  supportEmail: env.SUPPORT_EMAIL || 'support@reynrel.in',
+  supportEmail: env.SUPPORT_EMAIL || 'info.reynrel@gmail.com',
   trustProxy: env.TRUST_PROXY === 'true',
   uploadsDir: path.join(dataDir, 'uploads'),
   /** Installers customers download after paying (one per platform). */

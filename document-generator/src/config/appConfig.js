@@ -12,7 +12,7 @@ export const APP_CONFIG = {
   company: 'reynrel.in',
   companyUrl: 'https://reynrel.in',
   website: 'https://reynrel.in',
-  supportEmail: 'support@reynrel.in',
+  supportEmail: 'info.reynrel@gmail.com',
   supportPhone: '+91 90000 00000',
   // International format without "+" or spaces, used for https://wa.me/<number>
   whatsappNumber: '919000000000',

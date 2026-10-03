@@ -1,6 +1,6 @@
 /**
- * Public product page: what DocGen is, what it looks like, one clear price and a Buy button.
- * Headline, screenshots and videos come from Admin → Website; price from Admin → Products.
+ * Public product page: what DocGen is, what it looks like, price cards per license duration, DocGen Mobile,
+ * comparison and a short FAQ. Headline, screenshots and videos come from Admin → Website; prices from Admin → Products.
  */
 
 import { useState } from 'react';
@@ -11,13 +11,40 @@ import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
 
 const FEATURES = [
-  ['file', 'GST invoices in a minute', 'Tax invoices, quotations, proforma, delivery challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
-  ['printer', 'Professional formats', 'Print or save as PDF in clean, ready-to-send layouts with your logo, signature and bank details.'],
-  ['monitor', 'Works offline', 'DocGen runs on your computer. No internet needed to create documents, and your data stays with you.'],
-  ['zap', 'Easy to learn', 'Set up your company in five minutes. No accounting knowledge needed — if you can fill a form, you can use DocGen.'],
+  ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
+  ['printer', 'Professional templates', 'Tally Professional, Tally Standard, Modern or Simple — with your logo, signature, bank details and UPI QR code.'],
+  ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license. Same documents, same templates.'],
+  ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
-  ['rupee', 'One simple price', 'One payment for the full license period. No monthly fees, no hidden charges, no per-invoice costs.'],
+  ['rupee', 'One-time payment', 'Pay once for 1, 2 or 5 years. No monthly fees, no per-invoice costs.'],
 ];
+
+const FAQ = [
+  ['Do I have to pay every month?', 'No. You pay once for the period you choose — 1, 2 or 5 years — and use everything during that time. Renew whenever you like from your account.'],
+  ['Can I use DocGen on my phone?', 'Yes. The same license works on your computer and on your phone. DocGen Mobile installs from the browser in a few seconds — see the step-by-step guide on the mobile page.'],
+  ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
+  ['How do I get my license?', 'Right after payment your license key and download link appear on screen and arrive by email. You are signed in to your account at once.'],
+  ['Is my data safe?', 'Your documents, customers and products stay on your computer or phone and are never uploaded. Back them up to a file whenever you like.'],
+];
+
+function Faq() {
+  return (
+    <section className="lp-section narrow" id="faq">
+      <div className="lp-head">
+        <span className="lp-eyebrow">FAQ</span>
+        <h2 className="lp-title">Questions, answered</h2>
+      </div>
+      <div className="faq" data-testid="faq">
+        {FAQ.map(([q, a]) => (
+          <details key={q}>
+            <summary>{q}</summary>
+            <p>{a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /** "1-year license", "2-year license", "Lifetime license", "90-day license". */
 export function licenseLength(days) {
@@ -105,95 +132,103 @@ function Screenshots({ shots }) {
   );
 }
 
-function Comparison({ product }) {
-  const yes = () => <span className="yes">✓ Yes</span>;
+function Comparison({ product, mobile }) {
+  const yes = (text = 'Yes') => <span className="yes">✓ {text}</span>;
   const no = (text) => <span className="no">{text}</span>;
+  const from = product?.prices?.[0] || product;
+  const cost = product ? `${money(from.price, product.currency)} one-time · ${period(from.durationDays)}` : 'One-time payment';
   const rows = [
-    ['Cost', `${money(product.price, product.currency)} one-time · ${period(product.durationDays)}`, 'Monthly or yearly subscription', 'Free'],
-    ['Ready to use', 'In 5 minutes', 'After setup and training', 'Every document by hand'],
-    ['GST calculation', 'Automatic', 'Automatic', no('Manual')],
-    ['Works without internet', yes(), no('Often online only'), yes()],
-    ['Professional print & PDF', yes(), yes(), no('Depends on you')],
-    ['Learning needed', 'Very little', no('Accounting knowledge'), 'Little, but error-prone'],
+    ['Cost', cost, mobile ? 'Included in the same license' : null, 'Monthly or yearly subscription', 'Free'],
+    ['Runs on', 'Windows & Mac', mobile ? 'Android & iPhone' : null, 'Computer, often online only', 'Computer'],
+    ['Ready to use', 'In 5 minutes', mobile ? 'In 2 minutes' : null, 'After setup and training', 'Every document by hand'],
+    ['GST (CGST/SGST/IGST, HSN)', 'Automatic', mobile ? 'Automatic' : null, 'Automatic', no('Manual')],
+    ['All document types & 4 templates', yes(), mobile ? yes() : null, 'Varies', no('Make your own')],
+    ['Works without internet', yes(), mobile ? yes() : null, no('Often online only'), yes()],
+    ['Print & PDF', yes(), mobile ? yes('Save as PDF, share on WhatsApp') : null, yes(), no('Depends on you')],
+    ['Your data stays with you', yes(), mobile ? yes('On your phone') : null, no('Often on their servers'), yes()],
+    ['Learning needed', 'Very little', mobile ? 'Very little' : null, no('Accounting knowledge'), 'Little, but error-prone'],
   ];
+  const heads = ['DocGen Desktop', mobile ? 'DocGen Mobile' : null, 'Accounting software', 'Word / Excel templates'].filter(Boolean);
   return (
     <section className="lp-section" id="compare">
       <div className="lp-head">
-        <span className="lp-eyebrow">Why DocGen</span>
+        <span className="lp-eyebrow">Compare</span>
         <h2 className="lp-title">Just what a small business needs</h2>
-        <p className="lp-lead">Full accounting software is more than most shops and service businesses need. Templates take time and invite mistakes.</p>
+        <p className="lp-lead">DocGen on your computer and on your phone, with one license.</p>
       </div>
       <div className="compare card table-card">
         <table className="table" data-testid="comparison">
           <thead>
             <tr>
               <th />
-              <th>DocGen</th>
-              <th>Typical accounting software</th>
-              <th>Word / Excel templates</th>
+              {heads.map((h, i) => (
+                <th key={h} className={i < (mobile ? 2 : 1) ? 'ours' : ''}>
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {rows.map(([label, ...cells]) => (
               <tr key={label}>
                 <td className="muted">{label}</td>
-                {cells.map((c, n) => (
-                  <td key={n}>{c}</td>
-                ))}
+                {cells
+                  .filter((c) => c !== null)
+                  .map((c, n) => (
+                    <td key={n} className={n < (mobile ? 2 : 1) ? 'ours' : ''}>
+                      {c}
+                    </td>
+                  ))}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+      <span className="compare-hint muted small">Swipe the table sideways to compare →</span>
     </section>
   );
 }
 
-export function PriceCard({ product, cta = true }) {
+/** Price per year for comparing durations ("₹1,125 / year"); null for lifetime. */
+const perYear = (p) => (p.durationDays ? p.price / (p.durationDays / 365) : null);
+
+/** Pricing: one card per license duration (1 year, 2 years, 5 years …), the best value marked. */
+export function PricingCards({ product }) {
+  const prices = product.prices?.length ? product.prices : [{ id: null, durationDays: product.durationDays, price: product.price, label: period(product.durationDays) }];
+  const yearly = prices.map(perYear).filter((v) => v !== null);
+  const best = prices.length > 1 && yearly.length ? Math.min(...yearly) : null;
+  const devices = `${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}${
+    product.maxMobileDevices ? ` + ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''
+  }`;
   return (
-    <div className="price-card" data-testid="price-card">
-      <div>
-        <h3>{product.name}</h3>
-        {product.description && <p className="muted">{product.description}</p>}
-      </div>
-      <div className="price-amount">
-        <strong data-testid="price">{money(product.price, product.currency)}</strong>
-        <span>one-time payment</span>
-      </div>
-      <span className="price-note">Includes {licenseLength(product.durationDays)}</span>
-      {product.prices?.length > 1 && (
-        <ul className="price-options" data-testid="price-options">
-          {product.prices.map((p) => (
-            <li key={p.id ?? p.durationDays}>
-              <span>{p.label}</span>
-              <strong>{money(p.price, product.currency)}</strong>
-            </li>
-          ))}
-        </ul>
-      )}
-      <ul className="ticks">
-        {[
-          ...product.features,
-          `Use on ${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}${
-            product.maxMobileDevices ? ` and ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''
-          }`,
-        ].map((f) => (
-          <li key={f}>
-            <Icon name="check" size={16} strokeWidth={2.4} />
-            {f}
-          </li>
-        ))}
-      </ul>
-      {cta && (
-        <>
-          <Link className="btn btn-primary btn-lg btn-block" to={`/buy?product=${product.id}`} data-testid="buy-now">
-            Buy now
-          </Link>
-          <div className="secure-note">
-            <Icon name="lock" size={14} /> Secure payment · UPI, cards, netbanking
+    <div className="pricing-cards" data-testid="pricing-cards" style={{ '--cards': Math.min(prices.length, 4) }}>
+      {prices.map((p) => {
+        const isBest = best !== null && perYear(p) === best;
+        return (
+          <div key={p.id ?? p.durationDays} className={`plan-card ${isBest ? 'best' : ''}`} data-testid="price-card">
+            {isBest && <span className="plan-badge">Best value</span>}
+            <span className="plan-name">{p.label || period(p.durationDays)}</span>
+            <strong className="plan-price" data-testid="price">
+              {money(p.price, product.currency)}
+            </strong>
+            <span className="plan-sub">{perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · one-time` : 'one-time payment'}</span>
+            <ul className="ticks small">
+              <li>
+                <Icon name="check" size={15} strokeWidth={2.4} /> {devices}
+              </li>
+              <li>
+                <Icon name="check" size={15} strokeWidth={2.4} /> All document types &amp; templates
+              </li>
+              <li>
+                <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support for {period(p.durationDays)}
+              </li>
+            </ul>
+            <Link className={`btn btn-block ${isBest ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
+              Buy {p.label || period(p.durationDays)}
+            </Link>
           </div>
-        </>
-      )}
+        );
+      })}
     </div>
   );
 }
@@ -210,6 +245,7 @@ export default function ProductPage() {
   }
   const { site, products } = data;
   const product = products[0];
+  const from = product ? (product.prices?.length ? Math.min(...product.prices.map((p) => p.price)) : product.price) : null;
   const shots = site.screenshots || [];
   return (
     <div className="site">
@@ -217,43 +253,42 @@ export default function ProductPage() {
       <main>
         <section className="lp-section hero">
           <div>
-            <span className="lp-eyebrow">Billing &amp; business documents for Indian businesses</span>
+            <span className="lp-eyebrow">GST billing for Indian businesses</span>
             <h1 data-testid="headline">{site.headline}</h1>
             <p className="lp-lead">{site.subheadline}</p>
             <div className="hero-cta">
-              <Link className="btn btn-primary btn-lg" to="/buy" data-testid="hero-buy">
-                Buy now{product ? ` — ${money(product.price, product.currency)}` : ''}
-              </Link>
-              <a className="btn btn-lg" href="#screenshots">
-                See it in action
+              <a className="btn btn-primary btn-lg" href="#pricing" data-testid="hero-buy">
+                {from !== null ? `Buy now — from ${money(from, product.currency)}` : 'See pricing'}
               </a>
+              {data.mobileAvailable && (
+                <Link className="btn btn-lg" to="/mobile">
+                  <Icon name="phone" size={18} /> Mobile app
+                </Link>
+              )}
             </div>
-            {product && (
-              <p className="hero-price" style={{ marginTop: 12 }}>
-                One-time payment · includes {licenseLength(product.durationDays)}
-              </p>
-            )}
             <div className="trust-row">
               <span>
                 <Icon name="shield" size={16} /> Secure payment
               </span>
               <span>
-                <Icon name="mail" size={16} /> License by email instantly
+                <Icon name="monitor" size={16} /> Windows · Mac · Android · iPhone
               </span>
               <span>
-                <Icon name="monitor" size={16} /> Works offline
+                <Icon name="mail" size={16} /> License by email instantly
               </span>
             </div>
           </div>
-          {shots[0] && <AppFrame src={shots[0].url} alt={shots[0].caption || 'DocGen'} />}
+          <div className="hero-visual">
+            {shots[0] && <AppFrame src={shots[0].url} alt={shots[0].caption || 'DocGen'} />}
+            {data.mobileAvailable && <img className="hero-phone" src="/screenshots/mobile-dashboard.png" alt="DocGen Mobile" />}
+          </div>
         </section>
 
         <div className="lp-band">
           <section className="lp-section" id="features">
             <div className="lp-head">
               <span className="lp-eyebrow">Features</span>
-              <h2 className="lp-title">Simple, easy-to-use, professional</h2>
-              <p className="lp-lead">Everything you need to send proper documents to customers — and nothing that gets in the way.</p>
+              <h2 className="lp-title">Simple, professional, ready in minutes</h2>
             </div>
             <div className="features">
               {FEATURES.map(([icon, title, text]) => (
@@ -287,73 +322,70 @@ export default function ProductPage() {
           </div>
         )}
 
-        <section className="lp-section" id="pricing">
-          <div className="lp-head">
-            <span className="lp-eyebrow">Pricing</span>
-            <h2 className="lp-title">One price. Everything included.</h2>
-            <p className="lp-lead">Pay once and use every feature for the full license period. Renew whenever you like.</p>
-          </div>
-          {products.length ? (
-            <div className="price-wrap">
-              {products.map((p) => (
-                <PriceCard key={p.id} product={p} />
-              ))}
+        <div className="lp-band">
+          <section className="lp-section" id="pricing">
+            <div className="lp-head">
+              <span className="lp-eyebrow">Pricing</span>
+              <h2 className="lp-title">One-time payment. Choose your period.</h2>
+              <p className="lp-lead">Every plan includes all features, the desktop and the mobile app. The longer the period, the less you pay per year.</p>
             </div>
-          ) : (
-            <p className="center muted">DocGen will be available here soon.</p>
-          )}
-          <div className="steps" style={{ marginTop: 48 }}>
-            {[
-              ['Enter your details', 'Name, mobile number and email.'],
-              ['Pay securely', 'UPI, cards or netbanking.'],
-              ['Get your license', 'Your license code and download link appear at once and arrive by email.'],
-              ['Install and start', 'Install DocGen, enter the code and create your first invoice.'],
-            ].map(([t, d], n) => (
-              <div key={t} className="step">
-                <b>{n + 1}</b>
-                <strong>{t}</strong>
-                <span className="muted">{d}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+            {products.length ? (
+              products.map((p) => (
+                <div key={p.id} className="pricing-group">
+                  {products.length > 1 && <h3 className="center">{p.name}</h3>}
+                  <PricingCards product={p} />
+                </div>
+              ))
+            ) : (
+              <p className="center muted">DocGen will be available here soon.</p>
+            )}
+            <p className="secure-note center" style={{ marginTop: 18 }}>
+              <Icon name="lock" size={14} /> Secure payment by Razorpay · UPI, cards, netbanking · License key by email at once
+            </p>
+          </section>
+        </div>
 
         {data.mobileAvailable && (
+          <section className="lp-section mobile-promo" id="mobile" data-testid="mobile-section">
+            <div>
+              <span className="lp-eyebrow">DocGen Mobile</span>
+              <h2 className="lp-title">Your billing, in your pocket</h2>
+              <p className="lp-lead">
+                All document types and the same templates as on your computer, on Android and iPhone — even without internet. Installs from the
+                browser in seconds; one license covers your computer and up to {product?.maxMobileDevices || 2} phones.
+              </p>
+              <div className="hero-cta" style={{ marginTop: 18 }}>
+                <Link className="btn btn-primary btn-lg" to="/mobile" data-testid="get-mobile">
+                  <Icon name="phone" size={18} /> Get the mobile app
+                </Link>
+                <Link className="btn btn-lg" to="/mobile#android">
+                  Android install guide
+                </Link>
+              </div>
+            </div>
+            <div className="phone-shots">
+              <img src="/screenshots/mobile-dashboard.png" alt="DocGen Mobile dashboard" />
+              <img src="/screenshots/mobile-invoice.png" alt="Invoice on DocGen Mobile" />
+            </div>
+          </section>
+        )}
+
+        {site.showComparison && (
           <div className="lp-band">
-            <section className="lp-section mobile-promo" id="mobile" data-testid="mobile-section">
-              <div>
-                <span className="lp-eyebrow">New</span>
-                <h2 className="lp-title">DocGen on Mobile</h2>
-                <p className="lp-lead">
-                  Everything DocGen does on your computer — all document types and the same invoice templates — on your phone, even without
-                  internet. Install it from the browser in seconds; the same license works on your computer and up to {product?.maxMobileDevices || 2} phones.
-                </p>
-                <div className="hero-cta" style={{ marginTop: 18 }}>
-                  <Link className="btn btn-primary btn-lg" to="/mobile" data-testid="get-mobile">
-                    <Icon name="phone" size={18} /> Get the mobile app
-                  </Link>
-                </div>
-              </div>
-              <div className="phone-shots">
-                <img src="/screenshots/mobile-dashboard.png" alt="DocGen Mobile dashboard" loading="lazy" />
-                <img src="/screenshots/mobile-invoice.png" alt="Invoice on DocGen Mobile" loading="lazy" />
-              </div>
-            </section>
+            <Comparison product={product} mobile={data.mobileAvailable} />
           </div>
         )}
 
-        {site.showComparison && product && (
-          <div className="lp-band">
-            <Comparison product={product} />
-          </div>
-        )}
+        <Faq />
 
         <section className="lp-section final-cta">
           <h2 className="lp-title">Start sending professional documents today</h2>
-          <p className="lp-lead">Set up in minutes. Questions before you buy? Write to support@reynrel.in.</p>
-          <Link className="btn btn-primary btn-lg" to="/buy">
-            Buy DocGen{product ? ` — ${money(product.price, product.currency)}` : ''}
-          </Link>
+          <p className="lp-lead">
+            Questions before you buy? Write to <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>.
+          </p>
+          <a className="btn btn-primary btn-lg" href="#pricing">
+            See pricing
+          </a>
         </section>
       </main>
       <SiteFooter />

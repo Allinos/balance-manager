@@ -28,7 +28,7 @@ export default class ErrorBoundary extends Component {
     return (
       <div className="success center" style={{ margin: '12vh auto', padding: '0 16px' }} data-testid="page-error">
         <h1>This page could not be shown</h1>
-        <p className="muted">Please reload. If it happens again, sign out and reload, or write to support@reynrel.in with the message below.</p>
+        <p className="muted">Please reload. If it happens again, sign out and reload, or write to info.reynrel@gmail.com with the message below.</p>
         <pre className="muted small" style={{ whiteSpace: 'pre-wrap', textAlign: 'left' }}>{String(error?.message || error)}</pre>
         <div className="row" style={{ justifyContent: 'center' }}>
           <button className="btn btn-primary" onClick={() => window.location.reload()}>

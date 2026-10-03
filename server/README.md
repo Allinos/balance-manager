@@ -165,7 +165,9 @@ The browser (and the apps) can never create a license, choose an amount or exten
    and upload it (step 4).
 6. **Prices & website**: Admin → Products & pricing (default DocGen: 1 year ₹1,250, 2 years ₹2,250,
    5 years ₹4,999; 1 computer, 2 phones — add or change durations and prices there) and
-   Admin → Website (headline, screenshots, up to two YouTube/Vimeo videos).
+   Admin → Website (headline, screenshots, up to two YouTube/Vimeo videos). The website shows one
+   pricing card per duration (the lowest price per year is marked *Best value*), a comparison of
+   DocGen Desktop, DocGen Mobile, accounting software and Word/Excel templates, and an FAQ.
 7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
@@ -191,7 +193,7 @@ The browser (and the apps) can never create a license, choose an amount or exten
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | — | enable Razorpay checkout (UPI, cards, netbanking, wallets) |
 | `RAZORPAY_WEBHOOK_SECRET` | — | verifies Razorpay webhooks (`/api/payments/webhook/razorpay`) |
 | `SMTP_URL` / `MAIL_FROM` | — | email receipts and password-reset links (without it the portal tells customers to contact support) |
-| `SUPPORT_EMAIL` | `support@reynrel.in` | shown to customers and used as reply-to |
+| `SUPPORT_EMAIL` | `info.reynrel@gmail.com` | shown to customers and used as reply-to |
 | `ENABLE_MOCK_PAYMENTS` | off | `true` = instant fake payments for local testing (ignored in production) |
 | `TRUST_PROXY` | — | `true` behind Nginx/Caddy/a load balancer (correct client IPs for rate limits) |
 | `RATE_LIMITS` | on (off in tests) | `off` disables rate limiting (load tests only) |
@@ -249,8 +251,9 @@ Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does
 ### DocGen Mobile
 
 [`mobile/`](mobile/) is a React app, built to `mobile/dist` and served at `/app/`. It is a Progressive Web App:
-Android (Chrome) offers *Install*, iPhone uses *Share → Add to Home Screen*; `/mobile` explains it with
-screenshots, a QR code and the install button.
+Android (Chrome: menu ⋮ → *Install and create shortcut* → *Install*), iPhone uses *Share → Add to Home
+Screen*; `/mobile` explains it with screenshots, a QR code, the install button and a 4-step Android guide
+with pictures (`/mobile#android`, images in `frontend/public/install/`).
 
 - **Same features as the desktop app.** The mobile build imports the desktop app's own code from
   `document-generator/src` (see `mobile/vite.config.js`): all 18 document types, the 4 templates and renderer
@@ -283,7 +286,7 @@ screenshots, a QR code and the install button.
 
 ### Testing DocGen Mobile on a phone
 
-Phones install a web app (Android Chrome: *Install app*; iPhone Safari: *Add to Home Screen* as an app) only
+Phones install a web app (Android Chrome: menu ⋮ → *Install and create shortcut*; iPhone Safari: *Add to Home Screen* as an app) only
 from a **secure address**: `https://…`, or `localhost` on the phone itself. The address the server prints at
 start (`http://192.168.x.x:8787/app/`, same Wi-Fi) is fine for *using* DocGen Mobile, but the phone offers
 no Install there and no offline mode. On the live site (`https://docgen.reynrel.in`) none of this matters. To
