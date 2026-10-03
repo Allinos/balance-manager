@@ -10,6 +10,7 @@ import Icon from '../../components/Icon.jsx';
 import StatusEditor from '../../components/StatusEditor.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { NewDocumentModal } from '../../layouts/AppLayout.jsx';
+import SalesDownloadModal from './SalesDownloadModal.jsx';
 import { EmptyState, Menu, StatusBadge } from '../../components/Common.jsx';
 import { DOCUMENT_TYPES, STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '../../config/documentTypes.js';
 import { pricesVisible } from '../../config/defaults.js';
@@ -38,6 +39,7 @@ export default function DocumentManagerPage({ query }) {
   const [deleted, setDeleted] = useState(false);
   const [typeFilter, setTypeFilter] = useState(query.type || '');
   const [chooser, setChooser] = useState(false);
+  const [salesDownload, setSalesDownload] = useState(false);
   const [docs, setDocs] = useState({ rows: [], total: 0 });
   const [files, setFiles] = useState({ rows: [], total: 0 });
   const [fileTotal, setFileTotal] = useState(0);
@@ -152,6 +154,9 @@ export default function DocumentManagerPage({ query }) {
           </button>
           <button className="btn btn-primary" onClick={() => setChooser(true)} data-testid="new-document">
             <Icon name="plus" size={16} /> New Document
+          </button>
+          <button className="btn" onClick={() => setSalesDownload(true)} title="Download sales / invoice data with party GST details" data-testid="sales-download">
+            <Icon name="download" size={16} /> Download
           </button>
         </div>
       </div>
@@ -414,6 +419,7 @@ export default function DocumentManagerPage({ query }) {
         )}
       </div>
       {chooser && <NewDocumentModal onClose={() => setChooser(false)} />}
+      {salesDownload && <SalesDownloadModal onClose={() => setSalesDownload(false)} />}
     </div>
   );
 }

@@ -186,7 +186,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
               ))}
               {showTermsOfDelivery && <Cell label="Terms of Delivery" value={meta.termsOfDelivery} wide />}
             </div>
-            {!!qr.src && (
+            {!!qr.src && !qr.payment && (
               <div className="tp-qr">
                 <QrBlock src={qr.src} caption={qr.caption} />
               </div>
@@ -298,7 +298,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
         {type.layout === 'receipt' && (
           <div className="tp-box tp-receipt">
             <p>
-              Received with thanks from <strong>{doc.party_name || '—'}</strong> the sum of <strong>{money(doc.grand_total)}</strong>
+              {type.partyKind === 'vendor' ? 'Paid to' : 'Received with thanks from'} <strong>{doc.party_name || '—'}</strong> the sum of <strong>{money(doc.grand_total)}</strong>
               {meta.payment_mode ? ` by ${meta.payment_mode}` : ''}
               {meta.payment_reference ? ` (Ref: ${meta.payment_reference})` : ''}
               {meta.against ? ` against ${meta.against}` : ''} on {fmtDate(doc.issue_date)}.
@@ -458,32 +458,41 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
             )}
           </div>
           <div className="tp-bottom-right">
-            {ds.showBank !== false && showPrices && hasBank && (
-              <div className="tp-bank">
-                <div className="tp-caption">Company&apos;s Bank Details</div>
-                {company.account_holder && (
-                  <div>
-                    A/c Holder&apos;s Name <span className="tp-colon">:</span> <strong>{company.account_holder}</strong>
+            {((ds.showBank !== false && showPrices && hasBank) || (qr.payment && qr.src)) && (
+              <div className="tp-pay">
+                {ds.showBank !== false && showPrices && hasBank && (
+                  <div className="tp-bank">
+                    <div className="tp-caption">Company&apos;s Bank Details</div>
+                    {company.account_holder && (
+                      <div>
+                        A/c Holder&apos;s Name <span className="tp-colon">:</span> <strong>{company.account_holder}</strong>
+                      </div>
+                    )}
+                    {company.bank_name && (
+                      <div>
+                        Bank Name <span className="tp-colon">:</span> <strong>{company.bank_name}</strong>
+                      </div>
+                    )}
+                    {company.account_number && (
+                      <div>
+                        A/c No. <span className="tp-colon">:</span> <strong>{company.account_number}</strong>
+                      </div>
+                    )}
+                    {(company.branch || company.ifsc) && (
+                      <div>
+                        Branch &amp; IFS Code <span className="tp-colon">:</span> <strong>{[company.branch, company.ifsc].filter(Boolean).join(' & ')}</strong>
+                      </div>
+                    )}
+                    {company.upi_id && (
+                      <div>
+                        UPI <span className="tp-colon">:</span> <strong>{company.upi_id}</strong>
+                      </div>
+                    )}
                   </div>
                 )}
-                {company.bank_name && (
-                  <div>
-                    Bank Name <span className="tp-colon">:</span> <strong>{company.bank_name}</strong>
-                  </div>
-                )}
-                {company.account_number && (
-                  <div>
-                    A/c No. <span className="tp-colon">:</span> <strong>{company.account_number}</strong>
-                  </div>
-                )}
-                {(company.branch || company.ifsc) && (
-                  <div>
-                    Branch &amp; IFS Code <span className="tp-colon">:</span> <strong>{[company.branch, company.ifsc].filter(Boolean).join(' & ')}</strong>
-                  </div>
-                )}
-                {company.upi_id && (
-                  <div>
-                    UPI <span className="tp-colon">:</span> <strong>{company.upi_id}</strong>
+                {qr.payment && !!qr.src && (
+                  <div className="tp-pay-qr" data-testid="upi-qr">
+                    <QrBlock src={qr.src} caption={qr.caption} />
                   </div>
                 )}
               </div>

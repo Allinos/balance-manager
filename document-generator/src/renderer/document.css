@@ -813,6 +813,22 @@
 .tp-bank {
   padding: 1.6mm 2.2mm;
 }
+/* Bank details with the UPI payment QR beside them */
+.tp-pay {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.tp-pay .tp-bank {
+  flex: 1;
+}
+.tp-pay-qr {
+  padding: 1.6mm 2.2mm;
+}
+.tp-pay-qr img {
+  width: 24mm;
+  height: 24mm;
+}
 .tp-sign {
   margin-top: auto;
   border-top: 1px solid var(--doc-line);

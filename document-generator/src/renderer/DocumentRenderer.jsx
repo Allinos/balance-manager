@@ -49,6 +49,7 @@ function qrFor(payload) {
           }),
         ),
         caption: 'Scan to pay (UPI)',
+        payment: true,
       };
     case 'CONTACT':
       return {

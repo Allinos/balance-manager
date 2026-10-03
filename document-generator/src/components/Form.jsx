@@ -70,10 +70,10 @@ export function Select({ value, onChange, options, ...rest }) {
   );
 }
 
-export function Toggle({ checked, onChange, label, hint }) {
+export function Toggle({ checked, onChange, label, hint, ...rest }) {
   return (
     <label className="toggle">
-      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} {...rest} />
       <span className="toggle-track" aria-hidden="true">
         <span className="toggle-thumb" />
       </span>

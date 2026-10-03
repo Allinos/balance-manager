@@ -395,7 +395,7 @@ export function ReceiptBody({ doc, dateFormat }) {
   return (
     <div className="doc-receipt">
       <p>
-        Received with thanks from <strong>{doc.party_name || '—'}</strong>
+        {type.partyKind === 'vendor' ? 'Paid to' : 'Received with thanks from'} <strong>{doc.party_name || '—'}</strong>
         {doc.party_company && doc.party_company !== doc.party_name ? ` (${doc.party_company})` : ''} the sum of{' '}
         <strong>{formatMoney(doc.grand_total, doc)}</strong> (
         {amountInWords(doc.grand_total, doc.currency, Number(doc.currency_decimals ?? 2))})
@@ -413,7 +413,7 @@ export function ReceiptBody({ doc, dateFormat }) {
         on {formatDate(doc.issue_date, dateFormat)}.
       </p>
       <div className="doc-receipt-amount">
-        <span>{type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
+        <span>{type.partyKind === 'vendor' ? 'Amount Paid' : type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
         <strong>{formatMoney(doc.grand_total, doc)}</strong>
       </div>
     </div>

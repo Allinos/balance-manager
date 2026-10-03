@@ -4,7 +4,7 @@ import Modal from '../../components/Modal.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
 import StatusEditor from '../../components/StatusEditor.jsx';
 import { getType, normaliseTemplate, statusLabel, TEMPLATES, TYPE_MAP } from '../../config/documentTypes.js';
-import { resolveDocSettings } from '../../config/defaults.js';
+import { resolveDocSettings, withDocumentOptions } from '../../config/defaults.js';
 import { getDocument, setDocumentTemplate } from '../../services/documentService.js';
 import { openExternal, printCurrent, savePdf } from '../../services/systemService.js';
 import { formatDateTime } from '../../utils/dates.js';
@@ -141,7 +141,10 @@ export default function DocumentViewPage({ params, query }) {
   }, [load]);
 
   const doc = bundle?.document;
-  const ds = useMemo(() => (doc ? resolveDocSettings(doc.document_type, settings, docSettings) : null), [doc, settings, docSettings]);
+  const ds = useMemo(
+    () => (doc ? withDocumentOptions(resolveDocSettings(doc.document_type, settings, docSettings), { ...doc, meta: parseMeta(doc.meta) }) : null),
+    [doc, settings, docSettings],
+  );
   const template = doc ? normaliseTemplate(doc.template || ds.template) : '';
 
   const payload = useMemo(() => {

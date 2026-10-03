@@ -14,9 +14,12 @@
  *  - Delivery Challan: goods moved without sale (job work, approval, stock
  *    transfer) — quantities only.
  *  - Credit / Debit Note: reference the original invoice.
- *  - Quotation, Estimate, Proforma, Sales/Purchase Order, GRN, Purchase Invoice,
- *    Work Order, Job Completion and Payment Receipt are commercial documents
- *    commonly issued by small businesses (no statutory format).
+ *  - Payment Voucher: money paid out; also the voucher required for payments
+ *    under reverse charge (CGST Rule 52).
+ *  - Quotation, Reverse Quotation (a price offer to a supplier), Estimate,
+ *    Proforma, Sales/Purchase Order, GRN, Purchase Invoice, Work Order, Job
+ *    Completion and Payment Receipt are commercial documents commonly issued by
+ *    small businesses (no statutory format).
  *
  * @typedef {Object} DocumentTypeDef
  * @property {string} id                 internal identifier stored in SQLite (UPPER_SNAKE_CASE)
@@ -39,6 +42,7 @@
  * @property {string} icon               icon name (components/Icon.jsx)
  * @property {string[]} conversions      document types this one can be converted into
  * @property {Object} defaults           default per-type settings
+ * @property {boolean} [bankOption]      the editor offers "Show bank details" per document
  */
 
 /** Optional "additional details" fields (stored in document.meta). */
@@ -97,7 +101,8 @@ export const DOCUMENT_TYPES = [
     statuses: INVOICE_STATUSES,
     optional: ['paymentTerms', 'reverseCharge', ...DISPATCH],
     conversions: ['DELIVERY_CHALLAN', 'CREDIT_NOTE', 'DEBIT_NOTE', 'PAYMENT_RECEIPT'],
-    defaults: { dueDays: 15, showQr: false, showTaxBreakup: true },
+    // Bank details + UPI QR code (Settings → Company → UPI ID) so the customer can pay at once.
+    defaults: { dueDays: 15, showBank: true, showQr: true, showTaxBreakup: true },
   }),
   def({
     id: 'SERVICE_INVOICE', label: 'Service Invoice', short: 'Service Invoice', prefix: 'SI', title: 'TAX INVOICE',
@@ -105,18 +110,33 @@ export const DOCUMENT_TYPES = [
     statuses: INVOICE_STATUSES,
     optional: ['servicePeriod', 'siteLocation', 'paymentTerms', 'reverseCharge', 'buyerOrderNo', 'buyerOrderDate'],
     conversions: ['CREDIT_NOTE', 'PAYMENT_RECEIPT'],
-    defaults: { dueDays: 15, showTaxBreakup: true, defaultUnit: 'Service' },
+    defaults: { dueDays: 15, showBank: true, showQr: true, showTaxBreakup: true, defaultUnit: 'Service' },
   }),
   def({
     id: 'QUOTATION', label: 'Quotation', short: 'Quotation', prefix: 'QTN', title: 'QUOTATION',
     partyLabel: 'Quotation For', dateLabel: 'Quotation Date', dueLabel: 'Valid Until', dueSetting: 'validityDays', icon: 'quote',
     statuses: OFFER_STATUSES, statusLabels: { ISSUED: 'Sent' },
     optional: ['paymentTerms', 'termsOfDelivery', 'siteLocation'],
+    bankOption: true,
     conversions: ['SALES_ORDER', 'PROFORMA_INVOICE', 'TAX_INVOICE', 'SERVICE_INVOICE', 'WORK_ORDER'],
     defaults: {
       validityDays: 15,
       showBank: false,
       terms: '1. Prices are valid for the period mentioned above.\n2. Taxes extra as applicable.\n3. Delivery within 7 days of order confirmation.',
+    },
+  }),
+  def({
+    // A quotation in the buying direction: the price at which you offer to buy from a supplier.
+    id: 'REVERSE_QUOTATION', label: 'Reverse Quotation', short: 'Reverse Quotation', prefix: 'RQ', title: 'REVERSE QUOTATION',
+    group: 'purchase', partyLabel: 'Supplier', partyKind: 'vendor', dateLabel: 'Quotation Date', dueLabel: 'Valid Until', dueSetting: 'validityDays', icon: 'quote',
+    statuses: OFFER_STATUSES, statusLabels: { ISSUED: 'Sent' },
+    optional: ['paymentTerms', 'termsOfDelivery', 'destination'],
+    conversions: ['PURCHASE_ORDER'],
+    defaults: {
+      validityDays: 15,
+      showBank: false,
+      showQr: false,
+      terms: '1. The rates above are the prices at which we offer to buy.\n2. Please confirm availability and delivery schedule.\n3. A purchase order will follow on acceptance.',
     },
   }),
   def({
@@ -172,7 +192,7 @@ export const DOCUMENT_TYPES = [
     group: 'purchase', partyLabel: 'Supplier', partyKind: 'vendor', dateLabel: 'Bill Date', dueLabel: 'Due Date', dueSetting: 'dueDays', financial: true, icon: 'file',
     statuses: INVOICE_STATUSES, statusLabels: { ISSUED: 'Recorded' },
     optional: ['supplierInvoiceNo', 'supplierInvoiceDate', 'reverseCharge', 'paymentTerms'],
-    conversions: ['DEBIT_NOTE', 'PAYMENT_RECEIPT'],
+    conversions: ['DEBIT_NOTE', 'PAYMENT_VOUCHER'],
     defaults: { dueDays: 30, showBank: false, showQr: false, terms: '' },
   }),
   def({
@@ -206,6 +226,14 @@ export const DOCUMENT_TYPES = [
     id: 'PAYMENT_RECEIPT', label: 'Payment Receipt', short: 'Receipt', prefix: 'RCT', title: 'PAYMENT RECEIPT',
     group: 'payment', partyLabel: 'Received From', dateLabel: 'Receipt Date', layout: 'receipt', financial: true, icon: 'wallet',
     statuses: ['DRAFT', 'ISSUED', 'CANCELLED'],
+    required: ['party_name', 'issue_date', 'meta.amount_received'],
+    defaults: { showBank: false, showQr: false, showTaxBreakup: false, terms: '' },
+  }),
+  def({
+    // Money paid out (to a supplier, for expenses, or under reverse charge — CGST Rule 52).
+    id: 'PAYMENT_VOUCHER', label: 'Payment Voucher', short: 'Payment Voucher', prefix: 'PV', title: 'PAYMENT VOUCHER',
+    group: 'payment', partyLabel: 'Paid To', partyKind: 'vendor', dateLabel: 'Payment Date', layout: 'receipt', financial: true, icon: 'coins',
+    statuses: ['DRAFT', 'ISSUED', 'CANCELLED'], statusLabels: { ISSUED: 'Paid' },
     required: ['party_name', 'issue_date', 'meta.amount_received'],
     defaults: { showBank: false, showQr: false, showTaxBreakup: false, terms: '' },
   }),
@@ -298,6 +326,9 @@ export function typesMatching(text) {
     (t) => t.label.toLowerCase().includes(q) || t.short.toLowerCase().includes(q) || t.prefix.toLowerCase() === q,
   ).map((t) => t.id);
 }
+
+/** Document types in the sales data download (Document Manager → Download). */
+export const SALES_REGISTER_TYPES = ['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'CREDIT_NOTE', 'DEBIT_NOTE'];
 
 export const PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 'Other'];
 

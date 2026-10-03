@@ -16,6 +16,7 @@ const PLURAL = {
   TAX_INVOICE: 'Invoices',
   SERVICE_INVOICE: 'Service Invoices',
   QUOTATION: 'Quotations',
+  REVERSE_QUOTATION: 'Reverse Quotations',
   ESTIMATE: 'Estimates',
   PROFORMA_INVOICE: 'Proforma Invoices',
   SALES_ORDER: 'Sales Orders',
@@ -27,6 +28,7 @@ const PLURAL = {
   DEBIT_NOTE: 'Debit Notes',
   BILL_OF_SUPPLY: 'Bills of Supply',
   PAYMENT_RECEIPT: 'Receipts',
+  PAYMENT_VOUCHER: 'Payment Vouchers',
   WORK_ORDER: 'Work Orders',
   JOB_COMPLETION: 'Job Completions',
 };

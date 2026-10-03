@@ -10,7 +10,7 @@
 import { call } from './api.js';
 import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
 import { isValidGstin } from '../config/states.js';
-import { resolveDocSettings, CURRENCY_PRESETS } from '../config/defaults.js';
+import { resolveDocSettings, withDocumentOptions, CURRENCY_PRESETS } from '../config/defaults.js';
 import { calcDocument } from '../utils/calc.js';
 import { dec, toFixed, round } from '../utils/decimal.js';
 import { todayISO, addDays } from '../utils/dates.js';
@@ -185,7 +185,12 @@ export function modelFromSource(bundle, targetType, mode, ctx) {
     terms: mode === 'duplicate' ? s.terms : fresh.document.terms,
     reference: mode === 'convert' ? '' : s.reference,
     parent_document_id: mode === 'convert' ? s.id : null,
-    meta: { ...fresh.document.meta, roundOffMode: s.meta.roundOffMode || fresh.document.meta.roundOffMode },
+    meta: {
+      ...fresh.document.meta,
+      roundOffMode: s.meta.roundOffMode || fresh.document.meta.roundOffMode,
+      // A duplicate keeps this document's own "show bank details" choice.
+      ...(mode === 'duplicate' && typeof s.meta.showBank === 'boolean' ? { showBank: s.meta.showBank } : {}),
+    },
   };
   if (getType(targetType).layout === 'receipt') {
     document.meta.amount_received = mode === 'duplicate' ? s.meta.amount_received || s.grand_total : s.grand_total;
@@ -210,7 +215,7 @@ const meaningful = (it) => it.name.trim() !== '' || dec(it.unit_price) !== 0n ||
 export function calculate(model, ctx) {
   const { document: doc } = model;
   const type = getType(doc.document_type);
-  const ds = resolveDocSettings(doc.document_type, ctx.settings, ctx.docSettings);
+  const ds = withDocumentOptions(resolveDocSettings(doc.document_type, ctx.settings, ctx.docSettings), doc);
   const decimals = Number(doc.currency_decimals ?? 2);
   if (type.layout === 'receipt') {
     const amount = toFixed(round(doc.meta.amount_received || '0', decimals), decimals);
@@ -326,6 +331,8 @@ export const setDocumentTemplate = (id, template) => call('document_set_template
 export const deleteDocument = (id) => call('document_delete', { id });
 export const restoreDocument = (id) => call('document_restore', { id });
 export const dashboardStats = () => call('dashboard_stats');
+/** Save the sales data of a period as CSV. Resolves to { path, count }, or null if cancelled. */
+export const exportSales = ({ types, labels, from, to }) => call('sales_export', { types, labels, from, to });
 
 /** Build the payload consumed by the HTML renderer from a model. */
 export function renderPayload(model, ctx) {

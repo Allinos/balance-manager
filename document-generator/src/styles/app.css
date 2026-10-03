@@ -3648,3 +3648,24 @@ div.folder-item {
   height: 72px;
   object-fit: contain;
 }
+
+/* Quotation: "Show bank details" for this document */
+.bank-option {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+/* Download sales data dialog */
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.form-stack p {
+  margin: 0;
+}

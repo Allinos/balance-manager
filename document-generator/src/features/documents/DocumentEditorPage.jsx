@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
-import { Field, NumberInput, Select, TextArea, TextInput } from '../../components/Form.jsx';
+import { Field, NumberInput, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import HelpTip from '../../components/HelpTip.jsx';
@@ -196,6 +196,7 @@ export default function DocumentEditorPage({ params, query }) {
   const showPrices = ds.showPrices !== false;
   const currencies = settings.currencies?.length ? settings.currencies : [currencyInfo(settings, settings.baseCurrency)];
   const isNew = !doc.id;
+  const hasBankDetails = ['bank_name', 'account_number', 'ifsc', 'iban', 'upi_id'].some((k) => company?.[k]);
 
   const taxModes =
     settings.taxSystem === 'GST'
@@ -392,7 +393,7 @@ export default function DocumentEditorPage({ params, query }) {
                 <h2>Payment</h2>
               </div>
               <div className="grid-4">
-                <Field label={`Amount received (${doc.currency_symbol.trim() || doc.currency})`} required>
+                <Field label={`Amount ${type.partyKind === 'vendor' ? 'paid' : 'received'} (${doc.currency_symbol.trim() || doc.currency})`} required>
                   <NumberInput value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
                 </Field>
                 <Field label="Payment mode">
@@ -401,8 +402,8 @@ export default function DocumentEditorPage({ params, query }) {
                 <Field label="Transaction / cheque no.">
                   <TextInput value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
                 </Field>
-                <Field label="Against invoice">
-                  <TextInput value={doc.meta.against} onChange={(v) => setMeta({ against: v })} placeholder="e.g. INV-00012" />
+                <Field label={type.partyKind === 'vendor' ? 'Against bill' : 'Against invoice'}>
+                  <TextInput value={doc.meta.against} onChange={(v) => setMeta({ against: v })} placeholder={type.partyKind === 'vendor' ? 'e.g. PB-00012' : 'e.g. INV-00012'} />
                 </Field>
               </div>
               {!isZero(t.grand_total) && <p className="words-preview">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>}
@@ -475,6 +476,12 @@ export default function DocumentEditorPage({ params, query }) {
                 <TextArea rows={3} value={doc.terms} onChange={(v) => setDoc({ terms: v })} />
               </Field>
             </div>
+            {type.bankOption && showPrices && (
+              <div className="bank-option">
+                <Toggle checked={ds.showBank !== false} onChange={(v) => setMeta({ showBank: v })} label="Show bank details" data-testid="show-bank" />
+                {!hasBankDetails && <span className="muted small">Add your bank details in Settings → Company to print them.</span>}
+              </div>
+            )}
           </section>
 
           {type.conversions.length > 0 && isNew && !model.parent && (

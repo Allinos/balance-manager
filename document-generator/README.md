@@ -23,9 +23,14 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
 - **Dashboard**: document-type cards in two rows with the number of documents and a round **+**
   to create one; the last 10 documents below; **Customize** chooses which cards appear (up to 12).
 - **Document Manager**: one compact summary card (total, this month, files, count per status),
-  Documents / Files, search with a document-type filter, **+ New Document**, and **Add External
-  Document** (PDF, images, Word/Excel/CSV, text, up to 25 MB, stored inside the database so
-  backups include them). Deleted items can be restored.
+  Documents / Files, search with a document-type filter, **+ New Document**, **Download** (sales data
+  for a month / financial year / custom dates as a CSV that opens in Excel: invoices, bills of supply,
+  credit and debit notes with party GSTIN and state, place of supply, taxable value, CGST, SGST, IGST,
+  total and status), and **Add External Document** (PDF, images, Word/Excel/CSV, text, up to 25 MB,
+  stored inside the database so backups include them). Deleted items can be restored.
+- **Bank details and UPI QR**: invoices print your bank details and a UPI QR code for the exact
+  amount (Settings → Company → bank details and UPI ID). Each quotation has its own **Show bank
+  details** switch (off by default).
 - **Saved customers**: typing a name offers saved customers/vendors; one click fills the details.
   (There is no separate customer management screen.)
 - **Round Off** as a Yes/No choice directly above Grand Total.
@@ -35,7 +40,7 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   e-way bill, round off …).
 - **Status in the list**: click the pencil next to a status, pick a new one — saved immediately.
   Each type has its own statuses (e.g. Quotation: Draft → Sent → Accepted/Rejected).
-- **16 document types** with type-specific fields, required fields, numbering, statuses,
+- **18 document types** with type-specific fields, required fields, numbering, statuses,
   conversions and print layout (see [Document types](#document-types)).
 - **Four print templates** — *Tally Professional* (full GST invoice, Rule 46), *Tally Standard*,
   *Modern*, *Simple*. Default per app, per document type, or per single document; switching
@@ -195,9 +200,11 @@ Defined in `src/config/documentTypes.js`. Each entry declares:
 | `financial` | issued copies must be cancelled, never deleted |
 | `layout`, `conversions`, `defaults` | standard/receipt; allowed conversions; per-type settings |
 
-Built in: Tax Invoice, Service Invoice, Quotation, Estimate, Proforma Invoice, Sales Order,
-Delivery Challan, Purchase Order, Goods Receipt Note, Purchase Invoice/Bill, Credit Note,
-Debit Note, Bill of Supply, Payment Receipt, Work Order, Job/Service Completion.
+Built in: Tax Invoice, Service Invoice, Quotation, Reverse Quotation (your price offer to a
+supplier; converts into a Purchase Order), Estimate, Proforma Invoice, Sales Order, Delivery Challan,
+Purchase Order, Goods Receipt Note, Purchase Invoice/Bill, Credit Note, Debit Note, Bill of Supply,
+Payment Receipt (money received), Payment Voucher (money paid out; also the voucher for reverse-charge
+payments, CGST Rule 52), Work Order, Job/Service Completion.
 
 To add one, add an entry — numbering, editor fields, validation, filters, settings and printing
 pick it up automatically. Unknown types from older data still open with safe defaults.

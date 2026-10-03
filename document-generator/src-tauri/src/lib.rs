@@ -59,6 +59,7 @@ pub fn run() {
             commands::demo_remove,
             commands::pick_image,
             commands::backup_export,
+            commands::sales_export,
             commands::backup_restore,
             commands::ad_state_get,
             commands::ad_state_set,

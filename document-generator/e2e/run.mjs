@@ -441,6 +441,13 @@ async function main() {
 
     // ------------------------------------------------------------------ 4
     section('4. Tally Professional GST invoice');
+    await go('#/settings/company');
+    await type('[data-testid="company-bank-name"]', 'HDFC Bank');
+    await type('[data-testid="company-account-number"]', '50200012345678');
+    await type('[data-testid="company-ifsc"]', 'HDFC0000123');
+    await type('[data-testid="company-upi"]', 'sharmafurniture@hdfcbank');
+    await clickText('Save changes');
+    await sleep(600);
     await go('#/dashboard');
     await clickCss('[data-testid="create-TAX_INVOICE"]');
     await waitForText('New Tax Invoice');
@@ -497,6 +504,9 @@ async function main() {
     ]) {
       check(inv.includes(needle), `Tally invoice has ${label}`);
     }
+    check(inv.includes("Company's Bank Details") && inv.includes('HDFC0000123') && inv.includes('50200012345678'), 'invoice shows the bank details');
+    const upi = await exec('const q=document.querySelector("[data-testid=upi-qr]"); return q ? { text: q.innerText, src: q.querySelector("img")?.src || "" } : null');
+    check(!!upi && upi.text.includes('Scan to pay (UPI)') && upi.src.startsWith('data:image'), 'invoice shows the UPI QR code for payment next to the bank details');
     await shot('09-invoice-tally-pro');
 
     // ------------------------------------------------------------------ 5
@@ -551,8 +561,13 @@ async function main() {
     await sleep(300);
     check((await textOf('[data-testid="grand-total"]')).includes('26,553.00') && (await textOf('[data-testid="round-off-amount"]')).includes('0.05'), 'Round Off Yes → 26,553.00 (+0.05)');
     await shot('08b-roundoff');
+    check((await exists('[data-testid="show-bank"]')) && !(await exec('return document.querySelector("[data-testid=show-bank]").checked')), 'quotation: "Show bank details" option, off by default');
+    await exec('document.querySelector("[data-testid=show-bank]").click()');
+    await sleep(300);
     await clickCss('[data-testid="save-doc"]');
     await waitForText('QTN-00001');
+    await find('.doc');
+    check((await exec('return document.querySelector(".doc").innerText')).includes("Company's Bank Details"), 'quotation printed with bank details when chosen');
     await go('#/manager');
     await find('[data-testid="documents-table"]');
     await clickCss('[data-testid="status-edit-2"]');
@@ -576,9 +591,20 @@ async function main() {
     await sleep(400);
     await clickCss('[data-testid="new-document"]');
     await waitForText('Create a new document');
-    check(true, '+ New Document opens the document chooser');
+    const chooserText = await exec('return document.querySelector(".modal").innerText');
+    check(chooserText.includes('Reverse Quotation') && chooserText.includes('Payment Voucher'), '+ New Document opens the chooser, which lists Reverse Quotation and Payment Voucher');
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
     await sleep(300);
+    check(await exec('const b=document.querySelector("[data-testid=new-document]"); return b.nextElementSibling === document.querySelector("[data-testid=sales-download]")'), 'Download button next to New Document');
+    await clickCss('[data-testid="sales-download"]');
+    await clickCss('[data-testid="sales-download-go"]');
+    await waitForText('Downloaded 1 document', 15000);
+    const csvFile = readdirSync(pdfDir).find((f) => f.startsWith('DocGen-Sales-') && f.endsWith('.csv'));
+    const csv = csvFile ? readFileSync(path.join(pdfDir, csvFile), 'utf8') : '';
+    check(
+      csv.includes('Party GSTIN') && /INV-00001,Tax Invoice,DRAFT,ABC Construction Pvt Ltd,[^,]*,29ABCDE1234F1Z5,Karnataka,Karnataka,Inter-state,50000(\.00)?,0(\.00)?,0(\.00)?,9000(\.00)?,9000(\.00)?,59000(\.00)?,INR/.test(csv),
+      `sales data CSV with party GST details (${csvFile})`,
+    );
     let table;
     await type('[data-testid="manager-search"]', 'Teak');
     await sleep(700);

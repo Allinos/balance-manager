@@ -111,6 +111,13 @@ export function resolveDocSettings(typeId, settings, docSettings = {}) {
   return resolved;
 }
 
+/** This document's own choices (e.g. "Show bank details" on a quotation) on top of its type's settings. */
+export function withDocumentOptions(ds, doc) {
+  const meta = doc?.meta && typeof doc.meta === 'object' ? doc.meta : {};
+  if (getType(doc?.document_type).bankOption && typeof meta.showBank === 'boolean') return { ...ds, showBank: meta.showBank };
+  return ds;
+}
+
 /** Whether a document type shows monetary amounts (e.g. challans do not). */
 export const pricesVisible = (typeId, settings, docSettings) =>
   resolveDocSettings(typeId, settings, docSettings).showPrices !== false;

@@ -821,6 +821,114 @@ pub fn validate_backup(path: &std::path::Path) -> AppResult<()> {
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Sales data download (CSV for Excel / your accountant)
+// ---------------------------------------------------------------------------
+
+/// One CSV field: quoted when needed; text that a spreadsheet would run as a formula is prefixed with '.
+fn csv_field(value: &str, text: bool) -> String {
+    let v = if text && value.starts_with(['=', '+', '-', '@']) { format!("'{value}") } else { value.to_string() };
+    if v.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", v.replace('"', "\"\""))
+    } else {
+        v
+    }
+}
+
+/// Sales register between two dates (inclusive): one row per document, with the party's GST details.
+/// Deleted documents are left out; every other one is listed with its status (Draft, Paid, Cancelled …).
+/// Returns the CSV text (UTF-8 with BOM so Excel shows ₹ and Indian scripts) and the number of rows.
+pub fn sales_csv(conn: &rusqlite::Connection, types: &[String], labels: &Map<String, Value>, from: &str, to: &str) -> AppResult<(String, usize)> {
+    if types.is_empty() {
+        return Ok((String::new(), 0));
+    }
+    let sql = format!(
+        "SELECT issue_date, document_number, document_type, status, party_name, party_company, party_gstin, party_state,
+                place_of_supply, tax_mode, taxable, cgst, sgst, igst, tax, grand_total, currency
+         FROM documents
+         WHERE deleted_at IS NULL AND document_type IN ({}) AND issue_date >= ? AND issue_date <= ?
+         ORDER BY issue_date, document_number",
+        vec!["?"; types.len()].join(",")
+    );
+    let mut params: Vec<SqlValue> = types.iter().map(|t| SqlValue::Text(t.clone())).collect();
+    params.push(SqlValue::Text(from.to_string()));
+    params.push(SqlValue::Text(to.to_string()));
+    let mut out = String::from("\u{feff}");
+    out.push_str(
+        "Date,Document No.,Document Type,Status,Party Name,Party Company,Party GSTIN,Party State,Place of Supply,Supply Type,\
+         Taxable Value,CGST,SGST,IGST,Total Tax,Grand Total,Currency\r\n",
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let mut rows = stmt.query(rusqlite::params_from_iter(params.iter()))?;
+    let mut count = 0;
+    while let Some(r) = rows.next()? {
+        let get = |i: usize| -> String { r.get::<_, String>(i).unwrap_or_default() };
+        let doc_type = get(2);
+        let label = labels.get(&doc_type).and_then(|v| v.as_str()).unwrap_or(&doc_type).to_string();
+        let supply = match get(9).as_str() {
+            "INTRA" => "Intra-state",
+            "INTER" => "Inter-state",
+            "NONE" => "No tax",
+            _ => "",
+        };
+        let fields = [
+            (get(0), false),
+            (get(1), true),
+            (label, true),
+            (get(3), true),
+            (get(4), true),
+            (get(5), true),
+            (get(6), true),
+            (get(7), true),
+            (get(8), true),
+            (supply.to_string(), false),
+            (get(10), false),
+            (get(11), false),
+            (get(12), false),
+            (get(13), false),
+            (get(14), false),
+            (get(15), false),
+            (get(16), false),
+        ];
+        out.push_str(&fields.iter().map(|(v, t)| csv_field(v, *t)).collect::<Vec<_>>().join(","));
+        out.push_str("\r\n");
+        count += 1;
+    }
+    Ok((out, count))
+}
+
+/// Download the sales register as a CSV file. `types`: document types to include; `labels`: their names.
+#[tauri::command]
+pub async fn sales_export(app: AppHandle, types: Vec<String>, labels: Map<String, Value>, from: String, to: String) -> AppResult<Option<Value>> {
+    let valid_date = |d: &str| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok();
+    if !valid_date(&from) || !valid_date(&to) || from > to {
+        return Err(AppError::new("Please choose a valid period."));
+    }
+    let db = app.state::<Db>();
+    let (csv, count) = db.with(|c| sales_csv(c, &types, &labels, &from, &to))?;
+    if count == 0 {
+        return Err(AppError::new("There are no invoices or notes in this period."));
+    }
+    let file_name = format!("DocGen-Sales-{from}-to-{to}.csv");
+    let path = match crate::files::e2e_save(&file_name) {
+        Some(p) => p,
+        None => {
+            let picked = app
+                .dialog()
+                .file()
+                .set_title("Save sales data")
+                .set_file_name(&file_name)
+                .add_filter("CSV (opens in Excel)", &["csv"])
+                .blocking_save_file();
+            let Some(file) = picked else { return Ok(None) };
+            file.into_path().map_err(|_| AppError::new("This location cannot be used."))?
+        }
+    };
+    let path = if path.extension().is_none() { path.with_extension("csv") } else { path };
+    std::fs::write(&path, csv)?;
+    Ok(Some(json!({ "path": path.to_string_lossy(), "count": count })))
+}
+
 #[tauri::command]
 pub async fn backup_export(app: AppHandle) -> AppResult<Option<String>> {
     let file_name = format!("DocGen-Backup-{}.docgen", chrono::Local::now().format("%Y-%m-%d"));
@@ -993,6 +1101,33 @@ mod tests {
         conn.execute("DELETE FROM documents WHERE id = 2", []).unwrap();
         let orphan: i64 = conn.query_row("SELECT COUNT(*) FROM document_items", [], |r| r.get(0)).unwrap();
         assert_eq!(orphan, 0);
+    }
+
+    #[test]
+    fn sales_csv_lists_invoices_with_party_gst_details() {
+        let (_dir, db) = temp_db();
+        db.with(|c| {
+            c.execute_batch(
+                "INSERT INTO documents (document_type, document_number, issue_date, status, party_name, party_gstin, party_state, place_of_supply, tax_mode, taxable, cgst, sgst, igst, tax, grand_total)
+                   VALUES ('TAX_INVOICE', 'INV-00001', '2026-09-05', 'ISSUED', 'ABC Constructions, Pune', '27ABCDE1234F1Z5', 'Maharashtra', 'Maharashtra', 'INTRA', '1000.00', '90.00', '90.00', '0', '180.00', '1180.00');
+                 INSERT INTO documents (document_type, document_number, issue_date, status, party_name, party_gstin, tax_mode, taxable, igst, tax, grand_total)
+                   VALUES ('TAX_INVOICE', 'INV-00002', '2026-09-20', 'PAID', '=HYPERLINK(\"x\")', '29ABCDE1234F1Z5', 'INTER', '500.00', '90.00', '90.00', '590.00');
+                 INSERT INTO documents (document_type, document_number, issue_date, status, party_name) VALUES ('TAX_INVOICE', 'INV-00003', '2026-09-21', 'DRAFT', 'Draft Co');
+                 INSERT INTO documents (document_type, document_number, issue_date, status, party_name) VALUES ('QUOTATION', 'QTN-00001', '2026-09-21', 'ISSUED', 'Not a sale');
+                 INSERT INTO documents (document_type, document_number, issue_date, status, party_name) VALUES ('TAX_INVOICE', 'INV-00004', '2026-10-01', 'ISSUED', 'Next month');",
+            )?;
+            let mut labels = Map::new();
+            labels.insert("TAX_INVOICE".into(), json!("Tax Invoice"));
+            let (csv, count) = sales_csv(c, &["TAX_INVOICE".to_string()], &labels, "2026-09-01", "2026-09-30")?;
+            assert_eq!(count, 3, "other types and other months are left out");
+            assert!(csv.contains("INV-00003,Tax Invoice,DRAFT,Draft Co"), "drafts are listed with their status");
+            assert!(csv.starts_with('\u{feff}'));
+            assert!(csv.contains("2026-09-05,INV-00001,Tax Invoice,ISSUED,\"ABC Constructions, Pune\",,27ABCDE1234F1Z5,Maharashtra,Maharashtra,Intra-state,1000.00,90.00,90.00,0,180.00,1180.00,INR\r\n"));
+            assert!(csv.contains("\"'=HYPERLINK(\"\"x\"\")\""), "formulas are neutralised");
+            assert!(csv.contains("Inter-state,500.00,0,0,90.00,90.00,590.00"));
+            Ok(())
+        })
+        .unwrap();
     }
 
     #[test]

@@ -130,22 +130,22 @@ export default function CompanySettings() {
       <h3>Bank details</h3>
       <div className="grid-2">
         <Field label="Bank name">
-          <TextInput value={c.bank_name} onChange={(v) => set({ bank_name: v })} />
+          <TextInput value={c.bank_name} onChange={(v) => set({ bank_name: v })} data-testid="company-bank-name" />
         </Field>
         <Field label="Account holder">
           <TextInput value={c.account_holder} onChange={(v) => set({ account_holder: v })} />
         </Field>
         <Field label="Account number">
-          <TextInput value={c.account_number} onChange={(v) => set({ account_number: v })} />
+          <TextInput value={c.account_number} onChange={(v) => set({ account_number: v })} data-testid="company-account-number" />
         </Field>
         <Field label="IFSC" help="11-character bank branch code, printed with your bank details so customers can pay by NEFT/RTGS.">
-          <TextInput value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} />
+          <TextInput value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} data-testid="company-ifsc" />
         </Field>
         <Field label="Branch">
           <TextInput value={c.branch} onChange={(v) => set({ branch: v })} />
         </Field>
         <Field label="UPI ID" hint="Used for the optional UPI payment QR code">
-          <TextInput value={c.upi_id} onChange={(v) => set({ upi_id: v })} />
+          <TextInput value={c.upi_id} onChange={(v) => set({ upi_id: v })} data-testid="company-upi" />
         </Field>
         <Field label="SWIFT">
           <TextInput value={c.swift} onChange={(v) => set({ swift: v.toUpperCase() })} />
