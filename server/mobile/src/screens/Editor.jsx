@@ -1,272 +1,717 @@
-/** Create or edit a document: customer, items with GST, totals, notes. */
+/**
+ * Create / edit any document type (same engine and rules as the desktop editor):
+ * details · customer/vendor (saved parties) · additional details · items (saved products) or payment · totals · notes.
+ * The number is assigned on the first save; Preview shows the document in its template.
+ */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { EXTRA_FIELDS, PAYMENT_MODES, TYPE_MAP, getType, statusLabel, statusesFor } from '@desktop/config/documentTypes.js';
+import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
+import { isServiceUnit, unitOptions } from '@desktop/config/units.js';
+import { isValidRate, rateValue, taxRateOptions } from '@desktop/config/taxRates.js';
+import { blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, renderPayload, saveDocument } from '@desktop/services/documentService.js';
+import { listParties, listProducts, saveProduct } from '@desktop/services/catalogService.js';
+import { previewNumber } from '@desktop/services/settingsService.js';
+import { exclusivePrice } from '@desktop/utils/calc.js';
+import { formatMoney } from '@desktop/utils/format.js';
+import { amountInWords } from '@desktop/utils/numberToWords.js';
+import { dec, isZero } from '@desktop/utils/decimal.js';
+import PagePreview from '@desktop/renderer/PagePreview.jsx';
 import Icon from '../components/Icon.jsx';
-import Suggest from '../components/Suggest.jsx';
-import { Field, Header, Input, Select, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
-import { all, get } from '../lib/db.js';
-import { blankItem, calculate, money, newDocument, newKey, saveDocument, todayISO, addDays, typeOf } from '../lib/docs.js';
-import { STATE_NAMES, stateFromGstin } from '../lib/states.js';
-import { DEFAULT_UNITS } from '../lib/units.js';
-import { amountInWords } from '../lib/numberToWords.js';
-import { useApp } from '../App.jsx';
+import { ActionSheet, Field, Header, Input, NumberInput, Picker, Select, Sheet, Spinner, StatusBadge, Suggest, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
+import { useApp, useDocContext, useDocumentActions } from '../data.jsx';
 
-const GST = ['0', '3', '5', '12', '18', '28'];
+const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
-export default function Editor({ typeId, id, copyOf }) {
-  const { company, settings } = useApp();
+function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, taxSystem }) {
+  const [shipOpen, setShipOpen] = useState(!!doc.shipping_address);
+  const [edited, setEdited] = useState(false);
+  const onChange = (patch) => {
+    if (doc.party_id) setEdited(true);
+    change(patch);
+  };
+  const noun = type.partyKind === 'vendor' ? 'vendor' : 'customer';
+  const gstinChange = (v) => {
+    const gstin = v.toUpperCase().replace(/\s/g, '');
+    const state = stateFromGstin(gstin);
+    return state && !doc.party_state ? { party_gstin: gstin, party_state: state, place_of_supply: state } : { party_gstin: gstin };
+  };
+  const pick = (p) => {
+    setEdited(false);
+    onSaveParty(false);
+    change({
+      party_id: p.id, party_name: p.name, party_company: p.company_name, party_address: p.address, party_phone: p.phone, party_email: p.email,
+      party_gstin: p.gstin, party_tax_id: p.tax_id, party_state: p.state, shipping_address: p.shipping_address || '', place_of_supply: p.state || doc.place_of_supply,
+    });
+  };
+  const fetchParties = useCallback((q) => listParties(q), []);
+  return (
+    <section className="card form">
+      <div className="card-title">
+        <h2>{type.partyLabel}</h2>
+        {doc.party_id ? <span className="pill info">Saved {noun}</span> : null}
+      </div>
+      <Field label="Name" required>
+        <Suggest
+          value={doc.party_name}
+          onChange={(v) => onChange({ party_name: v })}
+          fetchOptions={fetchParties}
+          onSelect={pick}
+          placeholder={`Type ${noun} name or pick a saved one`}
+          renderOption={(p) => (
+            <>
+              <strong>{p.name}</strong>
+              <small>{[p.company_name, p.phone, p.gstin].filter(Boolean).join(' · ')}</small>
+            </>
+          )}
+          inputProps={{ 'data-testid': 'party-name' }}
+        />
+      </Field>
+      <Field label="Company">
+        <Input value={doc.party_company} onChange={(v) => onChange({ party_company: v })} />
+      </Field>
+      <Field label="Address">
+        <TextArea rows={2} value={doc.party_address} onChange={(v) => onChange({ party_address: v })} data-testid="party-address" />
+      </Field>
+      <div className="grid-2">
+        <Field label="Phone">
+          <Input type="tel" value={doc.party_phone} onChange={(v) => onChange({ party_phone: v })} data-testid="party-phone" />
+        </Field>
+        <Field label="Email">
+          <Input type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} autoCapitalize="none" />
+        </Field>
+      </div>
+      <Field
+        label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}
+        hint={taxSystem === 'GST' ? (doc.party_gstin && !isValidGstin(doc.party_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : 'Leave empty for unregistered customers. The state is filled in from it.') : ''}
+      >
+        <Input
+          value={taxSystem === 'GST' ? doc.party_gstin : doc.party_tax_id}
+          onChange={(v) => onChange(taxSystem === 'GST' ? gstinChange(v) : { party_tax_id: v })}
+          maxLength={taxSystem === 'GST' ? 15 : 40}
+          autoCapitalize="characters"
+          data-testid="party-gstin"
+        />
+      </Field>
+      <Field label="State">
+        <Picker value={doc.party_state} onChange={(v) => onChange({ party_state: v || '', place_of_supply: v || '' })} options={stateOptions} placeholder="Choose state" title="State" creatable clearable testId="party-state" />
+      </Field>
+      {shipOpen ? (
+        <Field label="Shipping address">
+          <TextArea rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
+        </Field>
+      ) : (
+        <button type="button" className="btn btn-sm btn-ghost align-start" onClick={() => setShipOpen(true)}>
+          + Different shipping address
+        </button>
+      )}
+      {(!doc.party_id || edited) && (
+        <label className="check-row">
+          <input type="checkbox" checked={saveParty} onChange={(e) => onSaveParty(e.target.checked)} data-testid="save-party" />
+          <span>{doc.party_id ? `Update the saved ${noun} with these details` : `Save this ${noun} for next time`}</span>
+        </label>
+      )}
+    </section>
+  );
+}
+
+function ItemCard({ it, index, line, doc, units, rateOptions, cols, onUpdate, onRemove, onPickProduct, onSaveProduct, purchase }) {
+  const fetchProducts = useCallback((q) => listProducts({ search: q, limit: 8 }), []);
+  const showTax = cols.tax;
+  return (
+    <div className="item-card" data-testid={`item-${index}`}>
+      <div className="item-card-head">
+        <span className="item-no">{index + 1}</span>
+        <Suggest
+          value={it.name}
+          onChange={(v) => onUpdate({ name: v, product_id: it.name === v ? it.product_id : null })}
+          fetchOptions={fetchProducts}
+          onSelect={onPickProduct}
+          placeholder="Product / service name"
+          renderOption={(p) => (
+            <>
+              <strong>{p.name}</strong>
+              <small>
+                {[p.sku, p.hsn_sac && `HSN ${p.hsn_sac}`, formatMoney(purchase ? p.purchase_price : p.selling_price, { currency_symbol: doc.currency_symbol, currency: doc.currency }), `${p.tax_rate}%`].filter(Boolean).join(' · ')}
+              </small>
+            </>
+          )}
+          inputProps={{ 'data-testid': `item-name-${index}` }}
+        />
+        <button type="button" className="icon-btn sm danger" onClick={onRemove} aria-label={`Remove item ${index + 1}`} data-testid={`item-remove-${index}`}>
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      <input className="input input-desc" placeholder="Description (optional)" value={it.description} onChange={(e) => onUpdate({ description: e.target.value })} />
+      <div className="grid-2">
+        <Field label="Qty">
+          <NumberInput value={it.quantity} onChange={(v) => onUpdate({ quantity: v })} data-testid={`item-qty-${index}`} />
+        </Field>
+        <Field label="Unit">
+          <Picker value={it.unit} onChange={(v) => onUpdate({ unit: v || '' })} options={units} title="Unit" creatable testId={`item-unit-${index}`} />
+        </Field>
+        {cols.rate && (
+          <Field label="Rate">
+            <NumberInput value={it.unit_price} onChange={(v) => onUpdate({ unit_price: v })} data-testid={`item-rate-${index}`} />
+          </Field>
+        )}
+        {cols.disc && (
+          <Field label="Discount">
+            <div className="disc-input">
+              <NumberInput value={it.discount_value} onChange={(v) => onUpdate({ discount_value: v })} data-testid={`item-disc-${index}`} />
+              <button type="button" className="disc-type" onClick={() => onUpdate({ discount_type: it.discount_type === 'PERCENT' ? 'AMOUNT' : 'PERCENT' })} data-testid={`item-disc-type-${index}`}>
+                {it.discount_type === 'PERCENT' ? '%' : doc.currency_symbol?.trim() || '#'}
+              </button>
+            </div>
+          </Field>
+        )}
+        {cols.hsn && (
+          <Field label="HSN / SAC">
+            <Input value={it.hsn_sac} onChange={(v) => onUpdate({ hsn_sac: v })} inputMode="numeric" data-testid={`item-hsn-${index}`} />
+          </Field>
+        )}
+        {showTax && (
+          <Field label={`${doc.tax_label || 'Tax'} %`}>
+            <Picker value={rateValue(it.tax_rate)} onChange={(v) => v !== '' && isValidRate(v) && onUpdate({ tax_rate: v })} options={rateOptions} title="GST rate" creatable testId={`item-tax-${index}`} />
+          </Field>
+        )}
+        {cols.pkg && (
+          <Field label="Package" className="span-2">
+            <Input value={it.package_info} onChange={(v) => onUpdate({ package_info: v })} placeholder="e.g. 2 boxes" />
+          </Field>
+        )}
+      </div>
+      <div className="item-card-foot">
+        {!it.product_id && it.name.trim() ? (
+          <button type="button" className="link-btn" onClick={onSaveProduct} data-testid={`item-save-product-${index}`}>
+            <Icon name="save" size={15} /> Save to Products
+          </button>
+        ) : (
+          <span />
+        )}
+        {cols.rate && line && (
+          <strong className="amount" data-testid={`item-amount-${index}`}>
+            {formatMoney(showTax ? line.total_amount : line.taxable_amount, doc)}
+          </strong>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ItemsSection({ items, lines, doc, ds, settings, onChange }) {
+  const { toast } = useUi();
+  const showPrices = ds.showPrices !== false;
+  const purchase = ['PURCHASE_ORDER', 'GOODS_RECEIPT'].includes(doc.document_type);
+  const lineByKey = Object.fromEntries(lines.map((l) => [l._key, l]));
+  const units = useMemo(() => unitOptions(settings.units || [], getType(doc.document_type).group === 'service' ? 'service' : 'product'), [settings.units, doc.document_type]);
+  const rateOptions = useMemo(() => taxRateOptions(settings, undefined), [settings]);
+  const cols = { hsn: ds.showHsn !== false, pkg: !!ds.showPackage, rate: showPrices, disc: showPrices, tax: showPrices && ds.showTax !== false && doc.tax_mode !== 'NONE' };
+  const update = (key, patch) => onChange(items.map((it) => (it._key === key ? { ...it, ...patch } : it)));
+  const remove = (key) => {
+    const next = items.filter((it) => it._key !== key);
+    onChange(next.length ? next : [blankItem(settings, doc.document_type)]);
+  };
+  const pickProduct = (key, p) => {
+    const rate = p.tax_type === 'EXEMPT' ? '0' : p.tax_rate;
+    const basePrice = purchase && dec(p.purchase_price) > 0n ? p.purchase_price : p.selling_price;
+    const price = p.tax_type === 'INCLUSIVE' ? exclusivePrice(basePrice, rate) : basePrice;
+    update(key, { product_id: p.id, name: p.name, description: p.description, hsn_sac: p.hsn_sac, unit: p.unit, unit_price: price, tax_rate: settings.taxSystem === 'NONE' ? '0' : rate });
+  };
+  const saveAsProduct = async (it) => {
+    try {
+      const id = await saveProduct({
+        type: it.hsn_sac?.startsWith('99') || isServiceUnit(it.unit) ? 'SERVICE' : 'PRODUCT',
+        name: it.name.trim(),
+        description: it.description,
+        hsn_sac: it.hsn_sac,
+        unit: it.unit,
+        selling_price: purchase ? '0' : it.unit_price,
+        purchase_price: purchase ? it.unit_price : '0',
+        tax_rate: it.tax_rate,
+        tax_type: 'EXCLUSIVE',
+      });
+      update(it._key, { product_id: id });
+      toast(`"${it.name.trim()}" saved to Products & Services`);
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
+  };
+  return (
+    <section className="card form" data-testid="items">
+      <div className="card-title">
+        <h2>Items</h2>
+        <span className="small muted">{items.length}</span>
+      </div>
+      {items.map((it, index) => (
+        <ItemCard
+          key={it._key}
+          it={it}
+          index={index}
+          line={lineByKey[it._key]}
+          doc={doc}
+          units={units}
+          rateOptions={rateOptions}
+          cols={cols}
+          purchase={purchase}
+          onUpdate={(patch) => update(it._key, patch)}
+          onRemove={() => remove(it._key)}
+          onPickProduct={(p) => pickProduct(it._key, p)}
+          onSaveProduct={() => saveAsProduct(it)}
+        />
+      ))}
+      <button type="button" className="btn btn-block" onClick={() => onChange([...items, blankItem(settings, doc.document_type)])} data-testid="add-item">
+        <Icon name="plus" size={18} /> Add item
+      </button>
+    </section>
+  );
+}
+
+export default function Editor({ typeId, id, query = {} }) {
+  const ctx = useDocContext();
+  const { settings, company } = useApp();
   const { toast, confirm } = useUi();
-  const [doc, setDoc] = useState(null);
+  const actions = useDocumentActions();
+  const [model, setModel] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [parties, setParties] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveParty, setSaveParty] = useState(true);
+  const [autoNumber, setAutoNumber] = useState('');
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [preview, setPreview] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      setParties(await all('parties'));
-      setProducts(await all('products'));
-      if (id) setDoc(await get('documents', id));
-      else if (copyOf) {
-        const src = await get('documents', copyOf);
-        const type = typeOf(src.type);
-        const date = todayISO();
-        const { id: _id, number: _n, createdAt: _c, ...rest } = src;
-        setDoc({ ...rest, number: '', status: 'DRAFT', date, dueDate: type.dueDays ? addDays(date, type.dueDays) : '', items: src.items.map((i) => ({ ...i, key: newKey() })) });
-      } else setDoc(newDocument(typeId, { company, settings }));
+      try {
+        let m;
+        if (id) {
+          m = modelFromBundle(await getDocument(id));
+          if (m.document.status === 'CANCELLED' || m.document.status === 'VOID') {
+            throw new Error(`${m.document.document_number} is cancelled and cannot be edited. Duplicate it to create a new document.`);
+          }
+        } else if (query.from) {
+          m = modelFromSource(await getDocument(query.from), typeId, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
+        } else {
+          m = newDocument(typeId, ctx);
+        }
+        if (cancelled) return;
+        setModel(m);
+        const t = getType(m.document.document_type);
+        setMoreOpen(t.optional.some((k) => m.document.meta?.[k]) || t.required.some((r) => r.startsWith('meta.') && r !== 'meta.amount_received'));
+        setSaveParty(!m.document.party_id);
+        if (query.from) setDirty(true);
+      } catch (e) {
+        if (!cancelled) setLoadError(e.message);
+      }
     })();
-  }, [id, copyOf, typeId, company, settings]);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const calc = useMemo(() => (doc ? calculate(doc, company) : null), [doc, company]);
-  if (!doc) return <Header title="Loading…" onBack={() => back('/documents')} />;
-  const type = typeOf(doc.type);
-  const prices = type.prices !== false;
-  const taxed = calc.taxMode !== 'NONE';
+  useEffect(() => {
+    const beforeUnload = (e) => {
+      if (dirtyRef.current) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, []);
 
-  const update = (patch) => {
-    setDoc((d) => ({ ...d, ...patch }));
+  const doc = model?.document;
+  const type = doc ? getType(doc.document_type) : null;
+
+  useEffect(() => {
+    if (!doc || doc.id) return;
+    previewNumber(doc.document_type, type.prefix, doc.issue_date)
+      .then(setAutoNumber)
+      .catch(() => setAutoNumber(''));
+  }, [doc?.id, doc?.document_type, doc?.issue_date, type?.prefix]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setDoc = useCallback(
+    (patch) => {
+      setModel((m) => {
+        const next = { ...m.document, ...patch };
+        // GST: CGST + SGST within the company's state, IGST for another state.
+        if ('place_of_supply' in patch && ctx.settings.taxSystem === 'GST' && company?.state && next.tax_mode !== 'NONE') {
+          const pos = (next.place_of_supply || '').trim().toLowerCase();
+          if (pos) next.tax_mode = pos === company.state.trim().toLowerCase() ? 'INTRA' : 'INTER';
+        }
+        return { ...m, document: next };
+      });
+      setDirty(true);
+    },
+    [company?.state, ctx.settings.taxSystem],
+  );
+  const setMeta = (patch) => setDoc({ meta: { ...doc.meta, ...patch } });
+  const setItems = (items) => {
+    setModel((m) => ({ ...m, items }));
     setDirty(true);
   };
-  const setParty = (patch) => {
-    const party = { ...doc.party, ...patch };
-    if ('gstin' in patch) {
-      party.gstin = patch.gstin.toUpperCase();
-      const st = stateFromGstin(party.gstin);
-      if (st) party.state = st;
-    }
-    const placeOfSupply = 'state' in patch || ('gstin' in patch && party.state !== doc.party.state) ? party.state || doc.placeOfSupply : doc.placeOfSupply;
-    update({ party, placeOfSupply });
-  };
-  const setItem = (key, patch) => update({ items: doc.items.map((i) => (i.key === key ? { ...i, ...patch } : i)) });
-  const lineOf = (key) => calc.lines.find((l) => l.key === key);
 
-  const save = async () => {
-    if (!doc.party.name.trim()) return toast('Enter the customer name', 'bad');
-    if (!doc.items.some((i) => i.name.trim())) return toast('Add at least one item', 'bad');
-    setBusy(true);
+  const calc = useMemo(() => (model ? calculate(model, ctx) : null), [model, ctx]);
+  const deferred = useDeferredValue(model);
+  const payload = useMemo(
+    () => (deferred && preview ? renderPayload({ ...deferred, document: { ...deferred.document, document_number: deferred.document.document_number || autoNumber } }, ctx) : null),
+    [deferred, preview, ctx, autoNumber],
+  );
+
+  const leave = async () => {
+    if (dirty && !(await confirm({ title: 'Discard your changes?', message: 'You have unsaved changes. If you leave now they will be lost.', confirmLabel: 'Discard', danger: true }))) return;
+    setDirty(false);
+    dirtyRef.current = false;
+    if (doc?.id) go(`/doc/${doc.id}`, { replace: true });
+    else back('/documents');
+  };
+
+  const save = async ({ print = false } = {}) => {
+    if (saving) return;
+    setSaving(true);
     try {
-      const saved = await saveDocument(doc, company);
+      const result = await saveDocument(model, ctx, { saveCustomer: saveParty });
       setDirty(false);
-      toast(`${saved.number} saved`);
-      go(`/doc/${saved.id}`, { replace: true });
+      dirtyRef.current = false;
+      toast(`${result.document_number} saved`);
+      go(`/doc/${result.id}${print ? '?print=1' : ''}`, { replace: true });
     } catch (e) {
       toast(e.message, 'bad');
     } finally {
-      setBusy(false);
+      setSaving(false);
     }
   };
-  const leave = async () => {
-    if (dirty && !(await confirm({ title: 'Discard changes?', message: 'Your changes to this document are not saved.', confirmLabel: 'Discard', danger: true }))) return;
-    back('/documents');
-  };
+
+  if (loadError) {
+    return (
+      <>
+        <Header title="Document" onBack={() => go('/documents')} />
+        <div className="page">
+          <div className="alert alert-bad">{loadError}</div>
+        </div>
+      </>
+    );
+  }
+  if (!model || !calc) return <Spinner />;
+
+  const ds = calc.docSettings;
+  const roundMode = ['AUTO', 'MANUAL'].includes(doc.meta.roundOffMode) ? doc.meta.roundOffMode : 'NONE';
+  const t = calc.totals;
+  const isReceipt = type.layout === 'receipt';
+  const showPrices = ds.showPrices !== false;
+  const currencies = settings.currencies?.length ? settings.currencies : [currencyInfo(settings, settings.baseCurrency)];
+  const isNew = !doc.id;
+  const hasBankDetails = ['bank_name', 'account_number', 'ifsc', 'iban', 'upi_id'].some((k) => company?.[k]);
+  const taxModes =
+    settings.taxSystem === 'GST'
+      ? [
+          { value: 'INTRA', label: 'CGST + SGST' },
+          { value: 'INTER', label: 'IGST' },
+          { value: 'NONE', label: 'No tax' },
+        ]
+      : settings.taxSystem === 'VAT'
+        ? [
+            { value: 'SIMPLE', label: settings.taxLabel || 'VAT' },
+            { value: 'NONE', label: 'No tax' },
+          ]
+        : [{ value: 'NONE', label: 'No tax' }];
 
   return (
     <>
       <Header
-        title={doc.number || `New ${type.label}`}
+        title={isNew ? `New ${type.label}` : `Edit ${doc.document_number}`}
+        subtitle={dirty ? 'Unsaved changes' : undefined}
         onBack={leave}
         actions={
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="save-doc">
-            Save
-          </button>
+          <>
+            <button className="icon-btn" onClick={() => setPreview(true)} aria-label="Preview" data-testid="preview">
+              <Icon name="eye" size={21} />
+            </button>
+            {!isNew && (
+              <button className="icon-btn" onClick={() => setMenu(true)} aria-label="More" data-testid="editor-more">
+                <Icon name="more" size={21} />
+              </button>
+            )}
+          </>
         }
       />
-      <div className="page" data-testid="editor">
-        <div className="card form">
-          <div className="grid-2">
-            <Field label="Date">
-              <Input type="date" value={doc.date} onChange={(v) => update({ date: v })} />
-            </Field>
-            {type.dueLabel ? (
-              <Field label={type.dueLabel}>
-                <Input type="date" value={doc.dueDate} onChange={(v) => update({ dueDate: v })} />
-              </Field>
-            ) : (
-              <Field label="Number">
-                <Input value={doc.number || 'Automatic'} onChange={() => {}} disabled />
-              </Field>
-            )}
-          </div>
-        </div>
-
-        <div className="section-label">{type.party}</div>
-        <div className="card form">
-          <Field label="Name">
-            <Suggest
-              value={doc.party.name}
-              onChange={(v) => setParty({ name: v })}
-              onPick={(p) => update({ party: { name: p.name, phone: p.phone || '', email: p.email || '', gstin: p.gstin || '', state: p.state || '', address: p.address || '' }, placeOfSupply: p.state || doc.placeOfSupply })}
-              items={parties}
-              render={(p) => (
-                <>
-                  <span>{p.name}</span>
-                  <span className="muted small">{p.gstin || p.phone}</span>
-                </>
-              )}
-              placeholder="Customer or business name"
-              testid="party-name"
-            />
-          </Field>
-          <div className="grid-2">
-            <Field label="Phone">
-              <Input type="tel" value={doc.party.phone} onChange={(v) => setParty({ phone: v })} />
-            </Field>
-            <Field label="GSTIN">
-              <Input value={doc.party.gstin} onChange={(v) => setParty({ gstin: v })} maxLength={15} autoCapitalize="characters" data-testid="party-gstin" />
-            </Field>
-          </div>
-          <Field label="State">
-            <Select value={doc.party.state} onChange={(v) => setParty({ state: v })} options={[{ value: '', label: 'Choose…' }, ...STATE_NAMES]} data-testid="party-state" />
-          </Field>
-          <Field label="Address">
-            <TextArea value={doc.party.address} onChange={(v) => setParty({ address: v })} rows={2} />
-          </Field>
-          {taxed && (
-            <Field label="Place of supply" hint={calc.taxMode === 'INTER' ? 'Other state → IGST' : 'Same state → CGST + SGST'}>
-              <Select value={doc.placeOfSupply} onChange={(v) => update({ placeOfSupply: v })} options={STATE_NAMES} data-testid="place-of-supply" />
-            </Field>
-          )}
-        </div>
-
-        <div className="section-label">Items</div>
-        {doc.items.map((it, n) => {
-          const line = lineOf(it.key);
-          return (
-            <div key={it.key} className="item-card" data-testid={`item-${n}`}>
-              <div className="row">
-                <strong className="small muted">Item {n + 1}</strong>
-                {doc.items.length > 1 && (
-                  <button className="icon-btn" style={{ width: 36, height: 36 }} onClick={() => update({ items: doc.items.filter((i) => i.key !== it.key) })} aria-label="Remove item">
-                    <Icon name="trash" size={18} />
-                  </button>
-                )}
-              </div>
-              <Suggest
-                value={it.name}
-                onChange={(v) => setItem(it.key, { name: v })}
-                onPick={(p) => setItem(it.key, { name: p.name, hsn: p.hsn || '', unit: p.unit || it.unit, rate: p.rate || '', taxRate: p.taxRate ?? it.taxRate })}
-                items={products}
-                render={(p) => (
-                  <>
-                    <span>{p.name}</span>
-                    <span className="muted small">{p.rate ? money(p.rate) : ''}</span>
-                  </>
-                )}
-                placeholder="Item or service"
-                testid={`item-name-${n}`}
-              />
-              <div className="grid-3">
-                <Field label="Qty">
-                  <Input type="number" inputMode="decimal" value={it.qty} onChange={(v) => setItem(it.key, { qty: v })} data-testid={`item-qty-${n}`} />
-                </Field>
-                <Field label="Unit">
-                  <Select value={it.unit} onChange={(v) => setItem(it.key, { unit: v })} options={DEFAULT_UNITS} />
-                </Field>
-                {prices ? (
-                  <Field label="Rate">
-                    <Input type="number" inputMode="decimal" value={it.rate} onChange={(v) => setItem(it.key, { rate: v })} data-testid={`item-rate-${n}`} />
-                  </Field>
-                ) : (
-                  <Field label="HSN/SAC">
-                    <Input value={it.hsn} onChange={(v) => setItem(it.key, { hsn: v })} />
-                  </Field>
-                )}
-              </div>
-              {prices && (
-                <div className="grid-3">
-                  <Field label="HSN/SAC">
-                    <Input value={it.hsn} onChange={(v) => setItem(it.key, { hsn: v })} inputMode="numeric" />
-                  </Field>
-                  {taxed ? (
-                    <Field label="GST %">
-                      <Select value={it.taxRate} onChange={(v) => setItem(it.key, { taxRate: v })} options={GST.map((g) => ({ value: g, label: `${g}%` }))} data-testid={`item-gst-${n}`} />
-                    </Field>
-                  ) : (
-                    <span />
-                  )}
-                  <Field label="Amount">
-                    <Input value={line ? money(line.total_amount, { symbol: false }) : '0.00'} onChange={() => {}} disabled />
-                  </Field>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <button className="btn btn-block" onClick={() => update({ items: [...doc.items, blankItem()] })} data-testid="add-item">
-          <Icon name="plus" size={18} /> Add item
-        </button>
-
-        {prices && (
-          <div className="card totals" data-testid="totals">
-            <div>
-              <span className="muted">Subtotal</span>
-              <span>{money(calc.totals.taxable)}</span>
-            </div>
-            {calc.taxMode === 'INTRA' && (
-              <>
-                <div>
-                  <span className="muted">CGST</span>
-                  <span data-testid="total-cgst">{money(calc.totals.cgst)}</span>
-                </div>
-                <div>
-                  <span className="muted">SGST</span>
-                  <span>{money(calc.totals.sgst)}</span>
-                </div>
-              </>
-            )}
-            {calc.taxMode === 'INTER' && (
-              <div>
-                <span className="muted">IGST</span>
-                <span data-testid="total-igst">{money(calc.totals.igst)}</span>
-              </div>
-            )}
-            <Toggle checked={doc.roundOff} onChange={(v) => update({ roundOff: v })} label={`Round off (${money(calc.totals.round_off)})`} />
-            <div className="grand">
-              <span>Grand total</span>
-              <span data-testid="grand-total">{money(calc.totals.grand_total)}</span>
-            </div>
-            <span className="small muted">{amountInWords(calc.totals.grand_total, 'INR')}</span>
+      <div className="page editor" data-testid="editor">
+        {model.parent && (
+          <div className="alert alert-info">
+            Created from <strong>{model.parent.document_number}</strong> ({getType(model.parent.document_type).short})
           </div>
         )}
 
-        <div className="section-label">More</div>
-        <div className="card form">
-          <Field label="Notes">
-            <TextArea value={doc.notes} onChange={(v) => update({ notes: v })} rows={2} placeholder="e.g. Thank you for your business!" />
+        <section className="card form">
+          <div className="card-title">
+            <h2>{type.label} details</h2>
+            <StatusBadge status={doc.status} type={doc.document_type} />
+          </div>
+          <div className="grid-2">
+            <Field label={`${type.short} no.`} hint="Empty = next number">
+              <Input value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} data-testid="doc-number" />
+            </Field>
+            <Field label={type.dateLabel} required>
+              <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc({ issue_date: e.target.value })} data-testid="doc-date" />
+            </Field>
+            {type.dueLabel && (
+              <Field label={type.dueLabel}>
+                <input className="input" type="date" value={doc.due_date} onChange={(e) => setDoc({ due_date: e.target.value })} data-testid="doc-due" />
+              </Field>
+            )}
+            <Field label="Status">
+              <Select
+                value={doc.status}
+                onChange={(v) => setDoc({ status: v })}
+                options={statusesFor(doc.document_type, doc.status)
+                  .filter((s) => s !== 'CANCELLED' && s !== 'VOID')
+                  .map((s) => ({ value: s, label: statusLabel(doc.document_type, s) }))}
+                data-testid="doc-status"
+              />
+            </Field>
+          </div>
+          <Field label="Reference" hint="Printed for reference, e.g. the customer's PO or your job number.">
+            <Input value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
+          </Field>
+          {settings.taxSystem === 'GST' && !isReceipt && (
+            <Field label="Place of supply" hint="Same state as yours → CGST + SGST; other state → IGST.">
+              <Picker value={doc.place_of_supply} onChange={(v) => setDoc({ place_of_supply: v || '' })} options={stateOptions} placeholder="Choose state" title="Place of supply" creatable clearable testId="place-of-supply" />
+            </Field>
+          )}
+          {showPrices && !isReceipt && settings.taxSystem !== 'NONE' && ds.showTax !== false && (
+            <Field label="Tax">
+              <Select value={doc.tax_mode} onChange={(v) => setDoc({ tax_mode: v })} options={taxModes} data-testid="tax-mode" />
+            </Field>
+          )}
+          {currencies.length > 1 && (
+            <Field label="Currency">
+              <Picker
+                value={doc.currency}
+                onChange={(code) => {
+                  const c = currencyInfo(settings, code);
+                  setDoc({ currency: c.code, currency_symbol: c.symbol, currency_decimals: c.decimals, exchange_rate: code === settings.baseCurrency ? '1' : c.rate || '1' });
+                }}
+                options={currencies.map((c) => ({ value: c.code, label: c.code, hint: c.symbol?.trim() }))}
+                title="Currency"
+                testId="doc-currency"
+              />
+            </Field>
+          )}
+          {doc.currency !== settings.baseCurrency && (
+            <Field label={`Exchange rate (1 ${doc.currency} = ? ${settings.baseCurrency})`}>
+              <NumberInput value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
+            </Field>
+          )}
+        </section>
+
+        <PartySection doc={doc} type={type} onChange={setDoc} saveParty={saveParty} onSaveParty={setSaveParty} taxSystem={settings.taxSystem} />
+
+        {type.optional.length > 0 && (
+          <section className="card form">
+            <button type="button" className="section-toggle" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen} data-testid="more-details">
+              <Icon name={moreOpen ? 'chevronDown' : 'chevronRight'} size={18} />
+              <span>
+                <strong>Additional details</strong>
+                <span className="small muted block">
+                  {type.optional
+                    .slice(0, 3)
+                    .map((k) => EXTRA_FIELDS[k]?.label)
+                    .join(', ')}
+                  {type.optional.length > 3 ? '…' : ''}
+                </span>
+              </span>
+            </button>
+            {moreOpen &&
+              type.optional.map((k) => {
+                const f = EXTRA_FIELDS[k];
+                if (!f) return null;
+                const value = doc.meta[k] ?? '';
+                return (
+                  <Field key={k} label={f.label} required={type.required.includes(`meta.${k}`)} hint={f.help}>
+                    {f.type === 'date' ? (
+                      <input className="input" type="date" value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
+                    ) : f.type === 'yesno' ? (
+                      <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
+                    ) : (
+                      <Input value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
+                    )}
+                  </Field>
+                );
+              })}
+          </section>
+        )}
+
+        {isReceipt ? (
+          <section className="card form">
+            <div className="card-title">
+              <h2>Payment</h2>
+            </div>
+            <Field label={`Amount ${type.partyKind === 'vendor' ? 'paid' : 'received'} (${doc.currency_symbol.trim() || doc.currency})`} required>
+              <NumberInput value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
+            </Field>
+            <div className="grid-2">
+              <Field label="Payment mode">
+                <Select value={doc.meta.payment_mode} onChange={(v) => setMeta({ payment_mode: v })} options={PAYMENT_MODES} data-testid="payment-mode" />
+              </Field>
+              <Field label="Transaction / cheque no.">
+                <Input value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
+              </Field>
+            </div>
+            <Field label={type.partyKind === 'vendor' ? 'Against bill' : 'Against invoice'}>
+              <Input value={doc.meta.against} onChange={(v) => setMeta({ against: v })} placeholder={type.partyKind === 'vendor' ? 'e.g. PB-00012' : 'e.g. INV-00012'} />
+            </Field>
+            {!isZero(t.grand_total) && <p className="words">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>}
+          </section>
+        ) : (
+          <ItemsSection items={model.items} lines={calc.lines} doc={doc} ds={ds} settings={settings} onChange={setItems} />
+        )}
+
+        {!isReceipt && showPrices && (
+          <section className="card form" data-testid="totals">
+            <div className="grid-2">
+              <Field label="Shipping / freight">
+                <NumberInput value={doc.shipping} onChange={(v) => setDoc({ shipping: v })} data-testid="shipping" />
+              </Field>
+              <Field label="Other charges">
+                <NumberInput value={doc.other_charges} onChange={(v) => setDoc({ other_charges: v })} allowNegative data-testid="other-charges" />
+              </Field>
+            </div>
+            {!isZero(doc.other_charges || '0') && (
+              <Field label="Other charges label" hint="e.g. Packing, Loading, or Advance received (minus amount).">
+                <Input value={doc.other_charges_label} onChange={(v) => setDoc({ other_charges_label: v })} />
+              </Field>
+            )}
+            <div className="totals">
+              <div>
+                <span>Subtotal</span>
+                <span>{formatMoney(t.subtotal, doc)}</span>
+              </div>
+              {!isZero(t.discount) && (
+                <div>
+                  <span>Discount</span>
+                  <span>− {formatMoney(t.discount, doc)}</span>
+                </div>
+              )}
+              {doc.tax_mode === 'INTRA' && ds.showTax !== false && (
+                <>
+                  <div>
+                    <span>CGST</span>
+                    <span data-testid="total-cgst">{formatMoney(t.cgst, doc)}</span>
+                  </div>
+                  <div>
+                    <span>SGST</span>
+                    <span data-testid="total-sgst">{formatMoney(t.sgst, doc)}</span>
+                  </div>
+                </>
+              )}
+              {doc.tax_mode === 'INTER' && ds.showTax !== false && (
+                <div>
+                  <span>IGST</span>
+                  <span data-testid="total-igst">{formatMoney(t.igst, doc)}</span>
+                </div>
+              )}
+              {doc.tax_mode === 'SIMPLE' && ds.showTax !== false && (
+                <div>
+                  <span>{doc.tax_label}</span>
+                  <span>{formatMoney(t.tax, doc)}</span>
+                </div>
+              )}
+              {!isZero(t.shipping) && (
+                <div>
+                  <span>Shipping</span>
+                  <span>{formatMoney(t.shipping, doc)}</span>
+                </div>
+              )}
+              {!isZero(t.other_charges) && (
+                <div>
+                  <span>{doc.other_charges_label || 'Other charges'}</span>
+                  <span>{formatMoney(t.other_charges, doc)}</span>
+                </div>
+              )}
+              <div className="roundoff" data-testid="round-off">
+                <span>Round off</span>
+                <span className="radio-group">
+                  <label>
+                    <input type="radio" name="round-off" checked={roundMode === 'NONE'} onChange={() => setMeta({ roundOffMode: 'NONE' })} data-testid="round-off-no" /> No
+                  </label>
+                  <label>
+                    <input type="radio" name="round-off" checked={roundMode === 'AUTO'} onChange={() => setMeta({ roundOffMode: 'AUTO' })} data-testid="round-off-yes" /> Yes
+                  </label>
+                </span>
+                <span>{isZero(t.round_off) ? '—' : formatMoney(t.round_off, doc)}</span>
+              </div>
+              <div className="grand">
+                <span>Grand total</span>
+                <span data-testid="grand-total">{formatMoney(t.grand_total, doc)}</span>
+              </div>
+            </div>
+            <p className="words" data-testid="amount-words">
+              {amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}
+            </p>
+          </section>
+        )}
+
+        <section className="card form">
+          <Field label="Notes (shown on the document)">
+            <TextArea rows={2} value={doc.notes} onChange={(v) => setDoc({ notes: v })} placeholder="e.g. Thank you for your business!" data-testid="doc-notes" />
           </Field>
           <Field label="Terms & conditions">
-            <TextArea value={doc.terms} onChange={(v) => update({ terms: v })} rows={3} />
+            <TextArea rows={3} value={doc.terms} onChange={(v) => setDoc({ terms: v })} data-testid="doc-terms" />
           </Field>
-          {type.bankOption && prices && (
-            <Toggle checked={doc.showBank} onChange={(v) => update({ showBank: v })} label="Show bank details" hint={company.accountNumber || company.upi ? '' : 'Add them in Settings → Bank & UPI'} data-testid="show-bank" />
+          {type.bankOption && showPrices && (
+            <>
+              <Toggle checked={ds.showBank !== false} onChange={(v) => setMeta({ showBank: v })} label="Show bank details" data-testid="show-bank" />
+              {!hasBankDetails && <span className="field-hint">Add your bank details in Settings → Company to print them.</span>}
+            </>
           )}
-        </div>
+        </section>
+
+        {type.conversions.length > 0 && isNew && !model.parent && (
+          <p className="small muted center">
+            After saving you can convert this {type.short.toLowerCase()} into {type.conversions.map((c) => TYPE_MAP[c].short).join(', ')}.
+          </p>
+        )}
       </div>
-      <div className="save-bar">
-        <button className="btn btn-primary btn-block" onClick={save} disabled={busy} data-testid="save-doc-bottom">
-          <Icon name="check" size={20} /> Save {type.short.toLowerCase()}
+
+      <div className="save-bar no-print">
+        <button className="btn" onClick={() => save({ print: true })} disabled={saving} data-testid="save-print">
+          <Icon name="printer" size={18} /> Save &amp; Print
+        </button>
+        <button className="btn btn-primary" onClick={() => save()} disabled={saving} data-testid="save-doc">
+          <Icon name="save" size={18} /> {saving ? 'Saving…' : 'Save'}
         </button>
       </div>
+
+      {preview && payload && (
+        <Sheet full title="Preview" onClose={() => setPreview(false)} testId="preview-sheet">
+          <div className="preview-wrap">
+            <PagePreview payload={payload} />
+          </div>
+        </Sheet>
+      )}
+      {menu && (
+        <ActionSheet
+          title={doc.document_number}
+          onClose={() => setMenu(false)}
+          items={[
+            { label: 'Duplicate', icon: 'copy', onClick: () => actions.duplicate(doc) },
+            {
+              label: 'Delete',
+              icon: 'trash',
+              danger: true,
+              onClick: async () => {
+                if (await actions.remove(doc)) {
+                  setDirty(false);
+                  go('/documents', { replace: true });
+                }
+              },
+            },
+          ]}
+        />
+      )}
     </>
   );
 }

@@ -1,13 +1,14 @@
 /**
- * DocGen Mobile: license gate → company setup → app with bottom tabs
+ * DocGen Mobile: license gate → first-start setup → app with bottom tabs
  * (Dashboard · Documents · Products & Services · Settings).
  */
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { saveSettings as persistSettings } from '@desktop/services/settingsService.js';
 import Icon from './components/Icon.jsx';
 import { UiProvider, go, useRoute } from './components/ui.jsx';
-import { kvGet, kvSet } from './lib/db.js';
 import { refresh, status } from './lib/license.js';
+import { AppCtx, loadData } from './data.jsx';
 import Activation, { Locked } from './screens/Activation.jsx';
 import Setup from './screens/Setup.jsx';
 import Dashboard from './screens/Dashboard.jsx';
@@ -15,10 +16,7 @@ import Documents from './screens/Documents.jsx';
 import Editor from './screens/Editor.jsx';
 import View from './screens/View.jsx';
 import Products from './screens/Products.jsx';
-import Settings from './screens/Settings.jsx';
-
-const AppCtx = createContext(null);
-export const useApp = () => useContext(AppCtx);
+import Settings, { SettingsSection } from './screens/Settings.jsx';
 
 const TABS = [
   ['/', 'Dashboard', 'home'],
@@ -30,7 +28,7 @@ const TABS = [
 function TabBar({ path }) {
   const current = TABS.find(([p]) => (p === '/' ? path === '/' : path.startsWith(p)))?.[0];
   return (
-    <nav className="tabbar" aria-label="Main">
+    <nav className="tabbar no-print" aria-label="Main">
       {TABS.map(([p, label, icon]) => (
         <button key={p} className={current === p ? 'active' : ''} onClick={() => go(p)} aria-current={current === p ? 'page' : undefined} data-testid={`tab-${label.toLowerCase()}`}>
           <span className="tab-icon">
@@ -43,78 +41,99 @@ function TabBar({ path }) {
   );
 }
 
-function Screen({ path }) {
+function Screen({ path, query }) {
   let m;
-  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path))) return <Editor typeId={m[1]} />;
-  if ((m = /^\/doc\/(\d+)\/edit$/.exec(path))) return <Editor id={Number(m[1])} />;
-  if ((m = /^\/doc\/(\d+)\/copy$/.exec(path))) return <Editor copyOf={Number(m[1])} />;
-  if ((m = /^\/doc\/(\d+)$/.exec(path))) return <View id={Number(m[1])} />;
-  if (path.startsWith('/documents')) return <Documents />;
+  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path))) return <Editor key={`${path}?${query.from || ''}`} typeId={m[1]} query={query} />;
+  if ((m = /^\/doc\/(\d+)\/edit$/.exec(path))) return <Editor key={path} id={Number(m[1])} />;
+  if ((m = /^\/doc\/(\d+)$/.exec(path))) return <View key={path} id={Number(m[1])} query={query} />;
+  if ((m = /^\/settings\/([a-z]+)$/.exec(path))) return <SettingsSection key={path} id={m[1]} />;
+  if (path.startsWith('/documents')) return <Documents key={JSON.stringify(query)} query={query} />;
   if (path.startsWith('/products')) return <Products />;
   if (path.startsWith('/settings')) return <Settings />;
   return <Dashboard />;
 }
 
 function Shell() {
-  const path = useRoute();
-  const [state, setState] = useState({ loading: true });
+  const { path, query } = useRoute();
+  const [lic, setLic] = useState(null);
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
 
-  const load = useCallback(async () => {
-    const [lic, company, settings] = await Promise.all([status(), kvGet('company'), kvGet('settings', {})]);
-    setState({ loading: false, lic, company, settings });
-    return lic;
+  const reload = useCallback(async () => {
+    const next = await status();
+    setLic(next);
+    return next;
+  }, []);
+  const reloadData = useCallback(async () => {
+    try {
+      const d = await loadData();
+      setData(d);
+      return d;
+    } catch (e) {
+      setError(e.message || 'Your data could not be opened.');
+      return null;
+    }
   }, []);
 
-  /** Check the license with the server when it is due (never blocks working offline). */
+  /** Check the license with the server when due (never blocks working offline). */
   const check = useCallback(
     async (force = false) => {
-      const lic = await status();
-      if (lic.state === 'none' || (!force && !lic.needsCheck) || navigator.onLine === false) return lic;
+      const current = await status();
+      if (current.state === 'none' || (!force && !current.needsCheck) || navigator.onLine === false) return current;
       try {
         const next = await refresh();
-        await load();
+        setLic(await status());
         return next;
       } catch (e) {
         if (force) throw e;
-        return lic;
+        return current;
       }
     },
-    [load],
+    [],
   );
 
   useEffect(() => {
-    load().then(() => check());
+    Promise.all([reload(), reloadData()]).then(() => check());
     const online = () => check();
     window.addEventListener('online', online);
     return () => window.removeEventListener('online', online);
-  }, [load, check]);
+  }, [reload, reloadData, check]);
 
-  const saveCompany = async (company) => {
-    await kvSet('company', company);
-    setState((s) => ({ ...s, company }));
-  };
-  const saveSettings = async (settings) => {
-    await kvSet('settings', settings);
-    setState((s) => ({ ...s, settings }));
-  };
+  const updateSettings = useCallback(async (values) => {
+    await persistSettings(values);
+    setData((d) => ({ ...d, settings: { ...d.settings, ...values } }));
+  }, []);
+  const setCompany = useCallback((company) => setData((d) => ({ ...d, company })), []);
+  const setDocSettings = useCallback((docSettings) => setData((d) => ({ ...d, docSettings })), []);
 
-  if (state.loading) {
+  const ctx = useMemo(
+    () => ({ ...(data || {}), lic, reload, reloadData, check, updateSettings, setCompany, setDocSettings }),
+    [data, lic, reload, reloadData, check, updateSettings, setCompany, setDocSettings],
+  );
+
+  if (error) {
+    return (
+      <div className="gate center">
+        <div className="alert alert-bad">{error}</div>
+      </div>
+    );
+  }
+  if (!lic || !data) {
     return (
       <div className="gate center">
         <img src="/app/icons/icon-192.png" alt="" width="72" height="72" style={{ margin: '0 auto' }} />
       </div>
     );
   }
-  const ctx = { ...state, reload: load, check, saveCompany, saveSettings };
+  const main = TABS.some(([p]) => p === path);
   let body;
-  const main = TABS.some(([p]) => p === path) || path === '';
-  if (state.lic.state === 'none') body = <Activation onDone={load} message={state.lic.message} />;
-  else if (state.lic.state !== 'active') body = <Locked />;
-  else if (!state.company?.name) body = <Setup />;
+  if (lic.state === 'none') body = <Activation onDone={reload} message={lic.message} />;
+  else if (lic.state !== 'active') body = <Locked />;
+  else if (!data.settings.setupComplete && !data.company?.name) body = <Setup />;
   else
     body = (
       <div className={`app ${main ? '' : 'no-tabs'}`}>
-        <Screen path={path} />
+        <Screen path={path} query={query} />
         {main && <TabBar path={path} />}
       </div>
     );

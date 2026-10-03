@@ -4,16 +4,15 @@ import { useState } from 'react';
 import { Field, Input, useUi } from '../components/ui.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
 import { activateWithKey, activateWithLogin, formatKey, refresh, signOut } from '../lib/license.js';
-import { shortDate } from '../lib/docs.js';
-import { useApp } from '../App.jsx';
+import { shortDate, useApp } from '../data.jsx';
 
 function Logo() {
   return (
     <div className="gate-logo">
       <img src="/app/icons/icon-192.png" alt="" />
       <span className="wordmark">
-        <span className="doc">Doc</span>
-        <span className="gen">Gen</span>
+        <span className="wm-doc">Doc</span>
+        <span className="wm-gen">Gen</span>
       </span>
     </div>
   );

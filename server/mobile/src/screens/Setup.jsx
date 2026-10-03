@@ -1,68 +1,162 @@
-/** First run after activation: the business shown on every document. */
+/** First start after activation: company → business type & currency → template (+ sample data). Same choices as the desktop setup. */
 
-import { useState } from 'react';
-import { Field, Input, Select, TextArea, useUi } from '../components/ui.jsx';
-import { STATE_NAMES, isValidGstin, stateFromGstin } from '../lib/states.js';
-import { useApp } from '../App.jsx';
+import { useMemo, useState } from 'react';
+import { CURRENCY_PRESETS } from '@desktop/config/defaults.js';
+import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
+import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
+import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
+import { loadDemoData } from '@desktop/services/demoService.js';
+import Icon from '../components/Icon.jsx';
+import { Field, Input, Picker, useUi } from '../components/ui.jsx';
+import { ImagePicker, SamplePreview } from '../components/docs.jsx';
+import { loadData, useApp } from '../data.jsx';
 
-export const blankCompany = { name: '', gstin: '', state: '', address: '', phone: '', email: '', bankName: '', accountName: '', accountNumber: '', ifsc: '', upi: '' };
-
-export function CompanyFields({ value, onChange }) {
-  const set = (k) => (v) => {
-    const next = { ...value, [k]: v };
-    if (k === 'gstin') {
-      next.gstin = v.toUpperCase();
-      const st = stateFromGstin(next.gstin);
-      if (st) next.state = st;
-    }
-    onChange(next);
-  };
-  return (
-    <>
-      <Field label="Business name">
-        <Input value={value.name} onChange={set('name')} required data-testid="company-name" />
-      </Field>
-      <Field label="GSTIN (optional)" hint={value.gstin && !isValidGstin(value.gstin) ? 'This does not look like a valid GSTIN' : 'Leave empty if you are not GST registered'}>
-        <Input value={value.gstin} onChange={set('gstin')} maxLength={15} autoCapitalize="characters" data-testid="company-gstin" />
-      </Field>
-      <Field label="State">
-        <Select value={value.state} onChange={set('state')} options={[{ value: '', label: 'Choose…' }, ...STATE_NAMES]} data-testid="company-state" />
-      </Field>
-      <Field label="Address">
-        <TextArea value={value.address} onChange={set('address')} rows={2} />
-      </Field>
-      <div className="grid-2">
-        <Field label="Phone">
-          <Input type="tel" value={value.phone} onChange={set('phone')} />
-        </Field>
-        <Field label="Email">
-          <Input type="email" value={value.email} onChange={set('email')} />
-        </Field>
-      </div>
-    </>
-  );
-}
+const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
+const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
+const STEPS = ['Company', 'Business', 'Template'];
 
 export default function Setup() {
-  const { saveCompany, lic } = useApp();
+  const { lic, reloadData } = useApp();
   const { toast } = useUi();
-  const [company, setCompany] = useState({ ...blankCompany, name: lic.license?.account?.business || '' });
-  const save = async (e) => {
-    e.preventDefault();
-    if (!company.name.trim()) return;
-    await saveCompany({ ...company, name: company.name.trim() });
-    toast('Welcome to DocGen!');
+  const [step, setStep] = useState(0);
+  const [name, setName] = useState(lic?.license?.account?.business || '');
+  const [gstin, setGstin] = useState('');
+  const [state, setState] = useState('');
+  const [logo, setLogo] = useState('');
+  const [business, setBusiness] = useState('trading');
+  const [currency, setCurrency] = useState('INR');
+  const [style, setStyle] = useState('tally-pro');
+  const [demo, setDemo] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const overrides = useMemo(() => ({ documentStyle: style, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }), [style, currency]);
+  const previewCompany = useMemo(() => ({ name: name.trim() || 'Your Company', state, gstin, logo }), [name, state, gstin, logo]);
+
+  const next = () => {
+    if (step === 0 && !name.trim()) return toast('Please enter your company name.', 'bad');
+    if (step === 0 && gstin && !isValidGstin(gstin)) return toast('The GSTIN should be 15 characters, e.g. 27AAPFU0939F1ZV. Leave it empty if you are not registered.', 'bad');
+    return setStep((s) => s + 1);
   };
+
+  const finish = async () => {
+    setBusy(true);
+    try {
+      const preset = CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0];
+      await saveCompany({ name: name.trim(), state, gstin, logo, currency, country: currency === 'INR' ? 'India' : '' });
+      await saveSettings({
+        baseCurrency: currency,
+        currencies: [{ ...preset, rate: '1' }],
+        documentStyle: style,
+        businessType: business,
+        visibleDocTypes: BUSINESS_TYPES.find((b) => b.id === business)?.types,
+        taxSystem: currency === 'INR' ? 'GST' : 'VAT',
+        showHsn: currency === 'INR',
+      });
+      if (demo) {
+        const data = await loadData();
+        await loadDemoData({ settings: data.settings, company: data.company, docSettings: data.docSettings });
+      }
+      await saveSettings({ setupComplete: true });
+      await reloadData();
+    } catch (e) {
+      toast(e.message, 'bad');
+      setBusy(false);
+    }
+  };
+
   return (
-    <form className="gate form" onSubmit={save} data-testid="setup">
-      <div>
-        <h1>Your business</h1>
-        <p className="muted">Printed on your invoices and quotations. You can change it later in Settings.</p>
+    <div className="gate setup" data-testid="setup">
+      <div className="setup-steps">
+        {STEPS.map((s, i) => (
+          <span key={s} className={`${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>{s}</span>
+        ))}
       </div>
-      <CompanyFields value={company} onChange={setCompany} />
-      <button className="btn btn-primary btn-block" disabled={!company.name.trim()} data-testid="setup-save">
-        Start using DocGen
-      </button>
-    </form>
+      {step === 0 && (
+        <div className="form">
+          <div>
+            <h1>Your business</h1>
+            <p className="muted">Printed at the top of every document. Address and bank details can be added later in Settings.</p>
+          </div>
+          <Field label="Company name" required>
+            <Input value={name} onChange={setName} placeholder="e.g. Sharma Furniture Works" data-testid="company-name" />
+          </Field>
+          <Field label="GSTIN (optional)" hint="Leave empty if you are not GST registered">
+            <Input
+              value={gstin}
+              onChange={(v) => {
+                const g = v.toUpperCase().replace(/\s/g, '');
+                setGstin(g);
+                const s = stateFromGstin(g);
+                if (s && !state) setState(s);
+              }}
+              maxLength={15}
+              placeholder="27AAPFU0939F1ZV"
+              data-testid="company-gstin"
+            />
+          </Field>
+          <Field label="State" hint="Decides CGST + SGST or IGST">
+            <Picker value={state} onChange={(v) => setState(v || '')} options={stateOptions} placeholder="Choose state" title="State" creatable clearable testId="company-state" />
+          </Field>
+          <ImagePicker label="Logo (optional)" value={logo} onChange={setLogo} testId="setup-logo" />
+        </div>
+      )}
+      {step === 1 && (
+        <div className="form">
+          <div>
+            <h1>What kind of business is it?</h1>
+            <p className="muted">DocGen shows the documents you need first. All document types stay available.</p>
+          </div>
+          <div className="business-grid">
+            {BUSINESS_TYPES.map((b) => (
+              <button key={b.id} className={`business-option ${business === b.id ? 'active' : ''}`} onClick={() => setBusiness(b.id)} data-testid={`business-${b.id}`}>
+                <Icon name={b.icon} size={18} />
+                <span>{b.label}</span>
+              </button>
+            ))}
+          </div>
+          <Field label="Currency">
+            <Picker value={currency} onChange={(v) => v && setCurrency(v)} options={currencyOptions} title="Currency" testId="setup-currency" />
+          </Field>
+        </div>
+      )}
+      {step === 2 && (
+        <div className="form">
+          <div>
+            <h1>Pick an invoice template</h1>
+            <p className="muted">You can change it any time, even for a single document.</p>
+          </div>
+          <div className="template-options">
+            {TEMPLATES.map((t) => (
+              <button key={t.id} className={`template-option ${style === t.id ? 'active' : ''}`} onClick={() => setStyle(t.id)} data-testid={`template-${t.id}`}>
+                <strong>{t.label}</strong>
+                <span className="small muted">{t.description}</span>
+              </button>
+            ))}
+          </div>
+          <SamplePreview overrides={overrides} company={previewCompany} />
+          <label className="check-row">
+            <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} data-testid="setup-demo" />
+            <span>Add sample data so I can explore (can be removed later)</span>
+          </label>
+        </div>
+      )}
+      <div className="setup-actions">
+        {step > 0 ? (
+          <button className="btn" onClick={() => setStep((s) => s - 1)} disabled={busy}>
+            Back
+          </button>
+        ) : (
+          <span />
+        )}
+        {step < STEPS.length - 1 ? (
+          <button className="btn btn-primary" onClick={next} data-testid="setup-next">
+            Continue
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={finish} disabled={busy} data-testid="setup-save">
+            {busy ? 'Saving…' : 'Start using DocGen'}
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

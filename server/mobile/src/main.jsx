@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { captureInstallPrompt } from './lib/install.js';
+import '@desktop/styles/print.css';
 import './styles.css';
 
 captureInstallPrompt();

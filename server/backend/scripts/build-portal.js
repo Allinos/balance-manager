@@ -19,7 +19,8 @@ import { fileURLToPath } from 'node:url';
 const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PROJECTS = [
   { name: 'website, client panel and admin panel', dir: path.join(serverDir, 'frontend') },
-  { name: 'DocGen Mobile', dir: path.join(serverDir, 'mobile') },
+  // DocGen Mobile uses the desktop app's document types, templates and GST engine (document-generator/src).
+  { name: 'DocGen Mobile', dir: path.join(serverDir, 'mobile'), shared: [path.join(serverDir, '..', 'document-generator', 'src')] },
 ];
 const WORKSPACES = ['backend', 'frontend', 'mobile'].map((w) => path.join(serverDir, w)).filter((d) => fs.existsSync(path.join(d, 'package.json')));
 const builtIndex = (p) => path.join(p.dir, 'dist', 'index.html');
@@ -64,7 +65,8 @@ if (missing.length) {
 }
 
 const ifNeeded = process.argv.includes('--if-needed');
-const todo = PROJECTS.filter((p) => fs.existsSync(p.dir) && !(ifNeeded && fs.existsSync(builtIndex(p)) && fs.statSync(builtIndex(p)).mtimeMs >= newestSource(p.dir)));
+const newestOf = (p) => Math.max(newestSource(p.dir), ...(p.shared || []).filter((d) => fs.existsSync(d)).map(newestSource));
+const todo = PROJECTS.filter((p) => fs.existsSync(p.dir) && !(ifNeeded && fs.existsSync(builtIndex(p)) && fs.statSync(builtIndex(p)).mtimeMs >= newestOf(p)));
 if (!todo.length) process.exit(0);
 
 const vite = await import('vite');
