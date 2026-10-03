@@ -11,8 +11,8 @@ Last full run: **3 October 2026** (after prices per duration, license extension,
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **54 / 54 passed** (19 API, 34 journey/checkout/payments/licensing/durations/phones/downloads/email, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **84 / 84 passed** (two consecutive runs) |
-| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **51 / 51 passed** (incl. a plain http:// network address) |
-| Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 81 files, 0 problems |
+| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **95 / 95 passed** (two consecutive runs; incl. a plain http:// network address) |
+| Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 91 files, 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
 
@@ -139,24 +139,31 @@ for Razorpay (same signatures):
   to 3, website updates at once; Downloads: Linux link added, macOS and Mobile switched off → the
   customer's downloads follow (windows, linux) and the website hides the mobile section; switched on again.
 
-`npm run test:mobile` (51 checks) runs DocGen Mobile in a phone-sized touch browser against the real server:
+`npm run test:mobile` (95 checks) runs DocGen Mobile in a phone-sized touch browser against the real server. The phone
+app uses the desktop app's document engine and templates, so these checks also cover that shared code on a phone:
 
-- Installation page: Install button, Android and iPhone steps; manifest installable (standalone, maskable
-  icon); service worker active; install banner in the browser.
-- Activation: a wrong key is refused by the server; activation with the key (business name taken from the
-  account) and on a second phone with email + password; the server records the device as a phone.
-- License on the device: key, start and expiry in localStorage, the token encrypted in IndexedDB; writing a
-  fake license into localStorage does **not** unlock the app; **reopened without logging in** while valid.
-- Phone limit enforced by the server: the third phone is refused; signing out frees the place; a phone
-  removed in the client/admin panel must activate again.
-- Documents: GST invoice (customer GSTIN → state and place of supply, IGST, grand total), status change,
-  saved customers and products suggested, quotation printed without bank details by default, document
-  list and search, Products & Services; dashboard sales this month; **works offline**.
-- Plain `http://` network address (a phone on the same Wi-Fi, no `crypto.randomUUID` / `crypto.subtle`):
-  activation works, the signature is still checked, the app reopens without activating again, and it
-  explains that installing needs an `https://` address.
-- Expiry: an expired license (checked with the server) locks the app; after extending, "Check again"
-  unlocks it and shows the new expiry date.
+- Installation page, manifest, service worker, install banner; activation (wrong key refused, key, email + password).
+- Setup: company (GSTIN → state), business type and currency, template with a live sample invoice; 8 dashboard cards.
+- Company settings with address, bank details, UPI and a logo chosen from the phone.
+- Tax invoice: next number shown before saving, GSTIN → state → IGST, additional details (vehicle no.), item saved to
+  Products, units, IGST 9,180.00, grand total 60,180.00, amount in words, live preview; printed with title, numbers,
+  both GSTINs, place of supply, HSN, bank details and UPI QR; switched through all 4 templates; status Paid; contact
+  (WhatsApp link); history.
+- Convert invoice → payment receipt (amount carried over, "created from"), duplicate (INV-00002), cancel with a reason
+  (kept, marked CANCELLED).
+- Quotation: saved customer and product picked from suggestions, 10 % discount (26,550.00), no bank details by default.
+- Documents: list, status summary, search by number and by product, type filter, status quick change, delete → Deleted →
+  restore. Files: add a PDF, rename, save a copy, delete and restore. Sales CSV with the party GSTIN.
+- Products: category, HSN, price including GST, purchase price, category filter.
+- Settings: default template + 2 copies (second copy prepared for printing), numbering format `INV/2026-27/0003`, own
+  unit (Crate) used in a challan, per-type title (DELIVERY NOTE), challan without prices.
+- Backup file (documents, files, logo), sample data load, restore (sample data gone); works offline; reopened without
+  signing in.
+- Second phone: data saved by the first mobile version is converted (invoice INV-00007) and numbering continues at
+  INV-00008; phone limit enforced by the server; fake localStorage does not unlock; sign out frees a place; expiry locks
+  and "Check again" unlocks; a phone removed in the panel must activate again.
+- Plain `http://` network address: activation, a saved invoice and reopening work without `crypto.randomUUID` /
+  `crypto.subtle`; the app explains that installing needs `https://`.
 
 ## 4. Security checks covered by tests
 

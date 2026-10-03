@@ -325,8 +325,8 @@ export default function ProductPage() {
                 <span className="lp-eyebrow">New</span>
                 <h2 className="lp-title">DocGen on Mobile</h2>
                 <p className="lp-lead">
-                  Create invoices and quotations on your phone — even without internet. Install it from the browser in seconds; the same license
-                  works on your computer and up to {product?.maxMobileDevices || 2} phones.
+                  Everything DocGen does on your computer — all document types and the same invoice templates — on your phone, even without
+                  internet. Install it from the browser in seconds; the same license works on your computer and up to {product?.maxMobileDevices || 2} phones.
                 </p>
                 <div className="hero-cta" style={{ marginTop: 18 }}>
                   <Link className="btn btn-primary btn-lg" to="/mobile" data-testid="get-mobile">

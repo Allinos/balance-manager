@@ -1685,3 +1685,14 @@ button.license-chip {
     grid-template-columns: 1fr 1fr;
   }
 }
+.view-actions .btn {
+  font-size: 15px;
+  white-space: nowrap;
+  gap: 6px;
+}
+.license-chip {
+  white-space: nowrap;
+}
+.page > .row.between {
+  flex-wrap: wrap;
+}

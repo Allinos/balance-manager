@@ -171,6 +171,7 @@ try {
   await a.page.getByTestId('create-TAX_INVOICE').click();
   await a.page.getByTestId('editor').waitFor();
   await a.page.waitForFunction(() => document.querySelector('[data-testid=doc-number]')?.placeholder === 'INV-00001');
+  await shot(a.page, '03a-editor-top');
   check(true, 'next number shown before saving (INV-00001)');
   await a.page.getByTestId('party-name').fill('ABC Construction Pvt Ltd');
   await a.page.getByTestId('party-gstin').fill('29ABCDE1234F1Z5');
@@ -293,6 +294,7 @@ try {
   const rows = () => a.page.getByTestId('documents-list').getByTestId('doc-row');
   await rows().nth(3).waitFor();
   check((await rows().count()) === 4, 'Documents lists 2 invoices, the receipt and the quotation');
+  await shot(a.page, '05a-documents');
   check((await a.page.getByTestId('summary-line').textContent()).includes('Cancelled'), 'summary line with status counts');
   await a.page.getByTestId('manager-search').fill('QTN');
   await a.page.waitForTimeout(400);
@@ -384,10 +386,12 @@ try {
 
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();
+  await shot(a.page, '07a-settings');
   await a.page.getByTestId('settings-documents').click();
   await a.page.getByTestId('settings-template-modern').click();
   await a.page.getByTestId('sample-preview').locator('.doc-modern').waitFor();
   await a.page.getByTestId('copies-2').click();
+  await shot(a.page, '07b-settings-documents');
   await a.page.getByTestId('settings-save').click();
   await a.page.getByText('Settings saved').waitFor();
   check(true, 'default template Modern and 2 copies saved (live sample)');

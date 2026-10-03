@@ -28,9 +28,9 @@ Client panel → Services: product → duration → Razorpay payment → server 
 - **App API** (desktop and mobile): account sign-in, key activation, license refresh/release — computers
   and phones are counted separately and the limits are enforced by the server — plus remote
   configuration (check interval, ads, help videos) and anonymous ad counters for the desktop app.
-- **DocGen Mobile**: installable web app (PWA) for Android and iPhone at `/app/` — works on the phone
-  (IndexedDB), license key stored on the device, no repeated sign-in while the license is valid. See
-  [DocGen Mobile](#docgen-mobile).
+- **DocGen Mobile**: installable web app (PWA) for Android and iPhone at `/app/` with the desktop app's features
+  (all document types, the 4 templates, documents & files, products, settings) — works on the phone (IndexedDB),
+  license key stored on the device, no repeated sign-in while the license is valid. See [DocGen Mobile](#docgen-mobile).
 - **Admin panel** (sidebar; a menu on phones): dashboard (sales this month, revenue, recent sales,
   licenses ending soon, ad campaigns), customers, payments (with the duration bought; mark paid, refund),
   licenses (give without payment, bulk codes, extend, computers/phones allowed, suspend, revoke),
@@ -77,7 +77,7 @@ server/
 │   ├── scripts/    migrate, create-admin, build-portal, load test …
 │   └── test/       API tests
 ├── frontend/       website, client panel + admin panel (React + Vite) → frontend/dist
-├── mobile/         DocGen Mobile, installable web app (React + Vite, IndexedDB) → mobile/dist, served at /app/
+├── mobile/         DocGen Mobile, installable web app (React + Vite, IndexedDB; uses ../document-generator/src) → mobile/dist, at /app/
 └── data/           database (SQLite), license key, uploads — created at first start
 ```
 
@@ -248,22 +248,37 @@ Timestamps are stored as ISO-8601 UTC text, so the server's MySQL time zone does
 
 ### DocGen Mobile
 
-[`mobile/`](mobile/) is a separate React app, built to `mobile/dist` and served at `/app/`. It is a
-Progressive Web App: Android (Chrome) offers *Install*, iPhone uses *Share → Add to Home Screen*;
-`/mobile` explains it with screenshots, a QR code and the install button.
+[`mobile/`](mobile/) is a React app, built to `mobile/dist` and served at `/app/`. It is a Progressive Web App:
+Android (Chrome) offers *Install*, iPhone uses *Share → Add to Home Screen*; `/mobile` explains it with
+screenshots, a QR code and the install button.
 
-- **Works on the phone**: documents, parties, products and settings are stored in IndexedDB; nothing
-  is uploaded. Settings → Backup exports/imports a JSON file. A service worker keeps the app working offline.
-- **License on the device**: the customer enters the license key (or email + password) once. The signed
-  token is stored in IndexedDB encrypted with a non-extractable AES-GCM key; a summary (key, start, expiry,
-  device id) in localStorage only for display. At every start the app verifies the token's Ed25519
+- **Same features as the desktop app.** The mobile build imports the desktop app's own code from
+  `document-generator/src` (see `mobile/vite.config.js`): all 18 document types, the 4 templates and renderer
+  (Tally Professional, Tally Standard, Modern, Simple), the GST/decimal engine, numbering formats, amount in words,
+  HSN summary, UPI QR code and the document services. Only the screens are phone-specific (bottom tabs Dashboard ·
+  Documents · Products · Settings). The desktop app itself is not changed. Because of this, build the server from
+  the whole repository (the `document-generator/src` folder must be present next to `server/`).
+- **What is on the phone:** Dashboard (cards per document type with +, Customize, recent documents); Documents
+  (search, type filter, status change, view / edit / print / duplicate / convert / cancel / delete / restore,
+  uploaded files — PDF, photos, Excel … — with rename, save a copy, delete / restore, and the sales CSV download);
+  editor (saved customers and products, GSTIN → state, CGST/SGST or IGST from the place of supply, discounts,
+  shipping, other charges, round off, additional details per type, receipts and payment vouchers, live preview);
+  document view (template per document, Print / Save as PDF with 1–4 copies, share, history, contact the customer
+  by call / WhatsApp / email); Products & Services with categories; Settings (Company with logo, signature and stamp,
+  Documents, Document Types, Tax, Currency, Numbering, Units, General with sample data, License, Backup, Help, About).
+  Left out on purpose: the desktop's ads, theme switch and keyboard shortcuts.
+- **Storage:** the desktop's backend commands (Rust/SQLite on a computer) are implemented over IndexedDB in
+  [`mobile/src/engine/`](mobile/src/engine/) — same allow-lists, validation messages, numbering and history. Backup
+  is one JSON file (documents, files, images, settings); restoring keeps a safety copy. Data saved by the first
+  mobile version is converted automatically on first start.
+- **License on the device**: the customer enters the license key (or email + password) once. The signed token is
+  stored in IndexedDB encrypted with a non-extractable AES-GCM key (when the browser allows it); a summary (key,
+  start, expiry, device id) in localStorage only for display. At every start the app verifies the token's Ed25519
   signature with the server's public key and the device id — editing localStorage does not unlock it.
-- **Validation**: refreshes the license once a day when online (`/api/app/license/refresh`), works up to
-  30 days offline, locks when the license expired (or the clock was turned back) and unlocks after
-  *Check again* once the license is extended. A phone removed in the client/admin panel must activate again.
+- **Validation**: refreshes the license once a day when online (`/api/app/license/refresh`), works up to 30 days
+  offline, locks when the license expired (or the clock was turned back) and unlocks after *Check again* once the
+  license is extended. A phone removed in the client/admin panel must activate again.
 - **Phone limit**: from the product (default 2) or set per license — enforced by the server.
-- Screens: bottom tabs Dashboard, Documents, Products & Services, Settings; 8 document types with GST
-  calculation, share/print as PDF.
 
 ### Testing DocGen Mobile on a phone
 
@@ -336,8 +351,9 @@ Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists ar
 npm test                     # API + customer-journey tests (SQLite); TEST_DATABASE_URL=mysql://… runs them on MySQL
 npm run test:portal          # browser test: ad → product page → duration → checkout → Razorpay (simulated) → license, download,
                              #   extend, phones, client panel at phone width → admin (prices, downloads, licenses …)
-npm run test:mobile          # browser test of DocGen Mobile in a phone-sized window: install page, activation, device limit,
-                             #   documents, products, backup, offline, expiry lock, extension
+npm run test:mobile          # browser test of DocGen Mobile in a phone-sized window: install page, activation, setup, invoices
+                             #   in the 4 templates, convert / cancel / delete / restore, files, sales CSV, products, settings,
+                             #   backup, sample data, offline, phone limit, expiry lock, data from the first mobile version
 npm run loadtest             # seeds 10,000 clients + licenses, measures key endpoints (LOAD_CLIENTS=…)
 npm run seed:load -- 10000   # seed an existing (test!) database
 ```

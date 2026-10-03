@@ -14,7 +14,7 @@ const isPhone = () => /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 const isLocal = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
 const FEATURES = [
-  ['file', 'Invoices & quotations', 'GST tax invoices, quotations, proforma invoices, estimates, delivery challans and more.'],
+  ['file', 'Everything the desktop app does', 'All 18 document types — GST invoices, quotations, challans, orders, receipts … — in the same 4 templates (Tally Professional, Tally Standard, Modern, Simple).'],
   ['monitor', 'Works offline', 'Your documents, customers and products are stored on the phone. No internet needed to work.'],
   ['printer', 'Share as PDF', 'Print or save any document as a PDF and send it on WhatsApp or email.'],
   ['key', 'Sign in once', 'Enter your license key once. DocGen remembers it while your license is valid.'],
