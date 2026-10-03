@@ -52,6 +52,11 @@ cp .env.example .env        # Windows: copy .env.example .env   — then edit DB
 npm start                   # builds the portal if needed, then API + portal + admin on http://localhost:8787
 ```
 
+After an update (`git pull`) just run `npm start` again: it installs any new packages by itself
+(`npm install`) and rebuilds the website and DocGen Mobile. If the browser shows nothing, look at the
+terminal — the server prints `DocGen server listening on http://localhost:8787` when it is ready; open
+that address (not the files in `frontend/`). If it stopped with an error instead, the message says what to do.
+
 | Command | What it does |
 |---------|--------------|
 | `npm start` | builds `frontend/dist` when the frontend sources changed, then serves everything on `PORT` |
