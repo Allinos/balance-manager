@@ -116,7 +116,7 @@ export function SiteFooter() {
   return (
     <footer className="site-footer">
       <div className="site-footer-inner">
-        <span>© {new Date().getFullYear()} DocGen · a product of <a href="https://reynrel.in" target="_blank" rel="noreferrer">reynrel.in</a></span>
+        <span>© 2025-{new Date().getFullYear()} DocGen · a product of <a href="https://reynrel.in" target="_blank" rel="noreferrer">reynrel.in</a></span>
         <span>
           <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a> · <Link to="/login">Sign in</Link>
         </span>
