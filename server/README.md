@@ -56,6 +56,8 @@ After an update (`git pull`) just run `npm start` again: it installs any new pac
 (`npm install`) and rebuilds the website and DocGen Mobile. If the browser shows nothing, look at the
 terminal — the server prints `DocGen server listening on http://localhost:8787` when it is ready; open
 that address (not the files in `frontend/`). If it stopped with an error instead, the message says what to do.
+If `git pull` stops with *"Your local changes to … package-lock.json would be overwritten"* (a manual
+`npm install` rewrote it), run `git checkout -- server/package-lock.json` and pull again — nothing of yours is lost.
 
 | Command | What it does |
 |---------|--------------|

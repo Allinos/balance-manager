@@ -51,9 +51,10 @@ function missingPackages() {
 let missing = missingPackages();
 if (missing.length) {
   console.log(`\nThis version needs packages that are not installed yet (${missing.join(', ')}).`);
-  console.log('Installing them now (npm install) — this happens once after an update…\n');
+  console.log('Installing them now — this happens once after an update…\n');
   // shell: true so that npm (npm.cmd) also starts on Windows.
-  spawnSync('npm install', { cwd: serverDir, stdio: 'inherit', shell: true });
+  // --no-save: install what package-lock.json lists without rewriting it, so `git pull` keeps working.
+  spawnSync('npm install --no-save', { cwd: serverDir, stdio: 'inherit', shell: true });
   missing = missingPackages();
   if (missing.length) {
     console.error(`\nCould not install: ${missing.join(', ')}.`);
