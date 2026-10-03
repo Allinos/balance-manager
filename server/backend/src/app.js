@@ -43,6 +43,9 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
           mediaSrc: ["'self'", 'https:'],
           objectSrc: ["'none'"],
           baseUri: ["'self'"],
+          // Only when the site itself runs on HTTPS. On http://localhost some browsers (Safari) would
+          // otherwise load the page's scripts over https:// — which fails and leaves a blank page.
+          upgradeInsecureRequests: config.portalUrl.startsWith('https://') ? [] : null,
         },
       },
       crossOriginResourcePolicy: { policy: 'cross-origin' },

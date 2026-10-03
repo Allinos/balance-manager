@@ -14,7 +14,16 @@
     <title>DocGen Mobile</title>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <style>
+        .boot { font: 15px/1.5 system-ui, sans-serif; color: #475467; max-width: 460px; margin: 18vh auto; padding: 0 16px; text-align: center; opacity: 0; animation: boot-show 0s 4s forwards; }
+        @keyframes boot-show { to { opacity: 1; } }
+      </style>
+      <div class="boot">
+        <p><strong>DocGen Mobile is taking long to open.</strong></p>
+        <p>If this message stays, reload the page or update your browser (Chrome on Android, Safari on iPhone).</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
