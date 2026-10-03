@@ -6,7 +6,12 @@ import { useAuth } from '../../App.jsx';
 function Profile() {
   const { client } = useAuth();
   const toast = useToast();
-  const [form, setForm] = useState({ name: client.user.name, phone: client.user.phone });
+  const [form, setForm] = useState({
+    name: client.user.name,
+    phone: client.user.phone,
+    business_name: client.user.businessName || '',
+    gstin: client.user.gstin || '',
+  });
   const [error, setError] = useState(null);
   const save = async (e) => {
     e.preventDefault();
@@ -20,8 +25,8 @@ function Profile() {
     }
   };
   return (
-    <form className="card form narrow" onSubmit={save}>
-      <h3>Your details</h3>
+    <form className="card form" onSubmit={save}>
+      <h3>Account information</h3>
       <ErrorText error={error} />
       <Field label="Email">
         <Input value={client.user.email} onChange={() => {}} disabled />
@@ -29,9 +34,17 @@ function Profile() {
       <Field label="Full name">
         <Input value={form.name} onChange={(v) => setForm({ ...form, name: v })} required minLength={2} />
       </Field>
-      <Field label="Mobile number">
-        <Input type="tel" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
-      </Field>
+      <div className="grid-2">
+        <Field label="Mobile number">
+          <Input type="tel" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
+        </Field>
+        <Field label="Business name (optional)">
+          <Input value={form.business_name} onChange={(v) => setForm({ ...form, business_name: v })} />
+        </Field>
+        <Field label="GSTIN (optional)" hint="Printed on our invoices to you" error={error?.details?.fields?.gstin}>
+          <Input value={form.gstin} onChange={(v) => setForm({ ...form, gstin: v.toUpperCase() })} maxLength={15} />
+        </Field>
+      </div>
       <div className="row end">
         <button className="btn btn-primary">Save</button>
       </div>
@@ -59,9 +72,9 @@ function Password() {
     }
   };
   return (
-    <form className="card form narrow" onSubmit={save}>
+    <form className="card form" onSubmit={save}>
       <h3>{first ? 'Create a password' : 'Change password'}</h3>
-      <p className="muted small">Use it to sign in on this website and in the DocGen app.</p>
+      <p className="muted small">Use it to sign in on this website and in the DocGen apps.</p>
       <ErrorText error={error} />
       {!first && (
         <Field label="Current password">
@@ -82,7 +95,10 @@ export default function Account() {
   return (
     <>
       <div className="page-head">
-        <h1>Account</h1>
+        <div>
+          <h1>Account</h1>
+          <p className="muted">Your details and password.</p>
+        </div>
       </div>
       <Profile />
       <Password />

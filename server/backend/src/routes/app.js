@@ -1,5 +1,6 @@
 /**
- * Endpoints used by the DocGen desktop application.
+ * Endpoints used by the DocGen desktop application and DocGen Mobile (deviceKind: 'mobile').
+ * Computers and phones/tablets count against separate limits of a license (enforced here).
  *
  * The desktop app never sends business data. It sends only what is needed for
  * licensing (email/password or activation code, an anonymous device id,
@@ -20,11 +21,13 @@ const device = {
   deviceName: z.string().trim().max(120).optional().default(''),
   platform: z.string().trim().max(20).optional().default(''),
   appVersion: z.string().trim().max(20).optional().default(''),
+  /** 'mobile' for DocGen Mobile; the desktop app does not send it. */
+  deviceKind: z.enum(['desktop', 'mobile']).optional().default('desktop'),
 };
 
 const loginSchema = z.object({ email: z.string().trim().toLowerCase().email().max(190), password: z.string().min(1).max(200), ...device });
 const activateSchema = z.object({ code: z.string().trim().max(20), ...device });
-const tokenSchema = z.object({ token: z.string().max(4000), deviceId: device.deviceId });
+const tokenSchema = z.object({ token: z.string().max(4000), deviceId: device.deviceId, deviceKind: device.deviceKind });
 
 /** Ads published to the app: active, inside their date window, newest first. */
 async function publishedAds(knex) {
@@ -111,7 +114,7 @@ export function appRoutes(knex) {
       throw lastError;
     });
     await logActivation(knex, client, result, body, req, 'app.login');
-    res.json(licenseResponse(result, client, body.deviceId));
+    res.json(licenseResponse(result, client, body.deviceId, body.deviceKind));
   });
 
   /** Activate this computer with an activation code (AB12-CD34-EF56). */
@@ -126,7 +129,7 @@ export function appRoutes(knex) {
     const result = await knex.transaction((trx) => activateOnDevice(trx, license, body));
     const client = owner;
     await logActivation(knex, client, result, body, req, 'app.activate');
-    res.json(licenseResponse(result, client, body.deviceId));
+    res.json(licenseResponse(result, client, body.deviceId, body.deviceKind));
   });
 
   /** Refresh a stored license (picks up renewals, extensions, suspensions). */
@@ -142,7 +145,7 @@ export function appRoutes(knex) {
     }
     await knex('devices').where({ id: deviceRow.id }).update({ last_seen_at: nowIso() });
     const client = license.client_id ? await knex('clients').where({ id: license.client_id }).first() : null;
-    res.json(licenseResponse(license, client, body.deviceId));
+    res.json(licenseResponse(license, client, body.deviceId, deviceRow.kind));
   });
 
   /** Sign out / release this computer so the license can be used elsewhere. */
@@ -158,14 +161,21 @@ export function appRoutes(knex) {
   return r;
 }
 
-/** Token for the desktop app plus a readable summary (the app trusts only the signed token). */
-function licenseResponse(license, client, deviceId) {
+/** Signed token for the app plus a readable summary (the apps trust only the signed token). */
+function licenseResponse(license, client, deviceId, kind = 'desktop') {
   return {
-    token: licenseToken(license, client, deviceId),
+    token: licenseToken(license, client, deviceId, kind),
     license: {
+      key: license.code,
+      product: license.plan_name || '',
       status: client && client.status !== 'active' ? 'suspended' : effectiveStatus(license),
+      startedAt: license.activated_at,
       expiresAt: license.expires_at,
       daysLeft: daysLeft(license),
+      lifetime: !license.expires_at && license.duration_days === 0,
+      maxDevices: license.max_devices,
+      maxMobileDevices: license.max_mobile_devices ?? 0,
+      account: client ? { name: client.name, email: client.email, business: client.business_name } : null,
     },
   };
 }

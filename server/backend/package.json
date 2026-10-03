@@ -16,7 +16,8 @@
     "seed:load": "node scripts/seed-load.js",
     "loadtest": "node scripts/loadtest.js",
     "test": "node --test --test-concurrency=1 test/*.test.js",
-    "test:portal": "node ../frontend/e2e/portal.e2e.mjs"
+    "test:portal": "node ../frontend/e2e/portal.e2e.mjs",
+    "test:mobile": "node ../mobile/e2e/mobile.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

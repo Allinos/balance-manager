@@ -11,9 +11,10 @@ import { config } from './config.js';
 import * as initial from './migrations/001_initial.js';
 import * as signupSource from './migrations/002_signup_source.js';
 import * as singleProduct from './migrations/003_single_product.js';
+import * as pricesAndMobile from './migrations/004_prices_and_mobile.js';
 
 /** Ordered migrations. Append new ones; never edit an applied migration. */
-const MIGRATIONS = { '001_initial': initial, '002_signup_source': signupSource, '003_single_product': singleProduct };
+const MIGRATIONS = { '001_initial': initial, '002_signup_source': signupSource, '003_single_product': singleProduct, '004_prices_and_mobile': pricesAndMobile };
 
 class InlineMigrationSource {
   getMigrations() {

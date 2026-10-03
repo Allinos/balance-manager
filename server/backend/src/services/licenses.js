@@ -39,6 +39,7 @@ export function publicLicense(l) {
     storedStatus: l.status,
     durationDays: l.duration_days,
     maxDevices: l.max_devices,
+    maxMobileDevices: l.max_mobile_devices ?? 0,
     activatedAt: l.activated_at,
     expiresAt: l.expires_at,
     daysLeft: daysLeft(l),
@@ -87,6 +88,7 @@ const withPlan = (knex) =>
  * @returns {Promise<object>} the updated license row (with plan_name)
  */
 export async function activateOnDevice(trx, license, device) {
+  const kind = device.deviceKind === 'mobile' ? 'mobile' : 'desktop';
   const status = effectiveStatus(license);
   if (status === 'revoked') throw new ApiError(403, 'LICENSE_REVOKED', 'This license has been revoked. Please contact support.');
   if (status === 'suspended') throw new ApiError(403, 'LICENSE_SUSPENDED', 'This license is suspended. Please contact support.');
@@ -101,20 +103,27 @@ export async function activateOnDevice(trx, license, device) {
 
   const existing = await trx('devices').where({ license_id: license.id, device_id: device.deviceId }).first();
   if (!existing || existing.released_at) {
+    // Computers and phones/tablets have separate limits, always enforced here on the server.
     const [{ count }] = await trx('devices')
-      .where({ license_id: license.id })
+      .where({ license_id: license.id, kind })
       .whereNull('released_at')
       .whereNot({ device_id: device.deviceId })
       .count({ count: '*' });
-    if (Number(count) >= license.max_devices) {
+    const limit = kind === 'mobile' ? license.max_mobile_devices ?? 0 : license.max_devices;
+    if (Number(count) >= limit) {
       throw new ApiError(
         409,
         'DEVICE_LIMIT',
-        `This license is already active on ${license.max_devices} computer(s). Release a computer in the client portal or contact support.`,
+        kind === 'mobile'
+          ? limit
+            ? `This license is already used on ${limit} phone(s)/tablet(s). Remove one in your account (My License → Devices) or contact support.`
+            : 'This license does not include DocGen Mobile. Please contact support.'
+          : `This license is already active on ${limit} computer(s). Release a computer in the client portal or contact support.`,
       );
     }
   }
   const deviceRow = {
+    kind,
     device_name: device.deviceName || '',
     platform: device.platform || '',
     app_version: device.appVersion || '',
@@ -146,7 +155,7 @@ export async function licenseForClient(trx, clientId, deviceId) {
 }
 
 /** Signed token the desktop app stores and verifies offline. */
-export function licenseToken(license, client, deviceId) {
+export function licenseToken(license, client, deviceId, kind = 'desktop') {
   const status = client && client.status !== 'active' ? 'suspended' : effectiveStatus(license);
   return signLicenseToken({
     v: 1,
@@ -162,7 +171,9 @@ export function licenseToken(license, client, deviceId) {
     activatedAt: license.activated_at,
     expiresAt: license.expires_at,
     maxDevices: license.max_devices,
+    maxMobileDevices: license.max_mobile_devices ?? 0,
     did: deviceId,
+    kind,
     iat: new Date().toISOString(),
   });
 }
@@ -170,29 +181,36 @@ export function licenseToken(license, client, deviceId) {
 export const getLicenseWithPlan = (knex, id) => withPlan(knex).where('licenses.id', id).first();
 
 /**
- * Renew (or upgrade) a license with a paid plan: the plan's period is added to the current expiry,
- * the license moves to the paid plan and keeps the larger computer limit. A lifetime plan makes it lifetime.
+ * Renew (or upgrade) a license with a paid plan: `days` (the bought duration) are added to the current
+ * expiry, the license moves to the paid plan and keeps the larger device limits. 0 days = lifetime.
  */
-export async function renewWithPlan(trx, license, plan) {
-  const patch = { plan_id: plan.id, max_devices: Math.max(license.max_devices, plan.max_devices), updated_at: nowIso() };
-  if (plan.duration_days === 0) {
+export async function renewWithPlan(trx, license, plan, days = plan.duration_days) {
+  const patch = {
+    plan_id: plan.id,
+    max_devices: Math.max(license.max_devices, plan.max_devices),
+    max_mobile_devices: Math.max(license.max_mobile_devices ?? 0, plan.max_mobile_devices ?? 0),
+    updated_at: nowIso(),
+  };
+  if (days === 0) {
     patch.expires_at = null;
     patch.duration_days = 0;
     return updateOne(trx, 'licenses', { id: license.id }, patch);
   }
   await trx('licenses').where({ id: license.id }).update(patch);
   const updated = await trx('licenses').where({ id: license.id }).first();
-  return extendLicense(trx, updated, plan.duration_days);
+  return extendLicense(trx, updated, days);
 }
 
 /** Create or extend the license paid for by a payment. Idempotent per payment. */
 export async function fulfillPayment(trx, payment) {
   if (payment.license_id) return getLicenseWithPlan(trx, payment.license_id);
   const plan = await trx('plans').where({ id: payment.plan_id }).first();
+  // The duration that was bought (payments before price options: the plan's own duration).
+  const days = payment.duration_days ?? plan.duration_days;
   let license;
   if (payment.renew_license_id) {
     const current = await trx('licenses').where({ id: payment.renew_license_id, client_id: payment.client_id }).first();
-    if (current) license = await renewWithPlan(trx, current, plan);
+    if (current) license = await renewWithPlan(trx, current, plan, days);
   }
   if (!license) {
     // Valid from the payment date, so the customer sees the same end date everywhere.
@@ -202,9 +220,10 @@ export async function fulfillPayment(trx, payment) {
       plan_id: plan.id,
       status: 'active',
       activated_at: now,
-      expires_at: plan.duration_days > 0 ? new Date(Date.now() + plan.duration_days * DAY).toISOString() : null,
-      duration_days: plan.duration_days,
+      expires_at: days > 0 ? new Date(Date.now() + days * DAY).toISOString() : null,
+      duration_days: days,
       max_devices: plan.max_devices,
+      max_mobile_devices: plan.max_mobile_devices ?? 0,
       source: 'payment',
       payment_id: payment.id,
     });

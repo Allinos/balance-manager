@@ -1,45 +1,49 @@
 /**
- * Build the client portal + admin panel (server/frontend → frontend/dist) that the backend serves.
+ * Build what the backend serves next to the API:
+ *   server/frontend → frontend/dist   website, client panel, admin panel
+ *   server/mobile   → mobile/dist     DocGen Mobile (installable web app at /app/)
  *
- *   node scripts/build-portal.js             build
- *   node scripts/build-portal.js --if-needed build only when dist is missing or older than
- *                                            the portal sources (runs before `npm start`)
+ *   node scripts/build-portal.js             build both
+ *   node scripts/build-portal.js --if-needed build only what is missing or older than its sources
+ *                                            (runs before `npm start`)
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const portal = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend');
-const built = path.join(portal, 'dist', 'index.html');
+const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const PROJECTS = [
+  { name: 'website, client panel and admin panel', dir: path.join(serverDir, 'frontend') },
+  { name: 'DocGen Mobile', dir: path.join(serverDir, 'mobile') },
+];
+const builtIndex = (p) => path.join(p.dir, 'dist', 'index.html');
 
-/** Newest modification time among the portal sources. */
-function newestSource(dir = portal) {
+/** Newest modification time among a project's sources. */
+function newestSource(dir) {
   let newest = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['dist', 'e2e', 'node_modules'].includes(entry.name)) continue;
+    if (['dist', 'e2e', 'node_modules', 'test'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     newest = Math.max(newest, entry.isDirectory() ? newestSource(full) : fs.statSync(full).mtimeMs);
   }
   return newest;
 }
 
-if (process.argv.includes('--if-needed') && fs.existsSync(built) && fs.statSync(built).mtimeMs >= newestSource()) {
-  process.exit(0);
-}
+const ifNeeded = process.argv.includes('--if-needed');
+const todo = PROJECTS.filter((p) => fs.existsSync(p.dir) && !(ifNeeded && fs.existsSync(builtIndex(p)) && fs.statSync(builtIndex(p)).mtimeMs >= newestSource(p.dir)));
+if (!todo.length) process.exit(0);
 
 let vite;
 try {
   vite = await import('vite');
 } catch {
-  if (fs.existsSync(built)) {
-    console.warn('Portal build tools are not installed (npm install); serving the existing frontend/dist.');
-    process.exit(0);
-  }
-  console.warn('Portal is not built and its build tools are missing — run `npm install`. The API still starts.');
+  console.warn('Build tools are not installed (run `npm install` in server/); serving the existing builds. The API still starts.');
   process.exit(0);
 }
 
-console.log('Building the client portal and admin panel…');
-await vite.build({ configFile: path.join(portal, 'vite.config.js'), logLevel: 'warn' });
-console.log('Portal built (frontend/dist).');
+for (const p of todo) {
+  console.log(`Building the ${p.name}…`);
+  await vite.build({ configFile: path.join(p.dir, 'vite.config.js'), logLevel: 'warn' });
+  console.log(`Built ${path.relative(serverDir, path.join(p.dir, 'dist'))}.`);
+}

@@ -13,7 +13,9 @@ const SAMPLE_PLANS = ['STARTER', 'BUSINESS', 'LIFETIME'];
 export async function up(knex) {
   const now = new Date().toISOString();
   if (!(await knex('plans').where({ code: DEFAULT_PRODUCT.code }).first('id'))) {
-    await knex('plans').insert({ ...DEFAULT_PRODUCT, created_at: now, updated_at: now });
+    // Columns added by later migrations (max_mobile_devices) are filled in by those migrations.
+    const { max_mobile_devices: _later, ...product } = DEFAULT_PRODUCT;
+    await knex('plans').insert({ ...product, created_at: now, updated_at: now });
   }
   const samples = await knex('plans').whereIn('code', SAMPLE_PLANS).select('id');
   for (const { id } of samples) {

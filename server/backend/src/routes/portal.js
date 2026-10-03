@@ -8,9 +8,10 @@ import { config } from '../config.js';
 import { limits, requireClient } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, passwordFingerprint, signPurposeToken, signSession, verifyPassword, verifyPurposeToken } from '../lib/security.js';
 import { audit, getAppConfig, getSiteConfig } from '../services/common.js';
-import { downloadLinks, isEntitled } from '../services/downloads.js';
+import { availableDownloads, getDownloadSettings, isEntitled } from '../services/downloads.js';
 import { mailEnabled, sendPasswordReset, sendPaymentReceipt } from '../services/mail.js';
 import { fulfillPayment, publicLicense } from '../services/licenses.js';
+import { durationLabel, pricesByPlan, publicPrice, resolvePrice } from '../services/products.js';
 import { getProvider, listProviders } from '../payments/index.js';
 
 const password = z.string().min(8, 'must be at least 8 characters').max(200);
@@ -107,6 +108,9 @@ export const publicPayment = (p) => ({
   id: p.id,
   planId: p.plan_id,
   planName: p.plan_name,
+  durationDays: p.duration_days ?? null,
+  durationLabel: p.duration_days == null ? '' : durationLabel(p.duration_days),
+  renewal: !!p.renew_license_id,
   licenseId: p.license_id,
   provider: p.provider,
   providerOrderId: p.provider_order_id,
@@ -119,7 +123,8 @@ export const publicPayment = (p) => ({
   createdAt: p.created_at,
 });
 
-export const publicPlan = (p) => ({
+/** A product with its price options (`prices`: from `pricesByPlan`). */
+export const publicPlan = (p, prices = null) => ({
   id: p.id,
   code: p.code,
   name: p.name,
@@ -129,6 +134,8 @@ export const publicPlan = (p) => ({
   currency: p.currency,
   durationDays: p.duration_days,
   maxDevices: p.max_devices,
+  maxMobileDevices: p.max_mobile_devices ?? 0,
+  prices: (prices || []).map(publicPrice),
   features: parseJson(p.features, []),
   isActive: !!p.is_active,
   isPublic: !!p.is_public,
@@ -139,18 +146,25 @@ export function portalRoutes(knex) {
   const r = Router();
   const auth = requireClient(knex);
 
-  r.get('/plans', async (_req, res) => {
+  /** Products on sale with their price per license duration. */
+  const productsForSale = async () => {
     const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
-    res.json({ plans: rows.map(publicPlan), providers: listProviders(), emailEnabled: mailEnabled() });
+    const prices = await pricesByPlan(knex, rows);
+    return rows.map((p) => publicPlan(p, prices.get(p.id)));
+  };
+
+  r.get('/plans', async (_req, res) => {
+    res.json({ plans: await productsForSale(), providers: listProviders(), emailEnabled: mailEnabled() });
   });
 
   /** Everything the product page and checkout show: website content, the product(s) for sale, payment methods. */
   r.get('/site', async (_req, res) => {
-    const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
     res.set('Cache-Control', 'no-cache');
+    const downloads = await getDownloadSettings(knex);
     res.json({
       site: await getSiteConfig(knex),
-      products: rows.map(publicPlan),
+      products: await productsForSale(),
+      mobileAvailable: downloads.mobile.enabled,
       providers: listProviders(),
       emailEnabled: mailEnabled(),
       supportEmail: config.supportEmail,
@@ -169,6 +183,7 @@ export function portalRoutes(knex) {
         email: z.string().trim().toLowerCase().email('please enter a valid email').max(190),
         phone: mobile,
         planId: z.coerce.number().int().positive().optional(),
+        priceId: z.coerce.number().int().positive().optional(),
         provider: z.string().max(30).optional(),
         attribution: attributionSchema,
       }),
@@ -198,7 +213,8 @@ export function portalRoutes(knex) {
       });
       await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.checkout_signup', entity: 'client', entityId: client.id, ip: clientIp(req) });
     }
-    const started = await startPayment(knex, { client, plan, provider, req });
+    const price = await resolvePrice(knex, plan, body.priceId);
+    const started = await startPayment(knex, { client, plan, price, provider, req });
     res.status(201).json({ ...started, checkoutToken: signPurposeToken('checkout', { sub: String(client.id), pid: started.payment.id }, '6h') });
   });
 
@@ -323,7 +339,7 @@ export function portalRoutes(knex) {
         ...publicLicense(l),
         devices: devices
           .filter((d) => d.license_id === l.id)
-          .map((d) => ({ id: d.id, name: d.device_name, platform: d.platform, appVersion: d.app_version, activatedAt: d.activated_at, lastSeenAt: d.last_seen_at })),
+          .map((d) => ({ id: d.id, kind: d.kind, name: d.device_name, platform: d.platform, appVersion: d.app_version, activatedAt: d.activated_at, lastSeenAt: d.last_seen_at })),
       })),
     });
   });
@@ -340,14 +356,18 @@ export function portalRoutes(knex) {
     res.status(204).end();
   });
 
-  /** Installers for paying customers, with personal links that expire after 30 minutes. */
+  /**
+   * Downloads for paying customers (Admin → Downloads): Windows / macOS / Linux installers
+   * (personal links that expire after 30 minutes, or the admin's link) and DocGen Mobile.
+   */
   r.get('/downloads', auth, async (req, res) => {
     const { config: appConfig } = await getAppConfig(knex);
     const version = appConfig.app.latestVersion;
-    if (!(await isEntitled(knex, req.client.id))) return res.json({ entitled: false, version, files: [] });
-    const files = downloadLinks(req.client.id, '30m').map((i) => ({ ...i, url: i.path }));
     res.set('Cache-Control', 'no-store');
-    res.json({ entitled: true, version, files, externalUrl: files.length ? '' : appConfig.app.downloadUrl });
+    if (!(await isEntitled(knex, req.client.id))) return res.json({ entitled: false, version, files: [] });
+    const files = await availableDownloads(knex, req.client.id, '30m');
+    const hasInstaller = files.some((f) => f.type !== 'page');
+    res.json({ entitled: true, version, files, externalUrl: hasInstaller ? '' : appConfig.app.downloadUrl });
   });
 
   r.get('/payments', auth, async (req, res) => {
@@ -368,12 +388,14 @@ export function portalRoutes(knex) {
     const body = parse(
       z.object({
         planId: z.coerce.number().int().positive().optional(),
+        priceId: z.coerce.number().int().positive().optional(),
         provider: z.string().max(30).optional(),
         renewLicenseId: z.coerce.number().int().positive().optional(),
       }),
       req.body,
     );
     const plan = await saleProduct(knex, body.planId);
+    const price = await resolvePrice(knex, plan, body.priceId);
     const provider = getProvider(body.provider || defaultProvider());
     if (body.renewLicenseId) {
       const owned = await knex('licenses').where({ id: body.renewLicenseId, client_id: req.client.id }).first();
@@ -383,7 +405,7 @@ export function portalRoutes(knex) {
       }
       if (!owned.expires_at && owned.duration_days === 0) throw new ApiError(409, 'LICENSE_LIFETIME', 'This license is already valid for life.');
     }
-    res.status(201).json(await startPayment(knex, { client: req.client, plan, provider, renewLicenseId: body.renewLicenseId, req }));
+    res.status(201).json(await startPayment(knex, { client: req.client, plan, price, provider, renewLicenseId: body.renewLicenseId, req }));
   });
 
   /** Confirmation posted by the portal after the provider's checkout completes. */
@@ -408,24 +430,29 @@ async function saleProduct(knex, planId) {
   return plan;
 }
 
-/** Create a payment and the provider's order. */
-async function startPayment(knex, { client, plan, provider, renewLicenseId = null, req }) {
+/**
+ * Create a payment for one price option and the provider's order. The amount and duration come from the
+ * server's price list — never from the browser.
+ */
+async function startPayment(knex, { client, plan, price, provider, renewLicenseId = null, req }) {
   const ts = nowIso();
   const payment = await insertOne(knex, 'payments', {
     client_id: client.id,
     plan_id: plan.id,
+    price_id: price.id,
+    duration_days: price.duration_days,
     renew_license_id: renewLicenseId ?? null,
     provider: provider.name,
-    amount_paise: plan.price_paise,
+    amount_paise: price.price_paise,
     currency: plan.currency,
     status: 'created',
     meta: '{}',
     created_at: ts,
     updated_at: ts,
   });
-  const order = await provider.createOrder({ payment, plan, client });
+  const order = await provider.createOrder({ payment, plan: { ...plan, durationText: durationLabel(price.duration_days) }, client });
   const updated = await updateOne(knex, 'payments', { id: payment.id }, { provider_order_id: order.providerOrderId, status: 'pending', updated_at: nowIso() });
-  await audit(knex, { actorType: 'client', actorId: client.id, action: 'payment.create', entity: 'payment', entityId: payment.id, details: { plan: plan.code, provider: provider.name }, ip: clientIp(req) });
+  await audit(knex, { actorType: 'client', actorId: client.id, action: 'payment.create', entity: 'payment', entityId: payment.id, details: { plan: plan.code, days: price.duration_days, provider: provider.name }, ip: clientIp(req) });
   return { payment: publicPayment({ ...updated, plan_name: plan.name }), checkout: order.checkout };
 }
 

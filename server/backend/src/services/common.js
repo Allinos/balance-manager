@@ -76,6 +76,7 @@ export const DEFAULT_PRODUCT = {
   currency: 'INR',
   duration_days: 365,
   max_devices: 1,
+  max_mobile_devices: 2,
   features: JSON.stringify([
     'GST invoices, quotations, challans, receipts and more',
     'Works offline — your data stays on your computer',
@@ -92,7 +93,18 @@ export async function seedDefaults(knex) {
   if (Number(count) > 0) return;
   const ts = nowIso();
   await knex('plans').insert({ ...DEFAULT_PRODUCT, created_at: ts, updated_at: ts });
+  const plan = await knex('plans').where({ code: DEFAULT_PRODUCT.code }).first('id');
+  await knex('plan_prices').insert(
+    DEFAULT_PRICES.map(([days, paise], i) => ({ plan_id: plan.id, duration_days: days, price_paise: paise, sort_order: i, created_at: ts, updated_at: ts })),
+  );
 }
+
+/** Default price list of the product: [days, paise] (Admin → Products & pricing). */
+export const DEFAULT_PRICES = [
+  [365, 125000],
+  [730, 225000],
+  [1825, 499900],
+];
 
 /** Website content (Admin → Website). Screenshots default to the images bundled with the website. */
 export const DEFAULT_SITE = {

@@ -93,6 +93,8 @@ export const config = {
   portalDir: path.join(serverRoot, 'frontend'),
   portalDist: path.resolve(serverRoot, env.PORTAL_DIST || 'frontend/dist'),
   portalDev: env.PORTAL_DEV === 'true' || process.argv.includes('--dev'),
+  /** DocGen Mobile (installable web app), served at /app/. */
+  mobileDist: path.resolve(serverRoot, env.MOBILE_DIST || 'mobile/dist'),
   /** Disable rate limits in automated tests unless explicitly re-enabled. */
   rateLimits: env.RATE_LIMITS ? env.RATE_LIMITS !== 'off' : env.NODE_ENV !== 'test',
 };

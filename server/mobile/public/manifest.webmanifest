@@ -1,0 +1,22 @@
+{
+  "name": "DocGen Mobile",
+  "short_name": "DocGen",
+  "description": "GST invoices, quotations and business documents on your phone. Works offline.",
+  "id": "/app/",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6fb",
+  "theme_color": "#224cc8",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "/app/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/app/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "/screenshots/mobile-dashboard.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "Dashboard" },
+    { "src": "/screenshots/mobile-invoice.png", "sizes": "780x1688", "type": "image/png", "form_factor": "narrow", "label": "GST invoice" }
+  ]
+}

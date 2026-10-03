@@ -6,26 +6,83 @@
 import { useState } from 'react';
 import { adminApi, money } from '../../api.js';
 import { Badge, Check, ErrorText, Field, Input, Modal, Select, Spinner, Textarea, useLoad, useToast } from '../../components/ui.jsx';
-import { period } from '../portal/ProductPage.jsx';
 
-const blank = { name: '', description: '', price: 1250, currency: 'INR', durationDays: 365, maxDevices: 1, features: [], isActive: true, isPublic: true, sortOrder: 0 };
-const PERIODS = [
+const blank = {
+  name: '', description: '', currency: 'INR', maxDevices: 1, maxMobileDevices: 2, features: [], isActive: true, isPublic: true, sortOrder: 0,
+  prices: [{ durationDays: 365, price: 1250, label: '' }],
+};
+const PRESETS = [
+  { value: '30', label: '1 month' },
+  { value: '90', label: '3 months' },
+  { value: '180', label: '6 months' },
   { value: '365', label: '1 year' },
   { value: '730', label: '2 years' },
   { value: '1095', label: '3 years' },
+  { value: '1825', label: '5 years' },
   { value: '0', label: 'Lifetime' },
   { value: 'custom', label: 'Custom (days)…' },
 ];
+const presetOf = (days) => (PRESETS.some((p) => p.value === String(days)) ? String(days) : 'custom');
+
+/** One row per license duration: duration, price, optional label. */
+function PriceRows({ rows, onChange }) {
+  const set = (i, patch) => onChange(rows.map((r, n) => (n === i ? { ...r, ...patch } : r)));
+  return (
+    <div className="price-rows" data-testid="price-rows">
+      <div className="price-row price-row-head">
+        <span>Duration</span>
+        <span>Price (₹)</span>
+        <span>Label (optional)</span>
+        <span />
+      </div>
+      {rows.map((r, i) => (
+        <div key={r.key} className="price-row">
+          <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
+            <Select
+              value={r.preset}
+              onChange={(v) => set(i, { preset: v, durationDays: v === 'custom' ? r.durationDays || 365 : Number(v) })}
+              options={PRESETS}
+              aria-label="Duration"
+              data-testid={`price-duration-${i}`}
+            />
+            {r.preset === 'custom' && (
+              <Input type="number" min="1" max="36500" value={r.durationDays} onChange={(v) => set(i, { durationDays: v })} aria-label="Days" style={{ width: 90 }} />
+            )}
+          </div>
+          <Input type="number" min="0" step="1" value={r.price} onChange={(v) => set(i, { price: v })} aria-label="Price" required data-testid={`price-amount-${i}`} />
+          <Input value={r.label} onChange={(v) => set(i, { label: v })} placeholder="e.g. Best value" maxLength={40} aria-label="Label" />
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(rows.filter((_, n) => n !== i))} disabled={rows.length === 1} aria-label="Remove price">
+            Remove
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn-sm"
+        onClick={() => onChange([...rows, { key: Math.random(), preset: 'custom', durationDays: '', price: '', label: '' }])}
+        disabled={rows.length >= 12}
+        data-testid="add-price"
+      >
+        Add duration
+      </button>
+    </div>
+  );
+}
 
 function ProductForm({ product, onClose }) {
   const toast = useToast();
-  const initialDays = String(product?.durationDays ?? 365);
+  const source = { ...blank, ...product };
   const [form, setForm] = useState({
-    ...blank,
-    ...product,
-    featuresText: (product?.features || []).join('\n'),
-    period: PERIODS.some((p) => p.value === initialDays) ? initialDays : 'custom',
-    customDays: initialDays,
+    ...source,
+    featuresText: (source.features || []).join('\n'),
+    prices: (source.prices?.length ? source.prices : blank.prices).map((p) => ({
+      key: Math.random(),
+      id: p.id ?? null,
+      preset: presetOf(p.durationDays),
+      durationDays: p.durationDays,
+      price: p.price,
+      label: p.label && p.label !== durationLabelFor(p.durationDays) ? p.label : '',
+    })),
   });
   const [error, setError] = useState(null);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
@@ -36,10 +93,10 @@ function ProductForm({ product, onClose }) {
       ...(product?.code ? { code: product.code } : {}),
       name: form.name,
       description: form.description,
-      price: Number(form.price),
       currency: form.currency,
-      durationDays: Number(form.period === 'custom' ? form.customDays : form.period),
+      prices: form.prices.map((p) => ({ id: p.id || undefined, durationDays: Number(p.durationDays), price: Number(p.price), label: p.label })),
       maxDevices: Number(form.maxDevices),
+      maxMobileDevices: Number(form.maxMobileDevices),
       isActive: form.isActive,
       isPublic: form.isPublic,
       sortOrder: Number(form.sortOrder),
@@ -48,7 +105,7 @@ function ProductForm({ product, onClose }) {
     try {
       if (product?.id) await adminApi.put(`/plans/${product.id}`, body);
       else await adminApi.post('/plans', body);
-      toast('Product saved. The website shows the new details now.');
+      toast('Product saved. The website and client panel show the new prices now.');
       onClose(true);
     } catch (err) {
       setError(err);
@@ -62,20 +119,19 @@ function ProductForm({ product, onClose }) {
           <Field label="Product name" error={fieldError('name')}>
             <Input value={form.name} onChange={set('name')} required />
           </Field>
-          <Field label="Price (₹)" hint="One-time payment, taxes included" error={fieldError('price')}>
-            <Input type="number" min="0" step="1" value={form.price} onChange={set('price')} required data-testid="product-price" />
-          </Field>
           <Field label="Payment type">
-            <Input value="One-time payment" onChange={() => {}} disabled />
+            <Input value="One-time payment per license period" onChange={() => {}} disabled />
           </Field>
-          <Field label="License validity" hint="Counted from the payment date. A renewal adds the same period.">
-            <div className="row" style={{ flexWrap: 'nowrap' }}>
-              <Select value={form.period} onChange={set('period')} options={PERIODS} data-testid="product-period" />
-              {form.period === 'custom' && <Input type="number" min="1" max="3650" value={form.customDays} onChange={set('customDays')} style={{ width: 110 }} aria-label="Days" />}
-            </div>
-          </Field>
+        </div>
+        <Field label="Prices per license duration" hint="Each duration has its own price. Customers choose one when buying or extending; the period is counted from the payment date (or added to the current end date)." error={fieldError('prices')}>
+          <PriceRows rows={form.prices} onChange={set('prices')} />
+        </Field>
+        <div className="grid-3">
           <Field label="Computers per license">
             <Input type="number" min="1" value={form.maxDevices} onChange={set('maxDevices')} />
+          </Field>
+          <Field label="Phones per license (DocGen Mobile)" hint="0 = mobile app not included">
+            <Input type="number" min="0" max="100" value={form.maxMobileDevices} onChange={set('maxMobileDevices')} data-testid="product-mobile-devices" />
           </Field>
           <Field label="Order on the website" hint="Lowest first">
             <Input type="number" min="0" value={form.sortOrder} onChange={set('sortOrder')} />
@@ -89,7 +145,7 @@ function ProductForm({ product, onClose }) {
         </div>
         <div className="row" style={{ gap: 20 }}>
           <Check checked={form.isActive} onChange={set('isActive')} label="On sale" />
-          <Check checked={form.isPublic} onChange={set('isPublic')} label="Shown on the website" />
+          <Check checked={form.isPublic} onChange={set('isPublic')} label="Shown on the website and in the client panel" />
         </div>
         <div className="row end">
           <button type="button" className="btn" onClick={() => onClose(false)}>
@@ -104,6 +160,14 @@ function ProductForm({ product, onClose }) {
   );
 }
 
+/** Same wording as the server ("1 year", "2 years", "Lifetime"). */
+function durationLabelFor(days) {
+  if (!days) return 'Lifetime';
+  if (days % 365 === 0) return days === 365 ? '1 year' : `${days / 365} years`;
+  if (days % 30 === 0 && days < 365) return days === 30 ? '1 month' : `${days / 30} months`;
+  return `${days} days`;
+}
+
 export default function AdminProducts() {
   const { data, loading, error, reload } = useLoad(() => adminApi.get('/plans'), []);
   const [editing, setEditing] = useState(null);
@@ -114,7 +178,7 @@ export default function AdminProducts() {
       <div className="page-head">
         <div>
           <h1>Products &amp; pricing</h1>
-          <p className="muted">Price, license validity and computers for each product. Changes apply to new purchases and renewals at once.</p>
+          <p className="muted">Prices per license duration, and how many computers and phones a license covers. Changes apply to new purchases and extensions at once.</p>
         </div>
         <button className="btn" onClick={() => setEditing({})}>
           New product
@@ -131,10 +195,9 @@ export default function AdminProducts() {
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th className="right">Price</th>
-                  <th>Payment</th>
-                  <th>License</th>
+                  <th>Prices</th>
                   <th>Computers</th>
+                  <th>Phones</th>
                   <th>Status</th>
                   <th />
                 </tr>
@@ -146,12 +209,15 @@ export default function AdminProducts() {
                       <strong>{p.name}</strong>
                       <div className="muted small">{p.description}</div>
                     </td>
-                    <td className="right">
-                      <strong>{money(p.price, p.currency)}</strong>
+                    <td>
+                      {p.prices.map((pr) => (
+                        <div key={pr.id ?? pr.durationDays} className="nowrap">
+                          {pr.label}: <strong>{money(pr.price, p.currency)}</strong>
+                        </div>
+                      ))}
                     </td>
-                    <td>One-time</td>
-                    <td style={{ textTransform: 'capitalize' }}>{period(p.durationDays)}</td>
                     <td>{p.maxDevices}</td>
+                    <td>{p.maxMobileDevices}</td>
                     <td>
                       {!p.isActive ? <Badge status="inactive">not on sale</Badge> : p.isPublic ? <Badge status="active">on website</Badge> : <Badge status="unused">hidden</Badge>}
                     </td>

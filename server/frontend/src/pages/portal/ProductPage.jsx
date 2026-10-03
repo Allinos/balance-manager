@@ -161,8 +161,23 @@ export function PriceCard({ product, cta = true }) {
         <span>one-time payment</span>
       </div>
       <span className="price-note">Includes {licenseLength(product.durationDays)}</span>
+      {product.prices?.length > 1 && (
+        <ul className="price-options" data-testid="price-options">
+          {product.prices.map((p) => (
+            <li key={p.id ?? p.durationDays}>
+              <span>{p.label}</span>
+              <strong>{money(p.price, product.currency)}</strong>
+            </li>
+          ))}
+        </ul>
+      )}
       <ul className="ticks">
-        {[...product.features, `Use on ${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}`].map((f) => (
+        {[
+          ...product.features,
+          `Use on ${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}${
+            product.maxMobileDevices ? ` and ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''
+          }`,
+        ].map((f) => (
           <li key={f}>
             <Icon name="check" size={16} strokeWidth={2.4} />
             {f}
@@ -302,6 +317,30 @@ export default function ProductPage() {
             ))}
           </div>
         </section>
+
+        {data.mobileAvailable && (
+          <div className="lp-band">
+            <section className="lp-section mobile-promo" id="mobile" data-testid="mobile-section">
+              <div>
+                <span className="lp-eyebrow">New</span>
+                <h2 className="lp-title">DocGen on Mobile</h2>
+                <p className="lp-lead">
+                  Create invoices and quotations on your phone — even without internet. Install it from the browser in seconds; the same license
+                  works on your computer and up to {product?.maxMobileDevices || 2} phones.
+                </p>
+                <div className="hero-cta" style={{ marginTop: 18 }}>
+                  <Link className="btn btn-primary btn-lg" to="/mobile" data-testid="get-mobile">
+                    <Icon name="phone" size={18} /> Get the mobile app
+                  </Link>
+                </div>
+              </div>
+              <div className="phone-shots">
+                <img src="/screenshots/mobile-dashboard.png" alt="DocGen Mobile dashboard" loading="lazy" />
+                <img src="/screenshots/mobile-invoice.png" alt="Invoice on DocGen Mobile" loading="lazy" />
+              </div>
+            </section>
+          </div>
+        )}
 
         {site.showComparison && product && (
           <div className="lp-band">

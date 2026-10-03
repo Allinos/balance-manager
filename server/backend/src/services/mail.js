@@ -8,7 +8,7 @@
 import nodemailer from 'nodemailer';
 import { config } from '../config.js';
 import { passwordFingerprint, signPurposeToken } from '../lib/security.js';
-import { downloadLinks } from './downloads.js';
+import { availableDownloads } from './downloads.js';
 
 /** Messages "sent" during tests. */
 export const outbox = [];
@@ -80,7 +80,10 @@ export async function sendPaymentReceipt(knex, payment, license) {
         ? day(license.expires_at)
         : `${license.duration_days} days from the first activation`;
   const renewal = payment.renew_license_id && payment.renew_license_id === license.id;
-  const buttons = downloadLinks(client.id, '7d').map((d) => ({ label: `Download for ${d.label}`, url: `${config.portalUrl}${d.path}` }));
+  const buttons = (await availableDownloads(knex, client.id, '7d')).map((d) => ({
+    label: d.type === 'page' ? 'Install DocGen Mobile' : `Download for ${d.label}`,
+    url: d.type === 'link' ? d.url : `${config.portalUrl}${d.url}`,
+  }));
   if (!buttons.length && client.password_hash) buttons.push({ label: 'Download DocGen', url: `${config.portalUrl}/account` });
   if (!client.password_hash) {
     const token = signPurposeToken('reset', { sub: String(client.id), tv: client.token_version, ph: passwordFingerprint(client.password_hash) }, '7d');
@@ -102,7 +105,7 @@ export async function sendPaymentReceipt(knex, payment, license) {
       renewal
         ? 'Your license has been extended. DocGen picks up the new date automatically; in the app you can also use Settings → License → "Check license now".'
         : 'To start: download and install DocGen, open it, choose "I Have a License" and enter the code above.',
-      buttons.length > 1 ? 'The download links below work for 7 days. You can always download DocGen again from your account.' : '',
+      buttons.length > 1 ? 'The download links below work for 7 days. You can always download DocGen again from your account (Downloads).' : '',
       !client.password_hash
         ? `Create a password to sign in to your account on our website${buttons.length === 1 ? ' (where you can download DocGen)' : ''}, or to sign in to the app with your email instead of the code.`
         : '',

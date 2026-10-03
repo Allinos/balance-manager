@@ -2,11 +2,12 @@
   "name": "docgen-server",
   "private": true,
   "version": "1.0.0",
-  "description": "DocGen server: backend API (backend/) + client portal and admin panel (frontend/), run together on one port.",
+  "description": "DocGen server: backend API (backend/) + website, client panel and admin panel (frontend/) + DocGen Mobile (mobile/), run together on one port.",
   "type": "module",
   "workspaces": [
     "backend",
-    "frontend"
+    "frontend",
+    "mobile"
   ],
   "scripts": {
     "start": "npm run start -w backend",
@@ -18,7 +19,8 @@
     "create-admin": "npm run create-admin -w backend --",
     "keys": "npm run keys -w backend",
     "seed:load": "npm run seed:load -w backend --",
-    "loadtest": "npm run loadtest -w backend --"
+    "loadtest": "npm run loadtest -w backend --",
+    "test:mobile": "npm run test:mobile -w backend"
   },
   "engines": {
     "node": ">=20"

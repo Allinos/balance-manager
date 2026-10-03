@@ -106,7 +106,7 @@ before(async () => {
   // SQLite by default; TEST_DATABASE_URL=mysql://… runs the same journey on MySQL (row locks included).
   knex = process.env.TEST_DATABASE_URL ? createKnex({ databaseUrl: process.env.TEST_DATABASE_URL }) : createKnex({ databaseUrl: '', sqliteFile: path.join(dataDir, 'flow.sqlite') });
   if (process.env.TEST_DATABASE_URL) {
-    for (const t of ['audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
+    for (const t of ['plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
       await knex.schema.dropTableIfExists(t);
     }
   }
@@ -468,7 +468,7 @@ describe('buy without an account (product page → checkout)', () => {
 
   test('the admin changes the price and the license period without code changes', async () => {
     const product = (await api('GET', '/api/portal/site')).body.products[0];
-    const upd = await api('PUT', `/api/admin/plans/${product.id}`, { token: adminToken, body: { ...product, price: 1500, durationDays: 730 } });
+    const upd = await api('PUT', `/api/admin/plans/${product.id}`, { token: adminToken, body: { ...product, prices: [{ durationDays: 730, price: 1500 }] } });
     assert.equal(upd.status, 200, JSON.stringify(upd.body));
     assert.equal(upd.body.plan.code, 'DOCGEN', 'code kept');
     assert.equal((await api('GET', '/api/portal/site')).body.products[0].price, 1500);
@@ -511,5 +511,128 @@ describe('buy without an account (product page → checkout)', () => {
     const list = await api('GET', '/api/admin/clients?q=ravi%40example.com', { token: adminToken });
     assert.equal(list.body.rows[0].license.code, license.code);
     assert.equal(list.body.rows[0].paidTotal, 1250);
+  });
+});
+
+describe('license durations, extension, mobile devices and downloads', () => {
+  const mobile = (n) => ({ deviceId: `mobile-device-${n}-abcdef`, deviceName: `Android phone ${n}`, platform: 'android', appVersion: '1.0.0', deviceKind: 'mobile' });
+  let session;
+  let license;
+  let product;
+
+  test('the product has a price per duration (1, 2 and 5 years by default)', async () => {
+    product = (await api('GET', '/api/portal/site')).body.products.find((p) => p.code === 'DOCGEN');
+    assert.deepEqual(product.prices.map((p) => [p.durationDays, p.price, p.label]), [
+      [365, 1250, '1 year'],
+      [730, 2250, '2 years'],
+      [1825, 4999, '5 years'],
+    ]);
+    assert.equal(product.maxMobileDevices, 2);
+  });
+
+  test('buying the 2-year option charges its price and gives a 2-year license', async () => {
+    const twoYears = product.prices.find((p) => p.durationDays === 730);
+    const start = await api('POST', '/api/portal/checkout/start', { body: { name: 'Two Year', email: 'twoyear@example.com', phone: '9876500001', priceId: twoYears.id } });
+    assert.equal(start.status, 201, JSON.stringify(start.body));
+    assert.equal(orders.get(start.body.checkout.orderId).amount, 225000);
+    assert.equal(start.body.payment.durationLabel, '2 years');
+    const paid = await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...checkoutResponse(start.body.checkout.orderId) } });
+    assert.equal(paid.status, 200, JSON.stringify(paid.body));
+    license = paid.body.license;
+    session = paid.body.token;
+    assert.equal(license.daysLeft, 730);
+    assert.equal(license.maxMobileDevices, 2);
+    const other = await api('POST', '/api/portal/checkout/start', { body: { name: 'Xavier', email: 'x-price@example.com', phone: '9876500002', priceId: 999999 } });
+    assert.equal(other.status, 404, 'unknown price refused');
+  });
+
+  test('extending with the 5-year option adds 5 years to the current end date', async () => {
+    const fiveYears = product.prices.find((p) => p.durationDays === 1825);
+    const co = await api('POST', '/api/portal/checkout', { token: session, body: { priceId: fiveYears.id, renewLicenseId: license.id } });
+    assert.equal(co.status, 201, JSON.stringify(co.body));
+    assert.equal(orders.get(co.body.checkout.orderId).amount, 499900);
+    const r = await api('POST', `/api/portal/payments/${co.body.payment.id}/confirm`, { token: session, body: checkoutResponse(co.body.checkout.orderId) });
+    assert.equal(r.body.license.id, license.id, 'same license key');
+    assert.equal(r.body.license.daysLeft, 730 + 1825);
+  });
+
+  test('DocGen Mobile: activation with the key, at most 2 phones per license (enforced on the server)', async () => {
+    const one = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(1) } });
+    assert.equal(one.status, 200, JSON.stringify(one.body));
+    assert.equal(one.body.license.key, license.code);
+    assert.equal(one.body.license.product, 'DocGen');
+    assert.ok(one.body.license.startedAt && one.body.license.expiresAt);
+    const two = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(2) } });
+    assert.equal(two.status, 200);
+    const again = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(1) } });
+    assert.equal(again.status, 200, 'the same phone can activate again');
+    const three = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(3) } });
+    assert.equal(three.status, 409);
+    assert.equal(three.body.error.code, 'DEVICE_LIMIT');
+    assert.match(three.body.error.message, /2 phone/);
+    // Computers have their own limit.
+    const pc = await api('POST', '/api/app/activate', { body: { code: license.code, deviceId: 'desktop-for-mobile-test-1', deviceName: 'PC', platform: 'windows', appVersion: '1.1.0' } });
+    assert.equal(pc.status, 200, 'a computer still activates while both phone places are used');
+    // The customer frees a phone in the client panel; then another phone can be added.
+    const mine = await api('GET', '/api/portal/licenses', { token: session });
+    const phones = mine.body.licenses.find((l) => l.id === license.id).devices.filter((d) => d.kind === 'mobile');
+    assert.equal(phones.length, 2);
+    await api('POST', `/api/portal/licenses/${license.id}/devices/${phones[0].id}/release`, { token: session });
+    const four = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(4) } });
+    assert.equal(four.status, 200);
+    // A refresh from a released phone is refused.
+    const refreshed = await api('POST', '/api/app/license/refresh', { body: { token: one.body.token, deviceId: mobile(1).deviceId, deviceKind: 'mobile' } });
+    assert.equal(refreshed.body.error.code, 'DEVICE_RELEASED');
+  });
+
+  test('DocGen Mobile: sign in with email and password', async () => {
+    session = (await api('PUT', '/api/portal/me/password', { token: session, body: { newPassword: 'two-year-pass-1' } })).body.token;
+    const r = await api('POST', '/api/app/login', { body: { email: 'twoyear@example.com', password: 'two-year-pass-1', ...mobile(4) } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.equal(r.body.license.key, license.code);
+  });
+
+  test('the admin sets prices, mobile limit and which downloads customers see', async () => {
+    const upd = await api('PUT', `/api/admin/plans/${product.id}`, {
+      token: adminToken,
+      body: { ...product, maxMobileDevices: 3, prices: [{ durationDays: 365, price: 1300 }, { durationDays: 1095, price: 3300, label: '3 years (best value)' }] },
+    });
+    assert.equal(upd.status, 200, JSON.stringify(upd.body));
+    assert.deepEqual(upd.body.plan.prices.map((p) => [p.durationDays, p.price, p.label]), [
+      [365, 1300, '1 year'],
+      [1095, 3300, '3 years (best value)'],
+    ]);
+    assert.equal(upd.body.plan.maxMobileDevices, 3);
+    const dup = await api('PUT', `/api/admin/plans/${product.id}`, { token: adminToken, body: { ...product, prices: [{ durationDays: 365, price: 1 }, { durationDays: 365, price: 2 }] } });
+    assert.equal(dup.status, 400, 'two prices for the same duration are refused');
+
+    const off = await api('PUT', '/api/admin/downloads/settings', {
+      token: adminToken,
+      body: { windows: { enabled: true, url: '' }, macos: { enabled: true, url: 'https://example.com/DocGen.dmg' }, linux: { enabled: false, url: '' }, mobile: { enabled: true, url: '' } },
+    });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    const list = await api('GET', '/api/portal/downloads', { token: session });
+    assert.equal(list.status, 200, JSON.stringify(list.body));
+    assert.deepEqual(list.body.files.map((f) => [f.platform, f.type]), [
+      ['windows', 'file'],
+      ['macos', 'link'],
+      ['mobile', 'page'],
+    ]);
+    assert.equal(list.body.files[2].url, '/mobile');
+    const site = await api('GET', '/api/portal/site');
+    assert.equal(site.body.mobileAvailable, true);
+    await api('PUT', '/api/admin/downloads/settings', {
+      token: adminToken,
+      body: { windows: { enabled: true, url: '' }, macos: { enabled: true, url: '' }, linux: { enabled: true, url: '' }, mobile: { enabled: false, url: '' } },
+    });
+    assert.ok(!(await api('GET', '/api/portal/downloads', { token: session })).body.files.some((f) => f.platform === 'mobile'), 'mobile switched off');
+    assert.equal((await api('GET', '/api/portal/site')).body.mobileAvailable, false);
+  });
+
+  test('admin can change a license\'s phone limit', async () => {
+    const r = await api('PUT', `/api/admin/licenses/${license.id}`, { token: adminToken, body: { maxMobileDevices: 1 } });
+    assert.equal(r.body.license.maxMobileDevices, 1);
+    const blocked = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(5) } });
+    assert.equal(blocked.body.error.code, 'DEVICE_LIMIT');
   });
 });

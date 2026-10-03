@@ -50,7 +50,7 @@ const device = (n = 1) => ({ deviceId: `test-device-${n}-abcdef`, deviceName: `P
 before(async () => {
   knex = process.env.TEST_DATABASE_URL ? createKnex({ databaseUrl: process.env.TEST_DATABASE_URL }) : createKnex({ databaseUrl: '', sqliteFile: path.join(dataDir, 'test.sqlite') });
   if (process.env.TEST_DATABASE_URL) {
-    for (const t of ['audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
+    for (const t of ['plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
       await knex.schema.dropTableIfExists(t);
     }
   }
@@ -273,7 +273,11 @@ describe('admin', () => {
     });
     assert.equal(ok.status, 201);
     assert.equal(ok.body.plan.pricePaise, 19900);
-    const upd = await api('PUT', `/api/admin/plans/${ok.body.plan.id}`, { token: t, body: { ...ok.body.plan, price: 249, isPublic: false } });
+    assert.equal(ok.body.plan.prices.length, 1, 'a single price + duration becomes the price list');
+    const upd = await api('PUT', `/api/admin/plans/${ok.body.plan.id}`, {
+      token: t,
+      body: { ...ok.body.plan, prices: [{ ...ok.body.plan.prices[0], price: 249 }], isPublic: false },
+    });
     assert.equal(upd.body.plan.price, 249);
     const pub = await api('GET', '/api/portal/plans');
     assert.ok(!pub.body.plans.some((p) => p.code === 'PRO_MONTHLY'), 'private plans are hidden from the portal');

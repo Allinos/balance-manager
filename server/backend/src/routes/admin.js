@@ -13,8 +13,9 @@ import { limits, requireAdmin } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, normaliseCode, signSession, verifyPassword } from '../lib/security.js';
 import { audit, getAppConfig, getSiteConfig, saveAppConfig, saveSiteConfig } from '../services/common.js';
 import { createLicense, effectiveStatus, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
+import { pricesByPlan, saveProductPrices } from '../services/products.js';
 import { businessSchema, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
-import { PLATFORMS, listInstallers, removeInstaller, storeInstaller } from '../services/downloads.js';
+import { DOWNLOAD_LABELS, PLATFORMS, getDownloadSettings, listInstallers, removeInstaller, saveDownloadSettings, storeInstaller } from '../services/downloads.js';
 
 const httpsUrl = z
   .string()
@@ -30,19 +31,38 @@ const isoDate = z
   .refine((v) => v === '' || !Number.isNaN(Date.parse(v)), 'must be a valid date')
   .transform((v) => (v ? new Date(v).toISOString() : null));
 
-const planSchema = z.object({
+const priceSchema = z.object({
+  id: z.coerce.number().int().positive().nullable().optional(),
+  durationDays: z.coerce.number().int().min(0, 'must be 0 (lifetime) or more').max(36500),
+  price: z.coerce.number().min(0).max(10000000),
+  label: z.string().trim().max(40).optional().default(''),
+});
+
+const planSchema = z
+  .object({
   code: z.string().trim().toUpperCase().regex(/^[A-Z0-9_]{2,40}$/, 'use letters, numbers and _').optional(),
   name: z.string().trim().min(2).max(80),
   description: z.string().trim().max(500).default(''),
-  price: z.coerce.number().min(0).max(10000000),
+  /** Price per license duration (1 year, 2 years, 5 years …). Older clients may send one price + duration. */
+  prices: z.array(priceSchema).min(1, 'add at least one price').max(12).optional(),
+  price: z.coerce.number().min(0).max(10000000).optional(),
   currency: z.string().trim().length(3).default('INR'),
-  durationDays: z.coerce.number().int().min(0).max(3650),
+  durationDays: z.coerce.number().int().min(0).max(36500).optional(),
   maxDevices: z.coerce.number().int().min(1).max(1000),
+  maxMobileDevices: z.coerce.number().int().min(0).max(100).default(2),
   features: z.array(z.string().trim().max(120)).max(20).default([]),
   isActive: z.boolean().default(true),
   isPublic: z.boolean().default(true),
   sortOrder: z.coerce.number().int().min(0).max(1000).default(0),
-});
+  })
+  .refine((b) => b.prices || (b.price !== undefined && b.durationDays !== undefined), { message: 'add at least one price', path: ['prices'] })
+  .transform((b) => ({ ...b, prices: b.prices || [{ durationDays: b.durationDays, price: b.price, label: '' }] }));
+
+const downloadSettingsSchema = z.object(
+  Object.fromEntries(
+    ['windows', 'macos', 'linux', 'mobile'].map((k) => [k, z.object({ enabled: z.boolean(), url: httpsUrl.default('') })]),
+  ),
+);
 
 const siteSchema = z.object({
   headline: z.string().trim().min(3).max(120),
@@ -372,6 +392,7 @@ export function adminRoutes(knex) {
         count: z.coerce.number().int().min(1).max(500).default(1),
         durationDays: z.coerce.number().int().min(0).max(3650).optional(),
         maxDevices: z.coerce.number().int().min(1).max(1000).optional(),
+        maxMobileDevices: z.coerce.number().int().min(0).max(100).optional(),
         expiresAt: isoDate.optional().default(''),
         activateNow: z.boolean().default(false),
         notes: z.string().trim().max(500).default(''),
@@ -392,6 +413,7 @@ export function adminRoutes(knex) {
           plan_id: plan.id,
           duration_days: duration,
           max_devices: body.maxDevices ?? plan.max_devices,
+          max_mobile_devices: body.maxMobileDevices ?? plan.max_mobile_devices ?? 0,
           expires_at: body.expiresAt || null,
           source: body.count > 1 ? 'bulk' : 'admin',
           notes: body.notes,
@@ -430,6 +452,7 @@ export function adminRoutes(knex) {
         expiresAt: isoDate.optional(),
         lifetime: z.boolean().optional(),
         maxDevices: z.coerce.number().int().min(1).max(1000).optional(),
+        maxMobileDevices: z.coerce.number().int().min(0).max(100).optional(),
         planId: z.coerce.number().int().positive().optional(),
         clientId: z.coerce.number().int().positive().nullable().optional(),
         notes: z.string().trim().max(500).optional(),
@@ -446,6 +469,7 @@ export function adminRoutes(knex) {
       patch.duration_days = 0;
     }
     if (body.maxDevices) patch.max_devices = body.maxDevices;
+    if (body.maxMobileDevices !== undefined) patch.max_mobile_devices = body.maxMobileDevices;
     if (body.planId) patch.plan_id = body.planId;
     if (body.clientId !== undefined) patch.client_id = body.clientId;
     if (body.notes !== undefined) patch.notes = body.notes;
@@ -474,8 +498,12 @@ export function adminRoutes(knex) {
   });
 
   // ---------------------------------------------------------------- plans
+  const withPrices = async (rows) => {
+    const prices = await pricesByPlan(knex, rows);
+    return rows.map((p) => publicPlan(p, prices.get(p.id)));
+  };
   r.get('/plans', auth, async (_req, res) => {
-    res.json({ plans: (await knex('plans').orderBy('sort_order')).map(publicPlan) });
+    res.json({ plans: await withPrices(await knex('plans').orderBy('sort_order')) });
   });
 
   /** Product code: given, or made from the name (DocGen Pro → DOCGEN_PRO), unique. */
@@ -489,10 +517,11 @@ export function adminRoutes(knex) {
     code: b.code,
     name: b.name,
     description: b.description,
-    price_paise: Math.round(b.price * 100),
+    price_paise: Math.round(b.prices[0].price * 100),
     currency: b.currency.toUpperCase(),
-    duration_days: b.durationDays,
+    duration_days: b.prices[0].durationDays,
     max_devices: b.maxDevices,
+    max_mobile_devices: b.maxMobileDevices,
     features: JSON.stringify(b.features),
     is_active: b.isActive,
     is_public: b.isPublic,
@@ -503,9 +532,13 @@ export function adminRoutes(knex) {
     const body = parse(planSchema, req.body);
     body.code = await productCode(body);
     const ts = nowIso();
-    const plan = await insertOne(knex, 'plans', { ...planRow(body), created_at: ts, updated_at: ts });
+    const plan = await knex.transaction(async (trx) => {
+      const row = await insertOne(trx, 'plans', { ...planRow(body), created_at: ts, updated_at: ts });
+      await saveProductPrices(trx, row.id, body.prices);
+      return row;
+    });
     await log(req, 'plan.create', 'plan', plan.id, { code: plan.code });
-    res.status(201).json({ plan: publicPlan(plan) });
+    res.status(201).json({ plan: (await withPrices([plan]))[0] });
   });
 
   r.put('/plans/:id', ownerOnly, async (req, res) => {
@@ -513,10 +546,13 @@ export function adminRoutes(knex) {
     const current = await knex('plans').where({ id: Number(req.params.id) }).first();
     if (!current) throw notFound('Product');
     body.code = body.code ? await productCode(body, current.id) : current.code;
-    const plan = await updateOne(knex, 'plans', { id: current.id }, { ...planRow(body), updated_at: nowIso() });
-    if (!plan) throw notFound('Plan');
-    await log(req, 'plan.update', 'plan', plan.id, { code: plan.code });
-    res.json({ plan: publicPlan(plan) });
+    await knex.transaction(async (trx) => {
+      await trx('plans').where({ id: current.id }).update({ ...planRow(body), updated_at: nowIso() });
+      await saveProductPrices(trx, current.id, body.prices);
+    });
+    const plan = await knex('plans').where({ id: current.id }).first();
+    await log(req, 'plan.update', 'plan', plan.id, { code: plan.code, prices: body.prices.map((p) => [p.durationDays, p.price]) });
+    res.json({ plan: (await withPrices([plan]))[0] });
   });
 
   // ------------------------------------------------------------- payments
@@ -663,9 +699,19 @@ export function adminRoutes(knex) {
     res.json({
       installers: listInstallers(),
       platforms: Object.entries(PLATFORMS).map(([id, p]) => ({ id, label: p.label, extensions: p.extensions })),
+      settings: await getDownloadSettings(knex),
+      labels: DOWNLOAD_LABELS,
       externalUrl: appConfig.app.downloadUrl,
       latestVersion: appConfig.app.latestVersion,
     });
+  });
+
+  /** Which downloads customers see (Windows / macOS / Linux / Mobile) and links used instead of a file. */
+  r.put('/downloads/settings', ownerOnly, async (req, res) => {
+    const body = parse(downloadSettingsSchema, req.body);
+    const settings = await saveDownloadSettings(knex, body, req.admin.id);
+    await log(req, 'download.settings', 'download', null, body);
+    res.json({ settings });
   });
 
   r.post('/downloads/:platform', ownerOnly, installerUpload.single('file'), async (req, res) => {

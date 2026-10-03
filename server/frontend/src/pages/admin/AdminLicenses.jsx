@@ -27,6 +27,7 @@ export function LicenseEditor({ id, onClose }) {
     status: l.storedStatus,
     expiresAt: l.expiresAt ? l.expiresAt.slice(0, 10) : '',
     maxDevices: String(l.maxDevices),
+    maxMobileDevices: String(l.maxMobileDevices ?? 0),
     notes: l.notes,
   };
   return (
@@ -78,6 +79,7 @@ export function LicenseEditor({ id, onClose }) {
               adminApi.put(`/licenses/${l.id}`, {
                 status: form.status,
                 maxDevices: Number(form.maxDevices),
+                maxMobileDevices: Number(form.maxMobileDevices),
                 notes: form.notes,
                 ...(form.expiresAt ? { expiresAt: new Date(`${form.expiresAt}T23:59:59`).toISOString() } : {}),
               }),
@@ -101,6 +103,9 @@ export function LicenseEditor({ id, onClose }) {
           <Field label="Computers allowed">
             <Input type="number" min="1" value={form.maxDevices} onChange={(v) => setEdit({ ...form, maxDevices: v })} />
           </Field>
+          <Field label="Phones allowed (DocGen Mobile)">
+            <Input type="number" min="0" value={form.maxMobileDevices} onChange={(v) => setEdit({ ...form, maxMobileDevices: v })} data-testid="license-mobile-devices" />
+          </Field>
           <Field label="Notes" span>
             <Input value={form.notes} onChange={(v) => setEdit({ ...form, notes: v })} />
           </Field>
@@ -112,14 +117,15 @@ export function LicenseEditor({ id, onClose }) {
         </div>
       </form>
 
-      <h3>Computers</h3>
+      <h3>Devices</h3>
       {!data.devices.length ? (
-        <p className="muted">Not activated on any computer yet.</p>
+        <p className="muted">Not activated on any computer or phone yet.</p>
       ) : (
         <table className="table compact">
           <thead>
             <tr>
-              <th>Computer</th>
+              <th>Device</th>
+              <th>Type</th>
               <th>Platform / version</th>
               <th>Activated</th>
               <th>Last seen</th>
@@ -130,6 +136,7 @@ export function LicenseEditor({ id, onClose }) {
             {data.devices.map((d) => (
               <tr key={d.id}>
                 <td>{d.device_name || d.device_id.slice(0, 12)}</td>
+                <td>{d.kind === 'mobile' ? 'Phone' : 'Computer'}</td>
                 <td>
                   {d.platform} {d.app_version}
                 </td>
@@ -137,7 +144,7 @@ export function LicenseEditor({ id, onClose }) {
                 <td>{d.released_at ? <Badge status="inactive">released</Badge> : dateTime(d.last_seen_at)}</td>
                 <td className="right">
                   {!d.released_at && (
-                    <button className="btn btn-sm" onClick={() => run(() => adminApi.post(`/licenses/${l.id}/devices/${d.id}/release`), 'Computer released')}>
+                    <button className="btn btn-sm" onClick={() => run(() => adminApi.post(`/licenses/${l.id}/devices/${d.id}/release`), 'Device released')}>
                       Release
                     </button>
                   )}

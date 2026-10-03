@@ -103,7 +103,15 @@ export default function AdminPayments() {
                     <Link to={`/admin/clients/${p.client.id}`}>{p.client.name}</Link>
                     <div className="muted small">{p.client.email}</div>
                   </td>
-                  <td>{p.planName}</td>
+                  <td>
+                    {p.planName}
+                    {p.durationLabel && (
+                      <div className="muted small">
+                        {p.durationLabel}
+                        {p.renewal ? ' · extension' : ''}
+                      </div>
+                    )}
+                  </td>
                   <td>{p.provider}</td>
                   <td className="right">{money(p.amount, p.currency)}</td>
                   <td>

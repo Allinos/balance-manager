@@ -1,0 +1,20 @@
+{
+  "name": "docgen-mobile",
+  "private": true,
+  "version": "1.0.0",
+  "description": "DocGen Mobile: installable, offline-first web app (PWA) for phones and tablets. Served by the backend at /app/.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@noble/ed25519": "^3.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "idb": "^8.0.3",
+    "qrcode-generator": "^2.0.4",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "vite": "^8.3.1"
+  }
+}

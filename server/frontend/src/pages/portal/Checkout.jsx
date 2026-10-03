@@ -13,6 +13,7 @@ import { DownloadCard } from '../../components/Downloads.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader, useAuth } from '../../App.jsx';
 import { licenseLength } from './ProductPage.jsx';
+import { PriceTiles } from './Services.jsx';
 
 function Steps({ step }) {
   const items = ['Your details', 'Payment', 'License & download'];
@@ -28,7 +29,7 @@ function Steps({ step }) {
   );
 }
 
-function OrderSummary({ product }) {
+function OrderSummary({ product, price }) {
   return (
     <aside className="card order-card" data-testid="order-summary">
       <h3 style={{ margin: 0 }}>Order summary</h3>
@@ -36,14 +37,15 @@ function OrderSummary({ product }) {
         <span>
           <strong>{product.name}</strong>
           <div className="muted small">
-            {licenseLength(product.durationDays)} · {product.maxDevices} {product.maxDevices === 1 ? 'computer' : 'computers'}
+            {licenseLength(price.durationDays)} · {product.maxDevices} {product.maxDevices === 1 ? 'computer' : 'computers'}
+            {product.maxMobileDevices ? ` + ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''}
           </div>
         </span>
-        <span>{money(product.price, product.currency)}</span>
+        <span>{money(price.price, product.currency)}</span>
       </div>
       <div className="order-total">
         <span>Total</span>
-        <span data-testid="order-total">{money(product.price, product.currency)}</span>
+        <span data-testid="order-total">{money(price.price, product.currency)}</span>
       </div>
       <span className="muted small">One-time payment. No subscription, nothing charged later.</span>
       <ul className="ticks small">
@@ -119,6 +121,7 @@ export default function CheckoutPage() {
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState(0);
   const [result, setResult] = useState(null);
+  const [priceId, setPriceId] = useState(null);
   const signedIn = !!client.user;
 
   useEffect(() => {
@@ -135,6 +138,7 @@ export default function CheckoutPage() {
   }
   const products = data?.products || [];
   const product = products.find((p) => p.id === Number(params.get('product'))) || products[0];
+  const price = product && (product.prices.find((p) => p.id === (priceId ?? Number(params.get('price')))) || product.prices[0]);
   const set = (k) => (v) => {
     setForm({ ...form, [k]: v });
     if (error?.details?.fields?.[k] || error?.code === 'ACCOUNT_EXISTS') setError(null);
@@ -149,10 +153,10 @@ export default function CheckoutPage() {
       let started;
       let confirm;
       if (signedIn) {
-        started = await clientApi.post('/checkout', { planId: product.id });
+        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined });
         confirm = (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body);
       } else {
-        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, attribution: getAttribution() });
+        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, attribution: getAttribution() });
         confirm = (body) => clientApi.post('/checkout/confirm', { checkoutToken: started.checkoutToken, ...body });
       }
       setStep(1);
@@ -203,6 +207,12 @@ export default function CheckoutPage() {
                 ) : (
                   <ErrorText error={error?.details?.fields ? { message: 'Please check the highlighted fields.' } : error} />
                 )}
+                {product.prices.length > 1 && (
+                  <div className="field">
+                    <span className="field-label">License duration</span>
+                    <PriceTiles prices={product.prices} value={price.id} onChange={setPriceId} currency={product.currency} />
+                  </div>
+                )}
                 <Field label="Full name" error={fieldError('name')}>
                   <Input value={form.name} onChange={set('name')} required minLength={2} autoComplete="name" disabled={signedIn} autoFocus={!signedIn} data-testid="co-name" />
                 </Field>
@@ -213,7 +223,7 @@ export default function CheckoutPage() {
                   <Input type="email" value={form.email} onChange={set('email')} required autoComplete="email" disabled={signedIn} data-testid="co-email" />
                 </Field>
                 <button className="btn btn-primary btn-lg btn-block" disabled={busy} data-testid="co-pay">
-                  {busy ? 'Opening payment…' : `Continue to payment · ${money(product.price, product.currency)}`}
+                  {busy ? 'Opening payment…' : `Continue to payment · ${money(price.price, product.currency)}`}
                 </button>
                 {!signedIn && (
                   <p className="center small muted">
@@ -225,7 +235,7 @@ export default function CheckoutPage() {
                 )}
               </form>
             </div>
-            <OrderSummary product={product} />
+            <OrderSummary product={product} price={price} />
           </div>
         )}
         {element}

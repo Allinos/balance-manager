@@ -1,12 +1,15 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { BrowserRouter, Link, NavLink, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { clientApi, adminApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
-import Icon from './components/Icons.jsx';
 import ProductPage from './pages/portal/ProductPage.jsx';
 import CheckoutPage from './pages/portal/Checkout.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
 import ClientHome from './pages/portal/ClientHome.jsx';
+import Services from './pages/portal/Services.jsx';
+import DownloadsPage from './pages/portal/DownloadsPage.jsx';
+import MobilePage from './pages/portal/MobilePage.jsx';
+import PanelLayout from './components/PanelLayout.jsx';
 import Account from './pages/portal/Account.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
 import AdminDashboard from './pages/admin/AdminDashboard.jsx';
@@ -84,6 +87,7 @@ export function SiteHeader({ nav = false }) {
             <a href="/#features">Features</a>
             <a href="/#screenshots">Screenshots</a>
             <a href="/#pricing">Pricing</a>
+            <Link to="/mobile">Mobile app</Link>
           </nav>
         )}
         <div className="site-actions">
@@ -127,53 +131,54 @@ function PortalLayout() {
   if (client.user === undefined) return <Spinner />;
   if (!client.user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname)}`} replace />;
   return (
-    <div className="shell">
-      <header className="topbar">
-        <Brand to="/account" tagline={false} />
-        <nav className="tabs">
-          <NavLink to="/account" end>
-            My license
-          </NavLink>
-          <NavLink to="/account/settings">Account</NavLink>
-        </nav>
-        <div className="topbar-user">
-          <span className="muted small hide-sm">{client.user.email}</span>
-          <button
-            className="btn btn-sm"
-            onClick={() => {
-              client.signOut();
-              navigate('/login');
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-      <main className="container">
-        <Outlet />
-      </main>
-      <Footer />
-    </div>
+    <PanelLayout
+      tone="light"
+      home="/account"
+      groups={[
+        {
+          items: [
+            { to: '/account', label: 'My License', icon: 'key', end: true },
+            { to: '/account/services', label: 'Services', icon: 'box' },
+            { to: '/account/downloads', label: 'Downloads', icon: 'download' },
+            { to: '/account/settings', label: 'Account', icon: 'user' },
+          ],
+        },
+      ]}
+      user={{ name: client.user.name, detail: client.user.email }}
+      onSignOut={() => {
+        client.signOut();
+        navigate('/login');
+      }}
+    />
   );
 }
 
 const ADMIN_NAV = [
-  ['Sales', [
-    ['/admin', 'Dashboard', 'chart', true],
-    ['/admin/clients', 'Customers', 'users'],
-    ['/admin/payments', 'Payments', 'card'],
-    ['/admin/licenses', 'Licenses', 'key'],
-  ]],
-  ['Product', [
-    ['/admin/products', 'Products & pricing', 'box'],
-    ['/admin/downloads', 'Downloads', 'download'],
-    ['/admin/website', 'Website', 'globe'],
-  ]],
-  ['Desktop app', [
-    ['/admin/config', 'App settings', 'monitor'],
-    ['/admin/ads', 'In-app ads', 'megaphone'],
-    ['/admin/audit', 'Activity log', 'log'],
-  ]],
+  {
+    label: 'Sales',
+    items: [
+      { to: '/admin', label: 'Dashboard', icon: 'chart', end: true },
+      { to: '/admin/clients', label: 'Customers', icon: 'users' },
+      { to: '/admin/payments', label: 'Payments', icon: 'card' },
+      { to: '/admin/licenses', label: 'Licenses', icon: 'key' },
+    ],
+  },
+  {
+    label: 'Product',
+    items: [
+      { to: '/admin/products', label: 'Products & pricing', icon: 'box' },
+      { to: '/admin/downloads', label: 'Downloads', icon: 'download' },
+      { to: '/admin/website', label: 'Website', icon: 'globe' },
+    ],
+  },
+  {
+    label: 'Desktop app',
+    items: [
+      { to: '/admin/config', label: 'App settings', icon: 'monitor' },
+      { to: '/admin/ads', label: 'In-app ads', icon: 'megaphone' },
+      { to: '/admin/audit', label: 'Activity log', icon: 'log' },
+    ],
+  },
 ];
 
 function AdminLayout() {
@@ -182,40 +187,17 @@ function AdminLayout() {
   if (admin.user === undefined) return <Spinner />;
   if (!admin.user) return <Navigate to="/admin/login" replace />;
   return (
-    <div className="admin-shell">
-      <aside className="admin-side">
-        <Brand to="/admin" tagline={false} />
-        {ADMIN_NAV.map(([group, links]) => (
-          <nav key={group} aria-label={group}>
-            <div className="admin-side-label">{group}</div>
-            {links.map(([to, label, icon, end]) => (
-              <NavLink key={to} to={to} end={end}>
-                <Icon name={icon} size={17} />
-                {label}
-              </NavLink>
-            ))}
-          </nav>
-        ))}
-        <div className="admin-user">
-          <strong>{admin.user.name}</strong>
-          <span className="muted">
-            {admin.user.email} · {admin.user.role}
-          </span>
-          <button
-            className="btn btn-sm"
-            onClick={() => {
-              admin.signOut();
-              navigate('/admin/login');
-            }}
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>
-      <main className="admin-main">
-        <Outlet />
-      </main>
-    </div>
+    <PanelLayout
+      tone="dark"
+      home="/admin"
+      badge="Admin"
+      groups={ADMIN_NAV}
+      user={{ name: admin.user.name, detail: `${admin.user.email} · ${admin.user.role}` }}
+      onSignOut={() => {
+        admin.signOut();
+        navigate('/admin/login');
+      }}
+    />
   );
 }
 
@@ -250,8 +232,11 @@ export default function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/mobile" element={<MobilePage />} />
               <Route path="/account" element={<PortalLayout />}>
                 <Route index element={<ClientHome />} />
+                <Route path="services" element={<Services />} />
+                <Route path="downloads" element={<DownloadsPage />} />
                 <Route path="settings" element={<Account />} />
                 <Route path="*" element={<Navigate to="/account" replace />} />
               </Route>

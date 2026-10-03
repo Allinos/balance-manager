@@ -119,6 +119,24 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
 
   app.use('/api', (_req, _res, next) => next(new ApiError(404, 'NOT_FOUND', 'Unknown API endpoint.')));
 
+  // DocGen Mobile: the installable web app (PWA) for phones, with its own scope /app/.
+  const mobileIndex = path.join(config.mobileDist, 'index.html');
+  if (fs.existsSync(mobileIndex)) {
+    // The app's scope is /app/ (with the slash); Express treats /app and /app/ alike, so compare the raw URL.
+    app.use((req, res, next) => (req.method === 'GET' && /^\/app(\?|$)/.test(req.originalUrl) ? res.redirect(301, req.originalUrl.replace(/^\/app/, '/app/')) : next()));
+    app.use(
+      '/app',
+      express.static(config.mobileDist, {
+        index: false,
+        setHeaders: (res, file) => {
+          // Hashed build files never change; everything else (service worker, manifest, icons) is revalidated.
+          res.set('Cache-Control', file.includes(`${path.sep}assets${path.sep}`) ? 'public, max-age=31536000, immutable' : 'no-cache');
+        },
+      }),
+    );
+    app.get(/^\/app\/.*/, (_req, res) => res.sendFile(mobileIndex, { headers: { 'Cache-Control': 'no-cache' } }));
+  }
+
   // React client portal + admin panel (single-page app), on the same port as the API.
   if (vite) {
     app.use(vite.middlewares);

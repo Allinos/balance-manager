@@ -66,7 +66,7 @@ export const razorpay = {
         amount: payment.amount_paise,
         currency: payment.currency,
         name: 'DocGen',
-        description: `${plan.name} plan`,
+        description: plan.durationText ? `${plan.name} · ${plan.durationText} license` : `${plan.name} license`,
         prefill: { name: client.name, email: client.email, contact: client.phone || '' },
       },
     };

@@ -273,7 +273,7 @@ export function AdminClientDetail() {
                 <th>Product</th>
                 <th>Status</th>
                 <th>Valid until</th>
-                <th>Computers</th>
+                <th>Devices</th>
                 <th />
               </tr>
             </thead>
@@ -288,8 +288,10 @@ export function AdminClientDetail() {
                     <Badge status={l.status} />
                   </td>
                   <td>{validity(l)}</td>
-                  <td>
-                    {l.devices.filter((d) => !d.released_at).length} / {l.maxDevices}
+                  <td className="small">
+                    {l.devices.filter((d) => !d.released_at && d.kind !== 'mobile').length} / {l.maxDevices} computers
+                    <br />
+                    {l.devices.filter((d) => !d.released_at && d.kind === 'mobile').length} / {l.maxMobileDevices} phones
                   </td>
                   <td className="right">
                     <button className="btn btn-sm" onClick={() => setLicense(l.id)}>
@@ -371,7 +373,7 @@ export function AdminClientDetail() {
 export function NewLicenseModal({ clientId, onClose, onDone }) {
   const toast = useToast();
   const plans = useLoad(async () => ({ plans: (await adminApi.get('/plans')).plans.filter((p) => p.isActive) }), []);
-  const [form, setForm] = useState({ planId: '', count: 1, activateNow: !!clientId, durationDays: '', maxDevices: '', expiresAt: '', notes: '' });
+  const [form, setForm] = useState({ planId: '', count: 1, activateNow: !!clientId, durationDays: '', maxDevices: '', maxMobileDevices: '', expiresAt: '', notes: '' });
   const [error, setError] = useState(null);
   const [created, setCreated] = useState(null);
   const set = (k) => (v) => setForm({ ...form, [k]: v });
@@ -386,6 +388,7 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
         ...(clientId ? { clientId } : {}),
         ...(form.durationDays !== '' ? { durationDays: Number(form.durationDays) } : {}),
         ...(form.maxDevices !== '' ? { maxDevices: Number(form.maxDevices) } : {}),
+        ...(form.maxMobileDevices !== '' ? { maxMobileDevices: Number(form.maxMobileDevices) } : {}),
         ...(form.expiresAt ? { expiresAt: form.expiresAt } : {}),
       };
       const r = await adminApi.post('/licenses', body);
@@ -421,7 +424,7 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
               <Select
                 value={form.planId}
                 onChange={set('planId')}
-                options={plans.data.plans.map((p) => ({ value: String(p.id), label: `${p.name} (${p.durationDays ? `${p.durationDays} days` : 'lifetime'}, ${p.maxDevices} PC)` }))}
+                options={plans.data.plans.map((p) => ({ value: String(p.id), label: `${p.name} (${p.durationDays ? `${p.durationDays} days` : 'lifetime'}, ${p.maxDevices} PC, ${p.maxMobileDevices} phones)` }))}
               />
             </Field>
             {!clientId && (
@@ -434,6 +437,9 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
             </Field>
             <Field label="Computers allowed (optional)">
               <Input type="number" min="1" value={form.maxDevices} onChange={set('maxDevices')} />
+            </Field>
+            <Field label="Phones allowed (optional)">
+              <Input type="number" min="0" value={form.maxMobileDevices} onChange={set('maxMobileDevices')} />
             </Field>
             <Field label="Fixed expiry date (optional)">
               <Input type="date" value={form.expiresAt} onChange={set('expiresAt')} />
