@@ -1,6 +1,7 @@
 /** Start the DocGen server: API, client portal and admin panel on one port. */
 
 import http from 'node:http';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { config } from './config.js';
@@ -61,6 +62,13 @@ server.listen(config.port, () => {
   console.log(`Portal: http://localhost:${config.port}/ · Admin: http://localhost:${config.port}/admin${vite ? ' (live reload)' : ''}`);
   console.log(`Database: ${usesMysql() ? 'MySQL' : `SQLite (${config.sqliteFile})`}`);
   console.log(`License public key (put in document-generator/src-tauri/remote-config.json → licensePublicKey): ${publicKeyB64}`);
+  if (!config.isProd) {
+    const lan = Object.values(os.networkInterfaces()).flat().filter((n) => n && n.family === 'IPv4' && !n.internal).map((n) => n.address);
+    if (lan.length) {
+      console.log(`DocGen Mobile on a phone in the same Wi-Fi (works, but cannot be installed over http): http://${lan[0]}:${config.port}/app/`);
+      console.log('To test installing on a phone you need https:// — see "Testing DocGen Mobile on a phone" in server/README.md.');
+    }
+  }
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

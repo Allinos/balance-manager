@@ -274,6 +274,28 @@ try {
   await b.page.getByTestId('activation').waitFor();
   check(true, 'a phone removed in the client/admin panel must activate again');
 
+  // A phone on the same Wi-Fi opening http://<computer's address>:8787/app/ — not a secure context, so the browser
+  // has no crypto.randomUUID / crypto.subtle and no service worker. Activation must still work.
+  const lan = Object.values(os.networkInterfaces()).flat().find((n) => n && n.family === 'IPv4' && !n.internal)?.address;
+  if (lan) {
+    console.log(`Plain http:// address (${lan})`);
+    const [lanLicense] = (await admin('POST', '/licenses', { clientId: client.id, activateNow: true, maxMobileDevices: 1 })).licenses;
+    const c = await phone();
+    await c.page.goto(`http://${lan}:${port}/app/`);
+    await c.page.getByTestId('activation').waitFor();
+    check(await c.page.evaluate(() => !window.isSecureContext && typeof crypto.randomUUID !== 'function' && !crypto.subtle), 'plain http:// network address: not a secure context');
+    check((await c.page.getByTestId('install-banner').textContent()).includes('https://'), 'explains that installing needs an https:// address');
+    await c.page.getByTestId('license-key').fill(lanLicense.code);
+    await c.page.getByTestId('activate').click();
+    await c.page.getByTestId('setup').waitFor();
+    check(true, 'license activates over plain http:// (no crypto.randomUUID error)');
+    await c.page.getByTestId('setup-save').click();
+    await c.page.getByTestId('dashboard').waitFor();
+    await c.page.reload();
+    await c.page.getByTestId('dashboard').waitFor();
+    check(true, 'reopened without activating again (signature checked without crypto.subtle)');
+  }
+
   console.log(`\nAll ${passed} mobile checks passed.`);
 } catch (e) {
   console.error('MOBILE E2E FAILED:', e.message);

@@ -11,7 +11,8 @@
  *    devices) at least daily; without any successful check for 30 days the app asks to go online once.
  */
 
-import { verifyAsync } from '@noble/ed25519';
+import { hashes, verify } from '@noble/ed25519';
+import { sha512 } from '@noble/hashes/sha2.js';
 import { kvDel, kvGet, kvSet } from './db.js';
 import { opened, sealed } from './vault.js';
 
@@ -21,6 +22,10 @@ const REFRESH_EVERY = DAY;
 export const OFFLINE_GRACE_DAYS = 30;
 const SUMMARY_KEY = 'docgen.mobile.license';
 
+// Pure-JS SHA-512: the signature check must also work where the browser's crypto.subtle is missing
+// (any plain http:// address other than localhost, e.g. http://192.168.1.5:8787 while testing).
+hashes.sha512 = sha512;
+
 const b64urlBytes = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
 const b64Bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 
@@ -28,7 +33,7 @@ const b64Bytes = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 export async function verifyToken(token, publicKeyB64, deviceId) {
   try {
     const [body, sig] = String(token).split('.');
-    const ok = await verifyAsync(b64urlBytes(sig), new TextEncoder().encode(body), b64Bytes(publicKeyB64));
+    const ok = verify(b64urlBytes(sig), new TextEncoder().encode(body), b64Bytes(publicKeyB64));
     if (!ok) return null;
     const payload = JSON.parse(new TextDecoder().decode(b64urlBytes(body)));
     return payload.did === deviceId ? payload : null;
@@ -46,7 +51,8 @@ export async function deviceId() {
   } catch {
     /* storage blocked */
   }
-  if (!id) id = stored || `m-${crypto.randomUUID().replace(/-/g, '')}`;
+  // getRandomValues works on every address (crypto.randomUUID only on https:// and localhost).
+  if (!id) id = stored || `m-${Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('')}`;
   await kvSet('device-id', id);
   try {
     localStorage.setItem('docgen.mobile.device', id);

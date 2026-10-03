@@ -8,6 +8,21 @@ export default function InstallBanner() {
   const [help, setHelp] = useState(false);
   useEffect(() => onInstallChange(() => force((n) => n + 1)), []);
   if (isInstalled()) return null;
+  if (!window.isSecureContext) {
+    // Phones install web apps only from https:// addresses (or localhost on the phone itself).
+    return (
+      <div className="install-banner" data-testid="install-banner">
+        <Icon name="download" />
+        <div style={{ flex: 1 }}>
+          <strong>Install needs a secure address</strong>
+          <div className="small muted">
+            You can use DocGen here, but phones install apps only from <b>https://</b> addresses. Open DocGen from your website&apos;s https:// link
+            to install it.
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="install-banner" data-testid="install-banner">
       <Icon name="download" />

@@ -11,6 +11,7 @@ import { SiteFooter, SiteHeader } from '../../App.jsx';
 
 const APP_PATH = '/app/';
 const isPhone = () => /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const isLocal = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
 
 const FEATURES = [
   ['file', 'Invoices & quotations', 'GST tax invoices, quotations, proforma invoices, estimates, delivery challans and more.'],
@@ -58,6 +59,15 @@ export default function MobilePage() {
                   <br />
                   Scan this code with your phone camera to open DocGen Mobile there.
                 </span>
+              </div>
+            )}
+            {(isLocal() || !window.isSecureContext) && (
+              <div className="alert alert-info small" style={{ marginTop: 14 }} data-testid="install-https-note">
+                <strong>Testing note:</strong> phones install DocGen Mobile only from an <b>https://</b> address.{' '}
+                {isLocal()
+                  ? 'This page is on localhost, which a phone cannot open (on the phone, “localhost” is the phone itself). '
+                  : 'This page is on a plain http:// address: DocGen Mobile works here but cannot be installed. '}
+                To test installing, use an HTTPS tunnel or Chrome’s USB port forwarding — see “Testing DocGen Mobile on a phone” in the server README.
               </div>
             )}
           </div>

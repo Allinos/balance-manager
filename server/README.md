@@ -263,6 +263,24 @@ Progressive Web App: Android (Chrome) offers *Install*, iPhone uses *Share → A
 - Screens: bottom tabs Dashboard, Documents, Products & Services, Settings; 8 document types with GST
   calculation, share/print as PDF.
 
+### Testing DocGen Mobile on a phone
+
+Phones install a web app (Android Chrome: *Install app*; iPhone Safari: *Add to Home Screen* as an app) only
+from a **secure address**: `https://…`, or `localhost` on the phone itself. The address the server prints at
+start (`http://192.168.x.x:8787/app/`, same Wi-Fi) is fine for *using* DocGen Mobile, but the phone offers
+no Install there and no offline mode. On the live site (`https://docgen.reynrel.in`) none of this matters. To
+test installing before going live, use one of these:
+
+1. **HTTPS tunnel** (Android and iPhone, easiest). Install Cloudflare's free `cloudflared`
+   (Windows: `winget install --id Cloudflare.cloudflared`, Mac: `brew install cloudflared`), keep `npm start`
+   running and in a second terminal run `cloudflared tunnel --url http://localhost:8787`. It prints an address
+   like `https://some-words.trycloudflare.com` — open `…/mobile` on the phone and tap Install
+   (`ngrok http 8787` works the same way).
+2. **USB, Android only.** Phone: Settings → About phone → tap *Build number* 7 times → Developer options →
+   *USB debugging* on; connect the cable. Computer: open `chrome://inspect/#devices` in Chrome → *Port
+   forwarding…* → port `8787`, address `localhost:8787`, tick *Enable port forwarding*. Phone: open
+   `http://localhost:8787/app/` in Chrome → menu ⋮ → *Install app*.
+
 ### Payment providers
 
 Built in: `razorpay` (when its keys are set; preselected), `manual` (bank transfer/UPI — an admin
