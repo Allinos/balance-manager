@@ -1,7 +1,7 @@
 {
-  "serverUrl": "",
+  "serverUrl": "https://docgen.reynrel.in",
   "portalUrl": "https://docgen.reynrel.in",
-  "websiteUrl": "https://reynrel.in",
-  "licensePublicKey": "",
+  "websiteUrl": "https://docgen.reynrel.in",
+  "licensePublicKey": "30oLdmIJo4OgdEJMQCgYX69HxieaNn6MXi0RviYb3cc=",
   "requestTimeoutSecs": 10
 }
