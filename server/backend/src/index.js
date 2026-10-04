@@ -63,7 +63,7 @@ server.listen(config.port, () => {
   console.log(`Portal: http://localhost:${config.port}/ · Admin: http://localhost:${config.port}/admin${vite ? ' (live reload)' : ''}`);
   console.log(`Database: ${usesMysql() ? 'MySQL' : `SQLite (${config.sqliteFile})`}`);
   if (mailProblem()) console.warn(`\nEmail: ${mailProblem()}\n`);
-  else console.log(`Email: ${mailEnabled() ? 'on' : 'off (set SMTP_URL or SMTP_HOST in .env)'}`);
+  else console.log(`Email: ${mailEnabled() ? `on · sender (MAIL_FROM): ${config.mailFrom} — must be a verified sender at your email provider` : 'off (set SMTP_URL or SMTP_HOST in .env)'}`);
   console.log(`License public key (put in document-generator/src-tauri/remote-config.json → licensePublicKey): ${publicKeyB64}`);
   if (!config.isProd) {
     const lan = Object.values(os.networkInterfaces()).flat().filter((n) => n && n.family === 'IPv4' && !n.internal).map((n) => n.address);
