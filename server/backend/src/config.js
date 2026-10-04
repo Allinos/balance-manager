@@ -14,6 +14,7 @@
  *   ENABLE_MOCK_PAYMENTS    'true' to allow the built-in test payment provider (default: off — anyone could get a free license)
  *   RAZORPAY_KEY_ID / RAZORPAY_KEY_SECRET / RAZORPAY_WEBHOOK_SECRET   Razorpay payments (card, UPI, netbanking, wallets)
  *   SMTP_URL                smtps://user:pass@smtp.example.com:465 — emails (password reset, payment receipt)
+ *   SMTP_HOST/PORT/USER/PASS the same as separate values (no URL encoding needed)
  *   MAIL_FROM               sender, e.g. "DocGen <no-reply@reynrel.in>"
  *   SUPPORT_EMAIL           shown to customers (default info.reynrel@gmail.com)
  *   TRUST_PROXY             'true' when running behind Nginx/Caddy/a load balancer
@@ -84,6 +85,10 @@ export const config = {
     apiBase: (env.RAZORPAY_API_BASE || 'https://api.razorpay.com').replace(/\/$/, ''),
   },
   smtpUrl: env.SMTP_URL || '',
+  /** Alternative to SMTP_URL without URL encoding: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS. */
+  smtp: env.SMTP_HOST
+    ? { host: env.SMTP_HOST.trim(), port: Number(env.SMTP_PORT || 587), user: (env.SMTP_USER || '').trim(), pass: env.SMTP_PASS || '' }
+    : null,
   mailFrom: env.MAIL_FROM || 'DocGen <no-reply@reynrel.in>',
   supportEmail: env.SUPPORT_EMAIL || 'info.reynrel@gmail.com',
   trustProxy: env.TRUST_PROXY === 'true',

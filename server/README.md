@@ -200,7 +200,8 @@ The browser (and the apps) can never create a license, choose an amount or exten
 | `CORS_ORIGINS` | — | extra allowed origins (comma separated) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | — | enable Razorpay checkout (UPI, cards, netbanking, wallets) |
 | `RAZORPAY_WEBHOOK_SECRET` | — | verifies Razorpay webhooks (`/api/payments/webhook/razorpay`) |
-| `SMTP_URL` / `MAIL_FROM` | — | email receipts and password-reset links (without it the portal tells customers to contact support) |
+| `SMTP_URL` / `MAIL_FROM` | — | email receipts, password-reset links and support replies (without it the portal tells customers to contact support). A malformed `SMTP_URL` is reported at start and email stays off |
+| `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` | — / `587` | the same as `SMTP_URL`, as separate values (no `%40` encoding); port 465 uses TLS directly |
 | `SUPPORT_EMAIL` | `info.reynrel@gmail.com` | shown to customers and used as reply-to |
 | `ENABLE_MOCK_PAYMENTS` | off | `true` = instant fake payments for local testing (ignored in production) |
 | `TRUST_PROXY` | — | `true` behind Nginx/Caddy/a load balancer (correct client IPs for rate limits) |

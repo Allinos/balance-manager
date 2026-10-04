@@ -285,7 +285,12 @@ export function portalRoutes(knex) {
     const client = await knex('clients').where({ email: body.email }).first();
     if (client && client.status === 'active') {
       const token = signPurposeToken('reset', { sub: String(client.id), tv: client.token_version, ph: passwordFingerprint(client.password_hash) }, '1h');
-      await sendPasswordReset(client, `${config.portalUrl}/reset-password?token=${encodeURIComponent(token)}`);
+      try {
+        await sendPasswordReset(client, `${config.portalUrl}/reset-password?token=${encodeURIComponent(token)}`);
+      } catch (err) {
+        console.error('Password reset email failed:', err.message);
+        throw new ApiError(503, 'EMAIL_FAILED', `We could not send the email right now. Please try again later or write to ${config.supportEmail}.`);
+      }
       await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.password_reset_requested', entity: 'client', entityId: client.id, ip: clientIp(req) });
     }
     return res.json({ emailEnabled: true });
