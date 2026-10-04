@@ -138,3 +138,32 @@ export function usePayment() {
 
   return { pay, element };
 }
+
+/** "I agree to the Terms & Conditions …" — must be ticked before a payment starts (the server checks it too). */
+export function TermsCheck({ checked, onChange, error }) {
+  return (
+    <div className={`terms-check ${error ? 'has-error' : ''}`}>
+      <label className="check">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} data-testid="accept-terms" />
+        <span>
+          I agree to the{' '}
+          <a href="/terms" target="_blank" rel="noreferrer">
+            Terms &amp; Conditions
+          </a>{' '}
+          and the{' '}
+          <a href="/refunds" target="_blank" rel="noreferrer">
+            Cancellation &amp; Refund Policy
+          </a>
+          .
+        </span>
+      </label>
+      {error && (
+        <span className="field-error" role="alert" data-testid="terms-error">
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export const TERMS_REQUIRED = 'Please tick the box to accept the Terms & Conditions before paying.';

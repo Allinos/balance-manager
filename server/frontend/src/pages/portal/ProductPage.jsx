@@ -24,6 +24,7 @@ const FAQ = [
   ['Can I use DocGen on my phone?', 'Yes. The same license works on your computer and on your phone. DocGen Mobile installs from the browser in a few seconds — see the step-by-step guide on the mobile page.'],
   ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
   ['How do I get my license?', 'Right after payment your license key and download link appear on screen and arrive by email. You are signed in to your account at once.'],
+  ['Can I get a refund?', 'Yes — within 7 days of payment if the license has not been activated, or if DocGen does not work on your device and we cannot fix it. See Cancellation & Refunds.'],
   ['Is my data safe?', 'Your documents, customers and products stay on your computer or phone and are never uploaded. Back them up to a file whenever you like.'],
 ];
 
@@ -46,17 +47,19 @@ function Faq() {
   );
 }
 
-/** "1-year license", "2-year license", "Lifetime license", "90-day license". */
+/** "1-year license", "2-year license", "6-month license", "Lifetime license", "90-day license". */
 export function licenseLength(days) {
   if (!days) return 'Lifetime license';
   if (days % 365 === 0) return `${days / 365}-year license`;
+  if (days % 30 === 0 && days < 365) return `${days / 30}-month license`;
   return `${days}-day license`;
 }
 
-/** "1 year", "2 years", "90 days", "lifetime". */
+/** "1 year", "2 years", "6 months", "90 days", "lifetime" (same wording as the server). */
 export function period(days) {
   if (!days) return 'lifetime';
   if (days % 365 === 0) return days === 365 ? '1 year' : `${days / 365} years`;
+  if (days % 30 === 0 && days < 365) return days === 30 ? '1 month' : `${days / 30} months`;
   return `${days} days`;
 }
 
@@ -192,43 +195,66 @@ function Comparison({ product, mobile }) {
 /** Price per year for comparing durations ("₹1,125 / year"); null for lifetime. */
 const perYear = (p) => (p.durationDays ? p.price / (p.durationDays / 365) : null);
 
-/** Pricing: one card per license duration (1 year, 2 years, 5 years …), the best value marked. */
-export function PricingCards({ product }) {
-  const prices = product.prices?.length ? product.prices : [{ id: null, durationDays: product.durationDays, price: product.price, label: period(product.durationDays) }];
+/**
+ * Name and badge of each pricing card. The admin's own name for a price wins ("Premium"); otherwise
+ * shortest → "Standard", longest → "Premium", in between → "Plus". The lowest price per year gets "Best value".
+ * A single price is simply the product ("DocGen").
+ */
+export function planCards(product) {
+  const prices = product.prices?.length
+    ? product.prices
+    : [{ id: null, durationDays: product.durationDays, price: product.price, period: period(product.durationDays), tag: '' }];
   const yearly = prices.map(perYear).filter((v) => v !== null);
   const best = prices.length > 1 && yearly.length ? Math.min(...yearly) : null;
+  return prices.map((p, i) => {
+    const auto = prices.length === 1 ? product.name : i === 0 ? 'Standard' : i === prices.length - 1 ? 'Premium' : 'Plus';
+    const isBest = best !== null && perYear(p) === best;
+    return { ...p, name: p.tag || auto, isBest, periodText: p.period || period(p.durationDays) };
+  });
+}
+
+/** Pricing: one card per plan (1 year, 2 years, 5 years …), each with its own price, duration and details. */
+export function PricingCards({ product }) {
+  const cards = planCards(product);
   const devices = `${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}${
     product.maxMobileDevices ? ` + ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''
   }`;
   return (
-    <div className="pricing-cards" data-testid="pricing-cards" style={{ '--cards': Math.min(prices.length, 4) }}>
-      {prices.map((p) => {
-        const isBest = best !== null && perYear(p) === best;
-        return (
-          <div key={p.id ?? p.durationDays} className={`plan-card ${isBest ? 'best' : ''}`} data-testid="price-card">
-            {isBest && <span className="plan-badge">Best value</span>}
-            <span className="plan-name">{p.label || period(p.durationDays)}</span>
-            <strong className="plan-price" data-testid="price">
-              {money(p.price, product.currency)}
-            </strong>
-            <span className="plan-sub">{perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · one-time` : 'one-time payment'}</span>
-            <ul className="ticks small">
-              <li>
-                <Icon name="check" size={15} strokeWidth={2.4} /> {devices}
-              </li>
-              <li>
-                <Icon name="check" size={15} strokeWidth={2.4} /> All document types &amp; templates
-              </li>
-              <li>
-                <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support for {period(p.durationDays)}
-              </li>
-            </ul>
-            <Link className={`btn btn-block ${isBest ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
-              Buy {p.label || period(p.durationDays)}
-            </Link>
-          </div>
-        );
-      })}
+    <div className="pricing-cards" data-testid="pricing-cards" style={{ '--cards': Math.min(cards.length, 4) }}>
+      {cards.map((p) => (
+        <div key={p.id ?? p.durationDays} className={`plan-card ${p.isBest ? 'best' : ''}`} data-testid="price-card">
+          {p.isBest && <span className="plan-badge">Best value</span>}
+          <span className="plan-name" data-testid="plan-name">
+            {p.name}
+          </span>
+          <span className="plan-period" data-testid="plan-period">
+            {licenseLength(p.durationDays)}
+          </span>
+          <strong className="plan-price" data-testid="price">
+            {money(p.price, product.currency)}
+          </strong>
+          <span className="plan-sub">
+            {perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · ` : ''}one-time payment, no auto-renewal
+          </span>
+          <ul className="ticks small">
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> {devices}
+            </li>
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> All document types &amp; 4 templates
+            </li>
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> {p.durationDays ? `Valid for ${p.periodText.toLowerCase()} from payment` : 'Valid for life'}
+            </li>
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support{p.durationDays ? ` for ${p.periodText.toLowerCase()}` : ''}
+            </li>
+          </ul>
+          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
+            Buy {p.periodText.toLowerCase() === 'lifetime' ? 'lifetime license' : p.periodText}
+          </Link>
+        </div>
+      ))}
     </div>
   );
 }
@@ -326,8 +352,12 @@ export default function ProductPage() {
           <section className="lp-section" id="pricing">
             <div className="lp-head">
               <span className="lp-eyebrow">Pricing</span>
-              <h2 className="lp-title">One-time payment. Choose your period.</h2>
-              <p className="lp-lead">Every plan includes all features, the desktop and the mobile app. The longer the period, the less you pay per year.</p>
+              <h2 className="lp-title">{products.length && products[0].prices.length > 1 ? 'One-time payment. Choose your plan.' : 'One-time payment. No subscription.'}</h2>
+              <p className="lp-lead">
+                {products.length && products[0].prices.length > 1
+                  ? 'Every plan includes all features, the desktop and the mobile app. The longer the period, the less you pay per year.'
+                  : 'All features, the desktop and the mobile app — one simple price.'}
+              </p>
             </div>
             {products.length ? (
               products.map((p) => (
@@ -381,11 +411,16 @@ export default function ProductPage() {
         <section className="lp-section final-cta">
           <h2 className="lp-title">Start sending professional documents today</h2>
           <p className="lp-lead">
-            Questions before you buy? Write to <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>.
+            Questions before you buy? <Link to="/contact">Contact us</Link> or write to <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>.
           </p>
-          <a className="btn btn-primary btn-lg" href="#pricing">
-            See pricing
-          </a>
+          <div className="hero-cta" style={{ justifyContent: 'center' }}>
+            <a className="btn btn-primary btn-lg" href="#pricing">
+              See pricing
+            </a>
+            <Link className="btn btn-lg" to="/support">
+              Help &amp; Support
+            </Link>
+          </div>
         </section>
       </main>
       <SiteFooter />

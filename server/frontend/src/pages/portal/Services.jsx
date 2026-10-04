@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { clientApi, date, money } from '../../api.js';
 import { CopyButton, Empty, ErrorText, Spinner, useLoad, useToast } from '../../components/ui.jsx';
-import { usePayment } from '../../components/Payment.jsx';
+import { TERMS_REQUIRED, TermsCheck, usePayment } from '../../components/Payment.jsx';
 import Icon from '../../components/Icons.jsx';
 import { sortLicenses } from './ClientHome.jsx';
 
@@ -39,7 +39,10 @@ export function PriceTiles({ prices, value, onChange, currency }) {
           onClick={() => onChange(p.id)}
           data-testid={`price-${p.durationDays}`}
         >
-          <span className="price-tile-label">{p.label}</span>
+          <span className="price-tile-label">
+            {p.period || p.label}
+            {p.tag && <em className="price-tile-tag">{p.tag}</em>}
+          </span>
           <strong>{money(p.price, currency)}</strong>
           <span className="muted small">{perYear(p, currency) || (p.durationDays ? 'one-time payment' : 'pay once')}</span>
         </button>
@@ -62,6 +65,8 @@ export default function Services() {
   const [target, setTarget] = useState(undefined); // license id to extend, or 'new'
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(null);
+  const [accepted, setAccepted] = useState(false);
+  const [termsError, setTermsError] = useState('');
 
   const extendable = useMemo(() => (data?.licenses || []).filter((l) => !l.lifetime && ['active', 'expired'].includes(l.status)), [data]);
 
@@ -77,9 +82,10 @@ export default function Services() {
   const result = newExpiry(license, price.durationDays);
 
   const submit = async () => {
+    if (!accepted) return setTermsError(TERMS_REQUIRED);
     setBusy(true);
     try {
-      const started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, renewLicenseId: license?.id });
+      const started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, renewLicenseId: license?.id, acceptTerms: true });
       const r = await pay(started, (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body));
       if (r?.license) {
         setDone({ license: r.license, extended: !!license });
@@ -91,6 +97,7 @@ export default function Services() {
     } finally {
       setBusy(false);
     }
+    return undefined;
   };
 
   if (done) {
@@ -215,7 +222,7 @@ export default function Services() {
         <div className="order-summary-box" data-testid="services-summary">
           <div className="order-line">
             <span>
-              {product.name} · {price.label}
+              {product.name} · {price.period || price.label}
               {license ? ' extension' : ''}
             </span>
             <strong>{money(price.price, product.currency)}</strong>
@@ -232,6 +239,14 @@ export default function Services() {
               {result.lifetime ? 'Lifetime' : result.date ? date(result.date) : `${result.fromActivation} days from activation`}
             </strong>
           </div>
+          <TermsCheck
+            checked={accepted}
+            onChange={(v) => {
+              setAccepted(v);
+              if (v) setTermsError('');
+            }}
+            error={termsError}
+          />
           <button className="btn btn-primary btn-lg btn-block" onClick={submit} disabled={busy} data-testid="services-pay">
             {busy ? 'Opening payment…' : `Pay ${money(price.price, product.currency)}`}
           </button>

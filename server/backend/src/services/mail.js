@@ -47,7 +47,7 @@ ${box}${body}${cta}
 <p style="color:#6b7280;font-size:13px;margin-top:28px">Questions? Reply to this email or write to ${escapeHtml(config.supportEmail)}.<br>DocGen · a product of reynrel.in</p></div>`;
 }
 
-export async function sendMail({ to, subject, paragraphs, button, buttons = button ? [button] : [], highlight = null }) {
+export async function sendMail({ to, subject, paragraphs, button, buttons = button ? [button] : [], highlight = null, replyTo = config.supportEmail }) {
   const t = getTransport();
   if (!t) return false;
   const text = [
@@ -55,7 +55,7 @@ export async function sendMail({ to, subject, paragraphs, button, buttons = butt
     ...paragraphs,
     ...buttons.map((b) => `${b.label}: ${b.url}`),
   ].join('\n\n');
-  const message = { from: config.mailFrom, replyTo: config.supportEmail, to, subject, text, html: layout(paragraphs, buttons, highlight) };
+  const message = { from: config.mailFrom, replyTo, to, subject, text, html: layout(paragraphs, buttons, highlight) };
   await t.sendMail(message);
   if (config.isTest) outbox.push(message);
   return true;
@@ -124,5 +124,71 @@ export async function sendPasswordReset(client, link) {
       'If you did not ask for this, you can ignore this email — your password stays the same.',
     ],
     button: { label: 'Choose a new password', url: link },
+  });
+}
+
+/** Help & Support: confirmation to the customer and a copy to the support inbox (reply-to: the customer). */
+export async function sendSupportReceived(request, message, topicLabel) {
+  if (!mailEnabled()) return false;
+  const ref = `#${request.id}`;
+  const link = request.client_id ? `${config.portalUrl}/account/support/${request.id}` : '';
+  await sendMail({
+    to: request.email,
+    subject: `We received your request ${ref}: ${request.subject}`,
+    highlight: [
+      ['Request', ref],
+      ['Topic', topicLabel],
+    ],
+    paragraphs: [
+      `Hi ${request.name},`,
+      'Thank you for writing to DocGen Help & Support. We usually reply within one working day (Monday to Saturday).',
+      link ? 'You can follow the conversation and reply in your account.' : 'Our answer will come to this email address. To add something, just reply to this email.',
+      `Your message:\n${message}`,
+    ],
+    buttons: link ? [{ label: 'Open my request', url: link }] : [],
+  });
+  return sendMail({
+    to: config.supportEmail,
+    replyTo: request.email,
+    subject: `[Support ${ref}] ${request.subject}`,
+    highlight: [
+      ['From', `${request.name} <${request.email}>`],
+      ['Phone', request.phone || '—'],
+      ['Topic', topicLabel],
+    ],
+    paragraphs: [message, 'Answer in the admin panel (the customer gets your reply by email), or reply to this email.'],
+    buttons: [{ label: 'Open in the admin panel', url: `${config.portalUrl}/admin/support/${request.id}` }],
+  });
+}
+
+/** A new message from the customer on an existing request → support inbox. */
+export async function notifySupportMessage(request, message) {
+  if (!mailEnabled()) return false;
+  return sendMail({
+    to: config.supportEmail,
+    replyTo: request.email,
+    subject: `[Support #${request.id}] New reply: ${request.subject}`,
+    paragraphs: [`${request.name} wrote:`, message],
+    buttons: [{ label: 'Open in the admin panel', url: `${config.portalUrl}/admin/support/${request.id}` }],
+  });
+}
+
+/** Support answered → customer. */
+export async function sendSupportReply(request, message, closed) {
+  if (!mailEnabled()) return false;
+  const link = request.client_id ? `${config.portalUrl}/account/support/${request.id}` : '';
+  return sendMail({
+    to: request.email,
+    subject: `Re: ${request.subject} [#${request.id}]`,
+    paragraphs: [
+      `Hi ${request.name},`,
+      message,
+      closed
+        ? 'We have marked this request as solved. If you still need help, reply and we will continue.'
+        : link
+          ? 'You can reply in your account or simply reply to this email.'
+          : 'Simply reply to this email if you have more questions.',
+    ],
+    buttons: link ? [{ label: 'View the conversation', url: link }] : [],
   });
 }

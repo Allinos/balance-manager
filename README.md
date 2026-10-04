@@ -15,9 +15,13 @@ small businesses, by [reynrel.in](https://reynrel.in).
 - **Server**: customer accounts, products with a price per duration (1, 2, 5 years …), Razorpay payments
   verified on the server, license keys with start and expiry date, computer and phone limits enforced
   by the server, remote app configuration and ads, admin API, audit log.
+- **Website**: product page with one pricing card per plan, Help & Support (send a request), Contact Us,
+  Terms & Conditions, Privacy Policy, Shipping Policy, Cancellation & Refunds; checkout asks the buyer to
+  accept the Terms & Conditions.
 - **Client panel**: My License (key, validity, devices), Services (buy or extend — shows the new expiry),
-  Downloads (Windows, macOS, Linux, Mobile), Account. **Admin panel**: customers, payments, licenses,
-  products & pricing, downloads, website, app settings, ads, activity log. Both work on phones.
+  Downloads (Windows, macOS, Linux, Mobile), Help & Support (requests and answers), Account. **Admin panel**:
+  customers, support requests, payments, licenses, products & pricing, downloads, website (incl. business
+  details for the policies), app settings, ads, activity log. Both work on phones.
 - **DocGen Mobile**: install from the client panel (Downloads → Mobile), enter the license key once and use the
   desktop app's features on the phone — all document types, the same 4 templates, documents, products and
   settings (it shares the desktop app's code); data stays on the phone.

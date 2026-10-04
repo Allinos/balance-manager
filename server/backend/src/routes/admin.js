@@ -14,6 +14,7 @@ import { burnPasswordCheck, hashPassword, normaliseCode, signSession, verifyPass
 import { audit, getAppConfig, getSiteConfig, saveAppConfig, saveSiteConfig } from '../services/common.js';
 import { createLicense, effectiveStatus, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
 import { pricesByPlan, saveProductPrices } from '../services/products.js';
+import { SUPPORT_STATUSES, SUPPORT_TOPICS, addMessage, publicRequest, requestMessages, setStatus } from '../services/support.js';
 import { businessSchema, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
 import { DOWNLOAD_LABELS, PLATFORMS, getDownloadSettings, listInstallers, removeInstaller, saveDownloadSettings, storeInstaller } from '../services/downloads.js';
 
@@ -33,8 +34,9 @@ const isoDate = z
 
 const priceSchema = z.object({
   id: z.coerce.number().int().positive().nullable().optional(),
-  durationDays: z.coerce.number().int().min(0, 'must be 0 (lifetime) or more').max(36500),
-  price: z.coerce.number().min(0).max(10000000),
+  // An empty duration must not turn into 0 days (= lifetime): it is an error.
+  durationDays: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number({ error: 'choose a duration' }).int().min(0, 'must be 0 (lifetime) or more').max(36500)),
+  price: z.preprocess((v) => (v === '' || v === null ? undefined : v), z.coerce.number({ error: 'enter a price' }).min(0).max(10000000)),
   label: z.string().trim().max(40).optional().default(''),
 });
 
@@ -73,6 +75,17 @@ const siteSchema = z.object({
     .default([]),
   videos: z.array(z.object({ title: z.string().trim().max(80).default(''), url: httpsUrl.refine((v) => v !== '', 'enter the video address') })).max(2).default([]),
   showComparison: z.boolean().default(true),
+  /** Shown on Contact Us and in the policies (Terms, Privacy, Refunds, Shipping). */
+  business: z
+    .object({
+      legalName: z.string().trim().max(160).default(''),
+      address: z.string().trim().max(400).default(''),
+      phone: z.string().trim().max(40).default(''),
+      hours: z.string().trim().max(120).default(''),
+      jurisdiction: z.string().trim().max(80).default(''),
+    })
+    .partial()
+    .optional(),
 });
 
 const adSchema = z.object({
@@ -214,6 +227,7 @@ export function adminRoutes(knex) {
       devices: await count('devices', (q) => q.whereNull('released_at')),
       paidPayments: await count('payments', (q) => q.where({ status: 'paid' })),
       pendingPayments: await count('payments', (q) => q.where({ status: 'pending' })),
+      openSupport: await count('support_requests', (q) => q.where({ status: 'open' })),
       monthSales: await count('payments', (q) => q.where({ status: 'paid' }).where('paid_at', '>=', monthStart)),
       monthRevenue: await sum((q) => q.where('paid_at', '>=', monthStart)),
       revenue: await sum((q) => q),
@@ -600,6 +614,53 @@ export function adminRoutes(knex) {
     }
     await log(req, 'payment.refund', 'payment', payment.id, { revoked });
     res.json({ payment: publicPayment(updated), licenseRevoked: revoked });
+  });
+
+  // ----------------------------------------------------------- help & support
+  r.get('/support', auth, async (req, res) => {
+    const q = parse(pageQuery.extend({ status: z.enum(['', 'all', ...SUPPORT_STATUSES]).default('') }), req.query);
+    const result = await paginate(
+      knex,
+      'support_requests',
+      q,
+      (qb) => {
+        if (q.q) whereContains(qb, ['email', 'name', 'subject', 'phone'], q.q);
+        // Default: everything not solved yet.
+        if (!q.status) qb.whereNot({ status: 'closed' });
+        else if (q.status !== 'all') qb.where({ status: q.status });
+      },
+      { orderBy: [['last_message_at', 'desc']] },
+    );
+    const counts = await knex('support_requests').select('status').count({ c: '*' }).groupBy('status');
+    res.json({ ...result, rows: result.rows.map((row) => publicRequest(row)), counts: Object.fromEntries(counts.map((c) => [c.status, Number(c.c)])), topics: SUPPORT_TOPICS });
+  });
+
+  const supportRequest = async (req) => {
+    const request = await knex('support_requests').where({ id: Number(req.params.id) }).first();
+    if (!request) throw notFound('Request');
+    return request;
+  };
+  const supportDetail = async (request) => {
+    // The customer's account: linked when they wrote while signed in, else found by email.
+    const client = request.client_id ? await knex('clients').where({ id: request.client_id }).first() : await knex('clients').where({ email: request.email }).first();
+    return { request: publicRequest(request, await requestMessages(knex, request.id)), client: client ? { id: client.id, name: client.name, email: client.email, phone: client.phone } : null };
+  };
+
+  r.get('/support/:id', auth, async (req, res) => res.json(await supportDetail(await supportRequest(req))));
+
+  /** Answer the customer (emailed to them); `close` marks the request solved at the same time. */
+  r.post('/support/:id/messages', auth, async (req, res) => {
+    const body = parse(z.object({ message: z.string().trim().min(1, 'write a reply').max(10000), close: z.boolean().default(false) }), req.body);
+    const request = await addMessage(knex, await supportRequest(req), { author: 'support', body: body.message, adminId: req.admin.id, close: body.close });
+    await log(req, 'support.reply', 'support', request.id, { close: body.close });
+    res.status(201).json(await supportDetail(request));
+  });
+
+  r.put('/support/:id', auth, async (req, res) => {
+    const body = parse(z.object({ status: z.enum(SUPPORT_STATUSES) }), req.body);
+    const request = await setStatus(knex, await supportRequest(req), body.status);
+    await log(req, 'support.status', 'support', request.id, { status: body.status });
+    res.json(await supportDetail(request));
   });
 
   // ----------------------------------------------------------------- website

@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { clientApi, adminApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
+import Icon from './components/Icons.jsx';
+import { SUPPORT_EMAIL } from './constants.js';
 import ProductPage from './pages/portal/ProductPage.jsx';
 import CheckoutPage from './pages/portal/Checkout.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
@@ -9,6 +11,8 @@ import ClientHome from './pages/portal/ClientHome.jsx';
 import Services from './pages/portal/Services.jsx';
 import DownloadsPage from './pages/portal/DownloadsPage.jsx';
 import MobilePage from './pages/portal/MobilePage.jsx';
+import { ContactPage, PolicyPage } from './pages/portal/InfoPages.jsx';
+import SupportPage, { MySupport, MySupportRequest } from './pages/portal/Support.jsx';
 import PanelLayout from './components/PanelLayout.jsx';
 import Account from './pages/portal/Account.jsx';
 import AdminLogin from './pages/admin/AdminLogin.jsx';
@@ -22,6 +26,7 @@ import AdminPayments from './pages/admin/AdminPayments.jsx';
 import AdminAds from './pages/admin/AdminAds.jsx';
 import AdminConfig from './pages/admin/AdminConfig.jsx';
 import AdminAudit from './pages/admin/AdminAudit.jsx';
+import AdminSupport, { AdminSupportRequest } from './pages/admin/AdminSupport.jsx';
 
 // ----------------------------------------------------------------- sessions
 const AuthCtx = createContext(null);
@@ -75,51 +80,122 @@ export function Brand({ to = '/', tagline = true }) {
   );
 }
 
-/** Header of the public pages (product page, checkout). */
+/** Website menu (header on wide screens, the ☰ menu on phones). */
+const SITE_LINKS = [
+  { href: '/#features', label: 'Features' },
+  { href: '/#pricing', label: 'Pricing' },
+  { to: '/mobile', label: 'Mobile app' },
+  { href: '/#faq', label: 'FAQ' },
+  { to: '/support', label: 'Help & Support' },
+  { to: '/contact', label: 'Contact' },
+];
+const SiteLink = ({ link, ...rest }) => (link.to ? <Link to={link.to} {...rest}>{link.label}</Link> : <a href={link.href} {...rest}>{link.label}</a>);
+
+/** Header of the public pages. `nav`: the website menu and Buy now (not on checkout). */
 export function SiteHeader({ nav = false }) {
   const { client } = useAuth();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [location.pathname, location.hash]);
+  const account = client.user ? (
+    <Link className="btn btn-sm" to="/account" data-testid="header-account">
+      My account
+    </Link>
+  ) : (
+    <Link className="btn btn-sm" to="/login" data-testid="header-login">
+      Login
+    </Link>
+  );
   return (
-    <header className="site-header">
+    <header className={`site-header ${open ? 'menu-open' : ''}`}>
       <div className="site-header-inner">
         <Brand />
         {nav && (
-          <nav className="site-nav">
-            <a href="/#features">Features</a>
-            <a href="/#pricing">Pricing</a>
-            <Link to="/mobile">Mobile app</Link>
-            <a href="/#compare">Compare</a>
-            <a href="/#faq">FAQ</a>
+          <nav className="site-nav" aria-label="Website">
+            {SITE_LINKS.map((l) => (
+              <SiteLink key={l.label} link={l} />
+            ))}
           </nav>
         )}
         <div className="site-actions">
-          {client.user ? (
-            <Link className="btn btn-sm" to="/account">
-              My account
-            </Link>
-          ) : (
-            <Link className="btn btn-sm btn-ghost hide-sm" to="/login">
-              Sign in
-            </Link>
-          )}
+          {account}
           {nav && (
-            <Link className="btn btn-sm btn-primary" to="/buy" data-testid="header-buy">
+            <Link className="btn btn-sm btn-primary header-buy" to="/buy" data-testid="header-buy">
               Buy now
             </Link>
           )}
+          {nav && (
+            <button className="icon-btn site-menu-btn" onClick={() => setOpen((o) => !o)} aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open} data-testid="site-menu">
+              <Icon name={open ? 'x' : 'menu'} size={22} />
+            </button>
+          )}
         </div>
       </div>
+      {nav && open && (
+        <nav className="site-menu" aria-label="Website menu" data-testid="site-menu-panel">
+          {SITE_LINKS.map((l) => (
+            <SiteLink key={l.label} link={l} onClick={() => setOpen(false)} />
+          ))}
+          <div className="site-menu-actions">
+            {client.user ? (
+              <Link className="btn btn-block" to="/account">
+                My account
+              </Link>
+            ) : (
+              <Link className="btn btn-block" to="/login">
+                Login
+              </Link>
+            )}
+            <Link className="btn btn-primary btn-block" to="/buy">
+              Buy now
+            </Link>
+          </div>
+        </nav>
+      )}
     </header>
   );
 }
 
+const FOOTER_COLUMNS = [
+  ['Product', [{ href: '/#features', label: 'Features' }, { href: '/#pricing', label: 'Pricing' }, { to: '/mobile', label: 'Mobile app' }, { to: '/login', label: 'Login' }]],
+  ['Help', [{ to: '/support', label: 'Help & Support' }, { to: '/contact', label: 'Contact Us' }, { href: '/#faq', label: 'FAQ' }, { to: '/mobile#android', label: 'Android install guide' }]],
+  [
+    'Policies',
+    [
+      { to: '/terms', label: 'Terms & Conditions' },
+      { to: '/privacy', label: 'Privacy Policy' },
+      { to: '/shipping', label: 'Shipping Policy' },
+      { to: '/refunds', label: 'Cancellation & Refunds' },
+    ],
+  ],
+];
+
 export function SiteFooter() {
   return (
-    <footer className="site-footer">
+    <footer className="site-footer" data-testid="site-footer">
+      <div className="site-footer-grid">
+        <div className="site-footer-about">
+          <Brand tagline={false} />
+          <p>Simple, professional GST invoices and business documents on your computer and phone.</p>
+          <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
+        </div>
+        {FOOTER_COLUMNS.map(([title, links]) => (
+          <nav key={title} className="site-footer-col" aria-label={title}>
+            <strong>{title}</strong>
+            {links.map((l) => (
+              <SiteLink key={l.label} link={l} />
+            ))}
+          </nav>
+        ))}
+      </div>
       <div className="site-footer-inner">
-        <span>© 2025-{new Date().getFullYear()} DocGen · a product of <a href="https://reynrel.in" target="_blank" rel="noreferrer">reynrel.in</a></span>
         <span>
-          <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a> · <Link to="/login">Sign in</Link>
+          © 2025-{new Date().getFullYear()} DocGen · a product of{' '}
+          <a href="https://reynrel.in" target="_blank" rel="noreferrer">
+            reynrel.in
+          </a>
         </span>
+        <span>Secure payments by Razorpay</span>
       </div>
     </footer>
   );
@@ -141,6 +217,7 @@ function PortalLayout() {
             { to: '/account', label: 'My License', icon: 'key', end: true },
             { to: '/account/services', label: 'Services', icon: 'box' },
             { to: '/account/downloads', label: 'Downloads', icon: 'download' },
+            { to: '/account/support', label: 'Help & Support', icon: 'help' },
             { to: '/account/settings', label: 'Account', icon: 'user' },
           ],
         },
@@ -160,6 +237,7 @@ const ADMIN_NAV = [
     items: [
       { to: '/admin', label: 'Dashboard', icon: 'chart', end: true },
       { to: '/admin/clients', label: 'Customers', icon: 'users' },
+      { to: '/admin/support', label: 'Support requests', icon: 'help' },
       { to: '/admin/payments', label: 'Payments', icon: 'card' },
       { to: '/admin/licenses', label: 'Licenses', icon: 'key' },
     ],
@@ -209,7 +287,7 @@ export function Footer() {
       <a href="https://reynrel.in" target="_blank" rel="noreferrer">
         reynrel.in
       </a>{' '}
-      · <a href="mailto:info.reynrel@gmail.com">info.reynrel@gmail.com</a>
+      · <Link to="/support">Help &amp; Support</Link> · <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link>
     </footer>
   );
 }
@@ -234,10 +312,19 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/mobile" element={<MobilePage />} />
+              <Route path="/support" element={<SupportPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="/terms" element={<PolicyPage id="terms" />} />
+              <Route path="/privacy" element={<PolicyPage id="privacy" />} />
+              <Route path="/shipping" element={<PolicyPage id="shipping" />} />
+              <Route path="/refunds" element={<PolicyPage id="refunds" />} />
+              <Route path="/cancellation-refunds" element={<Navigate to="/refunds" replace />} />
               <Route path="/account" element={<PortalLayout />}>
                 <Route index element={<ClientHome />} />
                 <Route path="services" element={<Services />} />
                 <Route path="downloads" element={<DownloadsPage />} />
+                <Route path="support" element={<MySupport />} />
+                <Route path="support/:id" element={<MySupportRequest />} />
                 <Route path="settings" element={<Account />} />
                 <Route path="*" element={<Navigate to="/account" replace />} />
               </Route>
@@ -246,6 +333,8 @@ export default function App() {
                 <Route index element={<AdminDashboard />} />
                 <Route path="clients" element={<AdminClients />} />
                 <Route path="clients/:id" element={<AdminClientDetail />} />
+                <Route path="support" element={<AdminSupport />} />
+                <Route path="support/:id" element={<AdminSupportRequest />} />
                 <Route path="licenses" element={<AdminLicenses />} />
                 <Route path="payments" element={<AdminPayments />} />
                 <Route path="products" element={<AdminProducts />} />

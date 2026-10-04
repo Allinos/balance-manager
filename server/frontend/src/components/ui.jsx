@@ -38,6 +38,7 @@ export const Check = ({ checked, onChange, label }) => (
 const STATUS_TONE = {
   active: 'good', paid: 'good', unused: 'info', pending: 'warn', created: 'warn', expired: 'bad', suspended: 'bad',
   revoked: 'bad', failed: 'bad', cancelled: 'muted', refunded: 'muted', inactive: 'muted',
+  open: 'warn', answered: 'info', closed: 'good',
 };
 export const Badge = ({ status, children }) => <span className={`badge tone-${STATUS_TONE[status] || 'muted'}`}>{children || status}</span>;
 

@@ -106,7 +106,7 @@ before(async () => {
   // SQLite by default; TEST_DATABASE_URL=mysql://… runs the same journey on MySQL (row locks included).
   knex = process.env.TEST_DATABASE_URL ? createKnex({ databaseUrl: process.env.TEST_DATABASE_URL }) : createKnex({ databaseUrl: '', sqliteFile: path.join(dataDir, 'flow.sqlite') });
   if (process.env.TEST_DATABASE_URL) {
-    for (const t of ['plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
+    for (const t of ['support_messages', 'support_requests', 'plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
       await knex.schema.dropTableIfExists(t);
     }
   }
@@ -142,7 +142,7 @@ describe('safe defaults', () => {
     const r = await api('GET', '/api/portal/plans');
     assert.deepEqual(r.body.providers.map((p) => p.name), ['razorpay', 'manual']);
     const token = await register('nomock@example.com');
-    const mock = await api('POST', '/api/portal/checkout', { token, body: { planId: (await plan('STARTER')).id, provider: 'mock' } });
+    const mock = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: (await plan('STARTER')).id, provider: 'mock' } });
     assert.equal(mock.status, 400);
     assert.equal(mock.body.error.code, 'UNKNOWN_PROVIDER');
   });
@@ -205,7 +205,7 @@ describe('ad → account → Razorpay payment → download → activate', () => 
 
   test('checkout creates a Razorpay order for the exact plan price', async () => {
     const starter = await plan('STARTER');
-    const co = await api('POST', '/api/portal/checkout', { token, body: { planId: starter.id, provider: 'razorpay' } });
+    const co = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: starter.id, provider: 'razorpay' } });
     assert.equal(co.status, 201, JSON.stringify(co.body));
     payment = co.body.payment;
     orderId = co.body.checkout.orderId;
@@ -288,7 +288,7 @@ describe('ad → account → Razorpay payment → download → activate', () => 
 describe('webhook safety', () => {
   test('unsigned, underpaid and failed payments never issue a license', async () => {
     const token = await register('hook@example.com');
-    const co = await api('POST', '/api/portal/checkout', { token, body: { planId: (await plan('BUSINESS')).id, provider: 'razorpay' } });
+    const co = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: (await plan('BUSINESS')).id, provider: 'razorpay' } });
     const orderId = co.body.checkout.orderId;
     const bad = await webhook('payment.captured', { id: 'pay_x', order_id: orderId, amount: co.body.payment.amountPaise }, 'wrong-secret');
     assert.equal(bad.status, 400);
@@ -310,7 +310,7 @@ describe('renewals and upgrades', () => {
   let token;
   let license;
   const pay = async (planCode, renewLicenseId) => {
-    const co = await api('POST', '/api/portal/checkout', { token, body: { planId: (await plan(planCode)).id, provider: 'razorpay', renewLicenseId } });
+    const co = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: (await plan(planCode)).id, provider: 'razorpay', renewLicenseId } });
     assert.equal(co.status, 201, JSON.stringify(co.body));
     const r = await api('POST', `/api/portal/payments/${co.body.payment.id}/confirm`, { token, body: checkoutResponse(co.body.checkout.orderId) });
     assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -331,14 +331,14 @@ describe('renewals and upgrades', () => {
     const lifetime = await pay('LIFETIME', license.id);
     assert.equal(lifetime.lifetime, true);
     assert.equal(lifetime.maxDevices, 3, 'keeps the larger computer limit');
-    const again = await api('POST', '/api/portal/checkout', { token, body: { planId: (await plan('STARTER')).id, provider: 'razorpay', renewLicenseId: license.id } });
+    const again = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: (await plan('STARTER')).id, provider: 'razorpay', renewLicenseId: license.id } });
     assert.equal(again.body.error.code, 'LICENSE_LIFETIME');
   });
 
   test('a suspended license cannot be renewed by the customer', async () => {
     const other = await pay('STARTER');
     await api('PUT', `/api/admin/licenses/${other.id}`, { token: adminToken, body: { status: 'suspended' } });
-    const r = await api('POST', '/api/portal/checkout', { token, body: { planId: (await plan('STARTER')).id, provider: 'razorpay', renewLicenseId: other.id } });
+    const r = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: (await plan('STARTER')).id, provider: 'razorpay', renewLicenseId: other.id } });
     assert.equal(r.body.error.code, 'LICENSE_BLOCKED');
   });
 });
@@ -370,7 +370,7 @@ describe('buy without an account (product page → checkout)', () => {
   const device = (n) => ({ deviceId: `guest-device-${n}-abcdef`, deviceName: `Shop PC ${n}`, platform: 'windows', appVersion: '1.1.0' });
   const buy = async (email, extra = {}) => {
     const start = await api('POST', '/api/portal/checkout/start', {
-      body: { name: 'Ravi Kumar', email, phone: '98765 43210', attribution: { utm_source: 'google', utm_campaign: 'diwali' }, ...extra },
+      body: { acceptTerms: true, name: 'Ravi Kumar', email, phone: '98765 43210', attribution: { utm_source: 'google', utm_campaign: 'diwali' }, ...extra },
     });
     assert.equal(start.status, 201, JSON.stringify(start.body));
     return start.body;
@@ -392,9 +392,22 @@ describe('buy without an account (product page → checkout)', () => {
   });
 
   test('name, mobile and email are checked', async () => {
-    const r = await api('POST', '/api/portal/checkout/start', { body: { name: 'R', email: 'not-an-email', phone: '12' } });
+    const r = await api('POST', '/api/portal/checkout/start', { body: { acceptTerms: true, name: 'R', email: 'not-an-email', phone: '12' } });
     assert.equal(r.status, 400);
     assert.ok(r.body.error.details.fields.name && r.body.error.details.fields.email && r.body.error.details.fields.phone);
+  });
+
+  test('the Terms & Conditions must be accepted before a payment starts', async () => {
+    const guest = await api('POST', '/api/portal/checkout/start', { body: { name: 'Ravi Kumar', email: 'terms@example.com', phone: '9876543210' } });
+    assert.equal(guest.status, 400);
+    assert.match(guest.body.error.details.fields.acceptTerms, /Terms & Conditions/);
+    const token = await register('terms-signed-in@example.com');
+    const signedIn = await api('POST', '/api/portal/checkout', { token, body: { provider: 'razorpay' } });
+    assert.equal(signedIn.status, 400);
+    assert.ok(signedIn.body.error.details.fields.acceptTerms);
+    const ok = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, provider: 'razorpay' } });
+    assert.equal(ok.status, 201);
+    assert.ok((await knex('payments').where({ id: ok.body.payment.id }).first()).terms_accepted_at, 'the time of acceptance is stored with the payment');
   });
 
   test('checkout creates the account (no password yet) and a Razorpay order for the product price', async () => {
@@ -443,7 +456,7 @@ describe('buy without an account (product page → checkout)', () => {
   });
 
   test('an email that already has an account must sign in; an unpaid checkout can be retried', async () => {
-    const again = await api('POST', '/api/portal/checkout/start', { body: { name: 'Someone', email: 'ravi@example.com', phone: '9876500000' } });
+    const again = await api('POST', '/api/portal/checkout/start', { body: { acceptTerms: true, name: 'Someone', email: 'ravi@example.com', phone: '9876500000' } });
     assert.equal(again.status, 409);
     assert.equal(again.body.error.code, 'ACCOUNT_EXISTS');
     await buy('lead@example.com');
@@ -532,7 +545,7 @@ describe('license durations, extension, mobile devices and downloads', () => {
 
   test('buying the 2-year option charges its price and gives a 2-year license', async () => {
     const twoYears = product.prices.find((p) => p.durationDays === 730);
-    const start = await api('POST', '/api/portal/checkout/start', { body: { name: 'Two Year', email: 'twoyear@example.com', phone: '9876500001', priceId: twoYears.id } });
+    const start = await api('POST', '/api/portal/checkout/start', { body: { acceptTerms: true, name: 'Two Year', email: 'twoyear@example.com', phone: '9876500001', priceId: twoYears.id } });
     assert.equal(start.status, 201, JSON.stringify(start.body));
     assert.equal(orders.get(start.body.checkout.orderId).amount, 225000);
     assert.equal(start.body.payment.durationLabel, '2 years');
@@ -542,13 +555,13 @@ describe('license durations, extension, mobile devices and downloads', () => {
     session = paid.body.token;
     assert.equal(license.daysLeft, 730);
     assert.equal(license.maxMobileDevices, 2);
-    const other = await api('POST', '/api/portal/checkout/start', { body: { name: 'Xavier', email: 'x-price@example.com', phone: '9876500002', priceId: 999999 } });
+    const other = await api('POST', '/api/portal/checkout/start', { body: { acceptTerms: true, name: 'Xavier', email: 'x-price@example.com', phone: '9876500002', priceId: 999999 } });
     assert.equal(other.status, 404, 'unknown price refused');
   });
 
   test('extending with the 5-year option adds 5 years to the current end date', async () => {
     const fiveYears = product.prices.find((p) => p.durationDays === 1825);
-    const co = await api('POST', '/api/portal/checkout', { token: session, body: { priceId: fiveYears.id, renewLicenseId: license.id } });
+    const co = await api('POST', '/api/portal/checkout', { token: session, body: { acceptTerms: true, priceId: fiveYears.id, renewLicenseId: license.id } });
     assert.equal(co.status, 201, JSON.stringify(co.body));
     assert.equal(orders.get(co.body.checkout.orderId).amount, 499900);
     const r = await api('POST', `/api/portal/payments/${co.body.payment.id}/confirm`, { token: session, body: checkoutResponse(co.body.checkout.orderId) });
@@ -634,5 +647,118 @@ describe('license durations, extension, mobile devices and downloads', () => {
     assert.equal(r.body.license.maxMobileDevices, 1);
     const blocked = await api('POST', '/api/app/activate', { body: { code: license.code, ...mobile(5) } });
     assert.equal(blocked.body.error.code, 'DEVICE_LIMIT');
+  });
+});
+
+describe('Help & Support', () => {
+  let customer;
+  let requestId;
+
+  test('a visitor sends a request from the website: saved, confirmed by email, support inbox notified', async () => {
+    const before = outbox.length;
+    const r = await api('POST', '/api/portal/support', {
+      body: { name: 'Asha Patel', email: 'Asha@Example.com', phone: '9876500011', topic: 'buying', subject: 'GST on invoices', message: 'Does DocGen print CGST and SGST separately?', source: 'contact' },
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.request.status, 'open');
+    assert.equal(r.body.request.email, 'asha@example.com');
+    assert.equal(r.body.request.clientId, null);
+    const mails = outbox.slice(before);
+    assert.equal(mails.length, 2);
+    assert.equal(mails[0].to, 'asha@example.com');
+    assert.match(mails[0].subject, new RegExp(`#${r.body.request.id}`));
+    assert.equal(mails[1].replyTo, 'asha@example.com', 'support can reply straight to the customer');
+    assert.match(mails[1].text, /CGST and SGST/);
+  });
+
+  test('requests are checked; robots filling the hidden field are ignored', async () => {
+    const bad = await api('POST', '/api/portal/support', { body: { name: 'A', email: 'nope', subject: '', message: 'hi' } });
+    assert.equal(bad.status, 400);
+    assert.ok(['name', 'email', 'subject', 'message'].every((k) => bad.body.error.details.fields[k]));
+    const count = Number((await knex('support_requests').count({ c: '*' }))[0].c);
+    const robot = await api('POST', '/api/portal/support', { body: { name: 'Spam Bot', email: 'bot@example.com', subject: 'Cheap offer', message: 'Buy followers now, very cheap', website: 'http://spam.example' } });
+    assert.equal(robot.status, 201);
+    assert.equal(Number((await knex('support_requests').count({ c: '*' }))[0].c), count, 'nothing saved');
+  });
+
+  test('a signed-in customer writes from the client panel and sees the request there', async () => {
+    customer = await register('support-customer@example.com');
+    const r = await api('POST', '/api/portal/support', {
+      token: customer,
+      body: { name: 'Meena Sharma', email: 'someone-else@example.com', topic: 'license', subject: 'Activate on a new PC', message: 'I changed my computer. How do I move my license?', source: 'panel' },
+    });
+    assert.equal(r.status, 201);
+    requestId = r.body.request.id;
+    assert.equal(r.body.request.email, 'support-customer@example.com', 'a signed-in customer writes as themselves');
+    assert.ok(r.body.request.clientId);
+    const list = await api('GET', '/api/portal/support', { token: customer });
+    assert.deepEqual(list.body.requests.map((x) => x.subject), ['Activate on a new PC']);
+    const detail = await api('GET', `/api/portal/support/${requestId}`, { token: customer });
+    assert.equal(detail.body.request.messages.length, 1);
+    assert.equal(detail.body.request.topicLabel, 'License & activation');
+    const other = await register('support-other@example.com');
+    assert.equal((await api('GET', `/api/portal/support/${requestId}`, { token: other })).status, 404, 'other customers cannot read it');
+    assert.equal((await api('GET', '/api/portal/support', { token: other })).body.requests.length, 0);
+  });
+
+  test('admin sees open requests, answers (emailed to the customer), the customer replies and closes', async () => {
+    const list = await api('GET', '/api/admin/support', { token: adminToken });
+    assert.equal(list.status, 200);
+    assert.ok(list.body.rows.some((x) => x.id === requestId));
+    assert.ok(list.body.counts.open >= 2);
+    assert.ok((await api('GET', '/api/admin/stats', { token: adminToken })).body.openSupport >= 2);
+    const detail = await api('GET', `/api/admin/support/${requestId}`, { token: adminToken });
+    assert.equal(detail.body.client.email, 'support-customer@example.com');
+    const before = outbox.length;
+    const reply = await api('POST', `/api/admin/support/${requestId}/messages`, { token: adminToken, body: { message: 'Open My License and release the old computer, then activate on the new one.' } });
+    assert.equal(reply.status, 201);
+    assert.equal(reply.body.request.status, 'answered');
+    assert.equal(outbox.length, before + 1);
+    assert.equal(outbox.at(-1).to, 'support-customer@example.com');
+    assert.match(outbox.at(-1).text, /release the old computer/);
+    assert.match(outbox.at(-1).text, new RegExp(`/account/support/${requestId}`));
+
+    const again = await api('POST', `/api/portal/support/${requestId}/messages`, { token: customer, body: { message: 'Thanks, where do I find My License?' } });
+    assert.equal(again.body.request.status, 'open', 'a customer reply opens it again');
+    assert.deepEqual(again.body.request.messages.map((m) => m.author), ['customer', 'support', 'customer']);
+    assert.equal(outbox.at(-1).to, 'info.reynrel@gmail.com', 'support inbox notified');
+
+    const closed = await api('POST', `/api/admin/support/${requestId}/messages`, { token: adminToken, body: { message: 'In the menu on the left.', close: true } });
+    assert.equal(closed.body.request.status, 'closed');
+    const open = await api('GET', '/api/admin/support', { token: adminToken });
+    assert.ok(!open.body.rows.some((x) => x.id === requestId), 'solved requests leave the default list');
+    assert.ok((await api('GET', '/api/admin/support?status=closed', { token: adminToken })).body.rows.some((x) => x.id === requestId));
+    const reopened = await api('PUT', `/api/admin/support/${requestId}`, { token: adminToken, body: { status: 'open' } });
+    assert.equal(reopened.body.request.status, 'open');
+    const solved = await api('POST', `/api/portal/support/${requestId}/close`, { token: customer });
+    assert.equal(solved.body.request.status, 'closed');
+  });
+});
+
+describe('prices shown to customers', () => {
+  test('an empty duration is refused instead of becoming a lifetime license', async () => {
+    const product = (await api('GET', '/api/admin/plans', { token: adminToken })).body.plans.find((p) => p.code === 'DOCGEN');
+    const prices = product.prices.map((p) => ({ id: p.id, durationDays: p.durationDays, price: p.price, label: '' }));
+    const r = await api('PUT', `/api/admin/plans/${product.id}`, {
+      token: adminToken,
+      body: { name: product.name, maxDevices: product.maxDevices, prices: [...prices, { durationDays: '', price: 999, label: '' }] },
+    });
+    assert.equal(r.status, 400);
+    assert.match(JSON.stringify(r.body.error.details.fields), /duration/);
+  });
+
+  test('each price has its own duration text, separate from the optional name', async () => {
+    const product = (await api('GET', '/api/admin/plans', { token: adminToken })).body.plans.find((p) => p.code === 'DOCGEN');
+    const longest = Math.max(...product.prices.map((p) => p.durationDays));
+    const prices = product.prices.map((p) => ({ id: p.id, durationDays: p.durationDays, price: p.price, label: p.durationDays === longest ? 'Premium' : '' }));
+    const saved = await api('PUT', `/api/admin/plans/${product.id}`, { token: adminToken, body: { name: product.name, maxDevices: product.maxDevices, prices } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    const site = await api('GET', '/api/portal/site');
+    const docgen = site.body.products.find((p) => p.code === 'DOCGEN');
+    const top = docgen.prices.find((p) => p.durationDays === longest);
+    assert.equal(top.period, `${longest / 365} years`);
+    assert.equal(top.tag, 'Premium');
+    assert.ok(docgen.prices.filter((p) => p !== top).every((p) => p.tag === '' && p.label === p.period));
+    assert.ok(docgen.prices.every((p) => p.period !== 'Lifetime'));
   });
 });

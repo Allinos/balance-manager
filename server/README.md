@@ -166,13 +166,21 @@ The browser (and the apps) can never create a license, choose an amount or exten
 6. **Prices & website**: Admin → Products & pricing (default DocGen: 1 year ₹1,250, 2 years ₹2,250,
    5 years ₹4,999; 1 computer, 2 phones — add or change durations and prices there) and
    Admin → Website (headline, screenshots, up to two YouTube/Vimeo videos). The website shows one
-   pricing card per duration (the lowest price per year is marked *Best value*), a comparison of
+   pricing card per duration, each with its own plan name, duration, price and details (plan name:
+   the optional name you give the price, e.g. *Premium*, otherwise Standard / Plus / Premium from short to
+   long; the lowest price per year is marked *Best value*; one price = one card), a comparison of
    DocGen Desktop, DocGen Mobile, accounting software and Word/Excel templates, and an FAQ.
 7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
-8. **Legal pages** for Razorpay approval and ad platforms: privacy policy, terms, refund/cancellation
-   policy and contact details — publish them on reynrel.in and link them from your ads/site.
+8. **Legal pages** for Razorpay approval and ad platforms are built in: `/terms`, `/privacy`, `/shipping`,
+   `/refunds` (Cancellation & Refunds) and `/contact`, linked from every page's footer. Fill in Admin → Website →
+   **Business details** (legal name as in your Razorpay KYC, address, phone, support hours, court city) — the
+   pages use them. Read the policies once and adjust the text in `frontend/src/pages/portal/InfoPages.jsx` if
+   your terms differ (e.g. the 7-day refund window), then change `POLICIES_UPDATED` there.
+9. **Help & Support**: requests from `/support`, `/contact` and the client panel appear in Admin → Support
+   requests (the dashboard shows how many are waiting). Answers are emailed to the customer, so set up SMTP
+   (step 3); new requests are also emailed to `SUPPORT_EMAIL`.
 
 ## Configuration (environment variables)
 
@@ -329,8 +337,11 @@ back online if a check was missed).
 | Area | Base | Auth |
 |------|------|------|
 | Apps | `/api/app` — `public-key`, `config`, `events`, `login`, `activate`, `license/refresh`, `license/release` (body `deviceKind`: `desktop` default, or `mobile`) | device token for refresh/release |
-| Portal | `/api/portal` — `site`, `checkout/start`, `checkout/confirm` (public); `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `licenses`, `payments`, `checkout`, `downloads` | client JWT |
-| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
+| Portal | `/api/portal` — `site`, `checkout/start`, `checkout/confirm`, `support` (POST, public); `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `licenses`, `payments`, `checkout`, `downloads`, `support` (GET), `support/:id` (+ `messages`, `close`) | client JWT |
+| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `support` (+ `:id`, `:id/messages`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
+
+`checkout` and `checkout/start` require `acceptTerms: true` (the Terms & Conditions checkbox); the time is stored
+with the payment (`terms_accepted_at`).
 | Payments | `/api/payments/webhook/:provider` | provider signature |
 | Downloads | `/api/downloads/<personal link>` | signed link, 30 minutes |
 
@@ -342,7 +353,7 @@ Errors: `{ "error": { "code": "LICENSE_EXPIRED", "message": "…" } }`. Lists ar
 - Passwords: bcrypt (cost 11). Sessions: JWT (HS256; clients 7 days, admins 8 hours) invalidated on password change
   via `token_version`. Admin roles: owner / admin / support.
 - Rate limits per IP: 30 sign-in/registration/activation attempts per 15 min; 60 desktop
-  requests per minute; 600 API requests per minute.
+  requests per minute; 12 Help & Support messages per hour (plus a hidden spam-trap field); 600 API requests per minute.
 - Input validation with zod on every endpoint; body limit 100 KB; uploads: images ≤ 2 MB, installers ≤ 600 MB (admins only).
 - Payments: amount fixed by the server, HMAC-verified callbacks/webhooks, one license per payment,
   underpaid webhooks never issue a license. Password-reset links expire after 1 hour and work once.

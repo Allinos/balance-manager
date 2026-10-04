@@ -123,8 +123,15 @@ try {
   const cards = page.getByTestId('price-card');
   check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
   const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
-  check(/1 year.*1,250.*2 years.*2,250.*5 years.*4,999/.test(pricing) && pricing.includes('one-time payment'), 'pricing cards: 1, 2 and 5 years with their prices, one-time payment');
+  check(/1-year license.*1,250.*2-year license.*2,250.*5-year license.*4,999/.test(pricing) && pricing.includes('one-time payment'), 'pricing cards: 1, 2 and 5 years with their prices, one-time payment');
   check(pricing.includes('Best value') && (await cards.nth(2).textContent()).includes('Best value'), 'pricing cards: lowest price per year marked "Best value"');
+  const names = await page.getByTestId('plan-name').allTextContents();
+  const periods = await page.getByTestId('plan-period').allTextContents();
+  check(names.join(',') === 'Standard,Plus,Premium' && periods.join(',') === '1-year license,2-year license,5-year license',
+    `each card has its own plan and duration (${names.join(' / ')}; ${periods.join(' / ')}), none says Lifetime`);
+  check(await page.getByTestId('header-login').isVisible(), 'header: Login button');
+  const footer = (await page.getByTestId('site-footer').textContent()).replace(/\s+/g, ' ');
+  check(['Terms & Conditions', 'Privacy Policy', 'Shipping Policy', 'Cancellation & Refunds', 'Contact Us', 'Help & Support'].every((t) => footer.includes(t)), 'footer links: policies, Contact Us, Help & Support');
   check((await page.getByTestId('hero-buy').getAttribute('href')) === '#pricing', 'hero "Buy now" jumps to the pricing cards');
   const compare = (await page.getByTestId('comparison').textContent()).replace(/\s+/g, ' ');
   check(compare.includes('DocGen Desktop') && compare.includes('DocGen Mobile'), 'comparison table includes DocGen Desktop and DocGen Mobile');
@@ -146,6 +153,12 @@ try {
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('12345');
   await page.getByLabel('Email address').fill('meera@example.com');
+  await page.getByTestId('co-pay').click();
+  await page.getByTestId('terms-error').waitFor();
+  check(rzpOrders.length === 0, 'checkout: payment does not start before the Terms & Conditions are accepted');
+  check((await page.getByTestId('checkout-form').locator('a[href="/terms"]').count()) === 1, 'checkout: the checkbox links to the Terms & Conditions');
+  await page.getByTestId('accept-terms').check();
+  check((await page.getByTestId('terms-error').count()) === 0, 'ticking the box clears the message');
   await page.getByTestId('co-pay').click();
   await page.getByText('must be a valid mobile number').waitFor();
   check(true, 'invalid mobile number is explained next to the field');
@@ -234,6 +247,10 @@ try {
   check((await page.getByTestId('services-pay').textContent()).includes('2,250'), 'services: pay ₹2,250 for 2 years');
   await shot('04b-services');
   await page.getByTestId('services-pay').click();
+  await page.getByTestId('terms-error').waitFor();
+  check(true, 'extension: Terms & Conditions must be accepted too');
+  await page.getByTestId('accept-terms').check();
+  await page.getByTestId('services-pay').click();
   await page.getByTestId('rzp-window').waitFor();
   check((await page.evaluate(() => window.__rzpOptions.amount)) === 225000 && (await page.evaluate(() => window.__rzpOptions.description)).includes('2 years'), 'extension opens Razorpay for ₹2,250 (2 years)');
   await page.getByTestId('rzp-pay').click();
@@ -242,6 +259,21 @@ try {
   await page.getByTestId('nav-my-license').click();
   await page.getByText('1095 days left').waitFor();
   check(true, 'My License: 1095 days left after the extension');
+
+  // Client panel → Help & Support: a new request and its conversation.
+  await page.getByTestId('nav-help-support').click();
+  await page.getByTestId('new-request').click();
+  await page.getByTestId('support-topic').selectOption('license');
+  await page.getByTestId('support-subject').fill('Move license to my new laptop');
+  await page.getByTestId('support-message').fill('I bought a new laptop. How do I move DocGen to it?');
+  await shot('04c-support-new');
+  await page.getByTestId('support-send').click();
+  await page.getByTestId('thread').waitFor();
+  check((await page.getByTestId('request-status').textContent()) === 'Waiting for our reply' && (await page.getByTestId('thread').textContent()).includes('new laptop'),
+    'client panel: Help & Support request sent, conversation shown');
+  await page.getByRole('link', { name: '← All requests' }).click();
+  check((await page.getByTestId('my-requests').textContent()).includes('Move license to my new laptop'), 'client panel: list of my requests');
+  await shot('04d-support-list');
 
   // Downloads: the platforms the admin offers, plus the mobile app.
   await page.getByTestId('nav-downloads').click();
@@ -299,6 +331,7 @@ try {
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('9876543210');
   await page.getByLabel('Email address').fill('meera@example.com');
+  await page.getByTestId('accept-terms').check();
   await page.getByTestId('co-pay').click();
   await page.getByTestId('signin-instead').waitFor();
   check(true, 'an email that already has an account is asked to sign in');
@@ -307,6 +340,37 @@ try {
   await page.getByTestId('rzp-close').click();
   await page.getByText('Payment not completed').waitFor();
   check(true, 'closing the payment window keeps the visitor on the checkout');
+
+  // Website: policies, Contact Us (a visitor's message), Help & Support, Login on a phone.
+  for (const [path, title] of [['/terms', 'Terms & Conditions'], ['/privacy', 'Privacy Policy'], ['/shipping', 'Shipping Policy'], ['/refunds', 'Cancellation & Refunds']]) {
+    await page.goto(`${base}${path}`);
+    await page.getByRole('heading', { level: 1, name: title }).waitFor();
+  }
+  check((await page.getByTestId('policy-refunds').textContent()).includes('within 7 days'), 'policy pages: Terms, Privacy, Shipping, Cancellation & Refunds');
+  await shot('04h-refunds');
+  await page.goto(`${base}/contact`);
+  check((await page.getByTestId('contact-details').textContent()).includes('info.reynrel@gmail.com'), 'Contact Us: email and business details');
+  await page.getByTestId('support-name').fill('Arjun Rao');
+  await page.getByTestId('support-email').fill('arjun@example.com');
+  await page.getByTestId('support-subject').fill('Bulk licenses');
+  await page.getByTestId('support-send').click();
+  await page.getByText('Please check the highlighted fields.').waitFor();
+  check(true, 'Contact Us: a missing message is explained');
+  await page.getByTestId('support-message').fill('We have 5 shops. Is there a price for 5 licenses?');
+  await page.getByTestId('support-send').click();
+  await page.getByTestId('support-sent').waitFor();
+  check(/^#\d+$/.test((await page.getByTestId('support-ref').textContent()).trim()), 'Contact Us: message sent, request number shown');
+  await shot('04i-contact');
+  await page.goto(`${base}/support`);
+  check((await page.getByTestId('support-form').count()) === 1, 'Help & Support page with the request form');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(base);
+  check(await page.getByTestId('header-login').isVisible(), 'phone: Login button in the header');
+  await page.getByTestId('site-menu').click();
+  const menu = await page.getByTestId('site-menu-panel').textContent();
+  check(['Pricing', 'Help & Support', 'Contact', 'Login', 'Buy now'].every((t) => menu.includes(t)), 'phone: menu with Pricing, Help & Support, Contact, Login and Buy now');
+  await shot('04j-phone-menu');
+  await page.setViewportSize({ width: 1280, height: 860 });
 
   // Forgotten password (no SMTP in this test → the page explains how to get help).
   await page.goto(`${base}/login`);
@@ -331,7 +395,20 @@ try {
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
   await campaign.waitFor();
   check(/google.*gst-oct.*2.*1.*50%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-ups and sale attributed to the Google ad campaign');
+  check((await page.getByTestId('support-alert').textContent()).includes('2 support requests are waiting'), 'dashboard: support requests waiting for an answer');
   await shot('05-admin-dashboard');
+
+  await page.getByTestId('nav-support-requests').click();
+  await page.getByTestId('support-requests').waitFor();
+  const requests = await page.getByTestId('support-requests').textContent();
+  check(requests.includes('Bulk licenses') && requests.includes('Move license to my new laptop'), 'Support requests: website and client panel requests listed');
+  await page.getByRole('link', { name: /Move license to my new laptop/ }).click();
+  await page.getByTestId('admin-reply').fill('Open My License, release the old computer and enter your key on the new laptop.');
+  await page.getByTestId('admin-reply-send').click();
+  await page.getByText('Reply sent to the customer').waitFor();
+  await page.getByTestId('admin-request-status').filter({ hasText: 'Answered' }).waitFor();
+  check((await page.getByTestId('admin-request-status').textContent()) === 'Answered' && (await page.getByTestId('thread').textContent()).includes('release the old computer'), 'admin answers a request (status Answered)');
+  await shot('05b-admin-support');
 
   await page.getByTestId('nav-products-pricing').click();
   await page.getByTestId('edit-product-DOCGEN').click();

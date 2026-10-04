@@ -1,4 +1,4 @@
-/** Website content: headline, screenshots, up to two videos, comparison table. Price is set under Products. */
+/** Website content: headline, screenshots, up to two videos, comparison table, business details. Price is set under Products. */
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -18,6 +18,7 @@ export default function AdminWebsite() {
   if (loading || !form) return error ? <ErrorText error={error} /> : <Spinner />;
 
   const set = (k) => (v) => setForm({ ...form, [k]: v });
+  const setBusiness = (k) => (v) => setForm({ ...form, business: { ...form.business, [k]: v } });
   const shots = form.screenshots;
   const videos = form.videos;
   const setShot = (i, patch) => set('screenshots')(shots.map((s, n) => (n === i ? { ...s, ...patch } : s)));
@@ -162,6 +163,32 @@ export default function AdminWebsite() {
       <div className="card">
         <h3>Comparison</h3>
         <Check checked={form.showComparison} onChange={set('showComparison')} label="Show the comparison with accounting software and Word/Excel templates" />
+      </div>
+
+      <div className="card" data-testid="business-details">
+        <h3>Business details</h3>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Shown on <Link to="/contact" target="_blank">Contact Us</Link> and in the <Link to="/terms" target="_blank">Terms</Link>,{' '}
+          <Link to="/privacy" target="_blank">Privacy</Link>, <Link to="/shipping" target="_blank">Shipping</Link> and{' '}
+          <Link to="/refunds" target="_blank">Cancellation &amp; Refunds</Link> pages. Razorpay checks that these match your KYC details.
+        </p>
+        <div className="grid-2">
+          <Field label="Business / legal name" hint="As registered, e.g. your proprietorship or company name">
+            <Input value={form.business?.legalName} onChange={setBusiness('legalName')} maxLength={160} data-testid="business-name" />
+          </Field>
+          <Field label="Phone (optional)">
+            <Input value={form.business?.phone} onChange={setBusiness('phone')} maxLength={40} placeholder="+91 98765 43210" data-testid="business-phone" />
+          </Field>
+          <Field label="Address" span>
+            <Textarea rows={2} value={form.business?.address} onChange={setBusiness('address')} maxLength={400} placeholder="Street, city, state, PIN" data-testid="business-address" />
+          </Field>
+          <Field label="Support hours">
+            <Input value={form.business?.hours} onChange={setBusiness('hours')} maxLength={120} />
+          </Field>
+          <Field label="City for legal disputes (optional)" hint="Terms: “courts at …, India”">
+            <Input value={form.business?.jurisdiction} onChange={setBusiness('jurisdiction')} maxLength={80} placeholder="e.g. Guwahati" />
+          </Field>
+        </div>
       </div>
 
       <div className="row end sticky-save">

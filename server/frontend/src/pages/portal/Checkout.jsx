@@ -8,7 +8,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { clientApi, date, money } from '../../api.js';
 import { getAttribution } from '../../attribution.js';
 import { CopyButton, ErrorText, Field, Input, Spinner, useLoad } from '../../components/ui.jsx';
-import { usePayment } from '../../components/Payment.jsx';
+import { TERMS_REQUIRED, TermsCheck, usePayment } from '../../components/Payment.jsx';
 import { DownloadCard } from '../../components/Downloads.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader, useAuth } from '../../App.jsx';
@@ -122,6 +122,7 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(0);
   const [result, setResult] = useState(null);
   const [priceId, setPriceId] = useState(null);
+  const [accepted, setAccepted] = useState(false);
   const signedIn = !!client.user;
 
   useEffect(() => {
@@ -145,18 +146,23 @@ export default function CheckoutPage() {
   };
   const fieldError = (k) => error?.details?.fields?.[k];
 
+  const termsError = fieldError('acceptTerms');
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
+    if (!accepted) {
+      setError({ message: TERMS_REQUIRED, details: { fields: { acceptTerms: TERMS_REQUIRED } } });
+      return;
+    }
     setBusy(true);
     try {
       let started;
       let confirm;
       if (signedIn) {
-        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined });
+        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, acceptTerms: true });
         confirm = (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body);
       } else {
-        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, attribution: getAttribution() });
+        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, attribution: getAttribution() });
         confirm = (body) => clientApi.post('/checkout/confirm', { checkoutToken: started.checkoutToken, ...body });
       }
       setStep(1);
@@ -205,7 +211,7 @@ export default function CheckoutPage() {
                     </Link>
                   </div>
                 ) : (
-                  <ErrorText error={error?.details?.fields ? { message: 'Please check the highlighted fields.' } : error} />
+                  <ErrorText error={error?.details?.fields ? (termsError && Object.keys(error.details.fields).length === 1 ? null : { message: 'Please check the highlighted fields.' }) : error} />
                 )}
                 {product.prices.length > 1 && (
                   <div className="field">
@@ -222,6 +228,14 @@ export default function CheckoutPage() {
                 <Field label="Email address" error={fieldError('email')} hint={signedIn ? '' : 'Your license code and download link are sent here.'}>
                   <Input type="email" value={form.email} onChange={set('email')} required autoComplete="email" disabled={signedIn} data-testid="co-email" />
                 </Field>
+                <TermsCheck
+                  checked={accepted}
+                  onChange={(v) => {
+                    setAccepted(v);
+                    if (v && termsError) setError(null);
+                  }}
+                  error={termsError}
+                />
                 <button className="btn btn-primary btn-lg btn-block" disabled={busy} data-testid="co-pay">
                   {busy ? 'Opening payment…' : `Continue to payment · ${money(price.price, product.currency)}`}
                 </button>

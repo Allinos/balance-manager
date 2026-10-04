@@ -22,6 +22,23 @@ export const requireClient = (knex) => async (req, _res, next) => {
   return next();
 };
 
+/**
+ * Sets req.signedInClient when a valid client session is sent; never refuses the request.
+ * (Not req.client: Node's request object already has a `client` property, the socket.)
+ */
+export const optionalClient = (knex) => async (req, _res, next) => {
+  const token = bearer(req);
+  if (!token) return next();
+  try {
+    const payload = verifySession(token, 'client');
+    const client = await knex('clients').where({ id: Number(payload.sub) }).first();
+    if (client && client.token_version === payload.tv && client.status === 'active') req.signedInClient = client;
+  } catch {
+    /* signed out or expired: continue as a visitor */
+  }
+  return next();
+};
+
 /** Require a signed-in admin, optionally with one of `roles`. Sets req.admin. */
 export const requireAdmin = (knex, roles = null) => async (req, _res, next) => {
   const token = bearer(req);
@@ -50,6 +67,8 @@ export const limits = {
   auth: limiter(15 * 60 * 1000, 30, 'Too many attempts. Please wait a few minutes and try again.'),
   /** Desktop configuration / event pings. */
   app: limiter(60 * 1000, 60, 'Too many requests. Please try again later.'),
+  /** Help & Support messages from the website and the client panel (spam protection). */
+  support: limiter(60 * 60 * 1000, 12, 'Too many messages sent. Please wait a while, or email us directly.'),
   /** Everything else. */
   api: limiter(60 * 1000, 600, 'Too many requests. Please slow down.'),
 };

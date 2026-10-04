@@ -118,11 +118,19 @@ export const DEFAULT_SITE = {
   ],
   videos: [],
   showComparison: true,
+  business: {
+    legalName: 'Reynrel',
+    address: '',
+    phone: '',
+    hours: 'Monday to Saturday, 10:00 to 18:00 IST',
+    jurisdiction: '',
+  },
 };
 
 export async function getSiteConfig(knex) {
   const row = await knex('app_config').where({ key: 'site' }).first();
-  return { ...DEFAULT_SITE, ...parseJson(row?.value, {}) };
+  const saved = parseJson(row?.value, {});
+  return { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business } };
 }
 
 export async function saveSiteConfig(knex, value, adminId) {

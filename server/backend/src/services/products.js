@@ -20,7 +20,12 @@ export function durationLabel(days) {
 export const publicPrice = (p) => ({
   id: p.id,
   durationDays: p.duration_days,
+  /** The admin's name for this option ("Premium", "Best value"), or the duration. */
   label: p.label || durationLabel(p.duration_days),
+  /** Always the duration: "1 year", "5 years", "Lifetime". */
+  period: durationLabel(p.duration_days),
+  /** Only the admin's own name ('' when none). */
+  tag: p.label || '',
   price: p.price_paise / 100,
   pricePaise: p.price_paise,
   isActive: p.is_active === undefined ? true : !!p.is_active,

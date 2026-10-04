@@ -1,6 +1,6 @@
 # DocGen — test results
 
-Last full run: **3 October 2026** (after prices per duration, license extension, the new client/admin panels, phone limits and DocGen Mobile), branch `claude/focused-darwin-2j53b8`. The desktop app was not changed in this round; its results below are from the previous run.
+Last full run: **4 October 2026** (after Help & Support, the policy and contact pages, the Terms checkbox at checkout and the pricing cards), branch `claude/focused-darwin-2j53b8`. The desktop app was not changed in this round; its results below are from the previous run.
 
 | Suite | Command | Result |
 |-------|---------|--------|
@@ -8,11 +8,11 @@ Last full run: **3 October 2026** (after prices per duration, license extension,
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **171 / 171 checks passed** |
-| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **54 / 54 passed** (19 API, 34 journey/checkout/payments/licensing/durations/phones/downloads/email, 1 rate-limit) |
-| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** |
-| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **89 / 89 passed** |
+| Server API + customer-journey tests (SQLite) | `cd server && npm test` | **61 / 61 passed** (19 API, 41 journey/checkout/terms/payments/licensing/durations/phones/downloads/email/support/prices, 1 rate-limit) |
+| Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** (previous run; not re-run this round) |
+| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **108 / 108 passed** |
 | DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **94 / 94 passed** (two consecutive runs; incl. a plain http:// network address) |
-| Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `frontend/src`, `mobile/src`, e2e scripts | 91 files, 0 problems |
+| Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `backend/test`, `frontend/src`, `mobile/src`, e2e scripts | 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
 
@@ -122,13 +122,21 @@ Review notes:
 
 ## 3b. Client panel, admin panel and DocGen Mobile (end-to-end)
 
-`npm run test:portal` (89 checks) drives the real server, website and panels in Chromium with a stand-in
+`npm run test:portal` (108 checks) drives the real server, website and panels in Chromium with a stand-in
 for Razorpay (same signatures):
 
 - Product page: one pricing card per duration (1 / 2 / 5 years, 5 years marked *Best value*), "Buy now"
   jumps to the cards; the comparison includes DocGen Desktop and DocGen Mobile; FAQ; contact
   info.reynrel@gmail.com; "DocGen on Mobile" section with screenshots and a button to the `/mobile`
-  installation page, which has the 4-step Android guide with pictures. Checkout: choosing 5 years changes the total.
+  installation page, which has the 4-step Android guide with pictures. Each pricing card shows its own plan
+  name and duration (Standard 1-year, Plus 2-year, Premium 5-year — never "Lifetime"); header Login button;
+  footer links to the policies, Contact Us and Help & Support. Checkout: choosing 5 years changes the total;
+  **payment does not start until the Terms & Conditions box is ticked** (also on extensions).
+- Policies (Terms, Privacy, Shipping, Cancellation & Refunds) open; Contact Us sends a visitor's message and
+  shows its request number; on a phone the header shows **Login** and the ☰ menu (Pricing, Help & Support,
+  Contact, Login, Buy now).
+- Client panel **Help & Support**: new request → conversation; list of my requests. Admin: dashboard shows
+  requests waiting, **Support requests** lists website and panel requests, the admin answers (status Answered).
 - Payment → license key; **My License** shows the key, start and expiry date, days left, computers and
   phones separately, payments with their duration; sidebar: My License, Services, Downloads, Account.
 - Two phones activate with the key; the **third is refused by the server** (409 `DEVICE_LIMIT`), listed as 2 of 2.

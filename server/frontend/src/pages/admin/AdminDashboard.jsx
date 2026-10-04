@@ -92,6 +92,16 @@ export default function AdminDashboard() {
           </Link>
         </div>
       </div>
+      {data.openSupport > 0 && (
+        <div className="alert alert-warn row" style={{ justifyContent: 'space-between', marginBottom: 14 }} data-testid="support-alert">
+          <span>
+            {data.openSupport} support {data.openSupport === 1 ? 'request is' : 'requests are'} waiting for an answer.
+          </span>
+          <Link className="btn btn-sm" to="/admin/support">
+            Answer now
+          </Link>
+        </div>
+      )}
       <div className="stat-grid" data-testid="stats">
         {cards.map(([label, value, sub, to]) => (
           <Link key={label} to={to} className="stat">

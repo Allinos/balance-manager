@@ -8,3 +8,16 @@ export const STATES = [
   'Uttarakhand', 'West Bengal',
 ];
 export const BUSINESS_TYPES = ['Trading / Retail', 'Wholesale / Distribution', 'Manufacturing', 'Services', 'Construction / Contractor', 'Freelancer / Agency', 'Other'];
+
+/** Contact address shown on the website (the server's SUPPORT_EMAIL is used for emails). */
+export const SUPPORT_EMAIL = 'info.reynrel@gmail.com';
+
+/** Help & Support topics (same keys as the server). */
+export const SUPPORT_TOPICS = [
+  { value: 'buying', label: 'Buying & payment' },
+  { value: 'license', label: 'License & activation' },
+  { value: 'install', label: 'Installing DocGen' },
+  { value: 'using', label: 'Using DocGen' },
+  { value: 'refund', label: 'Cancellation & refund' },
+  { value: 'other', label: 'Something else' },
+];

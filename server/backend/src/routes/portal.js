@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { insertOne, isMysql, nowIso, parseJson, updateOne } from '../db.js';
 import { ApiError, clientIp, notFound, pageQuery, paginate, parse } from '../lib/http.js';
 import { config } from '../config.js';
-import { limits, requireClient } from '../lib/auth.js';
+import { limits, optionalClient, requireClient } from '../lib/auth.js';
 import { burnPasswordCheck, hashPassword, passwordFingerprint, signPurposeToken, signSession, verifyPassword, verifyPurposeToken } from '../lib/security.js';
 import { audit, getAppConfig, getSiteConfig } from '../services/common.js';
 import { availableDownloads, getDownloadSettings, isEntitled } from '../services/downloads.js';
@@ -13,6 +13,7 @@ import { mailEnabled, sendPasswordReset, sendPaymentReceipt } from '../services/
 import { fulfillPayment, publicLicense } from '../services/licenses.js';
 import { durationLabel, pricesByPlan, publicPrice, resolvePrice } from '../services/products.js';
 import { getProvider, listProviders } from '../payments/index.js';
+import { SUPPORT_TOPICS, addMessage, createRequest, publicRequest, requestMessages, setStatus } from '../services/support.js';
 
 const password = z.string().min(8, 'must be at least 8 characters').max(200);
 /** Mobile number: digits with an optional +country code; spaces and dashes are ignored. */
@@ -21,6 +22,9 @@ const mobile = z
   .trim()
   .transform((v) => v.replace(/[\s()-]/g, ''))
   .refine((v) => /^\+?\d{10,15}$/.test(v), 'must be a valid mobile number');
+/** "I agree to the Terms & Conditions" must be ticked before a payment is started. */
+const acceptTerms = z.literal(true, { error: 'please accept the Terms & Conditions to continue' });
+const supportText = z.string().trim().min(10, 'please describe your question in a few words').max(5000);
 const gstin = z
   .string()
   .trim()
@@ -185,6 +189,7 @@ export function portalRoutes(knex) {
         planId: z.coerce.number().int().positive().optional(),
         priceId: z.coerce.number().int().positive().optional(),
         provider: z.string().max(30).optional(),
+        acceptTerms,
         attribution: attributionSchema,
       }),
       req.body,
@@ -391,6 +396,7 @@ export function portalRoutes(knex) {
         priceId: z.coerce.number().int().positive().optional(),
         provider: z.string().max(30).optional(),
         renewLicenseId: z.coerce.number().int().positive().optional(),
+        acceptTerms,
       }),
       req.body,
     );
@@ -414,6 +420,67 @@ export function portalRoutes(knex) {
     if (!payment) throw notFound('Payment');
     const result = await confirmPayment(knex, payment, req.body || {}, req);
     return res.status(result.license ? 200 : 202).json(result);
+  });
+
+  // ------------------------------------------------------------ help & support
+  /**
+   * A question or problem from the website (Help & Support, Contact Us) or the client panel. Visitors give
+   * their name and email; signed-in customers' requests are linked to their account (client panel).
+   */
+  r.post('/support', limits.support, optionalClient(knex), async (req, res) => {
+    const body = parse(
+      z.object({
+        name: z.string().trim().min(2, 'please enter your name').max(120),
+        email: z.string().trim().toLowerCase().email('please enter a valid email').max(190),
+        phone: z.string().trim().max(30).optional().default(''),
+        topic: z.enum(Object.keys(SUPPORT_TOPICS)).default('other'),
+        subject: z.string().trim().min(3, 'please add a short subject').max(160),
+        message: supportText,
+        source: z.enum(['website', 'contact', 'panel']).default('website'),
+        // Hidden field that people never fill in; spam robots do.
+        website: z.string().max(500).optional().default(''),
+      }),
+      req.body,
+    );
+    if (body.website) return res.status(201).json({ request: { id: 0, status: 'open' } });
+    const client = req.signedInClient || null;
+    const request = await createRequest(knex, {
+      client,
+      ...body,
+      // A signed-in customer writes as themselves.
+      email: client ? client.email : body.email,
+      source: body.source === 'panel' && !client ? 'website' : body.source,
+    });
+    await audit(knex, { actorType: client ? 'client' : 'system', actorId: client?.id ?? null, action: 'support.create', entity: 'support', entityId: request.id, ip: clientIp(req) });
+    res.status(201).json({ request: publicRequest(request), emailEnabled: mailEnabled(), supportEmail: config.supportEmail });
+  });
+
+  r.get('/support', auth, async (req, res) => {
+    const rows = await knex('support_requests').where({ client_id: req.client.id }).orderBy('last_message_at', 'desc').limit(200);
+    res.json({ requests: rows.map((row) => publicRequest(row)), topics: SUPPORT_TOPICS });
+  });
+
+  const ownRequest = async (req) => {
+    const request = await knex('support_requests').where({ id: Number(req.params.id), client_id: req.client.id }).first();
+    if (!request) throw notFound('Request');
+    return request;
+  };
+
+  r.get('/support/:id', auth, async (req, res) => {
+    const request = await ownRequest(req);
+    res.json({ request: publicRequest(request, await requestMessages(knex, request.id)) });
+  });
+
+  r.post('/support/:id/messages', auth, limits.support, async (req, res) => {
+    const body = parse(z.object({ message: supportText }), req.body);
+    const request = await addMessage(knex, await ownRequest(req), { author: 'customer', body: body.message });
+    res.status(201).json({ request: publicRequest(request, await requestMessages(knex, request.id)) });
+  });
+
+  /** The customer's problem is solved. */
+  r.post('/support/:id/close', auth, async (req, res) => {
+    const request = await setStatus(knex, await ownRequest(req), 'closed');
+    res.json({ request: publicRequest(request, await requestMessages(knex, request.id)) });
   });
 
   return r;
@@ -447,6 +514,7 @@ async function startPayment(knex, { client, plan, price, provider, renewLicenseI
     currency: plan.currency,
     status: 'created',
     meta: '{}',
+    terms_accepted_at: ts,
     created_at: ts,
     updated_at: ts,
   });

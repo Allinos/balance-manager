@@ -50,7 +50,7 @@ const device = (n = 1) => ({ deviceId: `test-device-${n}-abcdef`, deviceName: `P
 before(async () => {
   knex = process.env.TEST_DATABASE_URL ? createKnex({ databaseUrl: process.env.TEST_DATABASE_URL }) : createKnex({ databaseUrl: '', sqliteFile: path.join(dataDir, 'test.sqlite') });
   if (process.env.TEST_DATABASE_URL) {
-    for (const t of ['plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
+    for (const t of ['support_messages', 'support_requests', 'plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
       await knex.schema.dropTableIfExists(t);
     }
   }
@@ -106,7 +106,7 @@ describe('client portal', () => {
   test('checkout (mock provider) issues a license; desktop login activates it', async () => {
     const plans = await api('GET', '/api/portal/plans');
     const starter = plans.body.plans.find((p) => p.code === 'STARTER');
-    const co = await api('POST', '/api/portal/checkout', { token, body: { planId: starter.id, provider: 'mock' } });
+    const co = await api('POST', '/api/portal/checkout', { token, body: { acceptTerms: true, planId: starter.id, provider: 'mock' } });
     assert.equal(co.status, 201);
     assert.equal(co.body.payment.status, 'pending');
     assert.equal(co.body.checkout.type, 'mock');
@@ -253,7 +253,7 @@ describe('admin', () => {
 
   test('manual payment marked paid by admin', async () => {
     const client = (await api('POST', '/api/portal/auth/login', { body: { email: 'asha@example.com', password: 'secret-pass-1' } })).body.token;
-    const co = await api('POST', '/api/portal/checkout', { token: client, body: { planId: 1, provider: 'manual' } });
+    const co = await api('POST', '/api/portal/checkout', { token: client, body: { acceptTerms: true, planId: 1, provider: 'manual' } });
     assert.equal(co.body.checkout.type, 'manual');
     const pending = await api('POST', `/api/portal/payments/${co.body.payment.id}/confirm`, { token: client, body: {} });
     assert.equal(pending.status, 202);

@@ -32,7 +32,7 @@ function PriceRows({ rows, onChange }) {
       <div className="price-row price-row-head">
         <span>Duration</span>
         <span>Price (₹)</span>
-        <span>Label (optional)</span>
+        <span>Plan name (optional)</span>
         <span />
       </div>
       {rows.map((r, i) => (
@@ -46,11 +46,11 @@ function PriceRows({ rows, onChange }) {
               data-testid={`price-duration-${i}`}
             />
             {r.preset === 'custom' && (
-              <Input type="number" min="1" max="36500" value={r.durationDays} onChange={(v) => set(i, { durationDays: v })} aria-label="Days" style={{ width: 90 }} />
+              <Input type="number" min="1" max="36500" required value={r.durationDays} onChange={(v) => set(i, { durationDays: v })} aria-label="Days" placeholder="days" style={{ width: 90 }} />
             )}
           </div>
           <Input type="number" min="0" step="1" value={r.price} onChange={(v) => set(i, { price: v })} aria-label="Price" required data-testid={`price-amount-${i}`} />
-          <Input value={r.label} onChange={(v) => set(i, { label: v })} placeholder="e.g. Best value" maxLength={40} aria-label="Label" />
+          <Input value={r.label} onChange={(v) => set(i, { label: v })} placeholder="e.g. Premium" maxLength={40} aria-label="Plan name" />
           <button type="button" className="btn btn-sm btn-ghost" onClick={() => onChange(rows.filter((_, n) => n !== i))} disabled={rows.length === 1} aria-label="Remove price">
             Remove
           </button>
@@ -59,7 +59,13 @@ function PriceRows({ rows, onChange }) {
       <button
         type="button"
         className="btn btn-sm"
-        onClick={() => onChange([...rows, { key: Math.random(), preset: 'custom', durationDays: '', price: '', label: '' }])}
+        onClick={() => {
+          // Start with the next duration not used yet (never an empty one, which used to save as Lifetime).
+          const used = new Set(rows.map((r) => String(r.durationDays)));
+          const next = PRESETS.find((p) => p.value !== 'custom' && p.value !== '0' && !used.has(p.value) && Number(p.value) > Math.max(0, ...rows.map((r) => Number(r.durationDays) || 0)))
+            || PRESETS.find((p) => p.value !== 'custom' && p.value !== '0' && !used.has(p.value));
+          onChange([...rows, { key: Math.random(), preset: next ? next.value : 'custom', durationDays: next ? Number(next.value) : 365, price: '', label: '' }]);
+        }}
         disabled={rows.length >= 12}
         data-testid="add-price"
       >
@@ -89,6 +95,8 @@ function ProductForm({ product, onClose }) {
   const fieldError = (k) => error?.details?.fields?.[k];
   const submit = async (e) => {
     e.preventDefault();
+    const bad = form.prices.find((p) => p.preset === 'custom' && !(Number(p.durationDays) >= 1));
+    if (bad) return setError({ message: 'Enter the number of days for each custom duration (choose “Lifetime” for a license without an end date).' });
     const body = {
       ...(product?.code ? { code: product.code } : {}),
       name: form.name,
@@ -110,6 +118,7 @@ function ProductForm({ product, onClose }) {
     } catch (err) {
       setError(err);
     }
+    return undefined;
   };
   return (
     <Modal title={product?.id ? `Edit ${product.name}` : 'New product'} onClose={() => onClose(false)} wide>
@@ -123,7 +132,11 @@ function ProductForm({ product, onClose }) {
             <Input value="One-time payment per license period" onChange={() => {}} disabled />
           </Field>
         </div>
-        <Field label="Prices per license duration" hint="Each duration has its own price. Customers choose one when buying or extending; the period is counted from the payment date (or added to the current end date)." error={fieldError('prices')}>
+        <Field
+          label="Prices per license duration"
+          hint="Each duration is its own pricing card on the website, with its own price. Plan name: shown on the card (e.g. Premium); empty = automatic (Standard, Plus, Premium). The lowest price per year is marked Best value."
+          error={fieldError('prices') || Object.entries(error?.details?.fields || {}).find(([k]) => k.startsWith('prices.'))?.[1]}
+        >
           <PriceRows rows={form.prices} onChange={set('prices')} />
         </Field>
         <div className="grid-3">
