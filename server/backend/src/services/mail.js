@@ -14,14 +14,43 @@ import { availableDownloads } from './downloads.js';
 export const outbox = [];
 
 let transport = null;
+let smtpProblem = '';
+
+/**
+ * Nodemailer options from SMTP_HOST/PORT/USER/PASS or SMTP_URL; null when not configured.
+ * A malformed SMTP_URL is reported once (at start) and email is switched off instead of failing requests.
+ */
+function smtpOptions() {
+  if (config.smtp) {
+    const { host, port, user, pass } = config.smtp;
+    return { host, port, secure: port === 465, auth: user ? { user, pass } : undefined };
+  }
+  if (!config.smtpUrl) return null;
+  try {
+    const u = new URL(config.smtpUrl.trim());
+    if (!/^smtps?:$/.test(u.protocol) || !u.hostname || !/^[a-z0-9.-]+$/i.test(u.hostname)) throw new Error('bad host');
+    return config.smtpUrl.trim();
+  } catch {
+    smtpProblem =
+      'SMTP_URL in .env is not a valid address, so no emails are sent. Use the form ' +
+      'smtp://LOGIN:PASSWORD@SMTP-SERVER:587 (write @ in the login as %40), e.g. smtp://you%40example.com:key@smtp-relay.brevo.com:587 — ' +
+      'or set SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASS instead (no encoding needed).';
+    return null;
+  }
+}
+const smtp = config.isTest ? null : smtpOptions();
+
+/** Why email is off although it was configured ('' when fine). Printed at server start. */
+export const mailProblem = () => smtpProblem;
+
 function getTransport() {
   if (transport) return transport;
   if (config.isTest) transport = nodemailer.createTransport({ jsonTransport: true });
-  else if (config.smtpUrl) transport = nodemailer.createTransport(config.smtpUrl);
+  else if (smtp) transport = nodemailer.createTransport(smtp);
   return transport;
 }
 
-export const mailEnabled = () => !!(config.smtpUrl || config.isTest);
+export const mailEnabled = () => !!(smtp || config.isTest);
 
 const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
