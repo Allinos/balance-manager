@@ -82,9 +82,24 @@ export const passwordFingerprint = (hash) => crypto.createHash('sha256').update(
 let privateKey = null;
 let publicKeyB64 = '';
 
+/**
+ * A private key as people paste it into .env: one line with \\n, with or without quotes, Windows line
+ * endings, or only the base64 part without the BEGIN/END lines.
+ */
+function normalisePem(value) {
+  let v = String(value || '').trim().replace(/^['"]|['"]$/g, '').replace(/\\r/g, '').replace(/\\n/g, '\n').replace(/\r/g, '').trim();
+  if (!v) return '';
+  if (!v.includes('-----BEGIN')) {
+    const body = v.replace(/\s+/g, '');
+    v = `-----BEGIN PRIVATE KEY-----\n${body.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+  }
+  return `${v}\n`;
+}
+
 export function loadLicenseKeys() {
   if (privateKey) return { privateKey, publicKeyB64 };
-  let pem = config.licensePrivateKey.replace(/\\n/g, '\n');
+  let pem = normalisePem(config.licensePrivateKey);
+  const fromEnv = !!pem;
   if (!pem) {
     const file = path.join(config.dataDir, 'license-private-key.pem');
     // In production an existing key file is used, but a new key is never generated silently:
@@ -94,7 +109,16 @@ export function loadLicenseKeys() {
       crypto.generateKeyPairSync('ed25519').privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
     );
   }
-  privateKey = crypto.createPrivateKey(pem);
+  try {
+    privateKey = crypto.createPrivateKey(normalisePem(pem));
+  } catch {
+    throw new Error(
+      fromEnv
+        ? 'LICENSE_PRIVATE_KEY in .env is not a valid key. Run "npm run keys" and paste the whole LICENSE_PRIVATE_KEY line it prints ' +
+            '(one line, starting with -----BEGIN PRIVATE KEY-----), or remove the LICENSE_PRIVATE_KEY line to use data/license-private-key.pem.'
+        : `${path.join(config.dataDir, 'license-private-key.pem')} is not a valid key file. Restore it from your backup.`,
+    );
+  }
   const der = crypto.createPublicKey(privateKey).export({ type: 'spki', format: 'der' });
   publicKeyB64 = der.subarray(der.length - 32).toString('base64'); // raw 32-byte Ed25519 key
   return { privateKey, publicKeyB64 };
