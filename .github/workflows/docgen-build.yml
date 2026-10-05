@@ -59,6 +59,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      # An installer whose licensePublicKey does not match the server's key cannot verify any license
+      # ("The license returned by the server could not be verified"). Stop before building one.
+      - name: Check the license key in remote-config.json matches the server
+        run: |
+          cfg=$(gh api "repos/$GITHUB_REPOSITORY/contents/document-generator/src-tauri/remote-config.json?ref=$GITHUB_SHA" --jq .content | base64 -d)
+          server=$(printf '%s' "$cfg" | jq -r '.serverUrl // ""' | sed 's#/*$##')
+          key=$(printf '%s' "$cfg" | jq -r '.licensePublicKey // ""')
+          if [ -z "$server" ]; then echo "Offline build (no serverUrl): nothing to check."; exit 0; fi
+          if [ -z "$key" ]; then
+            echo "::error::remote-config.json has a serverUrl but no licensePublicKey. Open $server/api/app/public-key and copy publicKey into it."
+            exit 1
+          fi
+          live=$(curl -fsS --max-time 20 "$server/api/app/public-key" | jq -r '.publicKey // empty' || true)
+          if [ -z "$live" ]; then
+            echo "::warning::Could not reach $server/api/app/public-key to compare the license key. Building anyway."
+          elif [ "$live" != "$key" ]; then
+            echo "::error::licensePublicKey in document-generator/src-tauri/remote-config.json ($key) is not the key of $server ($live). Installers built with it reject every license. Put $live into remote-config.json (or restore the server's previous LICENSE_PRIVATE_KEY) and run the build again."
+            exit 1
+          else
+            echo "License key matches $server."
+          fi
+
       - name: Create a temporary draft release for the installers
         run: |
           gh release create "$DRAFT" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
