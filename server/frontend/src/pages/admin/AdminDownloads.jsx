@@ -18,6 +18,7 @@ export default function AdminDownloads() {
   const [settings, setSettings] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [uploadError, setUploadError] = useState(null);
   useEffect(() => {
     if (data) setSettings(structuredClone(data.settings));
   }, [data]);
@@ -40,6 +41,11 @@ export default function AdminDownloads() {
   };
   const upload = async (platform, file) => {
     if (!file) return;
+    const allowed = data?.platforms?.find((p) => p.id === platform)?.extensions || [];
+    const ext = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase();
+    setUploadError(null);
+    if (allowed.length && !allowed.includes(ext)) return setUploadError({ message: `This installer must be ${allowed.join(', ')} — "${file.name}" is not.` });
+    if (file.size > 600 * 1024 * 1024) return setUploadError({ message: `${file.name} is larger than 600 MB. Paste a download link (e.g. a GitHub release) instead.` });
     const form = new FormData();
     form.append('file', file);
     setBusy(platform);
@@ -48,10 +54,11 @@ export default function AdminDownloads() {
       toast(`${file.name} uploaded. Paying customers can download it now.`);
       reload();
     } catch (e) {
-      toast(e.message, 'bad');
+      setUploadError({ message: `Upload of ${file.name} failed: ${e.message}` });
     } finally {
       setBusy('');
     }
+    return undefined;
   };
   const remove = async (p, installer) => {
     const ok = await dialog.confirm({
@@ -80,6 +87,9 @@ export default function AdminDownloads() {
         </button>
       </div>
       <ErrorText error={saveError} />
+      <div data-testid="upload-error">
+        <ErrorText error={uploadError} />
+      </div>
       <div className="download-admin-list">
         {data.platforms.map((p) => {
           const installer = data.installers.find((i) => i.platform === p.id);

@@ -220,6 +220,16 @@ More admins: `npm run create-admin -- other@example.com 'long password' admin` (
 3. `npm run migrate` (also runs automatically at start), then `npm start` under a process
    manager (systemd, PM2, Docker).
 4. Put it behind HTTPS (Caddy/Nginx). The desktop app accepts only `https://` servers in release builds.
+   **Installer uploads** (Admin → Downloads, up to 600 MB) need the proxy to allow large, slow requests.
+   Caddy has no limit by default. Nginx allows only 1 MB unless you add, in the `server { … }` block:
+   ```nginx
+   client_max_body_size 700m;
+   proxy_request_buffering off;
+   proxy_read_timeout 600s;
+   proxy_send_timeout 600s;
+   ```
+   Cloudflare (orange cloud) accepts at most 100 MB per request on Free/Pro plans — upload bigger files with the
+   site's direct address, or paste a download link (e.g. the GitHub release) in Admin → Downloads instead.
 5. Back up the database and `DATA_DIR` (license key, uploaded installers). Production uses the existing
    `license-private-key.pem` but never generates a new one silently.
 6. In `document-generator/src-tauri/remote-config.json` set `serverUrl`, `portalUrl`,

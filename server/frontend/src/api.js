@@ -38,6 +38,21 @@ export class ApiError extends Error {
  * @param {string} url
  * @param {object} [body]
  */
+/**
+ * A reply without DocGen's own error came from something in front of the server (Nginx, Cloudflare, a load
+ * balancer) — say what usually causes it instead of a vague message.
+ */
+export function proxyMessage(status) {
+  if (status === 413) {
+    return 'The file is too large for the web server in front of DocGen (HTTP 413). Raise the upload limit — Nginx: client_max_body_size 700m; Cloudflare allows at most 100 MB per upload — or paste a download link instead.';
+  }
+  if (status === 502 || status === 503) return `The DocGen server is not reachable behind the web server (HTTP ${status}). Check that it is running (pm2 status / pm2 logs).`;
+  if (status === 504 || status === 524) {
+    return `The web server stopped waiting for DocGen (HTTP ${status}). For large uploads raise the proxy timeouts (Nginx: proxy_read_timeout / proxy_send_timeout 600s).`;
+  }
+  return status ? `Something went wrong (HTTP ${status}).` : 'Something went wrong.';
+}
+
 export async function request(kind, method, url, body) {
   const token = kind ? session.get(kind) : '';
   let res;
@@ -60,7 +75,7 @@ export async function request(kind, method, url, body) {
       session.set(kind, '');
       window.dispatchEvent(new CustomEvent('docgen:signed-out', { detail: kind }));
     }
-    throw new ApiError(res.status, data.error?.code || 'ERROR', data.error?.message || 'Something went wrong.', data.error?.details);
+    throw new ApiError(res.status, data.error?.code || 'ERROR', data.error?.message || proxyMessage(res.status), data.error?.details);
   }
   return data;
 }
