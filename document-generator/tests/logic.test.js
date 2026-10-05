@@ -63,29 +63,46 @@ test('built-in ads take turns: Activate (no license only), billing software, POS
   assert.equal(chooseAd({ firstOpenAt: T0, cachedConfig: { ...cachedConfig, defaultAdEnabled: false } }, ctx({ t: T0 + 15 * DAY, licensed: true })), null, 'server can switch them off');
 });
 
-test('remote ads: policy, date window, targeting, priority, frequency', () => {
+test('remote ads: ad-free start, 15 days between ads, targeting, priority, frequency', () => {
   const ads = [
-    { id: 1, title: 'Low', priority: 0, frequencyDays: 7, maxPerMonth: 4, target: { licenseStatus: 'all', platforms: [] } },
-    { id: 2, title: 'High', priority: 5, frequencyDays: 30, maxPerMonth: 1, target: { licenseStatus: 'trial', platforms: ['windows'] } },
+    { id: 1, title: 'Low', priority: 0, frequencyDays: 20, maxPerMonth: 4, target: { licenseStatus: 'all', platforms: [] } },
+    { id: 2, title: 'High', priority: 5, frequencyDays: 60, maxPerMonth: 1, target: { licenseStatus: 'trial', platforms: ['windows'] } },
     { id: 3, title: 'Expired', priority: 9, endAt: '2025-12-01T00:00:00Z', target: {} },
     { id: 4, title: 'Mac only', priority: 9, target: { platforms: ['macos'] } },
     { id: 5, title: 'New app only', priority: 9, target: { minVersion: '2.0.0' } },
   ];
+  // The server asks for 3 days / 7 days; the app never goes below 15.
   const cachedConfig = { adPolicy: { firstOpenDelayDays: 3, minDaysBetweenAds: 7, maxPerMonth: 4 }, defaultAdEnabled: true, ads };
   const base = { firstOpenAt: T0, cachedConfig };
-  assert.equal(chooseAd(base, ctx({ t: T0 + 1 * DAY })), null, 'no ads in the first 3 days');
-  assert.equal(chooseAd(base, ctx({ t: T0 + 5 * DAY })).id, 2, 'highest priority matching ad');
-  assert.equal(chooseAd(base, ctx({ t: T0 + 5 * DAY, licensed: true })).id, 1, 'trial-only ad skipped for licensed');
-  assert.equal(chooseAd(base, ctx({ t: T0 + 5 * DAY, platform: 'linux' })).id, 1);
-  const shown = { ...base, lastAdShownAt: T0 + 5 * DAY, adShown: { 2: { lastShownAt: T0 + 5 * DAY, month: '2026-01', count: 1 } } };
-  assert.equal(chooseAd(shown, ctx({ t: T0 + 6 * DAY })), null, 'min days between ads');
-  assert.equal(chooseAd(shown, ctx({ t: T0 + 13 * DAY })).id, 1, 'ad 2 waits for its own frequency');
-  assert.equal(chooseAd({ ...base, monthlyAdMonth: '2026-01', monthlyAdCount: 4 }, ctx({ t: T0 + 5 * DAY })), null, 'monthly maximum');
-  // Offline with a cached config: remote ads are skipped; the built-in ad may still appear.
+  assert.equal(chooseAd(base, ctx({ t: T0 + 5 * DAY })), null, 'no ads in the first 15 days');
+  assert.equal(chooseAd(base, ctx({ t: T0 + 14 * DAY })), null);
+  assert.equal(chooseAd(base, ctx({ t: T0 + 15 * DAY })).id, 2, 'highest priority matching ad');
+  assert.equal(chooseAd(base, ctx({ t: T0 + 15 * DAY, licensed: true })).id, 1, 'trial-only ad skipped for licensed');
+  assert.equal(chooseAd(base, ctx({ t: T0 + 15 * DAY, platform: 'linux' })).id, 1);
+  assert.equal(chooseAd(base, ctx({ t: T0 + 40 * DAY, licensed: true, licenseStartedAt: T0 + 30 * DAY })), null, '15 ad-free days after the license is activated');
+  assert.equal(chooseAd(base, ctx({ t: T0 + 45 * DAY, licensed: true, licenseStartedAt: T0 + 30 * DAY })).id, 1);
+  const shown = { ...base, lastAdShownAt: T0 + 15 * DAY, adShown: { 2: { lastShownAt: T0 + 15 * DAY, month: '2026-01', count: 1 } } };
+  assert.equal(chooseAd(shown, ctx({ t: T0 + 22 * DAY })), null, 'at least 15 days between ads, even if the server allows 7');
+  assert.equal(chooseAd(shown, ctx({ t: T0 + 30 * DAY })).id, 1, 'ad 2 waits for its own frequency');
+  assert.equal(chooseAd({ ...base, monthlyAdMonth: '2026-01', monthlyAdCount: 2 }, ctx({ t: T0 + 16 * DAY })), null, 'never more than 2 a month, even if the server allows 4');
+  assert.equal(chooseAd({ ...shown, lastAdShownAt: T0 + 40 * DAY }, ctx({ t: T0 + 30 * DAY })), null, 'clock set back: no ad');
+  // Offline with a cached config: remote ads are skipped; a built-in ad may still appear.
   assert.equal(chooseAd(base, ctx({ t: T0 + 20 * DAY, online: false })), DEFAULT_AD);
   assert.equal(chooseAd({ ...base, cachedConfig: { ...cachedConfig, defaultAdEnabled: false } }, ctx({ t: T0 + 20 * DAY, online: false })), null);
   assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
   assert.equal(compareVersions('1.0', '1.0.0'), 0);
+});
+
+test('missed ads never pile up: after months closed or offline, exactly one ad, then 15 days of quiet', () => {
+  const cachedConfig = { adPolicy: {}, defaultAdEnabled: true, ads: [{ id: 7, title: 'Offer', priority: 1, target: {} }] };
+  const state = { firstOpenAt: T0, lastAdShownAt: T0 + 20 * DAY, cachedConfig };
+  const later = T0 + 110 * DAY; // ~3 months later; 6 ads would have been "due"
+  const ad = chooseAd(state, ctx({ t: later }));
+  assert.equal(typeof ad, 'object');
+  assert.ok(!Array.isArray(ad) && ad.id === 7, 'one ad, the one that applies now');
+  const after = { ...state, lastAdShownAt: later, monthlyAdMonth: '2026-04', monthlyAdCount: 1 };
+  for (const d of [0, 1, 7, 14]) assert.equal(chooseAd(after, ctx({ t: later + d * DAY })), null, `nothing more ${d} days later`);
+  assert.equal(chooseAd({ firstOpenAt: T0, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 200 * DAY })).version, DEFAULT_AD.version, 'offline: one built-in ad, not a backlog');
 });
 
 test('HSN/SAC summary groups by code and rate', () => {

@@ -46,6 +46,8 @@ const API = `http://127.0.0.1:${PORT}`;
 const ADMIN = { email: 'admin@e2e.test', password: 'Admin-Pass-2026' };
 const CLIENT = { email: 'owner@sharma.test', password: 'Client-Pass-2026', name: 'Ravi Sharma', businessName: 'Sharma Furniture Works' };
 
+// An offline copy whatever remote-config.json says: a non-https server address is ignored (= no server).
+const OFFLINE = { DOCGEN_SERVER_URL: 'offline' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let session = null;
 let passed = 0;
@@ -392,13 +394,21 @@ async function main() {
 
     // ------------------------------------------------------------------ 2
     section('2. Server configuration and HTML advertisement');
+    await sleep(6500);
+    check(!(await exists('[data-testid="ad-popup"]')), 'no ads in the first 15 days, even if the server allows them earlier');
+    await relaunch({ ...online, DOCGEN_CLOCK_OFFSET_DAYS: '16' });
     await find('[data-testid="ad-popup"]', 20000);
     const adInfo = await exec(`const f=document.querySelector('[data-testid=ad-frame]');
       return { sandbox: f.getAttribute('sandbox'), srcdoc: f.getAttribute('srcdoc') || '', blocked: f.contentDocument === null, title: document.title, text: document.querySelector('[data-testid=ad-popup]').innerText };`);
     check(adInfo.text.includes('Festive offer on DocGen Business'), 'remote ad shown with title and description');
     check(adInfo.sandbox === '' && adInfo.blocked, 'ad HTML is in a fully sandboxed frame (no scripts, opaque origin)');
     check(adInfo.srcdoc.includes('20% off this week') && adInfo.title !== 'pwned', 'ad HTML rendered; its script did not run');
-    check(!(await exists('.modal-backdrop')), 'ad does not block the app (corner card, no backdrop)');
+    await sleep(600); // after the opening animation
+    const box = await exec(`const p=document.querySelector('.ad-popup').getBoundingClientRect(); const l=getComputedStyle(document.querySelector('.ad-layer'));
+      return { w: p.width, h: p.height, cx: p.left + p.width / 2, cy: p.top + p.height / 2, vw: innerWidth, vh: innerHeight, blur: l.backdropFilter || l.webkitBackdropFilter || l.getPropertyValue('-webkit-backdrop-filter') || '', dim: l.backgroundColor };`);
+    check(Math.abs(box.cx - box.vw / 2) < 4 && Math.abs(box.cy - box.vh / 2) < 4 && box.w <= 562 && box.w < box.vw * 0.8 && box.h < box.vh * 0.95 && /rgba/.test(box.dim) && /blur/.test(box.blur),
+      `ad is a medium card in the middle of the window over a dimmed, blurred background (${Math.round(box.w)}×${Math.round(box.h)} in ${box.vw}×${box.vh}, centre ${Math.round(box.cx)},${Math.round(box.cy)}, blur: ${box.blur || 'n/a'})`);
+    check(!/sponsored/i.test(adInfo.text), 'no "Sponsored" label');
     await sleep(1200);
     await shot('05-remote-ad');
     if (process.env.E2E_STOP_AFTER === '2') return;
@@ -906,7 +916,7 @@ async function main() {
     // ----------------------------------------------------------------- 15
     section('15. Offline build: built-in ad, clock rollback');
     rmSync(DATA_DIR, { recursive: true, force: true });
-    await startDriver({});
+    await startDriver(OFFLINE);
     await startApp();
     await waitForText('Welcome to DocGen');
     await clickCss('[data-testid="setup-next"]');
@@ -919,18 +929,18 @@ async function main() {
     await find('[data-testid="type-cards"]');
     await sleep(6500);
     check(!(await exists('[data-testid="ad-popup"]')), 'no ad on the first day');
-    await relaunch({ DOCGEN_CLOCK_OFFSET_DAYS: '16' });
+    await relaunch({ ...OFFLINE, DOCGEN_CLOCK_OFFSET_DAYS: '16' });
     await find('[data-testid="ad-popup"]', 15000);
     check((await textOf('[data-testid="ad-popup"]')).includes('Get more from DocGen'), 'built-in DocGen message after ~15 days offline');
     await shot('18-default-ad');
     await clickCss('[data-testid="ad-cta"]');
     await waitForText('License & Account');
     check(true, 'built-in ad button opens License & Account');
-    await relaunch({ DOCGEN_CLOCK_OFFSET_DAYS: '20' });
+    await relaunch({ ...OFFLINE, DOCGEN_CLOCK_OFFSET_DAYS: '20' });
     await go('#/manager');
     await sleep(6500);
     check(!(await exists('[data-testid="ad-popup"]')), 'built-in ad not repeated within 15 days');
-    await relaunch({ DOCGEN_CLOCK_OFFSET_DAYS: '0' });
+    await relaunch({ ...OFFLINE, DOCGEN_CLOCK_OFFSET_DAYS: '0' });
     check((await invoke('license_status')).trialDaysLeft === 10, 'setting the clock back does not extend the trial');
 
     // ----------------------------------------------------------------- 16

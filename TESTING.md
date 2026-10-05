@@ -4,10 +4,10 @@ Last full run: **4 October 2026** (after Help & Support, the policy and contact 
 
 | Suite | Command | Result |
 |-------|---------|--------|
-| Desktop JS unit tests | `cd document-generator && npm test` | **20 / 20 passed** |
+| Desktop JS unit tests | `cd document-generator && npm test` | **22 / 22 passed** (5 October 2026: ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **171 / 171 checks passed** |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **173 / 173 checks passed** (5 October 2026, incl. centred ad over a blurred background, no ads in the first 15 days) |
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **61 / 61 passed** (19 API, 41 journey/checkout/terms/payments/licensing/durations/phones/downloads/email/support/prices, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** (previous run; not re-run this round) |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **108 / 108 passed** |

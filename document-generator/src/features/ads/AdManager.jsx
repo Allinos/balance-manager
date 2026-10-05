@@ -27,8 +27,9 @@ body{padding:12px 16px}img{max-width:100%;height:auto}a{color:inherit;pointer-ev
 </style></head><body>${html}</body></html>`;
 
 /**
- * Shows at most one advertisement per app session, only on overview pages,
- * a few seconds after startup. Closable, never blocks work.
+ * Shows at most one advertisement per app session, only on overview pages, a few seconds after
+ * startup: a medium-sized card in the middle of the window over a softly blurred background.
+ * Closes with ×, "Not now", Esc or a click beside it.
  */
 export default function AdManager() {
   const { path, navigate } = useRouter();
@@ -37,6 +38,7 @@ export default function AdManager() {
   const [visible, setVisible] = useState(null);
   const decided = useRef(false);
   const licensed = !!license?.licensed;
+  const licenseStartedAt = Date.parse(license?.license?.activatedAt || '') || 0;
 
   // Decide once per session.
   useEffect(() => {
@@ -45,14 +47,14 @@ export default function AdManager() {
       if (decided.current) return;
       decided.current = true;
       try {
-        const ad = await pickAdToShow({ licensed, platform: info?.platform, appVersion: info?.version });
+        const ad = await pickAdToShow({ licensed, licenseStartedAt, platform: info?.platform, appVersion: info?.version });
         if (ad) setCandidate(ad);
       } catch {
         /* ads must never disturb the app */
       }
     }, STARTUP_DELAY_MS);
     return () => clearTimeout(t);
-  }, [loading, licensed, info?.platform, info?.version]);
+  }, [loading, licensed, licenseStartedAt, info?.platform, info?.version]);
 
   // Show only when the user is on an overview page.
   useEffect(() => {
@@ -89,15 +91,27 @@ export default function AdManager() {
   };
   const hasCta = visible.action === 'license' || !!visible.linkUrl;
 
+  const image = visible.imageUrl || BUILT_IN_IMAGES[visible.image];
   return (
-    <div className="ad-layer no-print" data-testid="ad-popup" data-ad-id={visible.id}>
-      <div className="ad-popup" role="dialog" aria-label={visible.title || 'Announcement'}>
+    <div className="ad-layer no-print" data-testid="ad-popup" data-ad-id={visible.id} onMouseDown={(e) => e.target === e.currentTarget && close()}>
+      <div className="ad-popup" role="dialog" aria-modal="true" aria-label={visible.title || 'Announcement'}>
         <button className="icon-btn ad-close" onClick={close} aria-label="Close" data-testid="ad-close">
-          <Icon name="x" size={16} />
+          <Icon name="x" size={18} />
         </button>
-        {(visible.imageUrl || BUILT_IN_IMAGES[visible.image]) && <img className="ad-image" src={visible.imageUrl || BUILT_IN_IMAGES[visible.image]} alt="" referrerPolicy="no-referrer" onError={(e) => e.currentTarget.remove()} />}
+        {image ? (
+          <div className="ad-media">
+            <img className="ad-image" src={image} alt="" referrerPolicy="no-referrer" onError={(e) => e.currentTarget.parentElement.remove()} />
+          </div>
+        ) : (
+          visible.icon && (
+            <div className="ad-band" aria-hidden="true">
+              <span className="ad-band-icon">
+                <Icon name={visible.icon} size={30} />
+              </span>
+            </div>
+          )
+        )}
         <div className="ad-body">
-          <span className="ad-label">{visible.builtIn ? (visible.action === 'license' ? 'DocGen' : 'From reynrel.in') : 'Sponsored'}</span>
           <h3 className="ad-title">{visible.title}</h3>
           {visible.description && <p className="ad-text">{visible.description}</p>}
         </div>
@@ -105,11 +119,12 @@ export default function AdManager() {
           <iframe className="ad-frame" title="Announcement content" srcDoc={adDocument(visible.html)} sandbox="" referrerPolicy="no-referrer" data-testid="ad-frame" />
         )}
         <div className="ad-footer">
-          <button className="btn btn-sm" onClick={close}>
+          {visible.builtIn && visible.action !== 'license' && <span className="ad-from">reynrel.in</span>}
+          <button className="btn" onClick={close}>
             Not now
           </button>
           {hasCta && (
-            <button className="btn btn-sm btn-primary" onClick={click} data-testid="ad-cta">
+            <button className="btn btn-primary" onClick={click} data-testid="ad-cta">
               {visible.ctaText || 'Learn more'}
             </button>
           )}

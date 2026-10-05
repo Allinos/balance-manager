@@ -1848,42 +1848,6 @@ textarea.input {
   mask-image: linear-gradient(to bottom, #000 70%, transparent);
 }
 
-/* -------------------------------- Ads ---------------------------------- */
-.ad-popup {
-  width: 100%;
-  max-width: 480px;
-  background: var(--surface);
-  border-radius: 14px;
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-.ad-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 8px 8px 16px;
-  font-size: 12px;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border-bottom: 1px solid var(--border);
-}
-.ad-frame {
-  width: 100%;
-  height: 300px;
-  border: 0;
-  background: #fff;
-}
-.ad-footer {
-  display: flex;
-  justify-content: center;
-  padding: 12px;
-  border-top: 1px solid var(--border);
-}
-
 /* ----------------------------- Responsive ------------------------------ */
 @media (max-width: 1180px) {
   .doc-cards {
@@ -3226,16 +3190,31 @@ div.folder-item {
 }
 
 /* ------------------------------ Ads ------------------------------------ */
+/* A medium card in the middle of the window; the app stays visible behind a soft blur. */
 .ad-layer {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
+  inset: 0;
   z-index: 90;
-  animation: ad-in 0.25s ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.32);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: ad-fade 0.2s ease-out;
+}
+@keyframes ad-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes ad-in {
   from {
-    transform: translateY(16px);
+    transform: translateY(12px) scale(0.98);
     opacity: 0;
   }
   to {
@@ -3245,52 +3224,87 @@ div.folder-item {
 }
 .ad-popup {
   position: relative;
-  width: 340px;
-  max-width: calc(100vw - 40px);
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-height: min(640px, calc(100vh - 48px));
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
-  box-shadow: var(--shadow-lg);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
   overflow: hidden;
+  animation: ad-in 0.25s ease-out;
 }
 .ad-close {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 12px;
+  right: 12px;
   z-index: 2;
-  background: var(--surface);
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--border);
   border-radius: 50%;
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+.ad-media {
+  flex: none;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.ad-band {
+  flex: none;
+  height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #224cc8 0%, #3b6ef0 55%, #d8943e 140%);
+}
+.ad-band-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 16px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+.ad-band + .ad-body .ad-title {
+  margin-right: 0;
 }
 .ad-image {
   display: block;
   width: 100%;
-  max-height: 170px;
+  height: auto;
+  max-height: 280px;
   object-fit: cover;
-  background: var(--surface-2);
+  object-position: top center;
 }
 .ad-body {
-  padding: 14px 16px 6px;
-}
-.ad-label {
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  padding: 22px 26px 8px;
+  overflow: auto;
 }
 .ad-title {
-  font-size: 16px;
-  margin: 3px 28px 4px 0;
+  font-size: 20px;
+  line-height: 1.3;
+  margin: 0 36px 8px 0;
+  letter-spacing: -0.01em;
+}
+.ad-media + .ad-body .ad-title {
+  margin-right: 0;
 }
 .ad-text {
   margin: 0;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: 14.5px;
+  line-height: 1.55;
 }
 .ad-frame {
   display: block;
   width: 100%;
-  height: 160px;
+  height: 180px;
   border: 0;
   border-top: 1px solid var(--border);
   background: #fff;
@@ -3298,8 +3312,15 @@ div.folder-item {
 .ad-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 10px 14px 14px;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 26px 22px;
+}
+.ad-from {
+  margin-right: auto;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
 }
 
 /* ------------------------------ Help ----------------------------------- */

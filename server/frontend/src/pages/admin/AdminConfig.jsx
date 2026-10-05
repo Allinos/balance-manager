@@ -76,18 +76,22 @@ export default function AdminConfig() {
         </div>
         <div className="card">
           <h3>Ads</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            The app always keeps at least 15 ad-free days after the first start and after a license is activated, and at least 15 days between
+            two ads; values below 15 work as 15. Missed ads are never saved up — at most one ad per app start.
+          </p>
           <div className="grid-3">
-            <Field label="Minimum days between any two ads">
-              <Input type="number" min="0" value={form.adPolicy.minDaysBetweenAds} onChange={(v) => set('adPolicy.minDaysBetweenAds', v)} />
+            <Field label="Minimum days between any two ads" hint="15 or more">
+              <Input type="number" min="15" value={form.adPolicy.minDaysBetweenAds} onChange={(v) => set('adPolicy.minDaysBetweenAds', v)} />
             </Field>
             <Field label="Maximum ads per month">
               <Input type="number" min="0" max="31" value={form.adPolicy.maxPerMonth} onChange={(v) => set('adPolicy.maxPerMonth', v)} />
             </Field>
-            <Field label="No ads for the first … days after install">
-              <Input type="number" min="0" value={form.adPolicy.firstOpenDelayDays} onChange={(v) => set('adPolicy.firstOpenDelayDays', v)} />
+            <Field label="No ads for the first … days after install / activation" hint="15 or more">
+              <Input type="number" min="15" value={form.adPolicy.firstOpenDelayDays} onChange={(v) => set('adPolicy.firstOpenDelayDays', v)} />
             </Field>
           </div>
-          <Check checked={form.defaultAdEnabled} onChange={(v) => set('defaultAdEnabled', v)} label="Show the built-in DocGen message when no ad is running" />
+          <Check checked={form.defaultAdEnabled} onChange={(v) => set('defaultAdEnabled', v)} label="Show the built-in ads (Activate DocGen, reynrel.in products and services) when no ad is running" />
         </div>
         <div className="card">
           <h3>Application</h3>

@@ -4,18 +4,22 @@
  * Remote ads come from the cached server configuration (see services/remoteConfig.js).
  * Rules, in order:
  *   1. never while a document is being edited (enforced by AdManager);
- *   2. at most one ad per app session;
- *   3. policy from the server: no ads for the first N days after install,
- *      minimum days between any two ads, maximum ads per month;
+ *   2. ad-free for the first 15 days after the app is first started and after a license is
+ *      activated (AD_FREE_DAYS; the server may make this longer, never shorter);
+ *   3. at most one ad per app session, at least 15 days between two ads (MIN_DAYS_BETWEEN_ADS) and
+ *      at most 2 in a calendar month (MAX_ADS_PER_MONTH); the server may make these stricter;
  *   4. per ad: date window, target (trial/licensed users, platform, app version),
  *      its own "show again after N days" and monthly maximum;
  *   5. highest priority wins, ties are picked at random.
  *
+ * Missed ads never pile up: nothing is queued while the app is closed or offline. The decision is
+ * made fresh each time the app starts and returns at most ONE ad — the one that applies now. After
+ * three months closed the user sees one ad, not five.
+ *
  * Built-in ads (no internet needed): when the app has never received a server configuration
- * (for example it is always offline), or it is offline / has no server ad to show, one built-in
- * ad is shown every 15 days. They take turns: reynrel.in's billing software, POS billing and
- * services (HOUSE_ADS), plus — for copies without a license — "Activate DocGen".
- * The server can switch built-in ads off (defaultAdEnabled: false).
+ * (for example it is always offline), or it is offline / has no server ad to show, the built-in
+ * ads take turns: reynrel.in's billing software, POS billing and services (HOUSE_ADS), plus — for
+ * copies without a license — "Activate DocGen". The server can switch them off (defaultAdEnabled: false).
  */
 
 import { call } from '../../services/api.js';
@@ -23,7 +27,13 @@ import { getAdState, now, setAdState } from '../../services/remoteConfig.js';
 import { monthKey } from '../../utils/dates.js';
 
 const DAY = 86400000;
-export const DEFAULT_AD_INTERVAL_DAYS = 15;
+/** No ads in the first 15 days after the first start and after a license is activated. */
+export const AD_FREE_DAYS = 15;
+/** At least 15 days between two ads (built-in or from the server). */
+export const MIN_DAYS_BETWEEN_ADS = 15;
+export const DEFAULT_AD_INTERVAL_DAYS = MIN_DAYS_BETWEEN_ADS;
+/** Never more than two ads in a calendar month (the server may set fewer). */
+export const MAX_ADS_PER_MONTH = 2;
 
 /** Built-in ad (id 0). Shown offline; the button opens License & Account. */
 export const DEFAULT_AD = {
@@ -34,6 +44,7 @@ export const DEFAULT_AD = {
   description: 'Activate DocGen with your account or a license code to use it without limits, on more computers, with priority support.',
   ctaText: 'Activate now',
   action: 'license',
+  icon: 'key',
   imageUrl: '',
   html: '',
   linkUrl: '',
@@ -43,7 +54,7 @@ const UTM = 'utm_source=docgen-desktop&utm_medium=app&utm_campaign=house-ad';
 
 /**
  * reynrel.in's own products and services, shown in turn every 15 days. Edit the texts and links here.
- * `image`: a picture bundled with the app (see AdManager); '' = text only.
+ * `image`: a picture bundled with the app (see AdManager); without one, `icon` is shown on a coloured band.
  */
 export const HOUSE_ADS = [
   {
@@ -73,6 +84,7 @@ export const HOUSE_ADS = [
     version: 'web-1',
     builtIn: true,
     image: '',
+    icon: 'globe',
     title: 'Get a professional website for your business',
     description: 'reynrel.in designs fast, mobile-friendly websites so customers find you on Google — with WhatsApp and call buttons, your products and location.',
     ctaText: 'Talk to reynrel.in',
@@ -83,6 +95,7 @@ export const HOUSE_ADS = [
     version: 'software-1',
     builtIn: true,
     image: '',
+    icon: 'tool',
     title: 'Custom software and mobile apps',
     description: 'Need something made for the way you work — an app for your staff, an online ordering system or automation? reynrel.in builds software for small businesses.',
     ctaText: 'Discuss your idea',
@@ -93,6 +106,7 @@ export const HOUSE_ADS = [
     version: 'marketing-1',
     builtIn: true,
     image: '',
+    icon: 'sparkle',
     title: 'Bring more customers with Google & social media ads',
     description: 'reynrel.in sets up and runs Google, Facebook and Instagram ads and your Google Business profile, so nearby customers find your business.',
     ctaText: 'Grow my business',
@@ -145,28 +159,25 @@ export function adMatches(ad, { t, licensed, platform, appVersion, perAd }) {
  * Pure decision function (unit-tested): which ad, if any, to show.
  * @returns {object|null}
  */
-export function chooseAd(state, { t, licensed, platform, appVersion, online, random = Math.random }) {
+export function chooseAd(state, { t, licensed, licenseStartedAt = 0, platform, appVersion, online, random = Math.random }) {
   const config = state.cachedConfig || null;
-  const firstOpenAt = Number(state.firstOpenAt || t);
+  const policy = config?.adPolicy || {};
   const month = monthKey(new Date(t));
   const monthlyCount = state.monthlyAdMonth === month ? Number(state.monthlyAdCount || 0) : 0;
 
-  const defaultDue = () => {
-    const last = Number(state.defaultAdLastShownAt || 0);
-    const since = last || firstOpenAt;
-    return t - since >= DEFAULT_AD_INTERVAL_DAYS * DAY;
-  };
+  // Ad-free start: 15 days after the first start of the app and after the license was activated.
+  const firstOpenAt = Number(state.firstOpenAt || t);
+  const startedAt = Math.max(firstOpenAt, Number(licenseStartedAt) || 0);
+  if (t - startedAt < Math.max(AD_FREE_DAYS, Number(policy.firstOpenDelayDays || 0)) * DAY) return null;
 
-  if (!config) {
-    // Never received a server configuration: built-in ads only.
-    return defaultDue() ? nextBuiltInAd(state, licensed) : null;
-  }
+  // At least 15 days since the last ad of any kind. A clock set back (last ad "in the future") also waits.
+  const lastShown = Math.max(Number(state.lastAdShownAt || 0), Number(state.defaultAdLastShownAt || 0));
+  if (lastShown && t - lastShown < Math.max(MIN_DAYS_BETWEEN_ADS, Number(policy.minDaysBetweenAds || 0)) * DAY) return null;
 
-  const policy = config.adPolicy || {};
-  if (t - firstOpenAt < Number(policy.firstOpenDelayDays || 0) * DAY) return null;
-  const lastShown = Number(state.lastAdShownAt || 0);
-  if (lastShown && t - lastShown < Number(policy.minDaysBetweenAds || 0) * DAY) return null;
-  if (monthlyCount >= Number(policy.maxPerMonth ?? 4)) return null;
+  if (monthlyCount >= Math.min(MAX_ADS_PER_MONTH, Number(policy.maxPerMonth ?? MAX_ADS_PER_MONTH))) return null;
+
+  // Never received a server configuration: built-in ads only.
+  if (!config) return nextBuiltInAd(state, licensed);
 
   if (online) {
     const candidates = (config.ads || []).filter((ad) => adMatches(ad, { t, licensed, platform, appVersion, perAd: state.adShown || {} }));
@@ -176,19 +187,18 @@ export function chooseAd(state, { t, licensed, platform, appVersion, online, ran
       return best[Math.floor(random() * best.length)] || best[0];
     }
   }
-  if (config.defaultAdEnabled !== false && defaultDue()) return nextBuiltInAd(state, licensed);
-  return null;
+  return config.defaultAdEnabled !== false ? nextBuiltInAd(state, licensed) : null;
 }
 
 /** Read local state, record first open, and decide. */
-export async function pickAdToShow({ licensed, platform, appVersion }) {
+export async function pickAdToShow({ licensed, licenseStartedAt, platform, appVersion }) {
   const t = now();
   const state = await getAdState();
   if (!state.firstOpenAt) {
     await setAdState({ firstOpenAt: t });
     state.firstOpenAt = t;
   }
-  return chooseAd(state, { t, licensed, platform, appVersion, online: typeof navigator === 'undefined' || navigator.onLine !== false });
+  return chooseAd(state, { t, licensed, licenseStartedAt, platform, appVersion, online: typeof navigator === 'undefined' || navigator.onLine !== false });
 }
 
 /** Update counters after an ad was displayed. */

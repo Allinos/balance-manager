@@ -32,7 +32,7 @@ export async function bumpStat(knex, metric, by = 1) {
 /** Default remote configuration delivered to the desktop app. Editable in Admin → App configuration. */
 export const DEFAULT_APP_CONFIG = {
   configIntervalDays: 30,
-  adPolicy: { minDaysBetweenAds: 7, maxPerMonth: 4, firstOpenDelayDays: 3 },
+  adPolicy: { minDaysBetweenAds: 15, maxPerMonth: 2, firstOpenDelayDays: 15 },
   defaultAdEnabled: true,
   app: { latestVersion: '1.0.0', downloadUrl: '', message: '' },
   help: {

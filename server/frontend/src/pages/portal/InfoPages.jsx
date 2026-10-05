@@ -14,7 +14,7 @@ import { SUPPORT_EMAIL } from '../../constants.js';
 import { SupportForm } from './Support.jsx';
 
 /** Date the policies below were last changed. Update it whenever their text changes. */
-export const POLICIES_UPDATED = '4 October 2026';
+export const POLICIES_UPDATED = '5 October 2026';
 
 const DEFAULT_BUSINESS = { legalName: 'Reynrel', address: '', phone: '', hours: 'Monday to Saturday, 10:00 to 18:00 IST', jurisdiction: '' };
 
@@ -139,7 +139,40 @@ function Terms({ b }) {
         During your license period you receive DocGen updates and support by email and through Help &amp; Support. We aim to answer within one working
         day. We may improve, change or remove features over time.
       </p>
-      <h2>8. Warranty and liability</h2>
+      <h2 id="ads">8. Advertisements in the DocGen apps</h2>
+      <p>The DocGen desktop app shows occasional advertisements and announcements, under these rules:</p>
+      <ul>
+        <li>
+          <strong>15 ad-free days:</strong> no advertisement is shown during the first 15 days after you first start DocGen, and again for 15 days
+          after you activate a license.
+        </li>
+        <li>
+          <strong>How often:</strong> after that, at most one advertisement every 15 days, at most one each time you open DocGen, and never more
+          than two in a calendar month. We may show them less often, never more often.
+        </li>
+        <li>
+          <strong>Missed ads are not saved up:</strong> if an advertisement was due while DocGen was closed or your computer was offline, it is
+          simply skipped. When you open DocGen again — even after several months — you see at most one advertisement, the one that applies at that
+          moment, never a backlog of old ones.
+        </li>
+        <li>
+          <strong>Never during your work:</strong> advertisements appear a few seconds after start-up on overview pages only (Dashboard, Document
+          Manager, Help) — never while you create or edit a document, and never on printed documents or PDFs.
+        </li>
+        <li>
+          <strong>How they look:</strong> a medium-sized window in the middle of the screen over a slightly dimmed background. You can close it at
+          once with ×, “Not now”, the Esc key or a click beside it. Nothing is opened unless you click its button.
+        </li>
+        <li>
+          <strong>Without internet:</strong> DocGen shows only advertisements built into the app (DocGen activation, and products and services of{' '}
+          {b.legalName} / reynrel.in). With internet, it may also show current announcements and offers from us.
+        </li>
+        <li>
+          <strong>Privacy:</strong> advertisements never read or send your documents, customers or products. Only anonymous counts (shown, closed,
+          clicked) are sent, without any information about you or your business.
+        </li>
+      </ul>
+      <h2>9. Warranty and liability</h2>
       <ul>
         <li>We work hard to keep DocGen reliable, but it is provided “as is”, without a promise that it will be free of errors or always available.</li>
         <li>
@@ -149,19 +182,19 @@ function Terms({ b }) {
         </li>
         <li>Nothing in these terms limits rights you have under Indian consumer protection law.</li>
       </ul>
-      <h2>9. Intellectual property</h2>
+      <h2>10. Intellectual property</h2>
       <p>DocGen, its design, templates and code belong to {b.legalName}. The license lets you use them; it does not transfer ownership.</p>
-      <h2>10. Changes to these terms</h2>
+      <h2>11. Changes to these terms</h2>
       <p>
         We may update these terms. The date at the top shows the latest version. Important changes are announced by email or on this website. The
         terms in force when you bought a license continue to apply to that purchase.
       </p>
-      <h2>11. Governing law</h2>
+      <h2>12. Governing law</h2>
       <p>
         These terms are governed by the laws of India. Any dispute will be handled by <Courts b={b} />. Before going to court, please contact us — most
         problems are solved quickly.
       </p>
-      <h2>12. Contact</h2>
+      <h2>13. Contact</h2>
       <ContactLines b={b} />
     </>
   );
