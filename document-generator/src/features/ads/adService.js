@@ -11,9 +11,11 @@
  *      its own "show again after N days" and monthly maximum;
  *   5. highest priority wins, ties are picked at random.
  *
- * Built-in fallback: if the app has never received a server configuration (for
- * example it is always offline), a built-in DocGen message is shown about every
- * 15 days. It needs no internet connection.
+ * Built-in ads (no internet needed): when the app has never received a server configuration
+ * (for example it is always offline), or it is offline / has no server ad to show, one built-in
+ * ad is shown every 15 days. They take turns: reynrel.in's billing software, POS billing and
+ * services (HOUSE_ADS), plus — for copies without a license — "Activate DocGen".
+ * The server can switch built-in ads off (defaultAdEnabled: false).
  */
 
 import { call } from '../../services/api.js';
@@ -37,6 +39,77 @@ export const DEFAULT_AD = {
   linkUrl: '',
 };
 
+const UTM = 'utm_source=docgen-desktop&utm_medium=app&utm_campaign=house-ad';
+
+/**
+ * reynrel.in's own products and services, shown in turn every 15 days. Edit the texts and links here.
+ * `image`: a picture bundled with the app (see AdManager); '' = text only.
+ */
+export const HOUSE_ADS = [
+  {
+    id: 0,
+    version: 'billing-1',
+    builtIn: true,
+    image: 'billing',
+    title: 'Billing & inventory software for shops and distributors',
+    description:
+      'Retail POS, B2B and B2C billing, stock across warehouses, purchases, barcodes, customer dues and GST reports — with a clear dashboard of your sales. By reynrel.in.',
+    ctaText: 'See the billing software',
+    linkUrl: `https://reynrel.in/?${UTM}&utm_content=billing`,
+  },
+  {
+    id: 0,
+    version: 'pos-1',
+    builtIn: true,
+    image: 'pos',
+    title: 'Fast POS billing for cafés, restaurants and salons',
+    description:
+      'Tap items to bill in seconds, hold and resume orders, takeaway and parcel, expenses, employees and daily reports. Works on a computer or tablet. By reynrel.in.',
+    ctaText: 'See the POS software',
+    linkUrl: `https://reynrel.in/?${UTM}&utm_content=pos`,
+  },
+  {
+    id: 0,
+    version: 'web-1',
+    builtIn: true,
+    image: '',
+    title: 'Get a professional website for your business',
+    description: 'reynrel.in designs fast, mobile-friendly websites so customers find you on Google — with WhatsApp and call buttons, your products and location.',
+    ctaText: 'Talk to reynrel.in',
+    linkUrl: `https://reynrel.in/?${UTM}&utm_content=website`,
+  },
+  {
+    id: 0,
+    version: 'software-1',
+    builtIn: true,
+    image: '',
+    title: 'Custom software and mobile apps',
+    description: 'Need something made for the way you work — an app for your staff, an online ordering system or automation? reynrel.in builds software for small businesses.',
+    ctaText: 'Discuss your idea',
+    linkUrl: `https://reynrel.in/?${UTM}&utm_content=custom-software`,
+  },
+  {
+    id: 0,
+    version: 'marketing-1',
+    builtIn: true,
+    image: '',
+    title: 'Bring more customers with Google & social media ads',
+    description: 'reynrel.in sets up and runs Google, Facebook and Instagram ads and your Google Business profile, so nearby customers find your business.',
+    ctaText: 'Grow my business',
+    linkUrl: `https://reynrel.in/?${UTM}&utm_content=marketing`,
+  },
+];
+
+/** The built-in ads for this copy, in the order they take turns. */
+export const builtInAds = (licensed) => (licensed ? HOUSE_ADS : [DEFAULT_AD, ...HOUSE_ADS]);
+
+/** The next built-in ad in turn. */
+export const nextBuiltInAd = (state, licensed) => {
+  const ads = builtInAds(licensed);
+  return ads[Number(state.defaultAdIndex || 0) % ads.length];
+};
+
+// Built-in ads have id 0: their counters stay on this computer (never sent to the server).
 export const recordAdEvent = (event, ad) =>
   call('ad_event_record', { event, adId: Number(ad.id) || 0, adVersion: String(ad.version ?? '') }).catch(() => {});
 
@@ -85,8 +158,8 @@ export function chooseAd(state, { t, licensed, platform, appVersion, online, ran
   };
 
   if (!config) {
-    // Never received a server configuration: built-in fallback only.
-    return !licensed && defaultDue() ? DEFAULT_AD : null;
+    // Never received a server configuration: built-in ads only.
+    return defaultDue() ? nextBuiltInAd(state, licensed) : null;
   }
 
   const policy = config.adPolicy || {};
@@ -103,7 +176,7 @@ export function chooseAd(state, { t, licensed, platform, appVersion, online, ran
       return best[Math.floor(random() * best.length)] || best[0];
     }
   }
-  if (config.defaultAdEnabled !== false && !licensed && defaultDue()) return DEFAULT_AD;
+  if (config.defaultAdEnabled !== false && defaultDue()) return nextBuiltInAd(state, licensed);
   return null;
 }
 
@@ -127,6 +200,7 @@ export async function markAdShown(ad) {
   const values = { lastAdShownAt: t, monthlyAdCount: count + 1, monthlyAdMonth: month };
   if (ad.builtIn) {
     values.defaultAdLastShownAt = t;
+    values.defaultAdIndex = Number(state.defaultAdIndex || 0) + 1;
   } else {
     const perAd = { ...(state.adShown || {}) };
     const mine = perAd[ad.id] && perAd[ad.id].month === month ? perAd[ad.id] : { month, count: 0 };

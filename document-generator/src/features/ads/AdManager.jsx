@@ -4,6 +4,11 @@ import { useRouter } from '../../router/router.jsx';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { openExternal } from '../../services/systemService.js';
 import { markAdShown, pickAdToShow, recordAdEvent } from './adService.js';
+import billingImage from './house-billing.jpg';
+import posImage from './house-pos.jpg';
+
+/** Pictures of the built-in ads (bundled, shown offline). */
+const BUILT_IN_IMAGES = { billing: billingImage, pos: posImage };
 
 /** Pages where an ad may appear. Never while creating or editing a document. */
 const QUIET_OK = ['/', '/dashboard', '/manager', '/help'];
@@ -90,9 +95,9 @@ export default function AdManager() {
         <button className="icon-btn ad-close" onClick={close} aria-label="Close" data-testid="ad-close">
           <Icon name="x" size={16} />
         </button>
-        {visible.imageUrl && <img className="ad-image" src={visible.imageUrl} alt="" referrerPolicy="no-referrer" onError={(e) => e.currentTarget.remove()} />}
+        {(visible.imageUrl || BUILT_IN_IMAGES[visible.image]) && <img className="ad-image" src={visible.imageUrl || BUILT_IN_IMAGES[visible.image]} alt="" referrerPolicy="no-referrer" onError={(e) => e.currentTarget.remove()} />}
         <div className="ad-body">
-          <span className="ad-label">{visible.builtIn ? 'DocGen' : 'Sponsored'}</span>
+          <span className="ad-label">{visible.builtIn ? (visible.action === 'license' ? 'DocGen' : 'From reynrel.in') : 'Sponsored'}</span>
           <h3 className="ad-title">{visible.title}</h3>
           {visible.description && <p className="ad-text">{visible.description}</p>}
         </div>

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseAd, compareVersions, DEFAULT_AD } from '../src/features/ads/adService.js';
+import { chooseAd, compareVersions, DEFAULT_AD, HOUSE_ADS } from '../src/features/ads/adService.js';
 import { isCheckDue } from '../src/services/remoteConfig.js';
 import { formatActivationCode, isValidActivationCode } from '../src/services/licenseService.js';
 import { isValidGstin, stateCode, stateFromGstin } from '../src/config/states.js';
@@ -50,7 +50,17 @@ test('built-in ad every 15 days when no server config was ever received', () => 
   assert.equal(chooseAd(state, ctx({ t: T0 + 15 * DAY })), DEFAULT_AD);
   assert.equal(chooseAd({ ...state, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 20 * DAY })), null);
   assert.equal(chooseAd({ ...state, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 30 * DAY })), DEFAULT_AD);
-  assert.equal(chooseAd(state, ctx({ t: T0 + 40 * DAY, licensed: true })), null, 'licensed users never see the built-in ad');
+  assert.equal(chooseAd(state, ctx({ t: T0 + 40 * DAY, licensed: true })), HOUSE_ADS[0], 'licensed users see reynrel.in products, never "Activate"');
+});
+
+test('built-in ads take turns: Activate (no license only), billing software, POS, reynrel.in services', () => {
+  const at = (n, licensed) => chooseAd({ firstOpenAt: T0, defaultAdIndex: n }, ctx({ t: T0 + 15 * DAY, licensed }));
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((n) => at(n, false).version), [1, 'billing-1', 'pos-1', 'web-1', 'software-1', 'marketing-1', 1]);
+  assert.deepEqual([0, 1, 2, 3, 4, 5].map((n) => at(n, true).version), ['billing-1', 'pos-1', 'web-1', 'software-1', 'marketing-1', 'billing-1']);
+  assert.ok(HOUSE_ADS.every((a) => a.builtIn && a.id === 0 && a.linkUrl.startsWith('https://reynrel.in/')), 'built-in ads open reynrel.in; counters stay local');
+  const cachedConfig = { adPolicy: {}, defaultAdEnabled: true, ads: [] };
+  assert.equal(chooseAd({ firstOpenAt: T0, cachedConfig }, ctx({ t: T0 + 15 * DAY, licensed: true, online: false })), HOUSE_ADS[0], 'offline with a cached config');
+  assert.equal(chooseAd({ firstOpenAt: T0, cachedConfig: { ...cachedConfig, defaultAdEnabled: false } }, ctx({ t: T0 + 15 * DAY, licensed: true })), null, 'server can switch them off');
 });
 
 test('remote ads: policy, date window, targeting, priority, frequency', () => {

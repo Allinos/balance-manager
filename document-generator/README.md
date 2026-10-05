@@ -163,7 +163,13 @@ dev server (`Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object
 ```
 
 - `serverUrl` empty → **fully offline build**: no network requests at all; the 30 days work,
-  sign-in/activation are unavailable, the built-in DocGen message appears about every 15 days.
+  sign-in/activation are unavailable, and a built-in ad appears every 15 days.
+- **Built-in ads** (bundled, no internet needed; `src/features/ads/adService.js` → `HOUSE_ADS`): shown every
+  15 days when the app is offline, has never reached the server, or the server has no ad to show. They take
+  turns: "Activate DocGen" (only without a license), reynrel.in's billing & inventory software, POS billing for
+  cafés/restaurants/salons, and three reynrel.in services (websites, custom software & apps, Google/social ads).
+  Buttons open reynrel.in (tagged `utm_source=docgen-desktop`). Admin → App settings → built-in ad off
+  (`defaultAdEnabled: false`) switches them off once the app has the server configuration.
 - Release builds only accept `https://` URLs. The `DOCGEN_*` environment overrides work only in debug builds.
 
 Branding (`src/config/appConfig.js`): app name, tagline, icon (`public/brand-icon.png`; installer icons from `assets/app-icon.png` via `npx tauri icon`),
