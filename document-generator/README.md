@@ -10,11 +10,11 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
 
 | Dashboard | Document Manager | Tally Professional GST invoice |
 |---|---|---|
-| ![Dashboard](docs/screenshots/00-dashboard.png) | ![Manager](docs/screenshots/13-files.png) | ![Invoice](docs/screenshots/09-invoice-tally-pro.png) |
+| ![Dashboard](../docs/screenshots/00-dashboard.png) | ![Manager](../docs/screenshots/13-files.png) | ![Invoice](../docs/screenshots/09-invoice-tally-pro.png) |
 
 | Activation | After 30 days | Status quick edit |
 |---|---|---|
-| ![Activation](docs/screenshots/04-activation.png) | ![Activation required](docs/screenshots/16-trial-ended.png) | ![Status](docs/screenshots/11-status-editor.png) |
+| ![Activation](../docs/screenshots/04-activation.png) | ![Activation required](../docs/screenshots/16-trial-ended.png) | ![Status](../docs/screenshots/11-status-editor.png) |
 
 ---
 
@@ -169,12 +169,13 @@ dev server (`Get-NetTCPConnection -LocalPort 1420 -State Listen | ForEach-Object
   (the server can only make this stricter). **Missed ads are never saved up**: the decision is made fresh at each
   start and returns at most one ad — after months closed or offline the user sees one ad, not a backlog.
   The ad is a medium card (max 560 px) in the middle of the window over a softly blurred background; closes with ×,
-  "Not now", Esc or a click beside it; never while editing. No "Sponsored" label. Previews: `docs/screenshots/ads/`.
-- **Built-in ads** (bundled, no internet needed; `HOUSE_ADS`): used when the app is offline, has never reached
-  the server, or the server has no ad to show. They take turns: "Activate DocGen" (only without a license),
-  reynrel.in's billing & inventory software, POS billing for cafés/restaurants/salons, and three reynrel.in
-  services (websites, custom software & apps, Google/social ads). Buttons open reynrel.in (tagged
-  `utm_source=docgen-desktop`). Admin → App settings → built-in ads off (`defaultAdEnabled: false`).
+  "Not now", Esc or a click beside it; never while editing. No "Sponsored" label. Previews: `docs/screenshots/ads/` (repository root).
+- **Built-in ads** (bundled, no internet needed; `src/features/ads/adService.js` → `HOUSE_ADS`, pictures in
+  `src/features/ads/*.jpg` listed in `BUILT_IN_IMAGES` in `AdManager.jsx`): used when the app is offline, has never
+  reached the server, or the server has no ad to show. They take turns, the same with or without a license:
+  reynrel.in's billing & inventory software, POS billing (outletOS) for cafés/restaurants/salons, websites, and
+  custom software. Buttons open reynrel.in (tagged `utm_source=docgen-desktop`). Admin → App settings → built-in
+  ads off (`defaultAdEnabled: false`).
 - Release builds only accept `https://` URLs. The `DOCGEN_*` environment overrides work only in debug builds.
 
 Branding (`src/config/appConfig.js`): app name, tagline, icon (`public/brand-icon.png`; installer icons from `assets/app-icon.png` via `npx tauri icon`),

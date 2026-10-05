@@ -164,8 +164,8 @@ function Terms({ b }) {
           once with ×, “Not now”, the Esc key or a click beside it. Nothing is opened unless you click its button.
         </li>
         <li>
-          <strong>Without internet:</strong> DocGen shows only advertisements built into the app (DocGen activation, and products and services of{' '}
-          {b.legalName} / reynrel.in). With internet, it may also show current announcements and offers from us.
+          <strong>Without internet:</strong> DocGen shows only advertisements built into the app, for products and services of{' '}
+          {b.legalName} / reynrel.in. With internet, it may also show current announcements and offers from us.
         </li>
         <li>
           <strong>Privacy:</strong> advertisements never read or send your documents, customers or products. Only anonymous counts (shown, closed,

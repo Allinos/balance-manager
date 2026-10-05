@@ -931,11 +931,11 @@ async function main() {
     check(!(await exists('[data-testid="ad-popup"]')), 'no ad on the first day');
     await relaunch({ ...OFFLINE, DOCGEN_CLOCK_OFFSET_DAYS: '16' });
     await find('[data-testid="ad-popup"]', 15000);
-    check((await textOf('[data-testid="ad-popup"]')).includes('Get more from DocGen'), 'built-in DocGen message after ~15 days offline');
+    check((await textOf('[data-testid="ad-popup"]')).includes('Billing & inventory software'), 'built-in reynrel.in ad after ~15 days offline');
+    check(await exec('const i=document.querySelector("[data-testid=ad-popup] .ad-image"); return !!i && i.complete && i.naturalWidth > 0'), 'built-in ad picture loads offline (bundled)');
     await shot('18-default-ad');
-    await clickCss('[data-testid="ad-cta"]');
-    await waitForText('License & Account');
-    check(true, 'built-in ad button opens License & Account');
+    await clickCss('[data-testid="ad-close"]');
+    check(!(await exists('[data-testid="ad-popup"]')), 'built-in ad closes');
     await relaunch({ ...OFFLINE, DOCGEN_CLOCK_OFFSET_DAYS: '20' });
     await go('#/manager');
     await sleep(6500);

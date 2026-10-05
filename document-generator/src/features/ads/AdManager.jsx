@@ -10,7 +10,7 @@ import websiteImage from './website.jpg';
 import customImage from './custom-development.jpg';
 
 /** Pictures of the built-in ads (bundled, shown offline). */
-const BUILT_IN_IMAGES = { billing: billingImage, outlet: outletImage, website: websiteImage, custom: customImage};
+const BUILT_IN_IMAGES = { billing: billingImage, outlet: outletImage, website: websiteImage, custom: customImage };
 
 /** Pages where an ad may appear. Never while creating or editing a document. */
 const QUIET_OK = ['/', '/dashboard', '/manager', '/help'];

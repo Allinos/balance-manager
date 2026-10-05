@@ -18,8 +18,8 @@
  *
  * Built-in ads (no internet needed): when the app has never received a server configuration
  * (for example it is always offline), or it is offline / has no server ad to show, the built-in
- * ads take turns: reynrel.in's billing software, POS billing and services (HOUSE_ADS), plus — for
- * copies without a license — "Activate DocGen". The server can switch them off (defaultAdEnabled: false).
+ * ads take turns: reynrel.in's billing software, POS billing, website and custom software (HOUSE_ADS).
+ * The server can switch them off (defaultAdEnabled: false).
  */
 
 import { call } from '../../services/api.js';
@@ -35,30 +35,27 @@ export const DEFAULT_AD_INTERVAL_DAYS = MIN_DAYS_BETWEEN_ADS;
 /** Never more than two ads in a calendar month (the server may set fewer). */
 export const MAX_ADS_PER_MONTH = 2;
 
-/** Built-in ad (id 0). Shown offline; the button opens License & Account. */
-export const DEFAULT_AD = {
-  id: 0,
-  version: 1,
-  builtIn: true,
-  image: 'billing',
-  title: 'Billing & inventory software for shops and distributors',
-  description: 'Retail POS, B2B and B2C billing, stock across warehouses, purchases, barcodes, customer dues and GST reports — with a clear dashboard of your sales. By reynrel.in.',
-  ctaText: 'See the billing software',
-  action: 'license',
-  icon: 'key',
-  imageUrl: '',
-  html: '',
-  linkUrl: 'https://reynrel.in/product-intro/inventory-manager/?${UTM}&utm_content=billing',
-};
-
 const UTM = 'utm_source=docgen-desktop&utm_medium=app&utm_campaign=house-ad';
 
 /**
- * reynrel.in's own products and services, shown in turn every 15 days. Edit the texts and links here.
- * `image`: a picture bundled with the app (see AdManager); without one, `icon` is shown on a coloured band.
+ * reynrel.in's own products and services, shown in turn every 15 days (same list with or without a
+ * license). Edit the texts and links here.
+ * `image`: a picture bundled with the app — the key of BUILT_IN_IMAGES in AdManager.jsx (wide, about 3:1).
+ * Without an image, `icon` (a name from components/Icon.jsx) is shown on a coloured band.
  */
 export const HOUSE_ADS = [
-    {
+  {
+    id: 0,
+    version: 'billing-1',
+    builtIn: true,
+    image: 'billing',
+    title: 'Billing & inventory software for shops and distributors',
+    description:
+      'Retail POS, B2B and B2C billing, stock across warehouses, purchases, barcodes, customer dues and GST reports — with a clear dashboard of your sales. By reynrel.in.',
+    ctaText: 'See the billing software',
+    linkUrl: `https://reynrel.in/product-intro/inventory-manager/?${UTM}&utm_content=billing`,
+  },
+  {
     id: 0,
     version: 'pos-1',
     builtIn: true,
@@ -73,8 +70,7 @@ export const HOUSE_ADS = [
     id: 0,
     version: 'web-1',
     builtIn: true,
-    image: '',
-    icon: 'website',
+    image: 'website',
     title: 'Get a professional website for your business',
     description: 'reynrel.in designs fast, mobile-friendly websites so customers find you on Google — with WhatsApp and call buttons, your products and location.',
     ctaText: 'Talk to reynrel.in',
@@ -84,8 +80,7 @@ export const HOUSE_ADS = [
     id: 0,
     version: 'software-1',
     builtIn: true,
-    image: '',
-    icon: 'custom',
+    image: 'custom',
     title: 'Custom software and mobile apps',
     description: 'Need something made for the way you work — an app for your staff, an online ordering system or automation? reynrel.in builds software for small businesses.',
     ctaText: 'Discuss your idea',
@@ -93,12 +88,13 @@ export const HOUSE_ADS = [
   },
 ];
 
-/** The built-in ads for this copy, in the order they take turns. */
-export const builtInAds = (licensed) => (licensed ? HOUSE_ADS : [DEFAULT_AD, ...HOUSE_ADS]);
+/** The built-in ads, in the order they take turns (the same with or without a license). */
+export const builtInAds = () => HOUSE_ADS;
 
 /** The next built-in ad in turn. */
 export const nextBuiltInAd = (state, licensed) => {
   const ads = builtInAds(licensed);
+  if (!ads.length) return null;
   return ads[Number(state.defaultAdIndex || 0) % ads.length];
 };
 

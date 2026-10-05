@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { chooseAd, compareVersions, DEFAULT_AD, HOUSE_ADS } from '../src/features/ads/adService.js';
+import { chooseAd, compareVersions, HOUSE_ADS } from '../src/features/ads/adService.js';
 import { isCheckDue } from '../src/services/remoteConfig.js';
 import { formatActivationCode, isValidActivationCode } from '../src/services/licenseService.js';
 import { isValidGstin, stateCode, stateFromGstin } from '../src/config/states.js';
@@ -10,6 +10,7 @@ import { DOCUMENT_TYPES, EXTRA_FIELDS, statusesFor, normaliseTemplate } from '..
 import { unitOptions } from '../src/config/units.js';
 
 const DAY = 86400000;
+const FIRST_AD = HOUSE_ADS[0];
 const T0 = Date.parse('2026-01-01T10:00:00Z');
 const ctx = (over = {}) => ({ t: T0, licensed: false, platform: 'windows', appVersion: '1.1.0', online: true, random: () => 0, ...over });
 
@@ -47,17 +48,19 @@ test('config check scheduling: monthly, offline catch-up, back-off after failure
 test('built-in ad every 15 days when no server config was ever received', () => {
   const state = { firstOpenAt: T0 };
   assert.equal(chooseAd(state, ctx({ t: T0 + 14 * DAY })), null);
-  assert.equal(chooseAd(state, ctx({ t: T0 + 15 * DAY })), DEFAULT_AD);
+  assert.equal(chooseAd(state, ctx({ t: T0 + 15 * DAY })), FIRST_AD);
   assert.equal(chooseAd({ ...state, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 20 * DAY })), null);
-  assert.equal(chooseAd({ ...state, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 30 * DAY })), DEFAULT_AD);
-  assert.equal(chooseAd(state, ctx({ t: T0 + 40 * DAY, licensed: true })), HOUSE_ADS[0], 'licensed users see reynrel.in products, never "Activate"');
+  assert.equal(chooseAd({ ...state, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 30 * DAY })), FIRST_AD);
+  assert.equal(chooseAd(state, ctx({ t: T0 + 40 * DAY, licensed: true })), HOUSE_ADS[0], 'licensed users see the same built-in ads');
 });
 
-test('built-in ads take turns: Activate (no license only), billing software, POS, reynrel.in services', () => {
+test('built-in ads take turns: billing software, POS, website, custom software — with or without a license', () => {
   const at = (n, licensed) => chooseAd({ firstOpenAt: T0, defaultAdIndex: n }, ctx({ t: T0 + 15 * DAY, licensed }));
-  assert.deepEqual([0, 1, 2, 3, 4, 5, 6].map((n) => at(n, false).version), [1, 'billing-1', 'pos-1', 'web-1', 'software-1', 'marketing-1', 1]);
-  assert.deepEqual([0, 1, 2, 3, 4, 5].map((n) => at(n, true).version), ['billing-1', 'pos-1', 'web-1', 'software-1', 'marketing-1', 'billing-1']);
-  assert.ok(HOUSE_ADS.every((a) => a.builtIn && a.id === 0 && a.linkUrl.startsWith('https://reynrel.in/')), 'built-in ads open reynrel.in; counters stay local');
+  for (const licensed of [false, true]) {
+    assert.deepEqual([0, 1, 2, 3, 4].map((n) => at(n, licensed).version), ['billing-1', 'pos-1', 'web-1', 'software-1', 'billing-1']);
+  }
+  assert.ok(HOUSE_ADS.every((a) => a.builtIn && a.id === 0 && a.image && !a.action), 'every built-in ad has a picture and opens its link');
+  assert.ok(HOUSE_ADS.every((a) => /^https:\/\/reynrel\.in\/[^$\s]*utm_source=docgen-desktop/.test(a.linkUrl)), 'links are complete reynrel.in addresses');
   const cachedConfig = { adPolicy: {}, defaultAdEnabled: true, ads: [] };
   assert.equal(chooseAd({ firstOpenAt: T0, cachedConfig }, ctx({ t: T0 + 15 * DAY, licensed: true, online: false })), HOUSE_ADS[0], 'offline with a cached config');
   assert.equal(chooseAd({ firstOpenAt: T0, cachedConfig: { ...cachedConfig, defaultAdEnabled: false } }, ctx({ t: T0 + 15 * DAY, licensed: true })), null, 'server can switch them off');
@@ -87,7 +90,7 @@ test('remote ads: ad-free start, 15 days between ads, targeting, priority, frequ
   assert.equal(chooseAd({ ...base, monthlyAdMonth: '2026-01', monthlyAdCount: 2 }, ctx({ t: T0 + 16 * DAY })), null, 'never more than 2 a month, even if the server allows 4');
   assert.equal(chooseAd({ ...shown, lastAdShownAt: T0 + 40 * DAY }, ctx({ t: T0 + 30 * DAY })), null, 'clock set back: no ad');
   // Offline with a cached config: remote ads are skipped; a built-in ad may still appear.
-  assert.equal(chooseAd(base, ctx({ t: T0 + 20 * DAY, online: false })), DEFAULT_AD);
+  assert.equal(chooseAd(base, ctx({ t: T0 + 20 * DAY, online: false })), FIRST_AD);
   assert.equal(chooseAd({ ...base, cachedConfig: { ...cachedConfig, defaultAdEnabled: false } }, ctx({ t: T0 + 20 * DAY, online: false })), null);
   assert.equal(compareVersions('1.10.0', '1.9.9'), 1);
   assert.equal(compareVersions('1.0', '1.0.0'), 0);
@@ -102,7 +105,7 @@ test('missed ads never pile up: after months closed or offline, exactly one ad, 
   assert.ok(!Array.isArray(ad) && ad.id === 7, 'one ad, the one that applies now');
   const after = { ...state, lastAdShownAt: later, monthlyAdMonth: '2026-04', monthlyAdCount: 1 };
   for (const d of [0, 1, 7, 14]) assert.equal(chooseAd(after, ctx({ t: later + d * DAY })), null, `nothing more ${d} days later`);
-  assert.equal(chooseAd({ firstOpenAt: T0, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 200 * DAY })).version, DEFAULT_AD.version, 'offline: one built-in ad, not a backlog');
+  assert.equal(chooseAd({ firstOpenAt: T0, defaultAdLastShownAt: T0 + 15 * DAY }, ctx({ t: T0 + 200 * DAY })).version, FIRST_AD.version, 'offline: one built-in ad, not a backlog');
 });
 
 test('HSN/SAC summary groups by code and rate', () => {
