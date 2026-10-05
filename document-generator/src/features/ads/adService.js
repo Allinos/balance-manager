@@ -40,14 +40,15 @@ export const DEFAULT_AD = {
   id: 0,
   version: 1,
   builtIn: true,
-  title: 'Get more from DocGen',
-  description: 'Activate DocGen with your account or a license code to use it without limits, on more computers, with priority support.',
-  ctaText: 'Activate now',
+  image: 'billing',
+  title: 'Billing & inventory software for shops and distributors',
+  description: 'Retail POS, B2B and B2C billing, stock across warehouses, purchases, barcodes, customer dues and GST reports — with a clear dashboard of your sales. By reynrel.in.',
+  ctaText: 'See the billing software',
   action: 'license',
   icon: 'key',
   imageUrl: '',
   html: '',
-  linkUrl: '',
+  linkUrl: 'https://reynrel.in/product-intro/inventory-manager/?${UTM}&utm_content=billing',
 };
 
 const UTM = 'utm_source=docgen-desktop&utm_medium=app&utm_campaign=house-ad';
@@ -57,22 +58,11 @@ const UTM = 'utm_source=docgen-desktop&utm_medium=app&utm_campaign=house-ad';
  * `image`: a picture bundled with the app (see AdManager); without one, `icon` is shown on a coloured band.
  */
 export const HOUSE_ADS = [
-  {
-    id: 0,
-    version: 'billing-1',
-    builtIn: true,
-    image: 'billing',
-    title: 'Billing & inventory software for shops and distributors',
-    description:
-      'Retail POS, B2B and B2C billing, stock across warehouses, purchases, barcodes, customer dues and GST reports — with a clear dashboard of your sales. By reynrel.in.',
-    ctaText: 'See the billing software',
-    linkUrl: `https://reynrel.in/?${UTM}&utm_content=billing`,
-  },
-  {
+    {
     id: 0,
     version: 'pos-1',
     builtIn: true,
-    image: 'pos',
+    image: 'outlet',
     title: 'Fast POS billing for cafés, restaurants and salons',
     description:
       'Tap items to bill in seconds, hold and resume orders, takeaway and parcel, expenses, employees and daily reports. Works on a computer or tablet. By reynrel.in.',
@@ -84,7 +74,7 @@ export const HOUSE_ADS = [
     version: 'web-1',
     builtIn: true,
     image: '',
-    icon: 'globe',
+    icon: 'website',
     title: 'Get a professional website for your business',
     description: 'reynrel.in designs fast, mobile-friendly websites so customers find you on Google — with WhatsApp and call buttons, your products and location.',
     ctaText: 'Talk to reynrel.in',
@@ -95,22 +85,11 @@ export const HOUSE_ADS = [
     version: 'software-1',
     builtIn: true,
     image: '',
-    icon: 'tool',
+    icon: 'custom',
     title: 'Custom software and mobile apps',
     description: 'Need something made for the way you work — an app for your staff, an online ordering system or automation? reynrel.in builds software for small businesses.',
     ctaText: 'Discuss your idea',
     linkUrl: `https://reynrel.in/?${UTM}&utm_content=custom-software`,
-  },
-  {
-    id: 0,
-    version: 'marketing-1',
-    builtIn: true,
-    image: '',
-    icon: 'sparkle',
-    title: 'Bring more customers with Google & social media ads',
-    description: 'reynrel.in sets up and runs Google, Facebook and Instagram ads and your Google Business profile, so nearby customers find your business.',
-    ctaText: 'Grow my business',
-    linkUrl: `https://reynrel.in/?${UTM}&utm_content=marketing`,
   },
 ];
 

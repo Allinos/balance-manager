@@ -4,11 +4,13 @@ import { useRouter } from '../../router/router.jsx';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { openExternal } from '../../services/systemService.js';
 import { markAdShown, pickAdToShow, recordAdEvent } from './adService.js';
-import billingImage from './house-billing.jpg';
-import posImage from './house-pos.jpg';
+import billingImage from './billing.jpg';
+import outletImage from './outletos.jpg';
+import websiteImage from './website.jpg';
+import customImage from './custom-development.jpg';
 
 /** Pictures of the built-in ads (bundled, shown offline). */
-const BUILT_IN_IMAGES = { billing: billingImage, pos: posImage };
+const BUILT_IN_IMAGES = { billing: billingImage, outlet: outletImage, website: websiteImage, custom: customImage};
 
 /** Pages where an ad may appear. Never while creating or editing a document. */
 const QUIET_OK = ['/', '/dashboard', '/manager', '/help'];
