@@ -13,10 +13,10 @@ export const APP_CONFIG = {
   companyUrl: 'https://reynrel.in',
   website: 'https://reynrel.in',
   supportEmail: 'info.reynrel@gmail.com',
-  supportPhone: '+91 90000 00000',
+  supportPhone: 'Direct visit website',
   // International format without "+" or spaces, used for https://wa.me/<number>
-  whatsappNumber: '919000000000',
-  youtubeChannel: 'https://www.youtube.com/@reynrel',
+  whatsappNumber: '+919864773099',
+  youtubeChannel: 'https://www.youtube.com/@FlowStack-India',
   premiumFeatures: [
     'All document types and templates, no ads',
     'Use on more than one computer',
