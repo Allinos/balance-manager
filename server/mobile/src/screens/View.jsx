@@ -1,5 +1,5 @@
 /**
- * A saved document, drawn by the desktop's renderer in its template (Tally Professional, Tally Standard,
+ * A saved document, drawn by the desktop's renderer in its template (Professional, Standard,
  * Modern, Simple). Print / Save as PDF (with the number of copies from settings), share, change status,
  * template for this document, cancel, history, contact the customer, duplicate, convert, delete / restore.
  */

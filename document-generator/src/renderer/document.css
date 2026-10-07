@@ -391,6 +391,125 @@
   color: var(--doc-accent);
 }
 
+/* Modern on one A4 page: tighter spacing, GST summary beside the totals, notes and terms side by side,
+   bank · QR · signature in one closing row. Long bills continue on the next page (see print.css). */
+.doc-modern {
+  gap: 3.6mm;
+  line-height: 1.36;
+}
+.doc-modern .doc-header {
+  padding-bottom: 3.5mm;
+}
+.doc-modern .doc-title {
+  font-size: 17pt;
+}
+.doc-modern .doc-meta {
+  padding: 2.2mm 3.5mm;
+}
+.doc-modern .doc-meta-row {
+  padding: 0.35mm 0;
+}
+.doc-modern .doc-items th,
+.doc-modern .doc-items td {
+  padding: 1mm 1.3mm;
+}
+.doc-modern .doc-items th {
+  padding-top: 1.4mm;
+  padding-bottom: 1.4mm;
+}
+/* Crore amounts in every column must still fit the page width: headings may wrap, numbers get slightly smaller. */
+.doc-modern .doc-items th {
+  white-space: normal;
+}
+.doc-modern .doc-items td.c-num {
+  font-size: 8.6pt;
+}
+.doc-modern .doc-summary {
+  gap: 6mm;
+}
+.doc-modern .doc-summary-left {
+  gap: 3mm;
+}
+.doc-modern .doc-totals {
+  flex: 0 0 66mm;
+}
+.doc-modern .doc-total-row {
+  padding: 0.7mm 2mm;
+}
+.doc-modern .doc-grand {
+  padding: 1.8mm 2mm;
+}
+.doc-modern .doc-summary-left .doc-taxes {
+  font-size: 7.8pt;
+}
+.doc-modern .doc-summary-left .doc-taxes th,
+.doc-modern .doc-summary-left .doc-taxes td {
+  padding: 0.9mm 1.2mm;
+}
+.doc-modern .doc-summary-left .doc-taxes th {
+  font-size: 7pt;
+}
+/* Fixed columns so even very large amounts stay inside the left column (they wrap instead of overlapping the totals). */
+.doc-modern .doc-summary-left .doc-taxes {
+  table-layout: fixed;
+}
+.doc-modern .doc-summary-left .doc-taxes th:first-child {
+  width: 13mm;
+}
+.doc-modern .doc-summary-left .doc-taxes th {
+  white-space: normal;
+}
+.doc-modern .doc-summary-left .doc-taxes td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.doc-modern .doc-summary-left .doc-taxes .doc-sub-inline {
+  display: block;
+}
+.doc-modern .doc-terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 6mm;
+}
+.doc-modern .doc-closing {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 6mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.doc-modern .doc-closing-pay {
+  display: flex;
+  align-items: flex-start;
+  gap: 5mm;
+  min-width: 0;
+}
+.doc-modern .doc-closing .doc-bank {
+  flex: 0 1 auto;
+}
+.doc-modern .doc-closing .doc-meta-row {
+  padding: 0.25mm 0;
+}
+.doc-modern .doc-qr img {
+  width: 24mm;
+  height: 24mm;
+}
+.doc-modern .doc-closing .doc-signatures {
+  margin-top: 0;
+  padding-top: 0;
+  gap: 6mm;
+}
+.doc-modern .doc-closing .doc-signatures > div:empty {
+  display: none;
+}
+.doc-modern .doc-sign {
+  min-width: 50mm;
+}
+.doc-modern .doc-sign-space {
+  height: 15mm;
+}
+
 /* ----------------------------- Tally Std ------------------------------- */
 .doc-tally-std {
   font-family: Arial, 'Helvetica Neue', 'Liberation Sans', sans-serif;
@@ -569,8 +688,8 @@
 /* ------------------------ Tally Professional --------------------------- */
 .doc-tp {
   font-family: Arial, 'Helvetica Neue', 'Liberation Sans', sans-serif;
-  font-size: 8.4pt;
-  line-height: 1.3;
+  font-size: 8.2pt;
+  line-height: 1.24;
   gap: 0;
   --doc-line: #222;
   --doc-muted: #444;
@@ -595,6 +714,9 @@
 }
 .tp-frame {
   border: 1px solid var(--doc-line);
+  /* A long bill continues on the next page: each page's part of the frame gets its own border. */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 .tp-top {
   display: grid;
@@ -607,7 +729,7 @@
   flex-direction: column;
 }
 .tp-box {
-  padding: 1.6mm 2.2mm;
+  padding: 1.2mm 2mm;
 }
 .tp-left .tp-box + .tp-box {
   border-top: 1px solid var(--doc-line);
@@ -644,9 +766,9 @@
   grid-template-columns: 1fr 1fr;
 }
 .tp-cell {
-  padding: 1mm 1.8mm;
+  padding: 0.5mm 1.6mm;
   border-bottom: 1px solid var(--doc-line);
-  min-height: 8.6mm;
+  min-height: 7.2mm;
 }
 .tp-cell:nth-child(odd):not(.tp-wide) {
   border-right: 1px solid var(--doc-line);
@@ -654,10 +776,11 @@
 .tp-wide {
   grid-column: 1 / -1;
   border-bottom: 0;
-  min-height: 12mm;
+  min-height: 7.2mm;
 }
 .tp-cell-label {
-  font-size: 7.4pt;
+  font-size: 7.2pt;
+  line-height: 1.15;
   color: var(--doc-muted);
 }
 .tp-cell-value {
@@ -688,7 +811,7 @@
   text-align: center;
 }
 .tp-items td {
-  padding: 0.9mm 1.4mm;
+  padding: 0.6mm 1.4mm;
   border-right: 1px solid var(--doc-line);
   vertical-align: top;
 }
@@ -737,7 +860,11 @@
   border-top: 1px solid var(--doc-line);
 }
 .tp-filler td {
-  height: 6mm;
+  height: 5mm;
+}
+/* The total row prints once, at the end of the list, not at the foot of every page. */
+.tp-items tfoot {
+  display: table-row-group;
 }
 .tp-items tfoot td {
   border-top: 1px solid var(--doc-line);
@@ -765,7 +892,7 @@
   border-top: 1px solid var(--doc-line);
 }
 .tp-hsn td {
-  padding: 0.8mm 1.4mm;
+  padding: 0.6mm 1.4mm;
   border-right: 1px solid var(--doc-line);
   border-bottom: 1px solid #999;
 }
@@ -773,15 +900,15 @@
   border-bottom: 0;
   border-top: 1px solid var(--doc-line);
 }
-.tp-small {
-  border-top: 1px solid var(--doc-line);
-  font-size: 7.8pt;
+.tp-tax-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 4mm;
 }
-.tp-notes {
-  border-top: 1px solid var(--doc-line);
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3mm;
+.tp-reverse {
+  margin-left: auto;
+  white-space: nowrap;
 }
 .tp-receipt {
   font-size: 10pt;
@@ -794,7 +921,7 @@
   break-inside: avoid;
 }
 .tp-bottom-left {
-  padding: 1.6mm 2.2mm;
+  padding: 1.2mm 2mm;
   display: flex;
   flex-direction: column;
   gap: 1.6mm;
@@ -811,7 +938,7 @@
   text-decoration: underline;
 }
 .tp-bank {
-  padding: 1.6mm 2.2mm;
+  padding: 1.2mm 2mm;
 }
 /* Bank details with the UPI payment QR beside them */
 .tp-pay {
@@ -823,16 +950,16 @@
   flex: 1;
 }
 .tp-pay-qr {
-  padding: 1.6mm 2.2mm;
+  padding: 1.2mm 2mm;
 }
 .tp-pay-qr img {
-  width: 24mm;
-  height: 24mm;
+  width: 20mm;
+  height: 20mm;
 }
 .tp-sign {
   margin-top: auto;
   border-top: 1px solid var(--doc-line);
-  padding: 1.6mm 2.2mm;
+  padding: 1.2mm 2mm;
   text-align: right;
   display: flex;
   flex-direction: column;
@@ -841,7 +968,7 @@
   font-weight: 700;
 }
 .tp-sign-space {
-  height: 16mm;
+  height: 13mm;
   position: relative;
   display: flex;
   justify-content: flex-end;
@@ -868,4 +995,14 @@
   letter-spacing: 0.04em;
   color: var(--doc-muted);
   margin-bottom: -3mm;
+}
+
+/* Screen only: under the preview of a bill that needs more than one A4 page. */
+.page-count-note {
+  margin: 8px auto 0;
+  max-width: 210mm;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #5b6270;
+  text-align: center;
 }

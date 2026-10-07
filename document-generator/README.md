@@ -8,7 +8,7 @@ work orders and job completion reports. It also keeps your other business files
 Built with **Tauri 2 + React (JavaScript) + SQLite**. It works completely **offline**;
 all business data stays in one local file. A product of [reynrel.in](https://reynrel.in).
 
-| Dashboard | Document Manager | Tally Professional GST invoice |
+| Dashboard | Document Manager | Professional GST invoice |
 |---|---|---|
 | ![Dashboard](../docs/screenshots/00-dashboard.png) | ![Manager](../docs/screenshots/13-files.png) | ![Invoice](../docs/screenshots/09-invoice-tally-pro.png) |
 
@@ -42,9 +42,14 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   Each type has its own statuses (e.g. Quotation: Draft → Sent → Accepted/Rejected).
 - **18 document types** with type-specific fields, required fields, numbering, statuses,
   conversions and print layout (see [Document types](#document-types)).
-- **Four print templates** — *Tally Professional* (full GST invoice, Rule 46), *Tally Standard*,
+- **Four print templates** — *Professional* (full GST invoice, Rule 46), *Standard*,
   *Modern*, *Simple*. Default per app, per document type, or per single document; switching
   never changes data.
+- **A4 printing**: 12 mm margins on every side. Modern fits about 10 one-line items on one page, Professional about 14 (fewer with long names).
+  A long bill continues on the next pages: rows are never cut, column headings repeat, totals, bank details and
+  signature stay together on the last page, and every page shows the document number and "Page 1 of 2".
+- **First start** asks which tax you charge — GST, VAT, Sales Tax, your own name (e.g. TVA) or no tax — and prints that
+  name on documents. The template starts as Professional (GST) or Modern (other taxes); change it in Settings → Documents.
 - **Indian GST**: GSTIN validation, state from GSTIN, state codes on print, place of supply →
   CGST+SGST or IGST, HSN/SAC summary, reverse charge, amount and tax amount in words,
   declaration, jurisdiction. VAT or no-tax also supported.

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, TextInput } from '../../components/Form.jsx';
-import { CURRENCY_PRESETS } from '../../config/defaults.js';
-import { BUSINESS_TYPES, TEMPLATES } from '../../config/documentTypes.js';
+import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '../../config/defaults.js';
+import { BUSINESS_TYPES } from '../../config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
 import { APP_CONFIG } from '../../config/appConfig.js';
 import { saveCompany, saveSettings } from '../../services/settingsService.js';
@@ -15,11 +15,11 @@ import { StylePreview } from '../settings/DocumentSettings.jsx';
 import ActivationOptions from '../license/ActivationOptions.jsx';
 import BrandName from '../../components/BrandName.jsx';
 
-const STEPS = ['Welcome', 'Company', 'Business', 'Template', 'Activate'];
+const STEPS = ['Welcome', 'Company', 'Business', 'Tax', 'Activate'];
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
 
-/** Five quick steps: welcome → company → business type & currency → template → activate / trial. */
+/** Five quick steps: welcome → company → business type & currency → tax name → activate. The template starts as Professional (GST) or Modern. */
 export default function SetupWizard() {
   const { reload } = useAppData();
   const toast = useToast();
@@ -30,12 +30,17 @@ export default function SetupWizard() {
   const [logo, setLogo] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [business, setBusiness] = useState('trading');
-  const [style, setStyle] = useState('tally-pro');
+  const [taxPick, setTaxPick] = useState(null); // null = suggested from the currency
+  const [taxName, setTaxName] = useState('');
+  const [taxRate, setTaxRate] = useState(null); // null = the currency's usual rate
   const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState(false);
+  const tax = taxPick || defaultTaxChoice(currency);
+  const rate = taxRate ?? STANDARD_TAX_RATE[currency] ?? '';
+  const taxSettings = useMemo(() => taxSettingsFor(tax, { name: taxName, rate }), [tax, taxName, rate]);
   const styleOverrides = useMemo(
-    () => ({ documentStyle: style, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }),
-    [style, currency],
+    () => ({ ...taxSettings, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }),
+    [taxSettings, currency],
   );
   const previewCompany = useMemo(() => ({ name: name.trim() || 'Your Company', state, gstin, logo }), [name, state, gstin, logo]);
 
@@ -53,11 +58,9 @@ export default function SetupWizard() {
     await saveSettings({
       baseCurrency: currency,
       currencies: [{ ...preset, rate: '1' }],
-      documentStyle: style,
       businessType: business,
       visibleDocTypes: BUSINESS_TYPES.find((b) => b.id === business)?.types,
-      taxSystem: currency === 'INR' ? 'GST' : 'VAT',
-      showHsn: currency === 'INR',
+      ...taxSettings,
     });
     if (demo) {
       const data = await reload();
@@ -72,6 +75,10 @@ export default function SetupWizard() {
     }
     if (step === 1 && gstin && !isValidGstin(gstin)) {
       toast.error('The GSTIN should be 15 characters, e.g. 27AAPFU0939F1ZV. Leave it empty if you are not registered.');
+      return;
+    }
+    if (step === 3 && tax === 'OTHER' && !taxName.trim()) {
+      toast.error('Please type the tax name printed on your documents, e.g. TVA.');
       return;
     }
     if (step === 3) {
@@ -163,16 +170,28 @@ export default function SetupWizard() {
 
         {step === 3 && (
           <div className="setup-body">
-            <h2>Pick an invoice template</h2>
-            <p className="muted">You can change it any time, even for a single document. Your data is never affected.</p>
-            <div className="template-options">
-              {TEMPLATES.map((t) => (
-                <button key={t.id} className={`style-option ${style === t.id ? 'active' : ''}`} onClick={() => setStyle(t.id)} data-testid={`template-${t.id}`}>
-                  <strong>{t.label}</strong>
-                  <span className="muted small">{t.description}</span>
+            <h2>Which tax do you charge?</h2>
+            <p className="muted">Its name is printed on your invoices and in the tax columns. You can change it later in Settings → Tax.</p>
+            <div className="template-options tax-options">
+              {TAX_CHOICES.map((c) => (
+                <button key={c.id} className={`style-option ${tax === c.id ? 'active' : ''}`} onClick={() => setTaxPick(c.id)} data-testid={`tax-${c.id}`}>
+                  <strong>{c.title}</strong>
+                  <span className="muted small">{c.description}</span>
                 </button>
               ))}
             </div>
+            {(tax === 'OTHER' || taxSettings.taxSystem === 'VAT') && (
+              <div className="grid-2">
+                {tax === 'OTHER' && (
+                  <Field label="Tax name" required>
+                    <TextInput value={taxName} onChange={setTaxName} maxLength={20} placeholder="e.g. TVA" data-testid="setup-tax-name" />
+                  </Field>
+                )}
+                <Field label="Standard rate (%)" hint="Leave empty to add rates later">
+                  <TextInput value={rate} onChange={(v) => setTaxRate(v.replace(/[^\d.]/g, ''))} maxLength={6} placeholder="e.g. 5" data-testid="setup-tax-rate" />
+                </Field>
+              </div>
+            )}
             <div className="setup-preview">
               <StylePreview overrides={styleOverrides} company={previewCompany} />
             </div>

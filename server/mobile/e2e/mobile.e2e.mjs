@@ -76,7 +76,7 @@ const phone = async () => {
   return { context, page };
 };
 const shot = (page, name) => page.screenshot({ path: path.join(shots, `${name}.png`) });
-const TEMPLATE_LABELS = { 'tally-pro': 'Tally Professional', 'tally-std': 'Tally Standard', modern: 'Modern', simple: 'Simple' };
+const TEMPLATE_LABELS = { 'tally-pro': 'Professional', 'tally-std': 'Standard', modern: 'Modern', simple: 'Simple' };
 /** Choose an option in a picker (searchable list in a bottom sheet). */
 async function pick(page, testId, label) {
   await page.getByTestId(testId).click();
@@ -124,10 +124,15 @@ try {
   await a.page.getByTestId('setup-next').click();
   await a.page.getByTestId('business-trading').click();
   await a.page.getByTestId('setup-next').click();
-  await a.page.getByTestId('template-tally-pro').click();
+  check((await a.page.getByTestId('tax-GST').getAttribute('class')).includes('active'), 'setup: GST is selected for INR');
+  await a.page.getByTestId('tax-VAT').click();
+  await a.page.getByTestId('setup-tax-rate').fill('5');
+  await a.page.getByTestId('sample-preview').locator('.doc-modern').waitFor();
+  check((await a.page.getByTestId('sample-preview').textContent()).includes('VAT'), 'setup: VAT shows on the sample invoice');
+  await a.page.getByTestId('tax-GST').click();
   await a.page.getByTestId('sample-preview').locator('.doc-tp').waitFor();
-  check(true, 'setup: business type, currency and template with a live sample invoice');
-  await shot(a.page, '02-setup-template');
+  check(true, 'setup: business type, currency and tax name with a live sample invoice (Professional template for GST)');
+  await shot(a.page, '02-setup-tax');
   await a.page.getByTestId('setup-save').click();
   await a.page.getByTestId('dashboard').waitFor();
   check(/Licensed · 36[56] days left/.test(await a.page.getByTestId('license-chip').textContent()), 'dashboard shows the license validity');
@@ -219,7 +224,7 @@ try {
     check(docText.includes(needle), `invoice shows ${label}`);
   }
   check((await page1().locator('img[src^="data:image/svg"]').count()) >= 1, 'invoice shows the UPI QR code');
-  check((await page1().locator('.doc-tp').count()) === 1, 'Tally Professional template (desktop renderer)');
+  check((await page1().locator('.doc-tp').count()) === 1, 'Professional template (desktop renderer)');
   await a.page.waitForTimeout(300);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-invoice.png') });
   for (const [id, cls] of [
@@ -232,7 +237,7 @@ try {
     await page1().locator(cls).waitFor();
     if (id === 'modern') await shot(a.page, '04-template-modern');
   }
-  check(true, 'all 4 templates: Modern, Simple, Tally Standard, Tally Professional');
+  check(true, 'all 4 templates: Modern, Simple, Standard, Professional');
   await a.page.getByTestId('view-status').click();
   await a.page.getByTestId('status-option-PAID').click();
   await a.page.getByText('INV-00001: Paid').waitFor();

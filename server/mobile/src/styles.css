@@ -1522,6 +1522,9 @@ button.license-chip {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
+.tax-options > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 .template-option {
   display: flex;
   flex-direction: column;

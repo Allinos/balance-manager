@@ -332,10 +332,13 @@ export const SALES_REGISTER_TYPES = ['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_
 
 export const PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 'Other'];
 
-/** Built-in print templates. Templates only change the look; the document data is the same. */
+/**
+ * Built-in print templates. Templates only change the look; the document data is the same.
+ * The ids (tally-pro, tally-std) are stored in settings and documents, so they stay as they are.
+ */
 export const TEMPLATES = [
-  { id: 'tally-pro', label: 'Tally Professional', description: 'Full Tally-style GST invoice: boxed grid, dispatch details, HSN summary, declaration.' },
-  { id: 'tally-std', label: 'Tally Standard', description: 'Compact boxed layout, traditional and information dense.' },
+  { id: 'tally-pro', label: 'Professional', description: 'Complete boxed GST invoice: dispatch details, HSN summary, declaration.' },
+  { id: 'tally-std', label: 'Standard', description: 'Compact boxed layout, traditional and information dense.' },
   { id: 'modern', label: 'Modern', description: 'Clean, spacious design with your brand colour.' },
   { id: 'simple', label: 'Simple', description: 'Plain black & white, minimal lines. Prints well anywhere.' },
 ];

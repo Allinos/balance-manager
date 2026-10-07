@@ -276,7 +276,7 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
 
 - **Same features as the desktop app.** The mobile build imports the desktop app's own code from
   `document-generator/src` (see `mobile/vite.config.js`): all 18 document types, the 4 templates and renderer
-  (Tally Professional, Tally Standard, Modern, Simple), the GST/decimal engine, numbering formats, amount in words,
+  (Professional, Standard, Modern, Simple), the GST/decimal engine, numbering formats, amount in words,
   HSN summary, UPI QR code and the document services. Only the screens are phone-specific (bottom tabs Dashboard ·
   Documents · Products · Settings). The desktop app itself is not changed. Because of this, build the server from
   the whole repository (the `document-generator/src` folder must be present next to `server/`).

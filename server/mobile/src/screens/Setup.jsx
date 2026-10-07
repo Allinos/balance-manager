@@ -1,8 +1,8 @@
-/** First start after activation: company → business type & currency → template (+ sample data). Same choices as the desktop setup. */
+/** First start after activation: company → business type & currency → tax name. Same choices as the desktop setup. */
 
 import { useMemo, useState } from 'react';
-import { CURRENCY_PRESETS } from '@desktop/config/defaults.js';
-import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
+import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '@desktop/config/defaults.js';
+import { BUSINESS_TYPES } from '@desktop/config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
 import Icon from '../components/Icon.jsx';
@@ -12,7 +12,7 @@ import { useApp } from '../data.jsx';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
-const STEPS = ['Company', 'Business', 'Template'];
+const STEPS = ['Company', 'Business', 'Tax'];
 
 export default function Setup() {
   const { lic, reloadData } = useApp();
@@ -24,9 +24,14 @@ export default function Setup() {
   const [logo, setLogo] = useState('');
   const [business, setBusiness] = useState('trading');
   const [currency, setCurrency] = useState('INR');
-  const [style, setStyle] = useState('tally-pro');
+  const [taxPick, setTaxPick] = useState(null); // null = suggested from the currency
+  const [taxName, setTaxName] = useState('');
+  const [taxRate, setTaxRate] = useState(null); // null = the currency's usual rate
   const [busy, setBusy] = useState(false);
-  const overrides = useMemo(() => ({ documentStyle: style, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }), [style, currency]);
+  const tax = taxPick || defaultTaxChoice(currency);
+  const rate = taxRate ?? STANDARD_TAX_RATE[currency] ?? '';
+  const taxSettings = useMemo(() => taxSettingsFor(tax, { name: taxName, rate }), [tax, taxName, rate]);
+  const overrides = useMemo(() => ({ ...taxSettings, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }), [taxSettings, currency]);
   const previewCompany = useMemo(() => ({ name: name.trim() || 'Your Company', state, gstin, logo }), [name, state, gstin, logo]);
 
   const next = () => {
@@ -36,6 +41,7 @@ export default function Setup() {
   };
 
   const finish = async () => {
+    if (tax === 'OTHER' && !taxName.trim()) return toast('Please type the tax name printed on your documents, e.g. TVA.', 'bad');
     setBusy(true);
     try {
       const preset = CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0];
@@ -43,11 +49,9 @@ export default function Setup() {
       await saveSettings({
         baseCurrency: currency,
         currencies: [{ ...preset, rate: '1' }],
-        documentStyle: style,
         businessType: business,
         visibleDocTypes: BUSINESS_TYPES.find((b) => b.id === business)?.types,
-        taxSystem: currency === 'INR' ? 'GST' : 'VAT',
-        showHsn: currency === 'INR',
+        ...taxSettings,
       });
       await saveSettings({ setupComplete: true });
       await reloadData();
@@ -115,17 +119,27 @@ export default function Setup() {
       {step === 2 && (
         <div className="form">
           <div>
-            <h1>Pick an invoice template</h1>
-            <p className="muted">You can change it any time, even for a single document.</p>
+            <h1>Which tax do you charge?</h1>
+            <p className="muted">Its name is printed on your invoices and in the tax columns. You can change it later in Settings → Tax.</p>
           </div>
-          <div className="template-options">
-            {TEMPLATES.map((t) => (
-              <button key={t.id} className={`template-option ${style === t.id ? 'active' : ''}`} onClick={() => setStyle(t.id)} data-testid={`template-${t.id}`}>
-                <strong>{t.label}</strong>
-                <span className="small muted">{t.description}</span>
+          <div className="template-options tax-options">
+            {TAX_CHOICES.map((c) => (
+              <button key={c.id} className={`template-option ${tax === c.id ? 'active' : ''}`} onClick={() => setTaxPick(c.id)} data-testid={`tax-${c.id}`}>
+                <strong>{c.title}</strong>
+                <span className="small muted">{c.description}</span>
               </button>
             ))}
           </div>
+          {tax === 'OTHER' && (
+            <Field label="Tax name" required>
+              <Input value={taxName} onChange={setTaxName} maxLength={20} placeholder="e.g. TVA" data-testid="setup-tax-name" />
+            </Field>
+          )}
+          {taxSettings.taxSystem === 'VAT' && (
+            <Field label="Standard rate (%)" hint="Leave empty to add rates later">
+              <Input value={rate} onChange={(v) => setTaxRate(v.replace(/[^\d.]/g, ''))} maxLength={6} inputMode="decimal" placeholder="e.g. 5" data-testid="setup-tax-rate" />
+            </Field>
+          )}
           <SamplePreview overrides={overrides} company={previewCompany} />
         </div>
       )}

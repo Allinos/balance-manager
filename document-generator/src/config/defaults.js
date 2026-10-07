@@ -22,6 +22,44 @@ export const CURRENCY_PRESETS = [
   { code: 'JPY', symbol: '¥', name: 'Japanese Yen', decimals: 0 },
 ];
 
+/**
+ * Tax name chosen in the first-start setup. `system` decides how tax is calculated
+ * (GST: CGST + SGST / IGST; VAT: one rate per item; NONE: no tax); `name` is printed on documents.
+ */
+export const TAX_CHOICES = [
+  { id: 'GST', name: 'GST', system: 'GST', title: 'GST (India)', description: 'CGST + SGST within your state, IGST to other states. HSN/SAC codes and the GST summary are printed.' },
+  { id: 'VAT', name: 'VAT', system: 'VAT', title: 'VAT', description: 'Value Added Tax, e.g. UAE, Saudi Arabia, UK, Europe, Nepal.' },
+  { id: 'SALES_TAX', name: 'Sales Tax', system: 'VAT', title: 'Sales Tax', description: 'One sales tax rate on each item, e.g. USA.' },
+  { id: 'OTHER', name: '', system: 'VAT', title: 'Another name', description: 'Type the name printed on your documents, e.g. TVA, IVA, HST, Consumption Tax.' },
+  { id: 'NONE', name: '', system: 'NONE', title: 'No tax', description: 'You are not registered for tax. Documents show no tax columns.' },
+];
+
+/** Common standard rate (%) for the currency, suggested in setup for VAT-style taxes. */
+export const STANDARD_TAX_RATE = { AED: '5', SAR: '15', GBP: '20', EUR: '20', SGD: '9', AUD: '10', CAD: '5', NPR: '13', BDT: '15', JPY: '10' };
+
+/** The tax choice that suits a currency when nothing has been picked yet. */
+export const defaultTaxChoice = (currency) => (currency === 'INR' ? 'GST' : 'VAT');
+
+/**
+ * Settings saved for a setup tax choice. GST keeps the GST rate list; other taxes get 0% plus
+ * the given standard rate. The default template suits the tax: Professional for GST, Modern otherwise.
+ */
+export function taxSettingsFor(choiceId, { name = '', rate = '' } = {}) {
+  const choice = TAX_CHOICES.find((c) => c.id === choiceId) || TAX_CHOICES[0];
+  if (choice.system === 'GST') return { taxSystem: 'GST', taxLabel: 'GST', taxRates: DEFAULT_SETTINGS.taxRates, defaultTaxRate: DEFAULT_SETTINGS.defaultTaxRate, showHsn: true, documentStyle: 'tally-pro' };
+  if (choice.system === 'NONE') return { taxSystem: 'NONE', showHsn: false, documentStyle: 'modern' };
+  const r = String(rate).trim();
+  const valid = /^\d+(\.\d+)?$/.test(r) && Number(r) > 0;
+  return {
+    taxSystem: 'VAT',
+    taxLabel: (choice.id === 'OTHER' ? name : choice.name).trim() || 'Tax',
+    taxRates: valid ? ['0', r] : ['0'],
+    defaultTaxRate: valid ? r : '0',
+    showHsn: false,
+    documentStyle: 'modern',
+  };
+}
+
 /** @deprecated use STATE_NAMES from states.js */
 export const INDIAN_STATES = STATE_NAMES;
 

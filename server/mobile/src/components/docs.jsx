@@ -174,9 +174,11 @@ export function SamplePreview({ overrides, company: companyOverride, typeId = 'T
       party_gstin: '29ABCDE1234F1Z5',
       place_of_supply: company?.state || '',
     };
+    // GST samples use 18%; other taxes use the chosen standard rate.
+    const rate = ctx.settings.taxSystem === 'GST' ? '18' : ctx.settings.defaultTaxRate || '0';
     m.items = [
-      { ...m.items[0], name: 'Office Chair', hsn_sac: '9401', quantity: '2', unit_price: '4500', tax_rate: '18' },
-      { ...m.items[0], _key: 's2', name: 'Installation', hsn_sac: '995419', quantity: '1', unit: 'Job', unit_price: '1500', tax_rate: '18' },
+      { ...m.items[0], name: 'Office Chair', hsn_sac: '9401', quantity: '2', unit_price: '4500', tax_rate: rate },
+      { ...m.items[0], _key: 's2', name: 'Installation', hsn_sac: '995419', quantity: '1', unit: 'Job', unit_price: '1500', tax_rate: rate },
     ];
     return renderPayload(m, ctx);
   }, [settings, saved, companyOverride, docSettings, overrides, typeId]);

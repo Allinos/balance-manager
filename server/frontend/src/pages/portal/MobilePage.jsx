@@ -22,7 +22,7 @@ const ANDROID_STEPS = [
 ];
 
 const FEATURES = [
-  ['file', 'Everything the desktop app does', 'All 18 document types — GST invoices, quotations, challans, orders, receipts … — in the same 4 templates (Tally Professional, Tally Standard, Modern, Simple).'],
+  ['file', 'Everything the desktop app does', 'All 18 document types — GST invoices, quotations, challans, orders, receipts … — in the same 4 templates (Professional, Standard, Modern, Simple).'],
   ['monitor', 'Works offline', 'Your documents, customers and products are stored on the phone. No internet needed to work.'],
   ['printer', 'Share as PDF', 'Print or save any document as a PDF and send it on WhatsApp or email.'],
   ['key', 'Sign in once', 'Enter your license key once. DocGen remembers it while your license is valid.'],

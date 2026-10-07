@@ -30,7 +30,7 @@ const GUIDES = [
       'For each customer, enter their GSTIN — the state and state code are filled in from it.',
       'Place of supply decides CGST+SGST (same state) or IGST (other state). DocGen picks it automatically from the customer state.',
       'Add HSN (goods) or SAC (services) codes to products — the HSN/SAC tax summary is printed below the items.',
-      'Use the Tally Professional template for a complete, Rule 46 compliant layout.',
+      'Use the Professional template for a complete, Rule 46 compliant layout.',
     ],
   },
   {
@@ -49,7 +49,7 @@ const GUIDES = [
     title: 'Choose a document template',
     icon: 'palette',
     steps: [
-      'Settings → Documents: choose the default template (Tally Professional, Tally Standard, Modern or Simple).',
+      'Settings → Documents: choose the default template (Professional, Standard, Modern or Simple).',
       'Settings → Document Types: set a different template for one document type.',
       'On an opened document, use the Template switcher to change only that document — your data is never changed.',
     ],

@@ -165,3 +165,27 @@ test('GST rate options and units by kind', async () => {
   assert.equal(svc[0].group, 'Service units');
   assert.equal(unitOptions([], 'product')[0].group, 'Product units');
 });
+
+test('templates are named without "Tally"; stored ids are unchanged', async () => {
+  const { TEMPLATES } = await import('../src/config/documentTypes.js');
+  assert.deepEqual(TEMPLATES.map((t) => [t.id, t.label]), [['tally-pro', 'Professional'], ['tally-std', 'Standard'], ['modern', 'Modern'], ['simple', 'Simple']]);
+  assert.ok(TEMPLATES.every((t) => !/tally/i.test(t.label + t.description)));
+});
+
+test('setup tax choice: GST, VAT, sales tax, own name, no tax', async () => {
+  const { taxSettingsFor, defaultTaxChoice, DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  const { taxLabelFor, defaultTaxMode } = await import('../src/services/documentService.js');
+  assert.equal(defaultTaxChoice('INR'), 'GST');
+  assert.equal(defaultTaxChoice('AED'), 'VAT');
+  const gst = taxSettingsFor('GST');
+  assert.deepEqual([gst.taxSystem, gst.showHsn, gst.documentStyle, gst.taxRates], ['GST', true, 'tally-pro', DEFAULT_SETTINGS.taxRates]);
+  const vat = taxSettingsFor('VAT', { rate: '5' });
+  assert.deepEqual([vat.taxSystem, vat.taxLabel, vat.taxRates, vat.defaultTaxRate, vat.showHsn, vat.documentStyle], ['VAT', 'VAT', ['0', '5'], '5', false, 'modern']);
+  assert.equal(taxLabelFor({ ...DEFAULT_SETTINGS, ...vat }), 'VAT');
+  assert.equal(defaultTaxMode({ ...DEFAULT_SETTINGS, ...vat }), 'SIMPLE');
+  assert.equal(taxLabelFor({ ...DEFAULT_SETTINGS, ...taxSettingsFor('SALES_TAX', { rate: '' }) }), 'Sales Tax');
+  assert.deepEqual(taxSettingsFor('SALES_TAX', { rate: 'abc' }).taxRates, ['0']);
+  assert.equal(taxLabelFor({ ...DEFAULT_SETTINGS, ...taxSettingsFor('OTHER', { name: ' TVA ', rate: '20' }) }), 'TVA');
+  const none = taxSettingsFor('NONE');
+  assert.equal(defaultTaxMode({ ...DEFAULT_SETTINGS, ...none }), 'NONE');
+});

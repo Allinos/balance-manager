@@ -1,5 +1,5 @@
 /**
- * "Tally Professional" template — a boxed GST invoice modelled on the layout
+ * "Professional" template — a boxed GST invoice modelled on the layout
  * Indian businesses know from Tally, with every particular required by
  * CGST Rule 46 (tax invoice) / Rule 49 (bill of supply) / Rule 53 (credit &
  * debit notes) / Rule 55 (delivery challan):
@@ -405,22 +405,34 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
             </tfoot>
           </table>
         )}
-        {showTax && !isZero(doc.tax) && (
-          <div className="tp-box tp-words">
-            Tax Amount (in words) <span className="tp-colon">:</span>{' '}
-            <strong>
-              {doc.currency} {amountInWords(doc.tax, doc.currency, Number(doc.currency_decimals ?? 2))}
-            </strong>
-          </div>
-        )}
-        {type.optional.includes('reverseCharge') && (
-          <div className="tp-box tp-small">
-            Whether tax is payable on reverse charge <span className="tp-colon">:</span> <strong>{meta.reverseCharge === 'Yes' ? 'Yes' : 'No'}</strong>
+        {/* Tax amount in words and the reverse-charge line share one row to save space. */}
+        {((showTax && !isZero(doc.tax)) || type.optional.includes('reverseCharge')) && (
+          <div className="tp-box tp-words tp-tax-line">
+            {showTax && !isZero(doc.tax) && (
+              <div>
+                Tax Amount (in words) <span className="tp-colon">:</span>{' '}
+                <strong>
+                  {doc.currency} {amountInWords(doc.tax, doc.currency, Number(doc.currency_decimals ?? 2))}
+                </strong>
+              </div>
+            )}
+            {type.optional.includes('reverseCharge') && (
+              <div className="tp-reverse">
+                Tax payable on reverse charge <span className="tp-colon">:</span> <strong>{meta.reverseCharge === 'Yes' ? 'Yes' : 'No'}</strong>
+              </div>
+            )}
           </div>
         )}
 
-        {(doc.notes?.trim() || doc.terms?.trim()) && (
-          <div className="tp-box tp-notes">
+        {/* Bottom: PAN, remarks, terms, declaration (left) / bank + signature (right) */}
+        <div className="tp-bottom">
+          <div className="tp-bottom-left">
+            {company.pan && (
+              <div>
+                Company&apos;s PAN <span className="tp-colon">:</span> <strong>{company.pan}</strong>
+              </div>
+            )}
+            {/* Remarks and terms sit beside the bank details / signature instead of in a row of their own. */}
             {doc.notes?.trim() && (
               <div>
                 <span className="tp-caption">Remarks:</span>
@@ -431,17 +443,6 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
               <div>
                 <span className="tp-caption">Terms &amp; Conditions:</span>
                 <div className="doc-pre">{doc.terms}</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Bottom: PAN + declaration (left) / bank + signature (right) */}
-        <div className="tp-bottom">
-          <div className="tp-bottom-left">
-            {company.pan && (
-              <div>
-                Company&apos;s PAN <span className="tp-colon">:</span> <strong>{company.pan}</strong>
               </div>
             )}
             {ds.showDeclaration !== false && settings.declaration?.trim() && (

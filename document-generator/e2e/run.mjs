@@ -7,7 +7,7 @@
  *   1  first launch: setup wizard → activation cards → skip (30-day trial)
  *   2  remote configuration + HTML ad (sandboxed) + anonymous ad counters
  *   3  UI: sidebar collapse, branding, reynrel.in link, Help & Support (server videos)
- *   4  Tally Professional GST invoice: GSTIN → state code, IGST, units, extra fields
+ *   4  Professional GST invoice: GSTIN → state code, IGST, units, extra fields
  *   5  preview actions: Download PDF, template switcher (4 templates), history
  *   6  Document Manager: status quick-edit (pencil), filters, cancel invoice (reason, kept)
  *   7  external documents: add, open list, delete/restore; Dashboard counts + recent
@@ -365,9 +365,13 @@ async function main() {
     await clickCss('[data-testid="setup-next"]');
     await clickCss('[data-testid="business-trading"]');
     await clickCss('[data-testid="setup-next"]');
-    await waitForText('Pick an invoice template');
-    await clickCss('[data-testid="template-tally-pro"]');
-    await shot('03-template');
+    await waitForText('Which tax do you charge?');
+    check(await exists('[data-testid="tax-GST"].active'), 'setup: GST is selected for an Indian business (INR)');
+    await clickCss('[data-testid="tax-OTHER"]');
+    check(await exists('[data-testid="setup-tax-name"]') && (await exists('[data-testid="setup-tax-rate"]')), 'setup: own tax name and rate fields');
+    await clickCss('[data-testid="tax-GST"]');
+    check(!(await exists('[data-testid="setup-tax-name"]')), 'setup: back to GST');
+    await shot('03-tax');
     await clickCss('[data-testid="setup-next"]');
     await waitForText('Activate DocGen');
     check((await exec('return document.querySelectorAll(".activate-card").length')) === 2, 'two activation cards');
@@ -450,7 +454,7 @@ async function main() {
     await shot('07-help');
 
     // ------------------------------------------------------------------ 4
-    section('4. Tally Professional GST invoice');
+    section('4. Professional GST invoice');
     await go('#/settings/company');
     await type('[data-testid="company-bank-name"]', 'HDFC Bank');
     await type('[data-testid="company-account-number"]', '50200012345678');
@@ -512,7 +516,7 @@ async function main() {
       ['for Sharma Furniture Works', '"for <company>"'],
       ['Authorised Signatory', 'authorised signatory'],
     ]) {
-      check(inv.includes(needle), `Tally invoice has ${label}`);
+      check(inv.includes(needle), `Professional invoice has ${label}`);
     }
     check(inv.includes("Company's Bank Details") && inv.includes('HDFC0000123') && inv.includes('50200012345678'), 'invoice shows the bank details');
     const upi = await exec('const q=document.querySelector("[data-testid=upi-qr]"); return q ? { text: q.innerText, src: q.querySelector("img")?.src || "" } : null');

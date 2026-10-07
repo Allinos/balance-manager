@@ -94,6 +94,8 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1 })
   const hasBank = ['bank_name', 'account_number', 'ifsc', 'iban', 'upi_id'].some((k) => company[k]);
   const bank = ds.showBank !== false && showPrices && hasBank;
 
+  const taxBreakup = showPrices && showTax && ds.showTaxBreakup !== false;
+  const modern = template === 'modern';
   const copy = copyLabel(type, copyIndex, copies);
   if (template === 'tally-pro' && !isReceipt) return <TallyProDocument payload={payload} type={type} qr={qr} copy={copy} />;
 
@@ -124,24 +126,42 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1 })
             <section className="doc-summary">
               <div className="doc-summary-left">
                 {ds.showAmountInWords !== false && <AmountInWords doc={doc} />}
+                {modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
               </div>
               <TotalsSummary doc={doc} ds={ds} />
             </section>
           )}
-          {showPrices && showTax && ds.showTaxBreakup !== false && <TaxSummary taxes={taxes} doc={doc} />}
+          {!modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
         </>
       )}
 
-      {(bank || qr.src) && (
-        <section className="doc-payment">
-          {bank ? <BankDetails company={company} /> : <div />}
-          <QrBlock src={qr.src} caption={qr.caption} />
-        </section>
-      )}
+      {modern ? (
+        <>
+          {/* Modern: notes and terms side by side, then bank · QR · signature in one row, so a normal bill fits one A4 page. */}
+          <TermsAndConditions notes={doc.notes} terms={doc.terms} />
+          {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
+          <section className="doc-closing">
+            <div className="doc-closing-pay">
+              {bank && <BankDetails company={company} />}
+              <QrBlock src={qr.src} caption={qr.caption} />
+            </div>
+            <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
+          </section>
+        </>
+      ) : (
+        <>
+          {(bank || qr.src) && (
+            <section className="doc-payment">
+              {bank ? <BankDetails company={company} /> : <div />}
+              <QrBlock src={qr.src} caption={qr.caption} />
+            </section>
+          )}
 
-      <TermsAndConditions notes={doc.notes} terms={doc.terms} />
-      {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
-      <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
+          <TermsAndConditions notes={doc.notes} terms={doc.terms} />
+          {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
+          <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
+        </>
+      )}
       <DocumentFooter text={settings.footerText} jurisdiction={settings.jurisdiction} />
     </article>
   );

@@ -12,7 +12,7 @@ import { SiteFooter, SiteHeader } from '../../App.jsx';
 
 const FEATURES = [
   ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
-  ['printer', 'Professional templates', 'Tally Professional, Tally Standard, Modern or Simple — with your logo, signature, bank details and UPI QR code.'],
+  ['printer', 'Professional templates', 'Professional, Standard, Modern or Simple — with your logo, signature, bank details and UPI QR code.'],
   ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license. Same documents, same templates.'],
   ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
