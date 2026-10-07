@@ -7,11 +7,11 @@ Last full run: **4 October 2026** (after Help & Support, the policy and contact 
 | Desktop JS unit tests | `cd document-generator && npm test` | **25 / 25 passed** (7 October 2026: A4 page splitting; template names without "Tally", setup tax choices GST / VAT / Sales Tax / own name / no tax; ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **177 / 177 checks passed** (7 October 2026, incl. the setup tax step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **179 / 179 checks passed** (7 October 2026, incl. the setup tax step (no invoice shown) and the template step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **61 / 61 passed** (19 API, 41 journey/checkout/terms/payments/licensing/durations/phones/downloads/email/support/prices, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** (previous run; not re-run this round) |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **108 / 108 passed** |
-| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **96 / 96 passed** (7 October 2026; incl. the setup tax step and a plain http:// network address) |
+| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **97 / 97 passed** (7 October 2026; incl. the setup tax and template steps and a plain http:// network address) |
 | Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `backend/test`, `frontend/src`, `mobile/src`, e2e scripts | 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
@@ -30,7 +30,7 @@ admin API). Screenshots are saved to `document-generator/e2e/screenshots/`.
 
 | # | Phase | Checks | What is verified |
 |---|-------|-------:|------------------|
-| 1 | First launch | 16 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; **tax step: GST selected for INR, "Another name" shows tax name + rate fields**; state list shows 10 + "type to search", filters on typing; activation shows **only two cards** (Login Using Your Account · OR · I Have a License) and **Skip**, no input fields and no trial wording; login card → Email/User ID, Password, Sign In, Create Account; license card → code auto-formats to `AB12-CD34-EF56`, Activate; **Skip opens the Dashboard**; sidebar shows only a **thin green line + "30 Days"** |
+| 1 | First launch | 18 | welcome with name + tagline; GSTIN `27…` fills Maharashtra; **tax step: GST selected for INR, "Another name" shows tax name + rate fields, no invoice shown; template step: Professional selected for GST**; state list shows 10 + "type to search", filters on typing; activation shows **only two cards** (Login Using Your Account · OR · I Have a License) and **Skip**, no input fields and no trial wording; login card → Email/User ID, Password, Sign In, Create Account; license card → code auto-formats to `AB12-CD34-EF56`, Activate; **Skip opens the Dashboard**; sidebar shows only a **thin green line + "30 Days"** |
 | 2 | Server config + HTML ad | 8 | config fetched and cached; next check **+30 days** (server interval); remote ad shown; HTML in `sandbox=""` frame with opaque origin, its `<script>` did not run; non-blocking corner card; local counters; anonymous shown/closed counts reached the server |
 | 3 | Layout & Help | 11 | new DocGen logo (square, not stretched) + name in brand colours (Doc blue, Gen orange) + tagline, "A product of reynrel.in", nav Dashboard · Document Manager · Products & Services · Customers & Vendors, Help & Settings at the bottom; sidebar collapses to icons and expands; **light theme by default**; Help lists tutorial videos from the server; guides; help search |
 | 4 | Professional invoice | 27 | GST picked in the **searchable GST select**; **? help** beside Round Off opens a short explanation and closes with Esc; created from the Dashboard **+**; customer GSTIN → Karnataka; place of supply follows; unit from the searchable unit list; additional details; inter-state → **IGST 18 % = 9,000**, total 59,000; printed invoice contains title, ORIGINAL FOR RECIPIENT, both GSTINs, **state names with codes 27/29**, order/vehicle no., HSN/SAC column and **HSN summary**, amount and **tax amount in words**, E. & O.E, reverse-charge line, declaration, "for Sharma Furniture Works", Authorised Signatory; **bank details with the UPI QR code ("Scan to pay") beside them** |
@@ -149,12 +149,12 @@ for Razorpay (same signatures):
   to 3, website updates at once; Downloads: Linux link added, macOS and Mobile switched off → the
   customer's downloads follow (windows, linux) and the website hides the mobile section; switched on again.
 
-`npm run test:mobile` (96 checks) runs DocGen Mobile in a phone-sized touch browser against the real server. The phone
+`npm run test:mobile` (97 checks) runs DocGen Mobile in a phone-sized touch browser against the real server. The phone
 app uses the desktop app's document engine and templates, so these checks also cover that shared code on a phone:
 
 - Installation page, manifest, service worker, install banner; activation (wrong key refused, key, email + password).
-- Setup: company (GSTIN → state), business type and currency, tax name (GST selected for INR; VAT with a 5 % rate shows "VAT" on the
-  live sample invoice); 8 dashboard cards.
+- Setup: company (GSTIN → state), business type and currency, tax name (GST selected for INR, no invoice on this step),
+  then the template with a live sample invoice (Professional selected for GST); 8 dashboard cards.
 - Company settings with address, bank details, UPI and a logo chosen from the phone.
 - Tax invoice: next number shown before saving, GSTIN → state → IGST, additional details (vehicle no.), item saved to
   Products, units, IGST 9,180.00, grand total 60,180.00, amount in words, live preview; printed with title, numbers,

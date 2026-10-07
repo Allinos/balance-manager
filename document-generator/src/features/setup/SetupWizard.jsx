@@ -3,7 +3,7 @@ import Icon from '../../components/Icon.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, TextInput } from '../../components/Form.jsx';
 import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '../../config/defaults.js';
-import { BUSINESS_TYPES } from '../../config/documentTypes.js';
+import { BUSINESS_TYPES, TEMPLATES } from '../../config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
 import { APP_CONFIG } from '../../config/appConfig.js';
 import { saveCompany, saveSettings } from '../../services/settingsService.js';
@@ -15,11 +15,11 @@ import { StylePreview } from '../settings/DocumentSettings.jsx';
 import ActivationOptions from '../license/ActivationOptions.jsx';
 import BrandName from '../../components/BrandName.jsx';
 
-const STEPS = ['Welcome', 'Company', 'Business', 'Tax', 'Activate'];
+const STEPS = ['Welcome', 'Company', 'Business', 'Tax', 'Template', 'Activate'];
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
 
-/** Five quick steps: welcome → company → business type & currency → tax name → activate. The template starts as Professional (GST) or Modern. */
+/** Six quick steps: welcome → company → business type & currency → tax name → template (with a live sample) → activate. */
 export default function SetupWizard() {
   const { reload } = useAppData();
   const toast = useToast();
@@ -33,11 +33,16 @@ export default function SetupWizard() {
   const [taxPick, setTaxPick] = useState(null); // null = suggested from the currency
   const [taxName, setTaxName] = useState('');
   const [taxRate, setTaxRate] = useState(null); // null = the currency's usual rate
+  const [stylePick, setStylePick] = useState(null); // null = suggested from the tax (Professional for GST, Modern otherwise)
   const [demo, setDemo] = useState(false);
   const [busy, setBusy] = useState(false);
   const tax = taxPick || defaultTaxChoice(currency);
   const rate = taxRate ?? STANDARD_TAX_RATE[currency] ?? '';
-  const taxSettings = useMemo(() => taxSettingsFor(tax, { name: taxName, rate }), [tax, taxName, rate]);
+  const taxSettings = useMemo(() => {
+    const t = taxSettingsFor(tax, { name: taxName, rate });
+    return { ...t, documentStyle: stylePick || t.documentStyle };
+  }, [tax, taxName, rate, stylePick]);
+  const style = taxSettings.documentStyle;
   const styleOverrides = useMemo(
     () => ({ ...taxSettings, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }),
     [taxSettings, currency],
@@ -81,7 +86,7 @@ export default function SetupWizard() {
       toast.error('Please type the tax name printed on your documents, e.g. TVA.');
       return;
     }
-    if (step === 3) {
+    if (step === 4) {
       setBusy(true);
       try {
         await persist();
@@ -109,7 +114,7 @@ export default function SetupWizard() {
 
   return (
     <div className="setup">
-      <div className={`setup-card ${step === 4 ? 'wide' : ''}`} data-keynav>
+      <div className={`setup-card ${step === 5 ? 'wide' : ''}`} data-keynav>
         <div className="setup-steps" aria-label="Setup progress">
           {STEPS.map((s, i) => (
             <span key={s} className={`setup-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} title={s} />
@@ -192,6 +197,21 @@ export default function SetupWizard() {
                 </Field>
               </div>
             )}
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="setup-body">
+            <h2>Pick an invoice template</h2>
+            <p className="muted">You can change it any time, even for a single document. Your data is never affected.</p>
+            <div className="template-options">
+              {TEMPLATES.map((t) => (
+                <button key={t.id} className={`style-option ${style === t.id ? 'active' : ''}`} onClick={() => setStylePick(t.id)} data-testid={`template-${t.id}`}>
+                  <strong>{t.label}</strong>
+                  <span className="muted small">{t.description}</span>
+                </button>
+              ))}
+            </div>
             <div className="setup-preview">
               <StylePreview overrides={styleOverrides} company={previewCompany} />
             </div>
@@ -202,7 +222,7 @@ export default function SetupWizard() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="setup-body">
             <h2>Activate DocGen</h2>
             <ActivationOptions onDone={complete} onSkip={complete} />

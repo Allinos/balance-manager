@@ -50,7 +50,8 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   headings repeat, each page shows "Page 1 of 3" and "Continued on page 2 …", and the totals, bank details and
   signature stay together on the last page. The preview shows the same pages. Standard and Simple print as before.
 - **First start** asks which tax you charge — GST, VAT, Sales Tax, your own name (e.g. TVA) or no tax — and prints that
-  name on documents. The template starts as Professional (GST) or Modern (other taxes); change it in Settings → Documents.
+  name on documents. The next step picks the invoice template with a live sample (Professional is suggested for GST,
+  Modern for other taxes); change it any time in Settings → Documents.
 - **Indian GST**: GSTIN validation, state from GSTIN, state codes on print, place of supply →
   CGST+SGST or IGST, HSN/SAC summary, reverse charge, amount and tax amount in words,
   declaration, jurisdiction. VAT or no-tax also supported.

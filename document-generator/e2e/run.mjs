@@ -371,7 +371,13 @@ async function main() {
     check(await exists('[data-testid="setup-tax-name"]') && (await exists('[data-testid="setup-tax-rate"]')), 'setup: own tax name and rate fields');
     await clickCss('[data-testid="tax-GST"]');
     check(!(await exists('[data-testid="setup-tax-name"]')), 'setup: back to GST');
+    check(!(await exists('.setup-preview')), 'setup: no invoice on the tax step');
     await shot('03-tax');
+    await clickCss('[data-testid="setup-next"]');
+    await waitForText('Pick an invoice template');
+    check(await exists('[data-testid="template-tally-pro"].active'), 'setup: template step, Professional selected for GST');
+    await clickCss('[data-testid="template-tally-pro"]');
+    await shot('03b-template');
     await clickCss('[data-testid="setup-next"]');
     await waitForText('Activate DocGen');
     check((await exec('return document.querySelectorAll(".activate-card").length')) === 2, 'two activation cards');
@@ -407,7 +413,14 @@ async function main() {
     check(adInfo.text.includes('Festive offer on DocGen Business'), 'remote ad shown with title and description');
     check(adInfo.sandbox === '' && adInfo.blocked, 'ad HTML is in a fully sandboxed frame (no scripts, opaque origin)');
     check(adInfo.srcdoc.includes('20% off this week') && adInfo.title !== 'pwned', 'ad HTML rendered; its script did not run');
-    await sleep(600); // after the opening animation
+    // wait for the opening animation to finish (the card stops moving)
+    let last = '';
+    for (let i = 0; i < 20; i++) {
+      await sleep(150);
+      const pos = await exec(`const r=document.querySelector('.ad-popup').getBoundingClientRect(); return Math.round(r.top)+','+Math.round(r.height)`);
+      if (pos === last) break;
+      last = pos;
+    }
     const box = await exec(`const p=document.querySelector('.ad-popup').getBoundingClientRect(); const l=getComputedStyle(document.querySelector('.ad-layer'));
       return { w: p.width, h: p.height, cx: p.left + p.width / 2, cy: p.top + p.height / 2, vw: innerWidth, vh: innerHeight, blur: l.backdropFilter || l.webkitBackdropFilter || l.getPropertyValue('-webkit-backdrop-filter') || '', dim: l.backgroundColor };`);
     check(Math.abs(box.cx - box.vw / 2) < 4 && Math.abs(box.cy - box.vh / 2) < 4 && box.w <= 562 && box.w < box.vw * 0.8 && box.h < box.vh * 0.95 && /rgba/.test(box.dim) && /blur/.test(box.blur),
@@ -925,7 +938,7 @@ async function main() {
     await waitForText('Welcome to DocGen');
     await clickCss('[data-testid="setup-next"]');
     await type('[data-testid="setup-company"]', 'Offline Traders');
-    for (let i = 0; i < 3; i += 1) await clickCss('[data-testid="setup-next"]');
+    for (let i = 0; i < 4; i += 1) await clickCss('[data-testid="setup-next"]');
     await clickCss('[data-testid="choose-login"]');
     await waitForText('not connected to the license server');
     check(true, 'offline build explains that sign-in needs a server');

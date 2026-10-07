@@ -1,8 +1,8 @@
-/** First start after activation: company → business type & currency → tax name. Same choices as the desktop setup. */
+/** First start after activation: company → business type & currency → tax name → template (+ live sample). Same choices as the desktop setup. */
 
 import { useMemo, useState } from 'react';
 import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '@desktop/config/defaults.js';
-import { BUSINESS_TYPES } from '@desktop/config/documentTypes.js';
+import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
 import Icon from '../components/Icon.jsx';
@@ -12,7 +12,7 @@ import { useApp } from '../data.jsx';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const currencyOptions = CURRENCY_PRESETS.map((c) => ({ value: c.code, label: `${c.code} — ${c.name}`, hint: c.symbol.trim() }));
-const STEPS = ['Company', 'Business', 'Tax'];
+const STEPS = ['Company', 'Business', 'Tax', 'Template'];
 
 export default function Setup() {
   const { lic, reloadData } = useApp();
@@ -27,16 +27,22 @@ export default function Setup() {
   const [taxPick, setTaxPick] = useState(null); // null = suggested from the currency
   const [taxName, setTaxName] = useState('');
   const [taxRate, setTaxRate] = useState(null); // null = the currency's usual rate
+  const [stylePick, setStylePick] = useState(null); // null = suggested from the tax (Professional for GST, Modern otherwise)
   const [busy, setBusy] = useState(false);
   const tax = taxPick || defaultTaxChoice(currency);
   const rate = taxRate ?? STANDARD_TAX_RATE[currency] ?? '';
-  const taxSettings = useMemo(() => taxSettingsFor(tax, { name: taxName, rate }), [tax, taxName, rate]);
+  const taxSettings = useMemo(() => {
+    const t = taxSettingsFor(tax, { name: taxName, rate });
+    return { ...t, documentStyle: stylePick || t.documentStyle };
+  }, [tax, taxName, rate, stylePick]);
+  const style = taxSettings.documentStyle;
   const overrides = useMemo(() => ({ ...taxSettings, baseCurrency: currency, currencies: [{ ...(CURRENCY_PRESETS.find((c) => c.code === currency) || CURRENCY_PRESETS[0]), rate: '1' }] }), [taxSettings, currency]);
   const previewCompany = useMemo(() => ({ name: name.trim() || 'Your Company', state, gstin, logo }), [name, state, gstin, logo]);
 
   const next = () => {
     if (step === 0 && !name.trim()) return toast('Please enter your company name.', 'bad');
     if (step === 0 && gstin && !isValidGstin(gstin)) return toast('The GSTIN should be 15 characters, e.g. 27AAPFU0939F1ZV. Leave it empty if you are not registered.', 'bad');
+    if (step === 2 && tax === 'OTHER' && !taxName.trim()) return toast('Please type the tax name printed on your documents, e.g. TVA.', 'bad');
     return setStep((s) => s + 1);
   };
 
@@ -140,6 +146,22 @@ export default function Setup() {
               <Input value={rate} onChange={(v) => setTaxRate(v.replace(/[^\d.]/g, ''))} maxLength={6} inputMode="decimal" placeholder="e.g. 5" data-testid="setup-tax-rate" />
             </Field>
           )}
+        </div>
+      )}
+      {step === 3 && (
+        <div className="form">
+          <div>
+            <h1>Pick an invoice template</h1>
+            <p className="muted">You can change it any time, even for a single document.</p>
+          </div>
+          <div className="template-options">
+            {TEMPLATES.map((t) => (
+              <button key={t.id} className={`template-option ${style === t.id ? 'active' : ''}`} onClick={() => setStylePick(t.id)} data-testid={`template-${t.id}`}>
+                <strong>{t.label}</strong>
+                <span className="small muted">{t.description}</span>
+              </button>
+            ))}
+          </div>
           <SamplePreview overrides={overrides} company={previewCompany} />
         </div>
       )}
