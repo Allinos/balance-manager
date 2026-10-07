@@ -189,3 +189,31 @@ test('setup tax choice: GST, VAT, sales tax, own name, no tax', async () => {
   const none = taxSettingsFor('NONE');
   assert.equal(defaultTaxMode({ ...DEFAULT_SETTINGS, ...none }), 'NONE');
 });
+
+test('A4 paging: short bills fill one page, long bills split with the tail kept on the last page', async () => {
+  const { planPages, PAGE_HEIGHT, FOOTER_RESERVE } = await import('../src/renderer/paging.js');
+  const m = { headH: 300, theadH: 30, tailH: 350, topCont: 40, bottomCont: 25 };
+  // One item: one page, stretched by a filler to the full A4 height.
+  const one = planPages({ ...m, rows: [20] });
+  assert.equal(one.length, 1);
+  assert.ok(Math.abs(300 + 30 + 20 + one[0].fill + 350 - PAGE_HEIGHT) < 0.01);
+  // 50 rows of 22 px: several pages, every row placed once and in order, none overfull.
+  const rows = Array(50).fill(22);
+  const pages = planPages({ ...m, rows });
+  assert.ok(pages.length >= 2);
+  assert.equal(pages[0].from, 0);
+  assert.equal(pages.at(-1).to, 50);
+  pages.forEach((p, i) => {
+    if (i) assert.equal(p.from, pages[i - 1].to);
+    assert.equal(p.first, i === 0);
+    assert.equal(p.last, i === pages.length - 1);
+    assert.ok(!p.overflow);
+    const used = (p.first ? m.headH : m.topCont) + m.theadH + 22 * (p.to - p.from) + (p.last ? m.tailH : m.bottomCont);
+    assert.ok(Math.abs(used + p.fill - (PAGE_HEIGHT - FOOTER_RESERVE)) < 0.01, 'each page is filled to the foot');
+  });
+  // The last page never holds the totals alone.
+  assert.ok(pages.at(-1).to - pages.at(-1).from >= 1);
+  // Rows that all fit but not with the tail: some rows move with the tail.
+  const tight = planPages({ ...m, rows: Array(18).fill(22) });
+  assert.ok(tight.length === 2 && tight[1].to - tight[1].from >= 1 && tight[1].to - tight[1].from <= 3);
+});

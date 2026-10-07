@@ -87,3 +87,40 @@
     page-break-before: always;
   }
 }
+
+/* Full A4 pages (Professional, Modern): one sheet per printed page, filling the printable area. */
+@media print {
+  .doc.doc-sheet {
+    height: 272.5mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    break-after: page;
+    page-break-after: always;
+  }
+  .doc.doc-sheet-last {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .doc.doc-sheet-overflow {
+    height: auto !important;
+  }
+  /* more specific than the screen rule in document.css, which loads later */
+  .doc.doc-sheet .doc-page-foot {
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+  .page-measure {
+    display: none !important;
+  }
+}
+
+/* WebKit (Linux app, Safari) sizes printed pages differently from Chrome and shrinks content to the page width:
+   keep each sheet at its planned size (186 mm wide, height from its content) and let WebKit scale it to fit. */
+@media print {
+  html.print-webkit .doc.doc-sheet {
+    width: 186mm !important;
+    height: auto !important;
+    overflow: visible;
+  }
+}

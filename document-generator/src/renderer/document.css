@@ -997,12 +997,95 @@
   margin-bottom: -3mm;
 }
 
-/* Screen only: under the preview of a bill that needs more than one A4 page. */
-.page-count-note {
-  margin: 8px auto 0;
-  max-width: 210mm;
-  font-size: 12px;
-  line-height: 1.45;
-  color: #5b6270;
-  text-align: center;
+/* ------------------- Full A4 pages (Professional, Modern) -------------------
+   paging.js splits the bill into pages; each .doc-sheet is exactly one A4 page (297 mm on screen,
+   the 273 mm printable area in print) and an empty filler stretches the item table to the foot. */
+.doc.doc-sheet {
+  height: 297mm;
+  min-height: 297mm;
+  position: relative;
+  overflow: hidden;
+}
+.doc.doc-sheet > * {
+  flex-shrink: 0;
+}
+.doc.doc-sheet-overflow {
+  height: auto;
+  overflow: visible;
+}
+.doc-sheet + .doc-sheet {
+  margin-top: 8mm;
+}
+.page-preview-paper.paged {
+  box-shadow: none;
+}
+.page-preview-paper.paged .doc-sheet {
+  box-shadow: 0 2px 10px rgba(16, 24, 40, 0.14), 0 0 0 1px rgba(16, 24, 40, 0.06);
+}
+/* Pages 2, 3 …: short header (9 mm, paging.js CONT_HEAD) */
+.doc-cont-head {
+  height: 9mm;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 6mm;
+  padding-bottom: 1.6mm;
+  border-bottom: 1.5px solid var(--doc-accent);
+  font-size: 8.6pt;
+}
+.doc-cont-head em {
+  color: var(--doc-muted);
+  font-weight: 400;
+}
+.doc-tp .doc-cont-head {
+  border-bottom: 0;
+}
+/* "Continued on page 2 …" (6 mm, paging.js CONT_NOTE) */
+.doc-cont-note {
+  height: 6mm;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 7.8pt;
+  font-style: italic;
+  color: var(--doc-muted);
+}
+.doc-tp .doc-cont-note {
+  border-top: 1px solid var(--doc-line);
+  padding: 0 2mm;
+  color: var(--doc-ink);
+}
+/* Modern: the empty space under the items is ruled with faint column lines down to the totals. */
+.doc-modern .doc-items tbody tr.doc-fill-row td {
+  padding: 0;
+  background: none;
+  border-bottom: 1px solid var(--doc-line);
+  border-left: 1px solid #eef1f6;
+}
+.doc-modern .doc-items tbody tr.doc-fill-row td:first-child {
+  border-left: 0;
+}
+.tp-fill td {
+  padding: 0 !important;
+}
+/* "Page 1 of 3" in the 6 mm kept free at the foot of each page */
+.doc-page-foot {
+  position: absolute;
+  left: 12mm;
+  right: 12mm;
+  bottom: 12mm;
+  display: flex;
+  justify-content: space-between;
+  font-size: 7.4pt;
+  line-height: 1;
+  color: #666;
+}
+/* Off-screen copy used only for measuring */
+.page-measure {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 210mm;
+  visibility: hidden;
+  pointer-events: none;
 }

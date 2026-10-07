@@ -24,7 +24,8 @@ import { amountInWords } from '../utils/numberToWords.js';
 import { dec, div, isZero, toFixed, toPlain } from '../utils/decimal.js';
 import { hsnSummary } from '../utils/hsn.js';
 import { EXTRA_FIELDS } from '../config/documentTypes.js';
-import { CancelledMark, QrBlock, stateLine } from './blocks.jsx';
+import { sheetClass } from './paging.js';
+import { CancelledMark, ContinuationHead, ContinuedNote, PageFooter, QrBlock, stateLine } from './blocks.jsx';
 
 /** Goods documents show the full Tally dispatch grid even when cells are empty. */
 const GOODS_TYPES = new Set(['TAX_INVOICE', 'BILL_OF_SUPPLY', 'DELIVERY_CHALLAN', 'SALES_ORDER', 'PROFORMA_INVOICE']);
@@ -67,7 +68,7 @@ function PartyBox({ title, name, company, address, gstin, state, phone, email, s
   );
 }
 
-export default function TallyProDocument({ payload, type, qr, compact = false, copy = '' }) {
+export default function TallyProDocument({ payload, type, qr, compact = false, copy = '', paging }) {
   const { company = {}, document: doc, items = [], settings, parent } = payload;
   const ds = settings.doc;
   const meta = doc.meta || {};
@@ -123,80 +124,99 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
     if (!isZero(doc.round_off)) chargeRows.push(['Round Off', doc.round_off]);
   }
   const hsnRows = showTax ? hsnSummary(items) : [];
-  const fillers = Math.max(0, (compact ? 3 : MIN_ROWS) - items.length - chargeRows.length);
+  // Paged (full A4, see paging.js): page 1 has the header, the last page the totals; an empty filler row
+  // stretches the table so its column lines run to the foot of the page. Unpaged: a few empty rows as before.
+  const page = paging?.mode === 'page' ? paging : null;
+  const head = !page || page.first;
+  const tail = !page || page.last;
+  const pageItems = page ? items.slice(page.from, page.to) : items;
+  const fillers = paging ? 0 : Math.max(0, (compact ? 3 : MIN_ROWS) - items.length - chargeRows.length);
   const colCount = 3 + (showHsn ? 1 : 0) + (showPackage ? 1 : 0) + (showPrices ? 3 : 0) + (showDiscount ? 1 : 0);
   // Empty cells between description and amount keep Tally's vertical rules unbroken.
   const middle = Array.from({ length: colCount - 3 }, (_, i) => <td key={`m${i}`} />);
 
   return (
-    <article className={`doc doc-tp ${compact ? 'doc-tp-compact' : ''}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
+    <article className={`doc doc-tp ${compact ? 'doc-tp-compact' : ''}${sheetClass(page)}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
       <CancelledMark doc={doc} />
-      <div className="tp-title-row">
-        <span />
-        <h1 className="tp-title">{title}</h1>
-        <span className="tp-copy">{copy ? `(${copy})` : ''}</span>
-      </div>
+      {head ? (
+        <div className="tp-title-row">
+          <span />
+          <h1 className="tp-title">{title}</h1>
+          <span className="tp-copy">{copy ? `(${copy})` : ''}</span>
+        </div>
+      ) : (
+        <ContinuationHead company={company} title={title} doc={doc} />
+      )}
 
       <div className="tp-frame">
         {/* Top: seller + parties (left) / document particulars (right) */}
-        <div className="tp-top">
-          <div className="tp-left">
-            <div className="tp-box tp-seller">
-              {company.logo && <img className="tp-logo" src={company.logo} alt="" />}
-              <div>
-                <div className="tp-company">{company.name || 'Your Company'}</div>
-                {company.legal_name && company.legal_name !== company.name && <div>{company.legal_name}</div>}
-                <div className="doc-pre">
-                  {[company.address, [company.city, company.pin].filter(Boolean).join(' - ')].filter((x) => x && x.trim()).join('\n')}
+          {head && (
+          <div className="tp-top">
+            <div className="tp-left">
+              <div className="tp-box tp-seller">
+                {company.logo && <img className="tp-logo" src={company.logo} alt="" />}
+                <div>
+                  <div className="tp-company">{company.name || 'Your Company'}</div>
+                  {company.legal_name && company.legal_name !== company.name && <div>{company.legal_name}</div>}
+                  <div className="doc-pre">
+                    {[company.address, [company.city, company.pin].filter(Boolean).join(' - ')].filter((x) => x && x.trim()).join('\n')}
+                  </div>
+                  {company.gstin && (
+                    <div>
+                      GSTIN/UIN <span className="tp-colon">:</span> <strong>{company.gstin}</strong>
+                    </div>
+                  )}
+                  {company.state && (
+                    <div>
+                      State Name <span className="tp-colon">:</span> {stateLine(company.state)}
+                    </div>
+                  )}
+                  {(company.phone || company.email) && <div>{[company.phone && `Contact: ${company.phone}`, company.email && `E-Mail: ${company.email}`].filter(Boolean).join('  ')}</div>}
+                  {company.website && <div>{company.website}</div>}
                 </div>
-                {company.gstin && (
-                  <div>
-                    GSTIN/UIN <span className="tp-colon">:</span> <strong>{company.gstin}</strong>
-                  </div>
-                )}
-                {company.state && (
-                  <div>
-                    State Name <span className="tp-colon">:</span> {stateLine(company.state)}
-                  </div>
-                )}
-                {(company.phone || company.email) && <div>{[company.phone && `Contact: ${company.phone}`, company.email && `E-Mail: ${company.email}`].filter(Boolean).join('  ')}</div>}
-                {company.website && <div>{company.website}</div>}
               </div>
+              {doc.shipping_address?.trim() && (
+                <PartyBox title="Consignee (Ship to)" name={doc.party_name} company={doc.party_company} address={doc.shipping_address} state={doc.party_state} showTaxId={false} />
+              )}
+              <PartyBox
+                title={type.group === 'sales' || type.group === 'service' ? `Buyer (${type.partyLabel})` : type.partyLabel}
+                name={doc.party_name}
+                company={doc.party_company}
+                address={doc.party_address}
+                gstin={doc.party_gstin || doc.party_tax_id}
+                state={doc.party_state}
+                phone={doc.party_phone}
+                email={doc.party_email}
+                showTaxId={ds.showCustomerTaxId !== false}
+                placeOfSupply={doc.place_of_supply && doc.place_of_supply !== doc.party_state ? doc.place_of_supply : ''}
+              />
             </div>
-            {doc.shipping_address?.trim() && (
-              <PartyBox title="Consignee (Ship to)" name={doc.party_name} company={doc.party_company} address={doc.shipping_address} state={doc.party_state} showTaxId={false} />
-            )}
-            <PartyBox
-              title={type.group === 'sales' || type.group === 'service' ? `Buyer (${type.partyLabel})` : type.partyLabel}
-              name={doc.party_name}
-              company={doc.party_company}
-              address={doc.party_address}
-              gstin={doc.party_gstin || doc.party_tax_id}
-              state={doc.party_state}
-              phone={doc.party_phone}
-              email={doc.party_email}
-              showTaxId={ds.showCustomerTaxId !== false}
-              placeOfSupply={doc.place_of_supply && doc.place_of_supply !== doc.party_state ? doc.place_of_supply : ''}
-            />
-          </div>
-          <div className="tp-right">
-            <div className="tp-grid">
-              {cells.map(([k, v], i) => (
-                <Cell key={`${k}-${i}`} label={k} value={v} />
-              ))}
-              {showTermsOfDelivery && <Cell label="Terms of Delivery" value={meta.termsOfDelivery} wide />}
-            </div>
-            {!!qr.src && !qr.payment && (
-              <div className="tp-qr">
-                <QrBlock src={qr.src} caption={qr.caption} />
+            <div className="tp-right">
+              <div className="tp-grid">
+                {cells.map(([k, v], i) => (
+                  <Cell key={`${k}-${i}`} label={k} value={v} />
+                ))}
+                {showTermsOfDelivery && <Cell label="Terms of Delivery" value={meta.termsOfDelivery} wide />}
               </div>
-            )}
+              {!!qr.src && !qr.payment && (
+                <div className="tp-qr">
+                  <QrBlock src={qr.src} caption={qr.caption} />
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Items */}
         {type.layout === 'receipt' ? null : (
-          <table className="tp-items">
+          <table className="tp-items" style={page?.colWidths ? { tableLayout: 'fixed' } : undefined}>
+            {page?.colWidths && (
+              <colgroup>
+                {page.colWidths.map((w, i) => (
+                  <col key={i} style={{ width: w }} />
+                ))}
+              </colgroup>
+            )}
             <thead>
               <tr>
                 <th className="c-sn">Sl No.</th>
@@ -211,9 +231,9 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
               </tr>
             </thead>
             <tbody>
-              {items.map((it, i) => (
+              {pageItems.map((it, i) => (
                 <tr key={it._key || it.id || i} className="tp-item">
-                  <td className="c-sn">{i + 1}</td>
+                  <td className="c-sn">{(page ? page.from : 0) + i + 1}</td>
                   <td className="c-desc">
                     <strong>{it.name}</strong>
                     {it.description && <div className="tp-item-desc">{it.description}</div>}
@@ -239,7 +259,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   )}
                 </tr>
               ))}
-              {showPrices && !isZero(doc.discount) && !showDiscount && (
+              {tail && showPrices && !isZero(doc.discount) && !showDiscount && (
                 <tr className="tp-charge">
                   <td />
                   <td className="c-desc tp-charge-label">Less: Discount</td>
@@ -247,7 +267,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   <td className="c-num c-amt">(-) {plain(doc.discount)}</td>
                 </tr>
               )}
-              {showPrices && chargeRows.length > 0 && items.length > 1 && (
+              {tail && showPrices && chargeRows.length > 0 && items.length > 1 && (
                 <tr className="tp-subtotal">
                   <td />
                   <td className="c-desc" />
@@ -255,16 +275,24 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   <td className="c-num c-amt tp-rule">{plain(doc.subtotal)}</td>
                 </tr>
               )}
-              {chargeRows.map(([label, value]) => (
-                <tr key={label} className="tp-charge">
-                  <td />
-                  <td className="c-desc tp-charge-label">{label}</td>
-                  {middle}
-                  <td className="c-num c-amt">
-                    <strong>{plain(value)}</strong>
-                  </td>
+              {tail &&
+                chargeRows.map(([label, value]) => (
+                  <tr key={label} className="tp-charge">
+                    <td />
+                    <td className="c-desc tp-charge-label">{label}</td>
+                    {middle}
+                    <td className="c-num c-amt">
+                      <strong>{plain(value)}</strong>
+                    </td>
+                  </tr>
+                ))}
+              {page && page.fill > 0 && (
+                <tr className="tp-filler tp-fill" style={{ height: page.fill }}>
+                  {Array.from({ length: colCount }, (__, j) => (
+                    <td key={j} />
+                  ))}
                 </tr>
-              ))}
+              )}
               {Array.from({ length: fillers }, (_, i) => (
                 <tr key={`f${i}`} className="tp-filler">
                   {Array.from({ length: colCount }, (__, j) => (
@@ -273,27 +301,30 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                 </tr>
               ))}
             </tbody>
-            <tfoot>
-              <tr>
-                <td />
-                <td className="c-desc tp-total-label">Total</td>
-                {showHsn && <td />}
-                <td className="c-num">
-                  <strong>{units.size === 1 ? `${formatQty(totalQty)} ${[...units][0]}` : formatQty(totalQty)}</strong>
-                </td>
-                {showPackage && <td />}
-                {showPrices && <td />}
-                {showPrices && <td />}
-                {showDiscount && <td />}
-                {showPrices && (
-                  <td className="c-num c-amt tp-grand" data-testid="tp-grand-total">
-                    {money(doc.grand_total)}
+            {tail && (
+              <tfoot>
+                <tr>
+                  <td />
+                  <td className="c-desc tp-total-label">Total</td>
+                  {showHsn && <td />}
+                  <td className="c-num">
+                    <strong>{units.size === 1 ? `${formatQty(totalQty)} ${[...units][0]}` : formatQty(totalQty)}</strong>
                   </td>
-                )}
-              </tr>
-            </tfoot>
+                  {showPackage && <td />}
+                  {showPrices && <td />}
+                  {showPrices && <td />}
+                  {showDiscount && <td />}
+                  {showPrices && (
+                    <td className="c-num c-amt tp-grand" data-testid="tp-grand-total">
+                      {money(doc.grand_total)}
+                    </td>
+                  )}
+                </tr>
+              </tfoot>
+            )}
           </table>
         )}
+        {!tail && <ContinuedNote next={page.pageNo + 1} />}
 
         {type.layout === 'receipt' && (
           <div className="tp-box tp-receipt">
@@ -306,216 +337,223 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
           </div>
         )}
 
-        {/* Amount in words */}
-        {showPrices && (
-          <div className="tp-box tp-words">
-            <div className="tp-row-between">
-              <span>Amount Chargeable (in words)</span>
-              <span className="tp-eoe">E. &amp; O.E</span>
-            </div>
-            <div className="tp-strong">
-              {doc.currency} {amountInWords(doc.grand_total, doc.currency, Number(doc.currency_decimals ?? 2))}
-            </div>
-          </div>
-        )}
-
-        {/* HSN/SAC summary */}
-        {hsnRows.length > 0 && ds.showTaxBreakup !== false && (
-          <table className="tp-hsn">
-            <thead>
-              <tr>
-                <th rowSpan={2} className="c-desc">
-                  HSN/SAC
-                </th>
-                <th rowSpan={2} className="c-num">
-                  Taxable Value
-                </th>
-                {intra && <th colSpan={2}>Central Tax</th>}
-                {intra && <th colSpan={2}>State/UT Tax</th>}
-                {inter && <th colSpan={2}>Integrated Tax</th>}
-                {!intra && !inter && <th colSpan={2}>{doc.tax_label || 'Tax'}</th>}
-                <th rowSpan={2} className="c-num">
-                  Total Tax Amount
-                </th>
-              </tr>
-              <tr>
-                {(intra ? [0, 1] : [0]).map((i) => [
-                  <th key={`r${i}`} className="c-rate">
-                    Rate
-                  </th>,
-                  <th key={`a${i}`} className="c-num">
-                    Amount
-                  </th>,
-                ])}
-              </tr>
-            </thead>
-            <tbody>
-              {hsnRows.map((r) => (
-                <tr key={`${r.hsn}|${r.rate}`}>
-                  <td className="c-desc">{r.hsn || '—'}</td>
-                  <td className="c-num">{plain(toFixed(r.taxable))}</td>
-                  {intra && <td className="c-rate">{half(r.rate)}%</td>}
-                  {intra && <td className="c-num">{plain(toFixed(r.cgst))}</td>}
-                  {intra && <td className="c-rate">{half(r.rate)}%</td>}
-                  {intra && <td className="c-num">{plain(toFixed(r.sgst))}</td>}
-                  {inter && <td className="c-rate">{formatRate(r.rate)}%</td>}
-                  {inter && <td className="c-num">{plain(toFixed(r.igst))}</td>}
-                  {!intra && !inter && <td className="c-rate">{formatRate(r.rate)}%</td>}
-                  {!intra && !inter && <td className="c-num">{plain(toFixed(r.tax))}</td>}
-                  <td className="c-num">{plain(toFixed(r.tax))}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td className="c-desc">
-                  <strong>Total</strong>
-                </td>
-                <td className="c-num">
-                  <strong>{plain(toFixed(hsnRows.reduce((a, r) => a + r.taxable, 0n)))}</strong>
-                </td>
-                {intra && <td />}
-                {intra && (
-                  <td className="c-num">
-                    <strong>{plain(doc.cgst)}</strong>
-                  </td>
-                )}
-                {intra && <td />}
-                {intra && (
-                  <td className="c-num">
-                    <strong>{plain(doc.sgst)}</strong>
-                  </td>
-                )}
-                {inter && <td />}
-                {inter && (
-                  <td className="c-num">
-                    <strong>{plain(doc.igst)}</strong>
-                  </td>
-                )}
-                {!intra && !inter && <td />}
-                {!intra && !inter && (
-                  <td className="c-num">
-                    <strong>{plain(doc.tax)}</strong>
-                  </td>
-                )}
-                <td className="c-num">
-                  <strong>{plain(doc.tax)}</strong>
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-        {/* Tax amount in words and the reverse-charge line share one row to save space. */}
-        {((showTax && !isZero(doc.tax)) || type.optional.includes('reverseCharge')) && (
-          <div className="tp-box tp-words tp-tax-line">
-            {showTax && !isZero(doc.tax) && (
-              <div>
-                Tax Amount (in words) <span className="tp-colon">:</span>{' '}
-                <strong>
-                  {doc.currency} {amountInWords(doc.tax, doc.currency, Number(doc.currency_decimals ?? 2))}
-                </strong>
-              </div>
-            )}
-            {type.optional.includes('reverseCharge') && (
-              <div className="tp-reverse">
-                Tax payable on reverse charge <span className="tp-colon">:</span> <strong>{meta.reverseCharge === 'Yes' ? 'Yes' : 'No'}</strong>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Bottom: PAN, remarks, terms, declaration (left) / bank + signature (right) */}
-        <div className="tp-bottom">
-          <div className="tp-bottom-left">
-            {company.pan && (
-              <div>
-                Company&apos;s PAN <span className="tp-colon">:</span> <strong>{company.pan}</strong>
-              </div>
-            )}
-            {/* Remarks and terms sit beside the bank details / signature instead of in a row of their own. */}
-            {doc.notes?.trim() && (
-              <div>
-                <span className="tp-caption">Remarks:</span>
-                <div className="doc-pre">{doc.notes}</div>
-              </div>
-            )}
-            {doc.terms?.trim() && (
-              <div>
-                <span className="tp-caption">Terms &amp; Conditions:</span>
-                <div className="doc-pre">{doc.terms}</div>
-              </div>
-            )}
-            {ds.showDeclaration !== false && settings.declaration?.trim() && (
-              <div className="tp-declaration">
-                <div className="tp-underline">Declaration</div>
-                <div className="doc-pre">{settings.declaration}</div>
-              </div>
-            )}
-            {receiverSign && (
-              <div className="tp-receiver">
-                <div className="tp-sign-space" />
-                <div>Receiver&apos;s Signature</div>
-              </div>
-            )}
-          </div>
-          <div className="tp-bottom-right">
-            {((ds.showBank !== false && showPrices && hasBank) || (qr.payment && qr.src)) && (
-              <div className="tp-pay">
-                {ds.showBank !== false && showPrices && hasBank && (
-                  <div className="tp-bank">
-                    <div className="tp-caption">Company&apos;s Bank Details</div>
-                    {company.account_holder && (
-                      <div>
-                        A/c Holder&apos;s Name <span className="tp-colon">:</span> <strong>{company.account_holder}</strong>
-                      </div>
-                    )}
-                    {company.bank_name && (
-                      <div>
-                        Bank Name <span className="tp-colon">:</span> <strong>{company.bank_name}</strong>
-                      </div>
-                    )}
-                    {company.account_number && (
-                      <div>
-                        A/c No. <span className="tp-colon">:</span> <strong>{company.account_number}</strong>
-                      </div>
-                    )}
-                    {(company.branch || company.ifsc) && (
-                      <div>
-                        Branch &amp; IFS Code <span className="tp-colon">:</span> <strong>{[company.branch, company.ifsc].filter(Boolean).join(' & ')}</strong>
-                      </div>
-                    )}
-                    {company.upi_id && (
-                      <div>
-                        UPI <span className="tp-colon">:</span> <strong>{company.upi_id}</strong>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {qr.payment && !!qr.src && (
-                  <div className="tp-pay-qr" data-testid="upi-qr">
-                    <QrBlock src={qr.src} caption={qr.caption} />
-                  </div>
-                )}
-              </div>
-            )}
-            {ds.showSignature !== false && (
-              <div className="tp-sign">
-                <div className="tp-sign-for">for {company.name || 'Your Company'}</div>
-                <div className="tp-sign-space">
-                  {ds.showStamp !== false && company.stamp && <img className="doc-stamp" src={company.stamp} alt="" />}
-                  {company.signature && <img className="doc-signature" src={company.signature} alt="" />}
+        {tail && (
+          <>
+            {/* Amount in words */}
+            {showPrices && (
+              <div className="tp-box tp-words">
+                <div className="tp-row-between">
+                  <span>Amount Chargeable (in words)</span>
+                  <span className="tp-eoe">E. &amp; O.E</span>
                 </div>
-                <div>Authorised Signatory</div>
+                <div className="tp-strong">
+                  {doc.currency} {amountInWords(doc.grand_total, doc.currency, Number(doc.currency_decimals ?? 2))}
+                </div>
               </div>
             )}
-          </div>
-        </div>
+
+            {/* HSN/SAC summary */}
+            {hsnRows.length > 0 && ds.showTaxBreakup !== false && (
+              <table className="tp-hsn">
+                <thead>
+                  <tr>
+                    <th rowSpan={2} className="c-desc">
+                      HSN/SAC
+                    </th>
+                    <th rowSpan={2} className="c-num">
+                      Taxable Value
+                    </th>
+                    {intra && <th colSpan={2}>Central Tax</th>}
+                    {intra && <th colSpan={2}>State/UT Tax</th>}
+                    {inter && <th colSpan={2}>Integrated Tax</th>}
+                    {!intra && !inter && <th colSpan={2}>{doc.tax_label || 'Tax'}</th>}
+                    <th rowSpan={2} className="c-num">
+                      Total Tax Amount
+                    </th>
+                  </tr>
+                  <tr>
+                    {(intra ? [0, 1] : [0]).map((i) => [
+                      <th key={`r${i}`} className="c-rate">
+                        Rate
+                      </th>,
+                      <th key={`a${i}`} className="c-num">
+                        Amount
+                      </th>,
+                    ])}
+                  </tr>
+                </thead>
+                <tbody>
+                  {hsnRows.map((r) => (
+                    <tr key={`${r.hsn}|${r.rate}`}>
+                      <td className="c-desc">{r.hsn || '—'}</td>
+                      <td className="c-num">{plain(toFixed(r.taxable))}</td>
+                      {intra && <td className="c-rate">{half(r.rate)}%</td>}
+                      {intra && <td className="c-num">{plain(toFixed(r.cgst))}</td>}
+                      {intra && <td className="c-rate">{half(r.rate)}%</td>}
+                      {intra && <td className="c-num">{plain(toFixed(r.sgst))}</td>}
+                      {inter && <td className="c-rate">{formatRate(r.rate)}%</td>}
+                      {inter && <td className="c-num">{plain(toFixed(r.igst))}</td>}
+                      {!intra && !inter && <td className="c-rate">{formatRate(r.rate)}%</td>}
+                      {!intra && !inter && <td className="c-num">{plain(toFixed(r.tax))}</td>}
+                      <td className="c-num">{plain(toFixed(r.tax))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="c-desc">
+                      <strong>Total</strong>
+                    </td>
+                    <td className="c-num">
+                      <strong>{plain(toFixed(hsnRows.reduce((a, r) => a + r.taxable, 0n)))}</strong>
+                    </td>
+                    {intra && <td />}
+                    {intra && (
+                      <td className="c-num">
+                        <strong>{plain(doc.cgst)}</strong>
+                      </td>
+                    )}
+                    {intra && <td />}
+                    {intra && (
+                      <td className="c-num">
+                        <strong>{plain(doc.sgst)}</strong>
+                      </td>
+                    )}
+                    {inter && <td />}
+                    {inter && (
+                      <td className="c-num">
+                        <strong>{plain(doc.igst)}</strong>
+                      </td>
+                    )}
+                    {!intra && !inter && <td />}
+                    {!intra && !inter && (
+                      <td className="c-num">
+                        <strong>{plain(doc.tax)}</strong>
+                      </td>
+                    )}
+                    <td className="c-num">
+                      <strong>{plain(doc.tax)}</strong>
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+            {/* Tax amount in words and the reverse-charge line share one row to save space. */}
+            {((showTax && !isZero(doc.tax)) || type.optional.includes('reverseCharge')) && (
+              <div className="tp-box tp-words tp-tax-line">
+                {showTax && !isZero(doc.tax) && (
+                  <div>
+                    Tax Amount (in words) <span className="tp-colon">:</span>{' '}
+                    <strong>
+                      {doc.currency} {amountInWords(doc.tax, doc.currency, Number(doc.currency_decimals ?? 2))}
+                    </strong>
+                  </div>
+                )}
+                {type.optional.includes('reverseCharge') && (
+                  <div className="tp-reverse">
+                    Tax payable on reverse charge <span className="tp-colon">:</span> <strong>{meta.reverseCharge === 'Yes' ? 'Yes' : 'No'}</strong>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Bottom: PAN, remarks, terms, declaration (left) / bank + signature (right) */}
+            <div className="tp-bottom">
+              <div className="tp-bottom-left">
+                {company.pan && (
+                  <div>
+                    Company&apos;s PAN <span className="tp-colon">:</span> <strong>{company.pan}</strong>
+                  </div>
+                )}
+                {/* Remarks and terms sit beside the bank details / signature instead of in a row of their own. */}
+                {doc.notes?.trim() && (
+                  <div>
+                    <span className="tp-caption">Remarks:</span>
+                    <div className="doc-pre">{doc.notes}</div>
+                  </div>
+                )}
+                {doc.terms?.trim() && (
+                  <div>
+                    <span className="tp-caption">Terms &amp; Conditions:</span>
+                    <div className="doc-pre">{doc.terms}</div>
+                  </div>
+                )}
+                {ds.showDeclaration !== false && settings.declaration?.trim() && (
+                  <div className="tp-declaration">
+                    <div className="tp-underline">Declaration</div>
+                    <div className="doc-pre">{settings.declaration}</div>
+                  </div>
+                )}
+                {receiverSign && (
+                  <div className="tp-receiver">
+                    <div className="tp-sign-space" />
+                    <div>Receiver&apos;s Signature</div>
+                  </div>
+                )}
+              </div>
+              <div className="tp-bottom-right">
+                {((ds.showBank !== false && showPrices && hasBank) || (qr.payment && qr.src)) && (
+                  <div className="tp-pay">
+                    {ds.showBank !== false && showPrices && hasBank && (
+                      <div className="tp-bank">
+                        <div className="tp-caption">Company&apos;s Bank Details</div>
+                        {company.account_holder && (
+                          <div>
+                            A/c Holder&apos;s Name <span className="tp-colon">:</span> <strong>{company.account_holder}</strong>
+                          </div>
+                        )}
+                        {company.bank_name && (
+                          <div>
+                            Bank Name <span className="tp-colon">:</span> <strong>{company.bank_name}</strong>
+                          </div>
+                        )}
+                        {company.account_number && (
+                          <div>
+                            A/c No. <span className="tp-colon">:</span> <strong>{company.account_number}</strong>
+                          </div>
+                        )}
+                        {(company.branch || company.ifsc) && (
+                          <div>
+                            Branch &amp; IFS Code <span className="tp-colon">:</span> <strong>{[company.branch, company.ifsc].filter(Boolean).join(' & ')}</strong>
+                          </div>
+                        )}
+                        {company.upi_id && (
+                          <div>
+                            UPI <span className="tp-colon">:</span> <strong>{company.upi_id}</strong>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {qr.payment && !!qr.src && (
+                      <div className="tp-pay-qr" data-testid="upi-qr">
+                        <QrBlock src={qr.src} caption={qr.caption} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {ds.showSignature !== false && (
+                  <div className="tp-sign">
+                    <div className="tp-sign-for">for {company.name || 'Your Company'}</div>
+                    <div className="tp-sign-space">
+                      {ds.showStamp !== false && company.stamp && <img className="doc-stamp" src={company.stamp} alt="" />}
+                      {company.signature && <img className="doc-signature" src={company.signature} alt="" />}
+                    </div>
+                    <div>Authorised Signatory</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      <footer className="tp-footer">
-        {settings.jurisdiction && <div className="tp-strong">SUBJECT TO {settings.jurisdiction.toUpperCase()} JURISDICTION</div>}
-        <div>{settings.footerText || `This is a Computer Generated ${type.short === 'Invoice' ? 'Invoice' : 'Document'}`}</div>
-      </footer>
+      {tail && (
+        <footer className="tp-footer">
+          {settings.jurisdiction && <div className="tp-strong">SUBJECT TO {settings.jurisdiction.toUpperCase()} JURISDICTION</div>}
+          <div>{settings.footerText || `This is a Computer Generated ${type.short === 'Invoice' ? 'Invoice' : 'Document'}`}</div>
+        </footer>
+      )}
+      {page && page.pageCount > 1 && <PageFooter label={`${title} ${doc.document_number || ''}`} pageNo={page.pageNo} pageCount={page.pageCount} />}
     </article>
   );
 }

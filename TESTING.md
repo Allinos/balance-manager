@@ -4,7 +4,7 @@ Last full run: **4 October 2026** (after Help & Support, the policy and contact 
 
 | Suite | Command | Result |
 |-------|---------|--------|
-| Desktop JS unit tests | `cd document-generator && npm test` | **24 / 24 passed** (7 October 2026: template names without "Tally", setup tax choices GST / VAT / Sales Tax / own name / no tax; ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
+| Desktop JS unit tests | `cd document-generator && npm test` | **25 / 25 passed** (7 October 2026: A4 page splitting; template names without "Tally", setup tax choices GST / VAT / Sales Tax / own name / no tax; ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **177 / 177 checks passed** (7 October 2026, incl. the setup tax step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
@@ -245,20 +245,26 @@ npm run build && npm run test:portal
 npm run test:mobile
 ```
 
-## A4 page fit (Modern and Professional) — 7 October 2026
+## Full A4 pages (Modern and Professional) — 7 October 2026
 
-Checked by printing with Chromium to A4 PDF (12 mm margins, the same as Print and Download PDF) and counting pages:
+Professional and Modern are drawn as whole A4 pages (`document-generator/src/renderer/paging.js`): the bill is measured
+once, its item rows are split over pages, and every page is stretched to the full A4 height (12 mm margins) with an
+empty ruled filler in the item table. Checked by printing to A4 PDF and counting pages:
 
-| Bill | Modern | Professional | Standard (unchanged) |
+| Bill | Professional | Modern | Standard / Simple (unchanged) |
 | --- | --- | --- | --- |
-| 6 items, 2 with three-line names (notes, terms, bank, UPI QR) | 1 page | 1 page | 2 pages |
-| 7 such items | 1 page | 1 page | — |
-| 8 such items | 2 pages | 1 page | — |
-| Short one-line items | 10 on 1 page | 14 on 1 page | — |
-| 40 items | 3 pages, numbered | 2 pages, numbered | 3 pages |
-| Crore amounts in every column | fits the width | fits the width | — |
+| 1 item | 1 full page | 1 full page | flow as before |
+| 10 items | 1 full page | 1 full page | — |
+| 50 products | 3 full pages | 3 full pages | — |
+| 50 services | 2 full pages | 3 full pages | — |
+| 50 products × 3 copies | 9 pages | — | — |
 
-Long bills: rows are never split, the column headings repeat on every page, the totals / GST summary / bank details /
-signature stay together on the last page, the Professional total row prints once (not at the foot of each page), and
-each page shows the document number and "Page 1 of 3" (Windows and the phone app; the Linux webview prints without
-page numbers). The preview says how many pages the bill will print on.
+- Page 1 has the full header. Later pages have a short "continued" header and the item column headings.
+- Rows are never cut. Pages that aren't last end with "Continued on page 2 …".
+- Totals, the GST summary, bank details and signature stay together on the last page, which always keeps a few rows.
+- Every page of a multi-page bill shows "INV-… · Page 1 of 3", including in the Linux webview.
+- The preview on desktop and phone shows the same pages.
+- Chrome engines (Windows app, Android phones) print the planned size exactly.
+- WebKit (Linux app, Safari) prints with its own scale. Pages are planned 3 % shorter there, so they never spill onto an
+  extra page. Checked with the WebKitGTK print path the Linux app uses.
+- Unit test: `planPages` (every row placed once, each page filled to the foot, the last page never holds the totals alone).

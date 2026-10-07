@@ -45,9 +45,10 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
 - **Four print templates** — *Professional* (full GST invoice, Rule 46), *Standard*,
   *Modern*, *Simple*. Default per app, per document type, or per single document; switching
   never changes data.
-- **A4 printing**: 12 mm margins on every side. Modern fits about 10 one-line items on one page, Professional about 14 (fewer with long names).
-  A long bill continues on the next pages: rows are never cut, column headings repeat, totals, bank details and
-  signature stay together on the last page, and every page shows the document number and "Page 1 of 2".
+- **Full A4 pages** (Professional and Modern): every bill fills the whole A4 page (12 mm margins), even with one
+  item: the item table stretches to the foot of the page. A long bill is split into pages: rows are never cut, column
+  headings repeat, each page shows "Page 1 of 3" and "Continued on page 2 …", and the totals, bank details and
+  signature stay together on the last page. The preview shows the same pages. Standard and Simple print as before.
 - **First start** asks which tax you charge — GST, VAT, Sales Tax, your own name (e.g. TVA) or no tax — and prints that
   name on documents. The template starts as Professional (GST) or Modern (other taxes); change it in Settings → Documents.
 - **Indian GST**: GSTIN validation, state from GSTIN, state codes on print, place of supply →

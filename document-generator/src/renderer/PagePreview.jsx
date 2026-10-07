@@ -1,31 +1,24 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import DocumentRenderer from './DocumentRenderer.jsx';
+import { createPortal } from 'react-dom';
+import DocumentRenderer, { PAGED_TEMPLATES, templateOf } from './DocumentRenderer.jsx';
+import { measureFlow, planPages } from './paging.js';
 
 const MM_TO_PX = 96 / 25.4;
 const PAGE_WIDTH_PX = 210 * MM_TO_PX;
-/** Printable height of an A4 page inside the 12 mm print margins (print.css). */
-const PAGE_CONTENT_PX = (297 - 2 * 12) * MM_TO_PX;
-/** Templates that number their pages when a long bill runs onto more pages (Standard and Simple print as before). */
-const NUMBERED = ['doc-modern', 'doc-tp'];
 
-const cssText = (v) => `"${String(v).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ')}"`;
-
-/** How many A4 pages the document needs when printed, and whether its template numbers them. */
-function measurePages(paper) {
-  const doc = paper.querySelector('.doc');
-  if (!doc) return { pages: 1, numbered: false };
-  const kids = [...doc.children].filter((k) => !['absolute', 'fixed'].includes(getComputedStyle(k).position) && k.offsetHeight > 0);
-  const height = kids.length ? kids[kids.length - 1].offsetTop + kids[kids.length - 1].offsetHeight - kids[0].offsetTop : 0;
-  return {
-    // Rows and totals never split across pages, so allow a little for the gap they leave.
-    pages: Math.max(1, Math.ceil(height / (PAGE_CONTENT_PX - 8 * MM_TO_PX))),
-    numbered: NUMBERED.some((c) => doc.classList.contains(c)),
-  };
-}
+/** Same plan as before (fills rounded), so measuring again does not re-render for nothing. */
+const samePlan = (a, b) =>
+  !!a &&
+  !!b &&
+  a.length === b.length &&
+  a.every((p, i) => p.from === b[i].from && p.to === b[i].to && Math.abs(p.fill - b[i].fill) < 0.5 && p.overflow === b[i].overflow);
 
 /**
  * A4 paper preview that scales down to fit its container on screen.
  * In print the scaling wrapper is neutralised by print.css so output is 1:1.
+ *
+ * Professional and Modern are drawn as full A4 pages: the bill is measured once off screen, split into
+ * pages (paging.js) and every page is stretched to the full A4 height, on screen and in print / PDF.
  */
 /**
  * @param {{payload: Object, maxScale?: number, copies?: number}} props
@@ -34,9 +27,11 @@ function measurePages(paper) {
 export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
   const outer = useRef(null);
   const inner = useRef(null);
+  const measureRef = useRef(null);
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState(0);
-  const [print, setPrint] = useState({ pages: 1, numbered: false });
+  const [plan, setPlan] = useState(null);
+  const paged = PAGED_TEMPLATES.includes(templateOf(payload));
 
   useEffect(() => {
     const el = outer.current;
@@ -54,45 +49,67 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
   useLayoutEffect(() => {
     const el = inner.current;
     if (!el) return undefined;
-    const measure = () => {
-      setHeight(el.offsetHeight);
-      const next = measurePages(el);
-      setPrint((p) => (p.pages === next.pages && p.numbered === next.numbered ? p : next));
-    };
+    const measure = () => setHeight(el.offsetHeight);
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
 
-  const doc = payload.document || {};
-  const label = [payload.settings?.doc?.title, doc.document_number].filter(Boolean).join(' ');
-  // A long bill continues on the next page; each printed page then shows the document number and "Page 1 of 2".
-  const pageNumbers =
-    print.numbered && print.pages > 1
-      ? `@page { @bottom-left { content: ${cssText(label)}; font-family: Arial, sans-serif; font-size: 7.5pt; color: #555; }` +
-        ` @bottom-right { content: "Page " counter(page)${copies > 1 ? '' : ' " of " counter(pages)'}; font-family: Arial, sans-serif; font-size: 7.5pt; color: #555; } }`
-      : '';
+  // Split into A4 pages whenever the document changes (and when its logo or fonts finish loading).
+  useLayoutEffect(() => {
+    const el = measureRef.current;
+    if (!paged || !el) {
+      setPlan(null);
+      return undefined;
+    }
+    let live = true;
+    const run = () => {
+      const doc = el.querySelector('.doc');
+      if (!live || !doc || !doc.offsetWidth) return;
+      const m = measureFlow(doc);
+      const pages = m
+        ? planPages(m).map((p, i, all) => ({ ...p, mode: 'page', pageNo: i + 1, pageCount: all.length, colWidths: m.colWidths }))
+        : null;
+      setPlan((prev) => (pages && samePlan(prev, pages) ? prev : pages));
+    };
+    run();
+    const ro = new ResizeObserver(run);
+    ro.observe(el);
+    document.fonts?.ready?.then(run);
+    return () => {
+      live = false;
+      ro.disconnect();
+    };
+  }, [payload, paged]);
+
+  const drawCopy = (copyIndex) =>
+    paged && plan ? (
+      plan.map((p) => <DocumentRenderer key={p.pageNo} payload={payload} copyIndex={copyIndex} copies={copies} paging={p} />)
+    ) : (
+      <DocumentRenderer payload={payload} copyIndex={copyIndex} copies={copies} />
+    );
 
   return (
     <div className="page-preview" ref={outer}>
-      {pageNumbers && <style>{pageNumbers}</style>}
       <div className="page-preview-sizer" style={{ height: height * scale, width: PAGE_WIDTH_PX * scale }}>
-        <div className="page-preview-paper print-root" ref={inner} style={{ transform: `scale(${scale})` }}>
-          <DocumentRenderer payload={payload} copyIndex={0} copies={copies} />
+        <div className={`page-preview-paper print-root${paged && plan ? ' paged' : ''}`} ref={inner} style={{ transform: `scale(${scale})` }}>
+          {drawCopy(0)}
           {Array.from({ length: copies - 1 }, (_, i) => (
             <div key={i} className="print-only doc-extra-copy">
-              <DocumentRenderer payload={payload} copyIndex={i + 1} copies={copies} />
+              {drawCopy(i + 1)}
             </div>
           ))}
         </div>
       </div>
-      {print.numbered && print.pages > 1 && (
-        <p className="page-count-note no-print" data-testid="page-count-note">
-          Prints on about {print.pages} A4 pages. The item list continues on the next page with its column headings repeated; the totals, bank
-          details and signature are on the last page, and every page is numbered.
-        </p>
-      )}
+      {/* The measuring copy lives at the end of <body>, away from the preview and its scaling. */}
+      {paged &&
+        createPortal(
+          <div className="page-measure no-print" aria-hidden="true" ref={measureRef}>
+            <DocumentRenderer payload={payload} paging={{ mode: 'measure' }} />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

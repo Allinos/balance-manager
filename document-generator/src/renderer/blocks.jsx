@@ -130,7 +130,12 @@ export function DocumentMeta({ doc, type, dateFormat, parent, baseCurrency }) {
   );
 }
 
-export function ItemsTable({ items, doc, ds }) {
+/**
+ * Item table. The optional props are used when the Modern template is laid out page by page (paging.js):
+ * start (numbering offset), colWidths (fixed column widths so every page wraps alike), hideFoot, noEmptyRow, fill (height of
+ * the empty ruled space that stretches the table to the foot of the page).
+ */
+export function ItemsTable({ items, doc, ds, start = 0, colWidths, hideFoot = false, noEmptyRow = false, fill = 0 }) {
   const money = (v) => formatMoney(v, { ...doc, currency_symbol: '' });
   const showTax = ds.showTax !== false && doc.tax_mode !== 'NONE';
   const showPrices = ds.showPrices !== false;
@@ -138,7 +143,14 @@ export function ItemsTable({ items, doc, ds }) {
   const showHsn = ds.showHsn !== false && items.some((i) => i.hsn_sac);
   const showPackage = ds.showPackage && items.some((i) => i.package_info);
   return (
-    <table className="doc-items">
+    <table className="doc-items" style={colWidths ? { tableLayout: 'fixed' } : undefined}>
+      {colWidths && (
+        <colgroup>
+          {colWidths.map((w, i) => (
+            <col key={i} style={{ width: w }} />
+          ))}
+        </colgroup>
+      )}
       <thead>
         <tr>
           <th className="c-sn">#</th>
@@ -155,8 +167,8 @@ export function ItemsTable({ items, doc, ds }) {
       </thead>
       <tbody>
         {items.map((it, i) => (
-          <tr key={it._key || it.id || i}>
-            <td className="c-sn">{i + 1}</td>
+          <tr key={it._key || it.id || i} className="doc-item-row">
+            <td className="c-sn">{start + i + 1}</td>
             <td className="c-item">
               <div className="doc-item-name">{it.name}</div>
               {it.description && <div className="doc-item-desc">{it.description}</div>}
@@ -180,15 +192,22 @@ export function ItemsTable({ items, doc, ds }) {
             {showPrices && <td className="c-num c-amt">{money(showTax ? it.total_amount : it.taxable_amount)}</td>}
           </tr>
         ))}
-        {items.length === 0 && (
+        {items.length === 0 && !noEmptyRow && (
           <tr>
             <td className="doc-empty-row" colSpan={10}>
               No items added yet
             </td>
           </tr>
         )}
+        {fill > 0 && colWidths && (
+          <tr className="doc-fill-row" style={{ height: fill }}>
+            {colWidths.map((_, i) => (
+              <td key={i} />
+            ))}
+          </tr>
+        )}
       </tbody>
-      {!showPrices && items.length > 0 && (
+      {!showPrices && items.length > 0 && !hideFoot && (
         <tfoot>
           <tr>
             <td colSpan={showHsn ? 3 : 2} className="c-right">
@@ -401,13 +420,15 @@ export function ReceiptBody({ doc, dateFormat }) {
         {amountInWords(doc.grand_total, doc.currency, Number(doc.currency_decimals ?? 2))})
         {meta.payment_mode ? (
           <>
-            {' '}by <strong>{meta.payment_mode}</strong>
+            {' '}
+            by <strong>{meta.payment_mode}</strong>
           </>
         ) : null}
         {meta.payment_reference ? ` (Ref: ${meta.payment_reference})` : ''}
         {meta.against ? (
           <>
-            {' '}against <strong>{meta.against}</strong>
+            {' '}
+            against <strong>{meta.against}</strong>
           </>
         ) : null}{' '}
         on {formatDate(doc.issue_date, dateFormat)}.
@@ -416,6 +437,35 @@ export function ReceiptBody({ doc, dateFormat }) {
         <span>{type.partyKind === 'vendor' ? 'Amount Paid' : type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
         <strong>{formatMoney(doc.grand_total, doc)}</strong>
       </div>
+    </div>
+  );
+}
+
+/** Pages 2, 3 … of a long bill: a short header instead of the full one. */
+export function ContinuationHead({ company, title, doc }) {
+  return (
+    <div className="doc-cont-head">
+      <strong>{company.name || 'Your Company'}</strong>
+      <span>
+        {title} {doc.document_number} <em>(continued)</em>
+      </span>
+    </div>
+  );
+}
+
+/** Foot of the item list on every page but the last. */
+export function ContinuedNote({ next }) {
+  return <div className="doc-cont-note">Continued on page {next} …</div>;
+}
+
+/** "Page 1 of 3" at the foot of every page of a multi-page bill. */
+export function PageFooter({ label, pageNo, pageCount }) {
+  return (
+    <div className="doc-page-foot">
+      <span>{label}</span>
+      <span>
+        Page {pageNo} of {pageCount}
+      </span>
     </div>
   );
 }

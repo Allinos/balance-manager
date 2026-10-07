@@ -742,7 +742,7 @@ async function main() {
     await sleep(500);
     await go('#/doc/1');
     await find('.doc-tp');
-    const copyLabels = await exec('return [...document.querySelectorAll(".tp-copy")].map(e=>e.textContent)');
+    const copyLabels = await exec('return [...document.querySelectorAll(".page-preview .tp-copy")].map(e=>e.textContent)');
     check(copyLabels.join('|') === '(ORIGINAL FOR RECIPIENT)|(DUPLICATE FOR TRANSPORTER)|(TRIPLICATE FOR SUPPLIER)', `three copies with GST copy labels (${copyLabels.join(', ')})`);
     check(!(await exec('return document.querySelectorAll(".doc-extra-copy")[0].offsetParent')), 'extra copies are print-only (screen shows one copy)');
     for (const f of readdirSync(pdfDir)) rmSync(path.join(pdfDir, f));
