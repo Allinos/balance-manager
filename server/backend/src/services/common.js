@@ -120,7 +120,7 @@ export const DEFAULT_SITE = {
   showComparison: true,
   showProblems: true,
   /** Meta Pixel for Facebook / Instagram ads (the ID is public; the Conversions API token is in .env). */
-  metaPixel: { enabled: true, pixelId: '1862821958226928' },
+  metaPixel: { enabled: true, pixelId: '1641005901370085' },
   offer: { enabled: true, regularPricePercent: 20, timerMinutes: 15, showBuyers: true, customers: '500+', rating: 4.8 },
   business: {
     legalName: 'Reynrel',
@@ -135,6 +135,8 @@ export async function getSiteConfig(knex) {
   const row = await knex('app_config').where({ key: 'site' }).first();
   const saved = parseJson(row?.value, {});
   const site = { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business }, offer: { ...DEFAULT_SITE.offer, ...saved.offer }, metaPixel: { ...DEFAULT_SITE.metaPixel, ...saved.metaPixel } };
+  // The first Pixel ID (replaced by dataset 1641005901370085): a site saved with it moves to the new one.
+  if (site.metaPixel.pixelId === '1862821958226928') site.metaPixel.pixelId = DEFAULT_SITE.metaPixel.pixelId;
   delete site.buyFunnel; // the old step-by-step /buy funnel, replaced by the /offer page
   return site;
 }

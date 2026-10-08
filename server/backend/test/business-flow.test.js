@@ -794,21 +794,25 @@ describe('Meta Pixel and Conversions API', () => {
 
   test('the Pixel ID is on the website; the access token never is', async () => {
     const r = await api('GET', '/api/portal/site');
-    assert.deepEqual(r.body.site.metaPixel, { enabled: true, pixelId: '1862821958226928' });
+    assert.deepEqual(r.body.site.metaPixel, { enabled: true, pixelId: '1641005901370085' });
     assert.ok(!JSON.stringify(r.body).includes('meta_test_token'));
     const admin = await api('GET', '/api/admin/site', { token: adminToken });
     assert.deepEqual(admin.body.metaCapi, { configured: true, testMode: true });
     assert.ok(!JSON.stringify(admin.body).includes('meta_test_token'));
+    // A site saved with the first Pixel ID uses the new dataset ID.
+    await api('PUT', '/api/admin/site', { token: adminToken, body: { ...admin.body.site, metaPixel: { enabled: true, pixelId: '1862821958226928' } } });
+    assert.equal((await api('GET', '/api/portal/site')).body.site.metaPixel.pixelId, '1641005901370085');
+    await api('PUT', '/api/admin/site', { token: adminToken, body: admin.body.site });
   });
 
   test('the Pixel base code is added to the page HTML (for Meta\'s checks), but not to the admin panel', async () => {
     const { withPixel, pixelScript } = await import('../src/services/meta.js');
-    const html = withPixel('<html><head><title>x</title></head><body class="a"><div id="root"></div></body></html>', '1862821958226928');
+    const html = withPixel('<html><head><title>x</title></head><body class="a"><div id="root"></div></body></html>', '1641005901370085');
     assert.match(html, /<script src="\/meta-pixel\.js"><\/script>\s*<\/head>/);
-    assert.match(html, /<body class="a">\s*<noscript><img [^>]*facebook\.com\/tr\?id=1862821958226928&amp;ev=PageView&amp;noscript=1/);
+    assert.match(html, /<body class="a">\s*<noscript><img [^>]*facebook\.com\/tr\?id=1641005901370085&amp;ev=PageView&amp;noscript=1/);
     assert.equal(withPixel('<head></head>', 'abc'), '<head></head>', 'an invalid ID adds nothing');
-    assert.match(pixelScript('1862821958226928'), /connect\.facebook\.net\/en_US\/fbevents\.js[\s\S]*fbq\('init', '1862821958226928'\)/);
-    assert.ok(!pixelScript('1862821958226928').includes('PageView'), 'PageView is sent by the website, once per page');
+    assert.match(pixelScript('1641005901370085'), /connect\.facebook\.net\/en_US\/fbevents\.js[\s\S]*fbq\('init', '1641005901370085'\)/);
+    assert.ok(!pixelScript('1641005901370085').includes('PageView'), 'PageView is sent by the website, once per page');
   });
 
   test('a paid order is sent once as a Purchase, with hashed email and phone and the ad click', async () => {
@@ -832,7 +836,7 @@ describe('Meta Pixel and Conversions API', () => {
     assert.ok(sent, 'Purchase sent to Meta');
     await new Promise((r) => setTimeout(r, 300));
     assert.equal(metaRequests.filter((m) => m.body.data?.[0]?.event_id === `purchase-${id}`).length, 1, 'sent once');
-    assert.equal(sent.url, '/v21.0/1862821958226928/events');
+    assert.equal(sent.url, '/v21.0/1641005901370085/events');
     assert.equal(sent.body.access_token, 'meta_test_token');
     assert.equal(sent.body.test_event_code, 'TEST4242');
     const [e] = sent.body.data;

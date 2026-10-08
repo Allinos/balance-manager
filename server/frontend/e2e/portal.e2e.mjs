@@ -137,11 +137,11 @@ try {
   await page.goto(`${base}/?utm_source=google&utm_medium=cpc&utm_campaign=gst-oct&gclid=e2e-click`);
   await page.getByTestId('headline').waitFor();
   await waitFb(page, 'PageView');
-  check((await fbCalls(page)).some((c) => c[0] === 'init' && c[1] === '1862821958226928'), 'Meta Pixel 1862821958226928 loads on the website and sends PageView');
+  check((await fbCalls(page)).some((c) => c[0] === 'init' && c[1] === '1641005901370085'), 'Meta Pixel 1641005901370085 loads on the website and sends PageView');
   const rawOffer = await (await fetch(`${base}/offer`)).text();
   const rawAdmin = await (await fetch(`${base}/admin/login`)).text();
   const pixelJs = await (await fetch(`${base}/meta-pixel.js`)).text();
-  check(rawOffer.includes('<script src="/meta-pixel.js"></script>') && rawOffer.includes('facebook.com/tr?id=1862821958226928') && pixelJs.includes("fbq('init', '1862821958226928')"),
+  check(rawOffer.includes('<script src="/meta-pixel.js"></script>') && rawOffer.includes('facebook.com/tr?id=1641005901370085') && pixelJs.includes("fbq('init', '1641005901370085')"),
     'the Pixel base code is in the page HTML itself (Meta\'s event setup tool can detect it)');
   check(!rawAdmin.includes('meta-pixel.js') && !rawAdmin.includes('facebook.com/tr'), 'no Pixel in the admin panel HTML');
   check((await fbCalls(page)).filter((c) => c[0] === 'init').length === 1 && (await fbCalls(page)).filter((c) => c[1] === 'PageView').length === 1, 'Pixel initialised once, one PageView per page');
@@ -553,7 +553,7 @@ try {
   await page.locator('.thumb').nth(3).waitFor();
   await page.getByTestId('save-site').click();
   await page.getByText('Website updated').waitFor();
-  check((await page.getByTestId('pixel-id').inputValue()) === '1862821958226928' && (await page.getByTestId('capi-status').textContent()).includes('Not set up'),
+  check((await page.getByTestId('pixel-id').inputValue()) === '1641005901370085' && (await page.getByTestId('capi-status').textContent()).includes('Not set up'),
     'Admin → Website: Meta Pixel ID, and the Conversions API shown as not set up (no META_CAPI_TOKEN on this server)');
   await shot('09-website');
   const page2 = await context.newPage();
