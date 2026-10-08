@@ -801,6 +801,16 @@ describe('Meta Pixel and Conversions API', () => {
     assert.ok(!JSON.stringify(admin.body).includes('meta_test_token'));
   });
 
+  test('the Pixel base code is added to the page HTML (for Meta\'s checks), but not to the admin panel', async () => {
+    const { withPixel, pixelScript } = await import('../src/services/meta.js');
+    const html = withPixel('<html><head><title>x</title></head><body class="a"><div id="root"></div></body></html>', '1862821958226928');
+    assert.match(html, /<script src="\/meta-pixel\.js"><\/script>\s*<\/head>/);
+    assert.match(html, /<body class="a">\s*<noscript><img [^>]*facebook\.com\/tr\?id=1862821958226928&amp;ev=PageView&amp;noscript=1/);
+    assert.equal(withPixel('<head></head>', 'abc'), '<head></head>', 'an invalid ID adds nothing');
+    assert.match(pixelScript('1862821958226928'), /connect\.facebook\.net\/en_US\/fbevents\.js[\s\S]*fbq\('init', '1862821958226928'\)/);
+    assert.ok(!pixelScript('1862821958226928').includes('PageView'), 'PageView is sent by the website, once per page');
+  });
+
   test('a paid order is sent once as a Purchase, with hashed email and phone and the ad click', async () => {
     const start = await api('POST', '/api/portal/checkout/start', {
       headers: { 'User-Agent': 'Mozilla/5.0 (test phone)' },

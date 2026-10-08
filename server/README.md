@@ -195,7 +195,8 @@ The browser (and the apps) can never create a license, choose an amount or exten
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
    **Meta Pixel** (Pixel ID `1862821958226928` by default; Admin → Website → *Meta Pixel*): PageView on every
-   public page (never the admin panel), ViewContent on `/offer` and `/buy`, InitiateCheckout at "Pay now",
+   public page (never the admin panel; the server puts Meta's base code, `/meta-pixel.js` and the
+   `<noscript>` image, in the page HTML itself so Meta's event setup tool detects it), ViewContent on `/offer` and `/buy`, InitiateCheckout at "Pay now",
    Purchase after payment with the amount, currency and product. With `META_CAPI_TOKEN` in `.env` the server
    also sends each paid order (browser confirmation, Razorpay webhook or an admin's "mark paid") through the
    Conversions API, with the email and mobile SHA-256 hashed, IP address, browser, `_fbp` / `_fbc` cookies

@@ -12,6 +12,28 @@ import { config } from '../config.js';
 import { parseJson } from '../db.js';
 import { getSiteConfig } from './common.js';
 
+/** A Pixel ID as stored in Admin → Website (digits only). */
+export const validPixelId = (id) => /^\d{8,20}$/.test(String(id || ''));
+
+/**
+ * Meta's Pixel base code as a script file (/meta-pixel.js), so it runs under the site's Content-Security-Policy
+ * (no inline scripts). It loads fbevents.js and calls init; the website itself sends PageView and the other events.
+ */
+export const pixelScript = (pixelId) => `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${pixelId}');
+`;
+
+/** Add the Pixel to a page's HTML: the base code in <head> and Meta's <noscript> image (seen by Meta's checks). */
+export function withPixel(html, pixelId) {
+  if (!validPixelId(pixelId)) return html;
+  const head = `<script src="/meta-pixel.js"></script>`;
+  const noscript = `<noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=${pixelId}&amp;ev=PageView&amp;noscript=1"></noscript>`;
+  return html.replace('</head>', `    ${head}\n  </head>`).replace(/<body([^>]*)>/, `<body$1>\n    ${noscript}`);
+}
+
 const sha256 = (v) => crypto.createHash('sha256').update(v).digest('hex');
 
 /** Meta's normalisation: email lower-case; phone digits only with the country code (India by default). */

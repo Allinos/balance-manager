@@ -14,7 +14,8 @@ import { appRoutes } from './routes/app.js';
 import { portalRoutes, markPaid } from './routes/portal.js';
 import { adminRoutes } from './routes/admin.js';
 import { getProvider } from './payments/index.js';
-import { audit, bumpStat } from './services/common.js';
+import { audit, bumpStat, getSiteConfig } from './services/common.js';
+import { pixelScript, validPixelId, withPixel } from './services/meta.js';
 import { PLATFORMS, installerPath, isEntitled } from './services/downloads.js';
 import { verifyPurposeToken } from './lib/security.js';
 
@@ -145,10 +146,26 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
   if (vite) {
     app.use(vite.middlewares);
   } else if (fs.existsSync(path.join(config.portalDist, 'index.html'))) {
+    const indexHtml = fs.readFileSync(path.join(config.portalDist, 'index.html'), 'utf8');
+    /** The Meta Pixel (Admin → Website) when it is on and has an ID; never on the admin panel. */
+    const pixelFor = async (reqPath) => {
+      if (reqPath.startsWith('/admin')) return null;
+      const pixel = (await getSiteConfig(knex)).metaPixel || {};
+      return pixel.enabled !== false && validPixelId(pixel.pixelId) ? pixel.pixelId : null;
+    };
+    // Meta Pixel base code as a file, so it runs under the Content-Security-Policy (no inline scripts).
+    app.get('/meta-pixel.js', async (_req, res) => {
+      const id = await pixelFor('/');
+      res.set('Cache-Control', 'no-cache').type('application/javascript').send(id ? pixelScript(id) : '/* Meta Pixel is off */\n');
+    });
     app.use(express.static(config.portalDist, { index: false, maxAge: '1h' }));
-    // The ad offer page is for ad visitors only: keep it out of search results.
-    app.get('/offer', (_req, res) => res.sendFile(path.join(config.portalDist, 'index.html'), { headers: { 'X-Robots-Tag': 'noindex, nofollow' } }));
-    app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(config.portalDist, 'index.html')));
+    // Every page of the single-page app gets index.html, with the Pixel in the HTML itself so Meta's tools see it.
+    app.get(/^(?!\/api\/).*/, async (req, res) => {
+      const id = await pixelFor(req.path);
+      // The ad offer page is for ad visitors only: keep it out of search results.
+      if (req.path === '/offer') res.set('X-Robots-Tag', 'noindex, nofollow');
+      res.set('Cache-Control', 'no-cache').type('html').send(id ? withPixel(indexHtml, id) : indexHtml);
+    });
   }
 
   app.use(errorHandler(logger));

@@ -138,6 +138,13 @@ try {
   await page.getByTestId('headline').waitFor();
   await waitFb(page, 'PageView');
   check((await fbCalls(page)).some((c) => c[0] === 'init' && c[1] === '1862821958226928'), 'Meta Pixel 1862821958226928 loads on the website and sends PageView');
+  const rawOffer = await (await fetch(`${base}/offer`)).text();
+  const rawAdmin = await (await fetch(`${base}/admin/login`)).text();
+  const pixelJs = await (await fetch(`${base}/meta-pixel.js`)).text();
+  check(rawOffer.includes('<script src="/meta-pixel.js"></script>') && rawOffer.includes('facebook.com/tr?id=1862821958226928') && pixelJs.includes("fbq('init', '1862821958226928')"),
+    'the Pixel base code is in the page HTML itself (Meta\'s event setup tool can detect it)');
+  check(!rawAdmin.includes('meta-pixel.js') && !rawAdmin.includes('facebook.com/tr'), 'no Pixel in the admin panel HTML');
+  check((await fbCalls(page)).filter((c) => c[0] === 'init').length === 1 && (await fbCalls(page)).filter((c) => c[1] === 'PageView').length === 1, 'Pixel initialised once, one PageView per page');
   const cards = page.getByTestId('price-card');
   check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
   const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
