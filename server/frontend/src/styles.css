@@ -2733,3 +2733,304 @@ a.stat:hover {
 .page-head .badge {
   text-transform: none;
 }
+
+/* ------------------------------------------------- problems DocGen solves */
+.problems {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+.problem-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.problem-top {
+  display: flex;
+  gap: 12px;
+  padding: 18px 18px 14px;
+  flex: 1;
+}
+.problem-icon {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--bad-bg);
+  color: var(--bad);
+}
+.problem-top h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+.problem-top p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.problem-fix {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 12px 18px;
+  background: var(--good-bg);
+  color: var(--good);
+  font-size: 14px;
+  font-weight: 500;
+  border-top: 1px solid #d1fae5;
+}
+.problem-fix svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+/* ------------------------------------------------------------- buy funnel */
+.funnel {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+.funnel-progress {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  padding: 0;
+  margin: 0 0 28px;
+}
+.funnel-progress li {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 4px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.funnel-progress li.on,
+.funnel-progress li.done {
+  border-top-color: var(--accent);
+  color: var(--text);
+}
+.funnel-progress li.on {
+  font-weight: 600;
+}
+.funnel-progress b {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  background: var(--border);
+  color: var(--text-2);
+}
+.funnel-progress li.on b,
+.funnel-progress li.done b {
+  background: var(--accent);
+  color: #fff;
+}
+.funnel-step h1 {
+  margin: 6px 0 8px;
+  font-size: clamp(26px, 4vw, 36px);
+  line-height: 1.15;
+}
+.funnel-step .lp-lead {
+  margin: 0 0 22px;
+}
+.pain-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.pain-option {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 14px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.pain-option:hover {
+  border-color: var(--accent-line);
+}
+.pain-option.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(34, 76, 200, 0.12);
+}
+.pain-tick {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 1px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  color: #fff;
+}
+.pain-option.on .pain-tick {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.pain-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pain-text strong {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 15px;
+}
+.pain-text strong svg {
+  color: var(--muted);
+}
+.pain-text > span {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+.funnel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 20px;
+  align-items: center;
+  margin-top: 26px;
+}
+.fix-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+  margin-top: 18px;
+}
+.fix-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.fix-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.fix-before {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: line-through;
+  text-decoration-color: rgba(185, 28, 28, 0.55);
+}
+.fix-after {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-weight: 500;
+}
+.fix-after svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--good);
+}
+.fix-shot {
+  position: sticky;
+  top: 90px;
+}
+.funnel-trust {
+  margin-top: 22px;
+}
+.plan-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 18px 0 14px;
+  padding: 16px 18px;
+}
+.plan-summary-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+.plan-summary-price strong {
+  font-size: 24px;
+}
+.guarantee {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--good-bg);
+  color: var(--text-2);
+  font-size: 14px;
+}
+.guarantee svg {
+  flex: none;
+  color: var(--good);
+}
+.funnel-back {
+  display: inline-block;
+  margin-bottom: 10px;
+}
+@media (max-width: 860px) {
+  .problems {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fix-layout {
+    grid-template-columns: 1fr;
+  }
+  .fix-shot {
+    position: static;
+  }
+}
+@media (max-width: 600px) {
+  .problems,
+  .pain-grid {
+    grid-template-columns: 1fr;
+  }
+  .funnel {
+    padding: 20px 16px 48px;
+  }
+  .funnel-progress li span {
+    display: none;
+  }
+  .funnel-progress li.on span {
+    display: inline;
+  }
+  .funnel-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .plan-summary {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .plan-summary-price {
+    align-items: flex-start;
+    text-align: left;
+  }
+}

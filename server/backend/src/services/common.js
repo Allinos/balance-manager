@@ -118,6 +118,8 @@ export const DEFAULT_SITE = {
   ],
   videos: [],
   showComparison: true,
+  showProblems: true,
+  buyFunnel: true,
   business: {
     legalName: 'Reynrel',
     address: '',

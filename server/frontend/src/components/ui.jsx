@@ -28,9 +28,9 @@ export function Select({ value, onChange, options, ...rest }) {
   );
 }
 
-export const Check = ({ checked, onChange, label }) => (
+export const Check = ({ checked, onChange, label, ...rest }) => (
   <label className="check">
-    <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />
+    <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} {...rest} />
     <span>{label}</span>
   </label>
 );

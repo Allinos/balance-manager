@@ -9,6 +9,7 @@ import { clientApi, money } from '../../api.js';
 import { Spinner, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
+import { ProblemSection } from './Pitch.jsx';
 
 const FEATURES = [
   ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
@@ -250,7 +251,7 @@ export function PricingCards({ product }) {
               <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support{p.durationDays ? ` for ${p.periodText.toLowerCase()}` : ''}
             </li>
           </ul>
-          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
+          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}&start=details`} data-testid={`buy-${p.durationDays}`}>
             Buy {p.periodText.toLowerCase() === 'lifetime' ? 'lifetime license' : p.periodText}
           </Link>
         </div>
@@ -309,6 +310,8 @@ export default function ProductPage() {
             {data.mobileAvailable && <img className="hero-phone" src="/screenshots/mobile-dashboard.png" alt="DocGen Mobile" />}
           </div>
         </section>
+
+        {site.showProblems !== false && <ProblemSection />}
 
         <div className="lp-band">
           <section className="lp-section" id="features">

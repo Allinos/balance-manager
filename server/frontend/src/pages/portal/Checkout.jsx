@@ -1,6 +1,10 @@
 /**
  * Buy DocGen: name, mobile, email → payment → account created, signed in → license code + download.
  * (This is also the registration page: /register leads here.) Signed-in customers buy with their account.
+ *
+ * Sales funnel (Admin → Website → "Buy page as a step-by-step funnel", on by default): visitors who open /buy
+ * directly (header button, ads, links) first see their problems → how DocGen fixes them → the plan, then the
+ * checkout. Signed-in customers and visitors who picked a plan on the pricing cards (?start=details) skip it.
  */
 
 import { useEffect, useState } from 'react';
@@ -14,6 +18,7 @@ import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader, useAuth } from '../../App.jsx';
 import { licenseLength } from './ProductPage.jsx';
 import { PriceTiles } from './Services.jsx';
+import { PAINS } from './Pitch.jsx';
 
 function Steps({ step }) {
   const items = ['Your details', 'Payment', 'License & download'];
@@ -66,6 +71,165 @@ function OrderSummary({ product, price }) {
   );
 }
 
+const FUNNEL_STEPS = ['Your problems', 'The fix', 'Your plan', 'Checkout'];
+
+function FunnelProgress({ step }) {
+  return (
+    <ol className="funnel-progress" aria-label="Steps" data-testid="funnel-progress">
+      {FUNNEL_STEPS.map((label, i) => (
+        <li key={label} className={i < step ? 'done' : i === step ? 'on' : ''}>
+          <b>{i < step ? <Icon name="check" size={12} strokeWidth={3} /> : i + 1}</b>
+          <span>{label}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const TRUST = [
+  ['offline', 'Works without internet'],
+  ['lock', 'Your data stays on your devices'],
+  ['mail', 'License key by email at once'],
+  ['shield', '7-day refund policy'],
+];
+
+/** Steps 1–3 of the funnel. `picked`: the problems the visitor ticked. */
+function BuyFunnel({ step, go, site, product, price, onPrice, picked, setPicked }) {
+  const toggle = (id) => setPicked(picked.includes(id) ? picked.filter((x) => x !== id) : [...picked, id]);
+  const chosen = picked.length ? PAINS.filter(([id]) => picked.includes(id)) : PAINS.slice(0, 5);
+  const shot = site.screenshots?.[0];
+  const months = price.durationDays ? Math.max(1, Math.round(price.durationDays / 30)) : 0;
+  return (
+    <div className="funnel" data-testid="funnel">
+      <FunnelProgress step={step} />
+      {step === 0 && (
+        <section className="funnel-step" data-testid="funnel-problems">
+          <span className="lp-eyebrow">Before you buy</span>
+          <h1>Is billing slowing your business down?</h1>
+          <p className="lp-lead">Tick everything that sounds like you. Next, you will see exactly how DocGen fixes it.</p>
+          <div className="pain-grid">
+            {PAINS.map(([id, icon, problem, detail]) => (
+              <button
+                key={id}
+                type="button"
+                role="checkbox"
+                aria-checked={picked.includes(id)}
+                className={`pain-option ${picked.includes(id) ? 'on' : ''}`}
+                onClick={() => toggle(id)}
+                data-testid={`pain-${id}`}
+              >
+                <span className="pain-tick">{picked.includes(id) && <Icon name="check" size={14} strokeWidth={3} />}</span>
+                <span className="pain-text">
+                  <strong>
+                    <Icon name={icon} size={16} /> {problem}
+                  </strong>
+                  <span>{detail}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="funnel-actions">
+            <button className="btn btn-primary btn-lg" onClick={() => go(1)} data-testid="funnel-next">
+              {picked.length ? `Show me how DocGen fixes ${picked.length === 1 ? 'this' : `these ${picked.length}`}` : 'Show me how DocGen helps'}{' '}→
+            </button>
+            <button className="link-btn small" onClick={() => go(3)} data-testid="funnel-skip">
+              Already decided? Skip to checkout
+            </button>
+          </div>
+        </section>
+      )}
+      {step === 1 && (
+        <section className="funnel-step" data-testid="funnel-fix">
+          <span className="lp-eyebrow">The fix</span>
+          <h1>{picked.length ? 'Here is how DocGen solves it' : 'What changes with DocGen'}</h1>
+          <div className="fix-layout">
+            <ul className="fix-list">
+              {chosen.map(([id, , problem, , fix]) => (
+                <li key={id} data-testid="fix-item">
+                  <span className="fix-before">{problem}</span>
+                  <span className="fix-after">
+                    <Icon name="check" size={16} strokeWidth={2.6} /> {fix}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {shot && (
+              <div className="app-frame fix-shot">
+                <div className="app-frame-bar">
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <img src={shot.url} alt={shot.caption || 'DocGen'} />
+              </div>
+            )}
+          </div>
+          <div className="trust-row funnel-trust">
+            {TRUST.map(([icon, text]) => (
+              <span key={text}>
+                <Icon name={icon} size={16} /> {text}
+              </span>
+            ))}
+          </div>
+          <div className="funnel-actions">
+            <button className="btn btn-primary btn-lg" onClick={() => go(2)} data-testid="funnel-next">
+              Choose my plan{' '}→
+            </button>
+            <button className="link-btn small" onClick={() => go(0)}>
+              ← Back
+            </button>
+          </div>
+        </section>
+      )}
+      {step === 2 && (
+        <section className="funnel-step" data-testid="funnel-plan">
+          <span className="lp-eyebrow">Your plan</span>
+          <h1>{product.prices.length > 1 ? 'Choose how long you want DocGen' : 'One simple price'}</h1>
+          <p className="lp-lead">Every plan has all features, the computer app and the phone app. Pay once — no monthly fee, no auto-renewal.</p>
+          {product.prices.length > 1 && <PriceTiles prices={product.prices} value={price.id} onChange={onPrice} currency={product.currency} />}
+          <div className="plan-summary card" data-testid="funnel-price">
+            <div>
+              <strong>{product.name}</strong>
+              <div className="muted small">{licenseLength(price.durationDays)}</div>
+            </div>
+            <div className="plan-summary-price">
+              <strong>{money(price.price, product.currency)}</strong>
+              {months > 1 && <span className="muted small">≈ {money(Math.ceil(price.price / months), product.currency)} a month, paid once</span>}
+            </div>
+          </div>
+          <ul className="ticks">
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> {product.maxDevices} {product.maxDevices === 1 ? 'computer' : 'computers'}
+              {product.maxMobileDevices ? ` + ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''}
+            </li>
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> All 18 document types and 4 professional templates
+            </li>
+            <li>
+              <Icon name="check" size={15} strokeWidth={2.4} /> Free updates and support while your license runs
+            </li>
+          </ul>
+          <div className="guarantee" data-testid="funnel-guarantee">
+            <Icon name="shield" size={20} />
+            <span>
+              <strong>Buy without worry.</strong> Full refund within 7 days if you have not activated the license, or if DocGen does not work on your device and we cannot fix it.{' '}
+              <Link to="/refunds">Refund policy</Link>
+            </span>
+          </div>
+          <div className="funnel-actions">
+            <button className="btn btn-primary btn-lg" onClick={() => go(3)} data-testid="funnel-next">
+              Continue to checkout · {money(price.price, product.currency)}{' '}→
+            </button>
+            <button className="link-btn small" onClick={() => go(1)}>
+              ← Back
+            </button>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
 /** Shown after a successful payment: the customer is signed in. */
 export function PurchaseSuccess({ result, emailEnabled, email }) {
   const l = result.license;
@@ -113,7 +277,8 @@ export function PurchaseSuccess({ result, emailEnabled, email }) {
 export default function CheckoutPage() {
   const { client } = useAuth();
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
+  const [picked, setPicked] = useState([]);
   const { data, loading } = useLoad(() => clientApi.get('/site'), []);
   const { pay, element } = usePayment();
   const [form, setForm] = useState({ name: '', phone: '', email: '' });
@@ -145,6 +310,16 @@ export default function CheckoutPage() {
     if (error?.details?.fields?.[k] || error?.code === 'ACCOUNT_EXISTS') setError(null);
   };
   const fieldError = (k) => error?.details?.fields?.[k];
+  // Funnel: problems (0) → fix (1) → plan (2) → checkout (3). The step is in the address so Back works.
+  const funnel = data?.site?.buyFunnel !== false && !signedIn && params.get('start') !== 'details';
+  const step0 = funnel ? Math.min(3, Math.max(0, Number(params.get('step')) || 0)) : 3;
+  const go = (n) => {
+    const next = new URLSearchParams(params);
+    next.set('step', String(n));
+    if (price?.id) next.set('price', String(price.id));
+    setParams(next);
+    window.scrollTo(0, 0);
+  };
 
   const termsError = fieldError('acceptTerms');
   const submit = async (e) => {
@@ -194,9 +369,16 @@ export default function CheckoutPage() {
             <h1>DocGen is not on sale yet</h1>
             <p className="muted">Please check back soon or write to {data?.supportEmail}.</p>
           </div>
+        ) : step0 < 3 ? (
+          <BuyFunnel step={step0} go={go} site={data.site} product={product} price={price} onPrice={setPriceId} picked={picked} setPicked={setPicked} />
         ) : (
           <div className="checkout">
             <div>
+              {funnel && (
+                <button type="button" className="link-btn small funnel-back" onClick={() => go(2)} data-testid="funnel-back">
+                  ← Back to your plan
+                </button>
+              )}
               <Steps step={step} />
               <h1>Buy {product.name}</h1>
               <p className="muted" style={{ marginBottom: 18 }}>

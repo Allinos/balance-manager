@@ -75,6 +75,10 @@ const siteSchema = z.object({
     .default([]),
   videos: z.array(z.object({ title: z.string().trim().max(80).default(''), url: httpsUrl.refine((v) => v !== '', 'enter the video address') })).max(2).default([]),
   showComparison: z.boolean().default(true),
+  /** Home page: "Sound familiar?" section with the problems DocGen solves. */
+  showProblems: z.boolean().default(true),
+  /** /buy as a step-by-step funnel (problem → solution → plan → details & payment); off = straight to checkout. */
+  buyFunnel: z.boolean().default(true),
   /** Shown on Contact Us and in the policies (Terms, Privacy, Refunds, Shipping). */
   business: z
     .object({

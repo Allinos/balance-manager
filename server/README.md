@@ -170,6 +170,15 @@ The browser (and the apps) can never create a license, choose an amount or exten
    the optional name you give the price, e.g. *Premium*, otherwise Standard / Plus / Premium from short to
    long; the lowest price per year is marked *Best value*; one price = one card), a comparison of
    DocGen Desktop, DocGen Mobile, accounting software and Word/Excel templates, and an FAQ.
+   A "Sound familiar?" section lists the problems small businesses have with billing (slow handwritten
+   bills, GST mistakes, broken Excel templates, costly accounting software, no internet, late payments)
+   and how DocGen solves each one.
+   **Buy funnel**: visitors who open `/buy` directly (the Buy button, ads, shared links) go through
+   4 steps — tick their problems → see how DocGen fixes those → choose a plan (with the monthly
+   equivalent and the refund promise) → details and payment. The step is in the address, so the
+   browser's Back button works. Signed-in customers and visitors who chose a plan on the pricing cards
+   (`/buy?…&start=details`) go straight to payment. Switch the funnel or the problems section off in
+   Admin → Website → Sections and buying.
 7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.

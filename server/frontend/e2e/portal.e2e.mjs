@@ -137,6 +137,10 @@ try {
   check(compare.includes('DocGen Desktop') && compare.includes('DocGen Mobile'), 'comparison table includes DocGen Desktop and DocGen Mobile');
   check((await page.locator('.app-frame img').count()) >= 1, 'product screenshot shown');
   check((await page.getByTestId('faq').locator('details').count()) >= 4, 'FAQ shown');
+  const problems = (await page.getByTestId('problems').textContent()).replace(/\s+/g, ' ');
+  check((await page.getByTestId('problem-card').count()) === 6 && problems.includes('GST mistakes cost you money') && problems.includes('Works fully offline'),
+    'home: "Sound familiar?" — 6 customer problems, each with how DocGen solves it');
+  check((await page.getByTestId('buy-365').getAttribute('href')).includes('start=details'), 'pricing card buttons go straight to checkout (the plan is already chosen)');
   check((await page.content()).includes('info.reynrel@gmail.com'), 'contact email info.reynrel@gmail.com');
   await page.getByTestId('mobile-section').scrollIntoViewIfNeeded();
   check((await page.getByTestId('mobile-section').locator('img').count()) === 2, 'landing page: "DocGen on Mobile" section with screenshots');
@@ -327,7 +331,33 @@ try {
   // Someone else at the same desk starts buying but closes the payment window.
   await page.goto(`${base}/account`);
   await page.getByTestId('sign-out').click();
-  await page.goto(`${base}/buy`);
+  await page.goto(`${base}/buy?product=1`);
+  // /buy opened directly: the funnel — problems → fix → plan → checkout.
+  await page.getByTestId('funnel-problems').waitFor();
+  check((await page.locator('.pain-option').count()) === 8, 'buy funnel step 1: 8 problems to tick');
+  await page.getByTestId('pain-gst').click();
+  await page.getByTestId('pain-offline').click();
+  check((await page.getByTestId('pain-gst').getAttribute('aria-checked')) === 'true' && (await page.getByTestId('funnel-next').textContent()).includes('these 2'),
+    'ticked problems are highlighted and counted');
+  await shot('03a-funnel-problems');
+  await page.getByTestId('funnel-next').click();
+  await page.getByTestId('funnel-fix').waitFor();
+  const fixes = await page.getByTestId('fix-item').allTextContents();
+  check(fixes.length === 2 && fixes[0].includes('CGST + SGST or IGST') && fixes[1].includes('Works fully offline'), 'step 2 shows how DocGen fixes exactly the ticked problems');
+  check(page.url().includes('step=1') && page.url().includes('product=1'), 'funnel step in the address, other link details kept');
+  await shot('03b-funnel-fix');
+  await page.getByTestId('funnel-next').click();
+  await page.getByTestId('funnel-plan').waitFor();
+  await page.getByTestId('price-730').click();
+  check((await page.getByTestId('funnel-price').textContent()).includes('2,250') && (await page.getByTestId('funnel-guarantee').isVisible()), 'step 3: plan with price, monthly equivalent and the refund promise');
+  await shot('03c-funnel-plan');
+  await page.goBack();
+  await page.getByTestId('funnel-fix').waitFor();
+  check(true, 'browser Back goes to the previous funnel step');
+  await page.goForward();
+  await page.getByTestId('funnel-next').click();
+  await page.getByTestId('checkout-form').waitFor();
+  check((await page.getByTestId('order-total').textContent()).includes('2,250') && (await page.getByTestId('funnel-back').isVisible()), 'step 4: checkout with the chosen 2-year plan; back link to the plan');
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('9876543210');
   await page.getByLabel('Email address').fill('meera@example.com');
@@ -445,6 +475,24 @@ try {
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
   check((await page2.getByTestId('price').first().textContent()).includes('1,500') && (await page2.getByTestId('pricing-cards').textContent()).includes('3 years'), 'website shows the new prices at once');
   await page2.close();
+  // The admin switches the buy funnel and the problems section off.
+  await page.getByTestId('site-buy-funnel').uncheck();
+  await page.getByTestId('site-show-problems').uncheck();
+  await page.getByTestId('save-site').click();
+  await page.getByText('Website updated').waitFor();
+  const visitor = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page3 = await visitor.newPage();
+  await page3.goto(`${base}/buy`);
+  await page3.getByTestId('checkout-form').waitFor();
+  check((await page3.getByTestId('funnel').count()) === 0, 'funnel off in Admin → Website: /buy opens the payment form directly');
+  await page3.goto(base);
+  await page3.getByTestId('headline').waitFor();
+  check((await page3.getByTestId('problems').count()) === 0, 'problems section can be switched off');
+  await visitor.close();
+  await page.getByTestId('site-buy-funnel').check();
+  await page.getByTestId('site-show-problems').check();
+  await page.getByTestId('save-site').click();
+  await page.getByText('Website updated').waitFor();
 
   await page.getByTestId('nav-customers').click();
   const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });

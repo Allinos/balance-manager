@@ -160,9 +160,28 @@ export default function AdminWebsite() {
         ))}
       </div>
 
-      <div className="card">
-        <h3>Comparison</h3>
+      <div className="card form">
+        <h3>Sections and buying</h3>
+        <Check
+          checked={form.showProblems !== false}
+          onChange={set('showProblems')}
+          label="Show “Sound familiar?”: the problems customers have with billing and how DocGen solves them"
+          data-testid="site-show-problems"
+        />
         <Check checked={form.showComparison} onChange={set('showComparison')} label="Show the comparison with accounting software and Word/Excel templates" />
+        <div>
+          <Check
+            checked={form.buyFunnel !== false}
+            onChange={set('buyFunnel')}
+            label="Buy page as a step-by-step funnel"
+            data-testid="site-buy-funnel"
+          />
+          <p className="muted small" style={{ margin: '4px 0 0 28px' }}>
+            Visitors who open <a href="/buy" target="_blank" rel="noreferrer">/buy</a> (the Buy button, ads, shared links) first tick their problems, see how
+            DocGen fixes them and choose a plan, then pay. Signed-in customers and visitors who chose a plan on the pricing cards go straight to
+            payment. Off: /buy opens the payment form directly.
+          </p>
+        </div>
       </div>
 
       <div className="card" data-testid="business-details">
