@@ -77,6 +77,14 @@ const siteSchema = z.object({
   showComparison: z.boolean().default(true),
   /** Home page: "Sound familiar?" section with the problems DocGen solves. */
   showProblems: z.boolean().default(true),
+  /** Meta Pixel: PageView, ViewContent, InitiateCheckout and Purchase on the website (public ID). */
+  metaPixel: z
+    .object({
+      enabled: z.boolean().default(true),
+      pixelId: z.string().trim().regex(/^(\d{8,20})?$/, 'the Pixel ID is a number of 8 to 20 digits').default(''),
+    })
+    .partial()
+    .optional(),
   /** The offer page for ads (/offer, not linked from the website): plans, problems → fixes, benefits, payment. */
   offer: z
     .object({
@@ -683,7 +691,7 @@ export function adminRoutes(knex) {
   });
 
   // ----------------------------------------------------------------- website
-  r.get('/site', auth, async (_req, res) => res.json({ site: await getSiteConfig(knex) }));
+  r.get('/site', auth, async (_req, res) => res.json({ site: await getSiteConfig(knex), metaCapi: { configured: !!config.meta.capiToken, testMode: !!config.meta.testEventCode } }));
 
   r.put('/site', ownerOnly, async (req, res) => {
     const body = parse(siteSchema, req.body);

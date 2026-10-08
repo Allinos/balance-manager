@@ -95,7 +95,23 @@ await new Promise((resolve, reject) => {
 });
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM || '/opt/pw-browsers/chromium' });
+// A stand-in for Meta's fbevents.js: records every Pixel call in window.__fb and sets the _fbp cookie like the real one.
+const fakePixelJs = `
+(function () {
+  window.__fb = window.__fb || [];
+  document.cookie = '_fbp=fb.1.1700000000000.42424242; path=/';
+  var f = window.fbq;
+  f.callMethod = function () { window.__fb.push(Array.prototype.slice.call(arguments)); };
+  (f.queue || []).forEach(function (a) { f.callMethod.apply(null, a); });
+  f.queue = [];
+})();`;
+const routePixel = (ctx) => ctx.route('https://connect.facebook.net/**', (route) => route.fulfill({ contentType: 'application/javascript', body: fakePixelJs }));
+/** Pixel calls made on the current page, e.g. [['init', '1862…'], ['track', 'PageView']]. */
+const fbCalls = (pg) => pg.evaluate(() => window.__fb || []);
+const waitFb = (pg, event) => pg.waitForFunction((e) => (window.__fb || []).some((c) => c[0] === 'track' && c[1] === e), event, { timeout: 8000 });
+
 const context = await browser.newContext({ viewport: { width: 1280, height: 860 }, acceptDownloads: true });
+await routePixel(context);
 const page = await context.newPage();
 await page.route('https://checkout.razorpay.com/v1/checkout.js', (route) => route.fulfill({ contentType: 'application/javascript', body: fakeCheckoutJs }));
 // The portal must never use browser alert/confirm/prompt boxes.
@@ -120,6 +136,8 @@ try {
   console.log('Customer journey: ad → product page → details → pay → license + download');
   await page.goto(`${base}/?utm_source=google&utm_medium=cpc&utm_campaign=gst-oct&gclid=e2e-click`);
   await page.getByTestId('headline').waitFor();
+  await waitFb(page, 'PageView');
+  check((await fbCalls(page)).some((c) => c[0] === 'init' && c[1] === '1862821958226928'), 'Meta Pixel 1862821958226928 loads on the website and sends PageView');
   const cards = page.getByTestId('price-card');
   check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
   const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
@@ -351,6 +369,7 @@ try {
 
   console.log('Ad offer page (/offer) on a phone: plans → countdown → Pay now → payment → license');
   const adVisitor = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  await routePixel(adVisitor);
   const ad = await adVisitor.newPage();
   await ad.route('https://checkout.razorpay.com/v1/checkout.js', (route) => route.fulfill({ contentType: 'application/javascript', body: fakeCheckoutJs }));
   const adShot = (name) => ad.screenshot({ path: path.join(shots, `${name}.png`) });
@@ -358,6 +377,9 @@ try {
   check(offerRes.status === 200 && /noindex/.test(offerRes.headers.get('x-robots-tag') || ''), 'offer page is served with X-Robots-Tag: noindex (kept out of search results)');
   await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
   await ad.getByTestId('offer-page').waitFor();
+  await waitFb(ad, 'ViewContent');
+  const view = (await fbCalls(ad)).find((c) => c[1] === 'ViewContent');
+  check(view[2].value === 1250 && view[2].currency === 'INR' && view[2].content_ids[0] === 'DOCGEN', 'Meta Pixel: ViewContent on the offer page (₹1,250, INR, DOCGEN)');
   const firstPrice = await ad.getByTestId('offer-plans').getByTestId('regular-price').first().textContent();
   check(firstPrice.includes('1,500') && !(await ad.getByTestId('offer-plans').getByTestId('offer-price').first().isVisible()), 'page opens with the regular price (₹1,500)');
   await adShot('03a-offer-open');
@@ -413,12 +435,17 @@ try {
   await ad.getByTestId('accept-terms').check();
   await ad.getByTestId('co-pay').click();
   await ad.getByTestId('rzp-window').waitFor();
+  check((await fbCalls(ad)).some((c) => c[1] === 'InitiateCheckout' && c[2].value === 2250), 'Meta Pixel: InitiateCheckout at "Pay now" (₹2,250)');
   const adRzp = await ad.evaluate(() => window.__rzpOptions);
   check(adRzp.amount === 225000 && adRzp.prefill.email === 'farhan@example.com', 'same Razorpay payment as /buy (₹2,250, email prefilled)');
   await ad.getByTestId('rzp-pay').click();
   await ad.getByTestId('purchase-success').waitFor();
   check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test((await ad.getByTestId('new-code').textContent()).trim()) && /\(730 days\)/.test(await ad.getByTestId('valid-until').textContent()),
     'payment → account, 2-year license code shown (and emailed, as on /buy)');
+  await waitFb(ad, 'Purchase');
+  const purchase = (await fbCalls(ad)).find((c) => c[1] === 'Purchase');
+  check(purchase[2].value === 2250 && purchase[2].currency === 'INR' && /^purchase-\d+$/.test(purchase[3]?.eventID || ''),
+    `Meta Pixel: Purchase after payment (₹2,250) with the event id the server also sends (${purchase[3]?.eventID})`);
   await adShot('03d-offer-paid');
   await adVisitor.close();
 
@@ -471,6 +498,7 @@ try {
   await page.getByLabel('Password').fill('owner-password-1');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByTestId('stats').waitFor();
+  check(!(await fbCalls(page)).some((c) => c[1] === 'PageView'), 'Meta Pixel: nothing is sent from the admin panel');
   check(/Sales in .*₹5,750/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹5,750 (1 year + 2-year extension + 2 years from the offer page)');
   check((await page.getByTestId('recent-sales').textContent()).includes('meera@example.com'), 'dashboard: recent sales');
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
@@ -518,6 +546,8 @@ try {
   await page.locator('.thumb').nth(3).waitFor();
   await page.getByTestId('save-site').click();
   await page.getByText('Website updated').waitFor();
+  check((await page.getByTestId('pixel-id').inputValue()) === '1862821958226928' && (await page.getByTestId('capi-status').textContent()).includes('Not set up'),
+    'Admin → Website: Meta Pixel ID, and the Conversions API shown as not set up (no META_CAPI_TOKEN on this server)');
   await shot('09-website');
   const page2 = await context.newPage();
   await page2.goto(base);

@@ -119,6 +119,8 @@ export const DEFAULT_SITE = {
   videos: [],
   showComparison: true,
   showProblems: true,
+  /** Meta Pixel for Facebook / Instagram ads (the ID is public; the Conversions API token is in .env). */
+  metaPixel: { enabled: true, pixelId: '1862821958226928' },
   offer: { enabled: true, regularPricePercent: 20, timerMinutes: 15, showBuyers: true, customers: '500+', rating: 4.8 },
   business: {
     legalName: 'Reynrel',
@@ -132,7 +134,7 @@ export const DEFAULT_SITE = {
 export async function getSiteConfig(knex) {
   const row = await knex('app_config').where({ key: 'site' }).first();
   const saved = parseJson(row?.value, {});
-  const site = { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business }, offer: { ...DEFAULT_SITE.offer, ...saved.offer } };
+  const site = { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business }, offer: { ...DEFAULT_SITE.offer, ...saved.offer }, metaPixel: { ...DEFAULT_SITE.metaPixel, ...saved.metaPixel } };
   delete site.buyFunnel; // the old step-by-step /buy funnel, replaced by the /offer page
   return site;
 }

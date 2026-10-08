@@ -4,6 +4,7 @@ import { clientApi, adminApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
 import Icon from './components/Icons.jsx';
 import { SUPPORT_EMAIL } from './constants.js';
+import { track } from './pixel.js';
 import ProductPage from './pages/portal/ProductPage.jsx';
 import CheckoutPage from './pages/portal/Checkout.jsx';
 import OfferPage from './pages/portal/Offer.jsx';
@@ -293,6 +294,15 @@ export function Footer() {
   );
 }
 
+/** Meta Pixel PageView on every public page (not the admin panel). */
+function PixelPageViews() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (!pathname.startsWith('/admin')) track('PageView');
+  }, [pathname]);
+  return null;
+}
+
 /** Old addresses keep working (links in earlier emails, bookmarks). */
 function KeepQuery({ to }) {
   const location = useLocation();
@@ -305,6 +315,7 @@ export default function App() {
       <ToastProvider>
         <DialogProvider>
           <AuthProvider>
+            <PixelPageViews />
             <Routes>
               <Route path="/" element={<ProductPage />} />
               <Route path="/buy" element={<CheckoutPage />} />

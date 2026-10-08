@@ -14,7 +14,7 @@ import { SUPPORT_EMAIL } from '../../constants.js';
 import { SupportForm } from './Support.jsx';
 
 /** Date the policies below were last changed. Update it whenever their text changes. */
-export const POLICIES_UPDATED = '5 October 2026';
+export const POLICIES_UPDATED = '8 October 2026';
 
 const DEFAULT_BUSINESS = { legalName: 'Reynrel', address: '', phone: '', hours: 'Monday to Saturday, 10:00 to 18:00 IST', jurisdiction: '' };
 
@@ -248,13 +248,20 @@ function Privacy({ b }) {
       <ul>
         <li>Razorpay, to process payments (see Razorpay’s privacy policy);</li>
         <li>our email provider, to send receipts, license keys and support replies;</li>
-        <li>our hosting provider, where our servers and database run.</li>
+        <li>our hosting provider, where our servers and database run;</li>
+        <li>
+          Meta Platforms (Facebook and Instagram), to measure and improve our advertisements: which pages you view on our website, when you start
+          a purchase and when you buy (amount and product). For a purchase we also send your email address and mobile number in hashed (scrambled)
+          form, your IP address and browser type, so Meta can match the sale to an advertisement you saw. See Meta’s privacy policy.
+        </li>
       </ul>
       <p>We share information with authorities only when the law requires it.</p>
       <h2>5. Cookies and browser storage</h2>
       <p>
-        The website uses your browser’s storage to keep you signed in and to remember which advertisement brought you here. We do not use third-party
-        advertising cookies. The payment window is provided by Razorpay and the product videos by YouTube or Vimeo, which may use their own cookies.
+        The website uses your browser’s storage to keep you signed in and to remember which advertisement brought you here. It also uses the Meta
+        Pixel, which sets Meta’s cookies (such as _fbp and _fbc) to measure our Facebook and Instagram advertisements.
+        You can block these cookies in your browser or limit ad tracking in your Facebook settings. The payment window is provided by
+        Razorpay and the product videos by YouTube or Vimeo, which may use their own cookies.
       </p>
       <h2>6. Security and how long we keep data</h2>
       <p>

@@ -43,6 +43,19 @@ const fakeRazorpay = http.createServer((req, res) => {
 });
 await new Promise((resolve) => fakeRazorpay.listen(0, '127.0.0.1', resolve));
 
+// ---------------------------------------------------------------- fake Meta Graph API (Conversions API)
+const metaRequests = [];
+const fakeMeta = http.createServer((req, res) => {
+  let raw = '';
+  req.on('data', (c) => (raw += c));
+  req.on('end', () => {
+    metaRequests.push({ url: req.url, body: JSON.parse(raw || '{}') });
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ events_received: 1 }));
+  });
+});
+await new Promise((resolve) => fakeMeta.listen(0, '127.0.0.1', resolve));
+
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docgen-flow-'));
 Object.assign(process.env, {
   NODE_ENV: 'test',
@@ -52,6 +65,9 @@ Object.assign(process.env, {
   RAZORPAY_KEY_SECRET: 'rzp_test_secret',
   RAZORPAY_WEBHOOK_SECRET: 'whsec_test',
   RAZORPAY_API_BASE: `http://127.0.0.1:${fakeRazorpay.address().port}`,
+  META_CAPI_TOKEN: 'meta_test_token',
+  META_TEST_EVENT_CODE: 'TEST4242',
+  META_GRAPH_BASE: `http://127.0.0.1:${fakeMeta.address().port}`,
 });
 
 const { createKnex, migrate, nowIso } = await import('../src/db.js');
@@ -122,6 +138,7 @@ before(async () => {
 after(async () => {
   server?.close();
   fakeRazorpay.close();
+  fakeMeta.close();
   await knex?.destroy();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
@@ -150,6 +167,7 @@ describe('safe defaults', () => {
   test('the Razorpay checkout script is allowed by the content security policy', async () => {
     const r = await api('GET', '/api/health');
     assert.match(r.headers.get('content-security-policy'), /script-src 'self' https:\/\/checkout\.razorpay\.com/);
+    assert.match(r.headers.get('content-security-policy'), /script-src [^;]*https:\/\/connect\.facebook\.net/, 'the Meta Pixel script is allowed');
   });
 });
 
@@ -760,5 +778,82 @@ describe('prices shown to customers', () => {
     assert.equal(top.tag, 'Premium');
     assert.ok(docgen.prices.filter((p) => p !== top).every((p) => p.tag === '' && p.label === p.period));
     assert.ok(docgen.prices.every((p) => p.period !== 'Lifetime'));
+  });
+});
+
+describe('Meta Pixel and Conversions API', () => {
+  const sha = (v) => crypto.createHash('sha256').update(v).digest('hex');
+  const waitFor = async (fn) => {
+    for (let i = 0; i < 50; i++) {
+      const v = fn();
+      if (v) return v;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    return null;
+  };
+
+  test('the Pixel ID is on the website; the access token never is', async () => {
+    const r = await api('GET', '/api/portal/site');
+    assert.deepEqual(r.body.site.metaPixel, { enabled: true, pixelId: '1862821958226928' });
+    assert.ok(!JSON.stringify(r.body).includes('meta_test_token'));
+    const admin = await api('GET', '/api/admin/site', { token: adminToken });
+    assert.deepEqual(admin.body.metaCapi, { configured: true, testMode: true });
+    assert.ok(!JSON.stringify(admin.body).includes('meta_test_token'));
+  });
+
+  test('a paid order is sent once as a Purchase, with hashed email and phone and the ad click', async () => {
+    const start = await api('POST', '/api/portal/checkout/start', {
+      headers: { 'User-Agent': 'Mozilla/5.0 (test phone)' },
+      body: {
+        acceptTerms: true, name: 'Farhan Ali', email: 'Farhan@Example.com', phone: '91234 56789',
+        attribution: { fbclid: 'IwAR-e2e-click' }, tracking: { fbp: 'fb.1.1700000000000.123456789', path: '/offer' },
+      },
+    });
+    assert.equal(start.status, 201, JSON.stringify(start.body));
+    const id = start.body.payment.id;
+    const body = checkoutResponse(start.body.checkout.orderId);
+    // Browser confirmation and the Razorpay webhook both report the payment: still one event.
+    const [paid] = await Promise.all([
+      api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...body } }),
+      webhook('payment.captured', { id: body.razorpay_payment_id, order_id: start.body.checkout.orderId, amount: orders.get(start.body.checkout.orderId).amount, currency: 'INR', status: 'captured' }),
+    ]);
+    assert.equal(paid.status, 200);
+    const sent = await waitFor(() => metaRequests.find((m) => m.body.data?.[0]?.event_id === `purchase-${id}`));
+    assert.ok(sent, 'Purchase sent to Meta');
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(metaRequests.filter((m) => m.body.data?.[0]?.event_id === `purchase-${id}`).length, 1, 'sent once');
+    assert.equal(sent.url, '/v21.0/1862821958226928/events');
+    assert.equal(sent.body.access_token, 'meta_test_token');
+    assert.equal(sent.body.test_event_code, 'TEST4242');
+    const [e] = sent.body.data;
+    assert.equal(e.event_name, 'Purchase');
+    assert.equal(e.action_source, 'website');
+    assert.match(e.event_source_url, /\/offer$/);
+    assert.deepEqual(
+      { value: e.custom_data.value, currency: e.custom_data.currency, ids: e.custom_data.content_ids, order: e.custom_data.order_id },
+      { value: (await knex('payments').where({ id }).first()).amount_paise / 100, currency: 'INR', ids: ['DOCGEN'], order: String(id) },
+    );
+    assert.equal(e.user_data.em, sha('farhan@example.com'));
+    assert.equal(e.user_data.ph, sha('919123456789'));
+    assert.equal(e.user_data.fbp, 'fb.1.1700000000000.123456789');
+    assert.match(e.user_data.fbc, /^fb\.1\.\d+\.IwAR-e2e-click$/);
+    assert.equal(e.user_data.client_user_agent, 'Mozilla/5.0 (test phone)');
+    assert.ok(e.user_data.client_ip_address && e.user_data.external_id);
+    assert.ok(!JSON.stringify(e).includes('farhan@example.com') && !JSON.stringify(e).includes('9123456789'), 'no plain email or phone');
+  });
+
+  test('with the Pixel switched off in Admin → Website nothing is sent', async () => {
+    const site = (await api('GET', '/api/admin/site', { token: adminToken })).body.site;
+    const off = await api('PUT', '/api/admin/site', { token: adminToken, body: { ...site, metaPixel: { enabled: false, pixelId: site.metaPixel.pixelId } } });
+    assert.equal(off.status, 200, JSON.stringify(off.body));
+    const bad = await api('PUT', '/api/admin/site', { token: adminToken, body: { ...site, metaPixel: { enabled: true, pixelId: 'abc' } } });
+    assert.equal(bad.status, 400, 'a Pixel ID is digits only');
+    const before = metaRequests.length;
+    const start = await api('POST', '/api/portal/checkout/start', { body: { acceptTerms: true, name: 'Off Test', email: 'pixel-off@example.com', phone: '9000000001' } });
+    const paid = await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...checkoutResponse(start.body.checkout.orderId) } });
+    assert.equal(paid.status, 200);
+    await new Promise((r) => setTimeout(r, 300));
+    assert.equal(metaRequests.length, before);
+    await api('PUT', '/api/admin/site', { token: adminToken, body: site });
   });
 });

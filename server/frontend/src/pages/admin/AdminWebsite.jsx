@@ -22,6 +22,9 @@ export default function AdminWebsite() {
   const offer = form.offer || {};
   const setOffer = (k) => (v) => setForm({ ...form, offer: { ...offer, [k]: v } });
   const offerUrl = `${window.location.origin}/offer`;
+  const pixel = form.metaPixel || {};
+  const setPixel = (k) => (v) => setForm({ ...form, metaPixel: { ...pixel, [k]: v } });
+  const capi = data.metaCapi || {};
   const shots = form.screenshots;
   const videos = form.videos;
   const setShot = (i, patch) => set('screenshots')(shots.map((s, n) => (n === i ? { ...s, ...patch } : s)));
@@ -212,6 +215,32 @@ export default function AdminWebsite() {
           label="Show “N people bought DocGen in the last 24 hours” (a number per visitor that goes up by 5 on every new visit)"
           data-testid="offer-buyers-switch"
         />
+      </div>
+
+      <div className="card form" data-testid="pixel-settings">
+        <h3>Meta Pixel (Facebook &amp; Instagram ads)</h3>
+        <p className="muted small" style={{ margin: 0 }}>
+          Tells Meta when an ad visitor views DocGen, starts checkout and buys, so your ads can optimise for sales. Events: PageView on every
+          page, ViewContent on /offer and /buy, InitiateCheckout at “Pay now”, Purchase after payment (with the amount). Not on the admin
+          panel.
+        </p>
+        <Check checked={pixel.enabled !== false} onChange={setPixel('enabled')} label="Meta Pixel on" data-testid="pixel-enabled" />
+        <div className="grid-2">
+          <Field label="Pixel ID" hint="Events Manager → Data sources → your pixel. A number, not secret." error={saveError?.details?.fields?.['metaPixel.pixelId']}>
+            <Input value={pixel.pixelId || ''} onChange={(v) => setPixel('pixelId')(v.replace(/\D/g, ''))} inputMode="numeric" maxLength={20} data-testid="pixel-id" />
+          </Field>
+          <div className="field">
+            <span className="field-label">Server events (Conversions API)</span>
+            <span className={`badge ${capi.configured ? 'tone-good' : 'tone-warn'}`} data-testid="capi-status">
+              {capi.configured ? `Connected${capi.testMode ? ' · test mode' : ''}` : 'Not set up'}
+            </span>
+            <span className="muted small">
+              {capi.configured
+                ? 'Every paid order is also sent from the server, so sales count even with ad blockers. Meta counts each sale once.'
+                : 'Add META_CAPI_TOKEN=<token> to server/.env and restart (Events Manager → Settings → Conversions API → Generate access token). Keep the token secret.'}
+            </span>
+          </div>
+        </div>
       </div>
 
       <div className="card" data-testid="business-details">

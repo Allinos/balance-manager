@@ -19,6 +19,7 @@ import { SUPPORT_EMAIL } from '../../constants.js';
 import { CheckoutForm, PurchaseSuccess } from './Checkout.jsx';
 import { licenseLength, period, planCards } from './ProductPage.jsx';
 import { PAINS } from './Pitch.jsx';
+import { saleParams, track } from '../../pixel.js';
 
 const KEY_ENDS = 'docgen.offer.ends';
 const KEY_BUYERS = 'docgen.offer.buyers';
@@ -208,6 +209,11 @@ export default function OfferPage() {
       document.title = title;
     };
   }, []);
+  // Meta Pixel: the ad visitor sees the product and its price.
+  useEffect(() => {
+    const p = data?.products?.find((x) => x.id === Number(params.get('product'))) || data?.products?.[0];
+    if (p && data.site?.offer?.enabled !== false) track('ViewContent', saleParams(p, p.prices[0]));
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   // The regular price shows first, then drops to the offer price.
   useEffect(() => {
     if (!data) return undefined;

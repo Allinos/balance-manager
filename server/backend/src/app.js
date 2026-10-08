@@ -33,11 +33,12 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
       contentSecurityPolicy: vite ? false : {
         directives: {
           defaultSrc: ["'self'"],
-          // Razorpay Checkout loads its script from checkout.razorpay.com and talks to *.razorpay.com.
-          scriptSrc: ["'self'", 'https://checkout.razorpay.com'],
+          // Razorpay Checkout loads its script from checkout.razorpay.com and talks to *.razorpay.com;
+          // the Meta Pixel loads from connect.facebook.net and reports to www.facebook.com.
+          scriptSrc: ["'self'", 'https://checkout.razorpay.com', 'https://connect.facebook.net'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'https:'],
-          connectSrc: ["'self'", 'https://*.razorpay.com'],
+          connectSrc: ["'self'", 'https://*.razorpay.com', 'https://www.facebook.com', 'https://connect.facebook.net'],
           frameSrc: ["'self'", 'https:'],
           // Product videos: YouTube / Vimeo embeds (frames) or a direct .mp4 link.
           mediaSrc: ["'self'", 'https:'],

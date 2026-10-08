@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { clientApi, date, money } from '../../api.js';
 import { getAttribution } from '../../attribution.js';
+import { pixelCookies, saleParams, track } from '../../pixel.js';
 import { CopyButton, ErrorText, Field, Input, Spinner, useLoad } from '../../components/ui.jsx';
 import { TERMS_REQUIRED, TermsCheck, usePayment } from '../../components/Payment.jsx';
 import { DownloadCard } from '../../components/Downloads.jsx';
@@ -144,20 +145,23 @@ export function CheckoutForm({ product, price, onPrice, priceTiles = true, onSte
       return;
     }
     setBusy(true);
+    track('InitiateCheckout', saleParams(product, price));
     try {
       let started;
       let confirm;
       if (signedIn) {
-        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, acceptTerms: true });
+        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, tracking: pixelCookies() });
         confirm = (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body);
       } else {
-        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, attribution: getAttribution() });
+        started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, attribution: getAttribution(), tracking: pixelCookies() });
         confirm = (body) => clientApi.post('/checkout/confirm', { checkoutToken: started.checkoutToken, ...body });
       }
       onStep(1);
       const r = await pay(started, confirm);
       if (r?.license) {
         if (r.token) client.signIn(r.token, r.client);
+        // Same event id as the server's Conversions API copy, so Meta counts the sale once.
+        track('Purchase', saleParams(product, price), `purchase-${r.payment?.id ?? started.payment.id}`);
         onStep(2);
         onSuccess(r, form);
         window.scrollTo(0, 0);
@@ -230,6 +234,11 @@ export default function CheckoutPage() {
   const { client } = useAuth();
   const [params] = useSearchParams();
   const { data, loading } = useLoad(() => clientApi.get('/site'), []);
+  // Meta Pixel: the buyer sees the product and its price (once per visit of the page).
+  useEffect(() => {
+    const p = data?.products?.find((x) => x.id === Number(params.get('product'))) || data?.products?.[0];
+    if (p) track('ViewContent', saleParams(p, p.prices.find((x) => x.id === Number(params.get('price'))) || p.prices[0]));
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const [step, setStep] = useState(0);
   const [result, setResult] = useState(null);
   const [priceId, setPriceId] = useState(null);

@@ -17,6 +17,9 @@
  *   SMTP_HOST/PORT/USER/PASS the same as separate values (no URL encoding needed)
  *   MAIL_FROM               sender, e.g. "DocGen <no-reply@reynrel.in>"
  *   SUPPORT_EMAIL           shown to customers (default info.reynrel@gmail.com)
+ *   META_CAPI_TOKEN         Meta Conversions API access token (Events Manager → Settings). Secret: server only.
+ *                           With it, every paid order is also sent to Meta from the server as a Purchase event.
+ *   META_TEST_EVENT_CODE    optional: Events Manager → Test events code, to check server events before going live
  *   TRUST_PROXY             'true' when running behind Nginx/Caddy/a load balancer
  *   DATA_DIR                folder for keys, uploads and the SQLite file (default server/data)
  *   PORTAL_DEV              'true' to serve the frontend live from frontend/src with Vite (set by npm run dev)
@@ -91,6 +94,13 @@ export const config = {
     : null,
   mailFrom: env.MAIL_FROM || 'DocGen <no-reply@reynrel.in>',
   supportEmail: env.SUPPORT_EMAIL || 'info.reynrel@gmail.com',
+  /** Meta (Facebook / Instagram ads) Conversions API. The Pixel ID is public and set in Admin → Website. */
+  meta: {
+    capiToken: (env.META_CAPI_TOKEN || '').trim(),
+    testEventCode: (env.META_TEST_EVENT_CODE || '').trim(),
+    graphBase: (env.META_GRAPH_BASE || 'https://graph.facebook.com').replace(/\/$/, ''),
+    graphVersion: 'v21.0',
+  },
   trustProxy: env.TRUST_PROXY === 'true',
   uploadsDir: path.join(dataDir, 'uploads'),
   /** Installers customers download after paying (one per platform). */

@@ -194,6 +194,14 @@ The browser (and the apps) can never create a license, choose an amount or exten
    otherwise point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
+   **Meta Pixel** (Pixel ID `1862821958226928` by default; Admin → Website → *Meta Pixel*): PageView on every
+   public page (never the admin panel), ViewContent on `/offer` and `/buy`, InitiateCheckout at "Pay now",
+   Purchase after payment with the amount, currency and product. With `META_CAPI_TOKEN` in `.env` the server
+   also sends each paid order (browser confirmation, Razorpay webhook or an admin's "mark paid") through the
+   Conversions API, with the email and mobile SHA-256 hashed, IP address, browser, `_fbp` / `_fbc` cookies
+   and the `fbclid` of the ad click. Browser and server use the same event id `purchase-<payment id>`, so
+   Meta counts each sale once. Check it in Events Manager → Test events (set `META_TEST_EVENT_CODE`), then
+   choose *Purchase* as the conversion event of your Sales campaign. The Privacy Policy mentions the Pixel.
 8. **Legal pages** for Razorpay approval and ad platforms are built in: `/terms`, `/privacy`, `/shipping`,
    `/refunds` (Cancellation & Refunds) and `/contact`, linked from every page's footer. Fill in Admin → Website →
    **Business details** (legal name as in your Razorpay KYC, address, phone, support hours, court city) — the
@@ -221,6 +229,8 @@ The browser (and the apps) can never create a license, choose an amount or exten
 | `CORS_ORIGINS` | — | extra allowed origins (comma separated) |
 | `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | — | enable Razorpay checkout (UPI, cards, netbanking, wallets) |
 | `RAZORPAY_WEBHOOK_SECRET` | — | verifies Razorpay webhooks (`/api/payments/webhook/razorpay`) |
+| `META_CAPI_TOKEN` | — | Meta Conversions API access token (Events Manager → Settings → Conversions API → Generate access token). **Secret, server only.** With it every paid order is also sent to Meta from the server as a Purchase |
+| `META_TEST_EVENT_CODE` | — | optional: the code from Events Manager → Test events, to check server events before going live (remove it afterwards) |
 | `SMTP_URL` / `MAIL_FROM` | — | email receipts, password-reset links and support replies (without it the portal tells customers to contact support). A malformed `SMTP_URL` is reported at start and email stays off |
 | `SMTP_HOST` `SMTP_PORT` `SMTP_USER` `SMTP_PASS` | — / `587` | the same as `SMTP_URL`, as separate values (no `%40` encoding); port 465 uses TLS directly |
 | `SUPPORT_EMAIL` | `info.reynrel@gmail.com` | shown to customers and used as reply-to |

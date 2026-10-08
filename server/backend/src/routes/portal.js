@@ -11,6 +11,7 @@ import { audit, getAppConfig, getSiteConfig } from '../services/common.js';
 import { availableDownloads, getDownloadSettings, isEntitled } from '../services/downloads.js';
 import { mailEnabled, sendPasswordReset, sendPaymentReceipt } from '../services/mail.js';
 import { fulfillPayment, publicLicense } from '../services/licenses.js';
+import { sendPurchase } from '../services/meta.js';
 import { durationLabel, pricesByPlan, publicPrice, resolvePrice } from '../services/products.js';
 import { getProvider, listProviders } from '../payments/index.js';
 import { SUPPORT_TOPICS, addMessage, createRequest, publicRequest, requestMessages, setStatus } from '../services/support.js';
@@ -59,6 +60,17 @@ const attributionSchema = z
     fbclid: shortText(300),
     landing: shortText(300),
     referrer: shortText(300),
+  })
+  .partial()
+  .optional()
+  .catch({});
+
+/** Browser details for the Meta Conversions API (Pixel cookies, page). Optional; malformed values are dropped. */
+const trackingSchema = z
+  .object({
+    fbp: shortText(120),
+    fbc: shortText(400),
+    path: shortText(200),
   })
   .partial()
   .optional()
@@ -191,6 +203,7 @@ export function portalRoutes(knex) {
         provider: z.string().max(30).optional(),
         acceptTerms,
         attribution: attributionSchema,
+        tracking: trackingSchema,
       }),
       req.body,
     );
@@ -219,7 +232,7 @@ export function portalRoutes(knex) {
       await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.checkout_signup', entity: 'client', entityId: client.id, ip: clientIp(req) });
     }
     const price = await resolvePrice(knex, plan, body.priceId);
-    const started = await startPayment(knex, { client, plan, price, provider, req });
+    const started = await startPayment(knex, { client, plan, price, provider, req, tracking: body.tracking });
     res.status(201).json({ ...started, checkoutToken: signPurposeToken('checkout', { sub: String(client.id), pid: started.payment.id }, '6h') });
   });
 
@@ -402,6 +415,7 @@ export function portalRoutes(knex) {
         provider: z.string().max(30).optional(),
         renewLicenseId: z.coerce.number().int().positive().optional(),
         acceptTerms,
+        tracking: trackingSchema,
       }),
       req.body,
     );
@@ -416,7 +430,7 @@ export function portalRoutes(knex) {
       }
       if (!owned.expires_at && owned.duration_days === 0) throw new ApiError(409, 'LICENSE_LIFETIME', 'This license is already valid for life.');
     }
-    res.status(201).json(await startPayment(knex, { client: req.client, plan, price, provider, renewLicenseId: body.renewLicenseId, req }));
+    res.status(201).json(await startPayment(knex, { client: req.client, plan, price, provider, renewLicenseId: body.renewLicenseId, req, tracking: body.tracking }));
   });
 
   /** Confirmation posted by the portal after the provider's checkout completes. */
@@ -506,7 +520,11 @@ async function saleProduct(knex, planId) {
  * Create a payment for one price option and the provider's order. The amount and duration come from the
  * server's price list — never from the browser.
  */
-async function startPayment(knex, { client, plan, price, provider, renewLicenseId = null, req }) {
+async function startPayment(knex, { client, plan, price, provider, renewLicenseId = null, req, tracking = {} }) {
+  // Kept with the payment for the Meta Conversions API (sent when it is paid, see services/meta.js).
+  const track = Object.fromEntries(
+    Object.entries({ ...tracking, ip: clientIp(req), ua: String(req.get('user-agent') || '').slice(0, 400) }).filter(([, v]) => v),
+  );
   const ts = nowIso();
   const payment = await insertOne(knex, 'payments', {
     client_id: client.id,
@@ -518,7 +536,7 @@ async function startPayment(knex, { client, plan, price, provider, renewLicenseI
     amount_paise: price.price_paise,
     currency: plan.currency,
     status: 'created',
-    meta: '{}',
+    meta: JSON.stringify(Object.keys(track).length ? { track } : {}),
     terms_accepted_at: ts,
     created_at: ts,
     updated_at: ts,
@@ -572,5 +590,6 @@ export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
     return { paid: { ...paid, license_id: license.id }, license, newlyPaid };
   });
   if (result.newlyPaid) sendPaymentReceipt(knex, result.paid, result.license).catch((e) => console.error('Receipt email failed:', e.message));
+  if (result.newlyPaid) sendPurchase(knex, result.paid); // Meta Conversions API; never throws
   return result;
 }
