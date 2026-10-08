@@ -1,9 +1,9 @@
-/** Website content: headline, screenshots, up to two videos, comparison table, business details. Price is set under Products. */
+/** Website content: headline, screenshots, up to two videos, sections, the ad offer page (/offer), business details. Price is set under Products. */
 
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { adminApi } from '../../api.js';
-import { Check, ErrorText, Field, Input, Spinner, Textarea, useLoad, useToast } from '../../components/ui.jsx';
+import { Check, CopyButton, ErrorText, Field, Input, Spinner, Textarea, useLoad, useToast } from '../../components/ui.jsx';
 import { embedUrl } from '../portal/ProductPage.jsx';
 
 export default function AdminWebsite() {
@@ -19,6 +19,9 @@ export default function AdminWebsite() {
 
   const set = (k) => (v) => setForm({ ...form, [k]: v });
   const setBusiness = (k) => (v) => setForm({ ...form, business: { ...form.business, [k]: v } });
+  const offer = form.offer || {};
+  const setOffer = (k) => (v) => setForm({ ...form, offer: { ...offer, [k]: v } });
+  const offerUrl = `${window.location.origin}/offer`;
   const shots = form.screenshots;
   const videos = form.videos;
   const setShot = (i, patch) => set('screenshots')(shots.map((s, n) => (n === i ? { ...s, ...patch } : s)));
@@ -161,7 +164,7 @@ export default function AdminWebsite() {
       </div>
 
       <div className="card form">
-        <h3>Sections and buying</h3>
+        <h3>Sections</h3>
         <Check
           checked={form.showProblems !== false}
           onChange={set('showProblems')}
@@ -169,19 +172,46 @@ export default function AdminWebsite() {
           data-testid="site-show-problems"
         />
         <Check checked={form.showComparison} onChange={set('showComparison')} label="Show the comparison with accounting software and Word/Excel templates" />
-        <div>
-          <Check
-            checked={form.buyFunnel !== false}
-            onChange={set('buyFunnel')}
-            label="Buy page as a step-by-step funnel"
-            data-testid="site-buy-funnel"
-          />
-          <p className="muted small" style={{ margin: '4px 0 0 28px' }}>
-            Visitors who open <a href="/buy" target="_blank" rel="noreferrer">/buy</a> (the Buy button, ads, shared links) first tick their problems, see how
-            DocGen fixes them and choose a plan, then pay. Signed-in customers and visitors who chose a plan on the pricing cards go straight to
-            payment. Off: /buy opens the payment form directly.
-          </p>
+      </div>
+
+      <div className="card form" data-testid="offer-settings">
+        <div className="card-head" style={{ marginBottom: 0 }}>
+          <h3>Offer page for ads</h3>
+          <a className="btn btn-sm" href="/offer" target="_blank" rel="noreferrer">
+            Open offer page
+          </a>
         </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          A short sales page for Facebook and Instagram ads: plans at the top, problems → how DocGen fixes them → benefits → customers, and
+          the payment form. It is not linked from the website and is hidden from search engines. Paste this link into your ads:
+        </p>
+        <div className="code-box">
+          <span className="code" data-testid="offer-link">
+            {offerUrl}
+          </span>
+          <CopyButton text={offerUrl} />
+        </div>
+        <Check checked={offer.enabled !== false} onChange={setOffer('enabled')} label="Offer page on (off: the link opens the normal Buy page)" data-testid="offer-enabled" />
+        <div className="grid-2">
+          <Field label="Regular price, % above your price" hint="Shown crossed out, rounded up to ₹100 (₹1,250 + 20% → ₹1,500). 0 = no crossed-out price.">
+            <Input type="number" min={0} max={300} value={offer.regularPricePercent} onChange={setOffer('regularPricePercent')} data-testid="offer-percent" />
+          </Field>
+          <Field label="Countdown, minutes" hint="Each visitor sees their own countdown; it starts again when it runs out. 0 = no countdown.">
+            <Input type="number" min={0} max={1440} value={offer.timerMinutes} onChange={setOffer('timerMinutes')} data-testid="offer-minutes" />
+          </Field>
+          <Field label="Happy customers" hint="e.g. 500+. Empty = not shown.">
+            <Input value={offer.customers} onChange={setOffer('customers')} maxLength={20} data-testid="offer-customers" />
+          </Field>
+          <Field label="Average rating (out of 5)" hint="e.g. 4.8. 0 = not shown.">
+            <Input type="number" min={0} max={5} step={0.1} value={offer.rating} onChange={setOffer('rating')} data-testid="offer-rating" />
+          </Field>
+        </div>
+        <Check
+          checked={offer.showBuyers !== false}
+          onChange={setOffer('showBuyers')}
+          label="Show “N people bought DocGen in the last 24 hours” (a number per visitor that goes up by 5 on every new visit)"
+          data-testid="offer-buyers-switch"
+        />
       </div>
 
       <div className="card" data-testid="business-details">

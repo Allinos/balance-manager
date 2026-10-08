@@ -145,6 +145,8 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
     app.use(vite.middlewares);
   } else if (fs.existsSync(path.join(config.portalDist, 'index.html'))) {
     app.use(express.static(config.portalDist, { index: false, maxAge: '1h' }));
+    // The ad offer page is for ad visitors only: keep it out of search results.
+    app.get('/offer', (_req, res) => res.sendFile(path.join(config.portalDist, 'index.html'), { headers: { 'X-Robots-Tag': 'noindex, nofollow' } }));
     app.get(/^(?!\/api\/).*/, (_req, res) => res.sendFile(path.join(config.portalDist, 'index.html')));
   }
 

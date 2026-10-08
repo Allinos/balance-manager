@@ -119,7 +119,7 @@ export const DEFAULT_SITE = {
   videos: [],
   showComparison: true,
   showProblems: true,
-  buyFunnel: true,
+  offer: { enabled: true, regularPricePercent: 20, timerMinutes: 15, showBuyers: true, customers: '500+', rating: 4.8 },
   business: {
     legalName: 'Reynrel',
     address: '',
@@ -132,7 +132,9 @@ export const DEFAULT_SITE = {
 export async function getSiteConfig(knex) {
   const row = await knex('app_config').where({ key: 'site' }).first();
   const saved = parseJson(row?.value, {});
-  return { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business } };
+  const site = { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business }, offer: { ...DEFAULT_SITE.offer, ...saved.offer } };
+  delete site.buyFunnel; // the old step-by-step /buy funnel, replaced by the /offer page
+  return site;
 }
 
 export async function saveSiteConfig(knex, value, adminId) {

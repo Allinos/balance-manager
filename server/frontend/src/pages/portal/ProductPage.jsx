@@ -251,7 +251,7 @@ export function PricingCards({ product }) {
               <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support{p.durationDays ? ` for ${p.periodText.toLowerCase()}` : ''}
             </li>
           </ul>
-          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}&start=details`} data-testid={`buy-${p.durationDays}`}>
+          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
             Buy {p.periodText.toLowerCase() === 'lifetime' ? 'lifetime license' : p.periodText}
           </Link>
         </div>

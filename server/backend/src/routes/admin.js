@@ -77,8 +77,23 @@ const siteSchema = z.object({
   showComparison: z.boolean().default(true),
   /** Home page: "Sound familiar?" section with the problems DocGen solves. */
   showProblems: z.boolean().default(true),
-  /** /buy as a step-by-step funnel (problem → solution → plan → details & payment); off = straight to checkout. */
-  buyFunnel: z.boolean().default(true),
+  /** The offer page for ads (/offer, not linked from the website): plans, problems → fixes, benefits, payment. */
+  offer: z
+    .object({
+      /** Off: /offer opens the normal /buy page. */
+      enabled: z.boolean().default(true),
+      /** Regular price shown crossed out: this many % above the real price, rounded up to ₹100. 0 = none. */
+      regularPricePercent: z.coerce.number().int().min(0).max(300).default(20),
+      /** Countdown per visitor (minutes; starts again when it runs out). 0 = no countdown. */
+      timerMinutes: z.coerce.number().int().min(0).max(1440).default(15),
+      /** "N people bought DocGen in the last 24 hours" (per visitor, grows on every later visit). */
+      showBuyers: z.boolean().default(true),
+      /** Customer numbers shown on the page: "500+" businesses, rating out of 5. Empty / 0 = hidden. */
+      customers: z.string().trim().max(20).default(''),
+      rating: z.coerce.number().min(0).max(5).default(0),
+    })
+    .partial()
+    .optional(),
   /** Shown on Contact Us and in the policies (Terms, Privacy, Refunds, Shipping). */
   business: z
     .object({

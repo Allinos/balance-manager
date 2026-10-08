@@ -10,7 +10,7 @@ Last full run: **4 October 2026** (after Help & Support, the policy and contact 
 | Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **179 / 179 checks passed** (7 October 2026, incl. the setup tax step (no invoice shown) and the template step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **61 / 61 passed** (19 API, 41 journey/checkout/terms/payments/licensing/durations/phones/downloads/email/support/prices, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** (previous run; not re-run this round) |
-| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **119 / 119 passed** (8 October 2026, incl. the problems section and the 4-step buy funnel, both switchable in Admin → Website) |
+| Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **140 / 140 passed** (8 October 2026, incl. the plain /buy checkout and the /offer ad page on a phone: price drop, countdown, buyers line, Pay now → payment → license, switchable in Admin → Website) |
 | DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **97 / 97 passed** (7 October 2026; incl. the setup tax and template steps and a plain http:// network address) |
 | Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `backend/test`, `frontend/src`, `mobile/src`, e2e scripts | 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |

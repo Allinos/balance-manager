@@ -6,6 +6,7 @@ import Icon from './components/Icons.jsx';
 import { SUPPORT_EMAIL } from './constants.js';
 import ProductPage from './pages/portal/ProductPage.jsx';
 import CheckoutPage from './pages/portal/Checkout.jsx';
+import OfferPage from './pages/portal/Offer.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
 import ClientHome from './pages/portal/ClientHome.jsx';
 import Services from './pages/portal/Services.jsx';
@@ -307,6 +308,8 @@ export default function App() {
             <Routes>
               <Route path="/" element={<ProductPage />} />
               <Route path="/buy" element={<CheckoutPage />} />
+              {/* Ad landing page: not linked from the website. */}
+              <Route path="/offer" element={<OfferPage />} />
               <Route path="/register" element={<KeepQuery to="/buy" />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />

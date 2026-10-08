@@ -140,7 +140,8 @@ try {
   const problems = (await page.getByTestId('problems').textContent()).replace(/\s+/g, ' ');
   check((await page.getByTestId('problem-card').count()) === 6 && problems.includes('GST mistakes cost you money') && problems.includes('Works fully offline'),
     'home: "Sound familiar?" — 6 customer problems, each with how DocGen solves it');
-  check((await page.getByTestId('buy-365').getAttribute('href')).includes('start=details'), 'pricing card buttons go straight to checkout (the plan is already chosen)');
+  check(/^\/buy\?product=1&price=\d+$/.test(await page.getByTestId('buy-365').getAttribute('href')), 'pricing card buttons open the checkout with that plan');
+  check((await page.locator('a[href*="offer"]').count()) === 0, 'the ad offer page (/offer) is not linked from the website');
   check((await page.content()).includes('info.reynrel@gmail.com'), 'contact email info.reynrel@gmail.com');
   await page.getByTestId('mobile-section').scrollIntoViewIfNeeded();
   check((await page.getByTestId('mobile-section').locator('img').count()) === 2, 'landing page: "DocGen on Mobile" section with screenshots');
@@ -332,32 +333,9 @@ try {
   await page.goto(`${base}/account`);
   await page.getByTestId('sign-out').click();
   await page.goto(`${base}/buy?product=1`);
-  // /buy opened directly: the funnel — problems → fix → plan → checkout.
-  await page.getByTestId('funnel-problems').waitFor();
-  check((await page.locator('.pain-option').count()) === 8, 'buy funnel step 1: 8 problems to tick');
-  await page.getByTestId('pain-gst').click();
-  await page.getByTestId('pain-offline').click();
-  check((await page.getByTestId('pain-gst').getAttribute('aria-checked')) === 'true' && (await page.getByTestId('funnel-next').textContent()).includes('these 2'),
-    'ticked problems are highlighted and counted');
-  await shot('03a-funnel-problems');
-  await page.getByTestId('funnel-next').click();
-  await page.getByTestId('funnel-fix').waitFor();
-  const fixes = await page.getByTestId('fix-item').allTextContents();
-  check(fixes.length === 2 && fixes[0].includes('CGST + SGST or IGST') && fixes[1].includes('Works fully offline'), 'step 2 shows how DocGen fixes exactly the ticked problems');
-  check(page.url().includes('step=1') && page.url().includes('product=1'), 'funnel step in the address, other link details kept');
-  await shot('03b-funnel-fix');
-  await page.getByTestId('funnel-next').click();
-  await page.getByTestId('funnel-plan').waitFor();
-  await page.getByTestId('price-730').click();
-  check((await page.getByTestId('funnel-price').textContent()).includes('2,250') && (await page.getByTestId('funnel-guarantee').isVisible()), 'step 3: plan with price, monthly equivalent and the refund promise');
-  await shot('03c-funnel-plan');
-  await page.goBack();
-  await page.getByTestId('funnel-fix').waitFor();
-  check(true, 'browser Back goes to the previous funnel step');
-  await page.goForward();
-  await page.getByTestId('funnel-next').click();
+  // /buy is the plain checkout: details and payment, no steps before it.
   await page.getByTestId('checkout-form').waitFor();
-  check((await page.getByTestId('order-total').textContent()).includes('2,250') && (await page.getByTestId('funnel-back').isVisible()), 'step 4: checkout with the chosen 2-year plan; back link to the plan');
+  check((await page.locator('.funnel, [data-testid=funnel]').count()) === 0 && (await page.getByTestId('order-total').textContent()).includes('1,250'), '/buy opens the details form and payment directly');
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('9876543210');
   await page.getByLabel('Email address').fill('meera@example.com');
@@ -370,6 +348,79 @@ try {
   await page.getByTestId('rzp-close').click();
   await page.getByText('Payment not completed').waitFor();
   check(true, 'closing the payment window keeps the visitor on the checkout');
+
+  console.log('Ad offer page (/offer) on a phone: plans → countdown → Pay now → payment → license');
+  const adVisitor = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const ad = await adVisitor.newPage();
+  await ad.route('https://checkout.razorpay.com/v1/checkout.js', (route) => route.fulfill({ contentType: 'application/javascript', body: fakeCheckoutJs }));
+  const adShot = (name) => ad.screenshot({ path: path.join(shots, `${name}.png`) });
+  const offerRes = await fetch(`${base}/offer`);
+  check(offerRes.status === 200 && /noindex/.test(offerRes.headers.get('x-robots-tag') || ''), 'offer page is served with X-Robots-Tag: noindex (kept out of search results)');
+  await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
+  await ad.getByTestId('offer-page').waitFor();
+  const firstPrice = await ad.getByTestId('offer-plans').getByTestId('regular-price').first().textContent();
+  check(firstPrice.includes('1,500') && !(await ad.getByTestId('offer-plans').getByTestId('offer-price').first().isVisible()), 'page opens with the regular price (₹1,500)');
+  await adShot('03a-offer-open');
+  await ad.locator('.offer-price.revealed').first().waitFor();
+  await ad.waitForTimeout(900);
+  const plan1 = (await ad.getByTestId('offer-plans').getByTestId('offer-plan-365').textContent()).replace(/\s+/g, ' ');
+  check(plan1.includes('₹1,500') && plan1.includes('₹1,250') && plan1.includes('Save ₹250'), 'then the price drops: ₹1,500 crossed out, offer ₹1,250, "Save ₹250"');
+  check((await ad.getByTestId('offer-plans').boundingBox()).y < 844 && (await ad.getByTestId('offer-plan-365').first().boundingBox()).y < 844, 'the plans are on the first screen of a phone');
+  check((await ad.getByTestId('offer-bar').textContent()).includes('17% off'), 'top bar: limited-time offer, 17% off');
+  const t1 = (await ad.getByTestId('offer-timer').textContent()).trim();
+  await ad.waitForTimeout(2100);
+  const t2 = (await ad.getByTestId('offer-timer').textContent()).trim();
+  const secs = (t) => t.split(':').reduce((a, b) => a * 60 + Number(b), 0);
+  check(/^\d\d:\d\d$/.test(t1) && secs(t1) <= 15 * 60 && secs(t2) < secs(t1), `countdown runs (${t1} → ${t2})`);
+  const buyersText = await ad.getByTestId('offer-buyers-top').textContent();
+  const buyers = Number(buyersText.match(/(\d+) people/)[1]);
+  check(buyers >= 12 && buyers <= 24 && buyersText.includes('in the last 24 hours') && (await ad.evaluate(() => localStorage.getItem('docgen.offer.buyers'))) === String(buyers),
+    `"${buyers} people bought DocGen in the last 24 hours" — a random number stored in the browser`);
+  await ad.reload();
+  await ad.getByTestId('offer-page').waitFor();
+  check((await ad.getByTestId('offer-buyers-top').textContent()).includes(`${buyers} people`), 'reloading the page keeps the same number');
+  await ad.getByTestId('offer-timer').waitFor();
+  const t3 = (await ad.getByTestId('offer-timer').textContent()).trim();
+  check(secs(t3) <= secs(t2), `reloading does not restart the countdown (${t2} → ${t3})`);
+  const ad2 = await adVisitor.newPage();
+  await ad2.goto(`${base}/offer`);
+  await ad2.getByTestId('offer-page').waitFor();
+  check((await ad2.getByTestId('offer-buyers-top').textContent()).includes(`${buyers + 5} people`), `a later visit adds 5 (${buyers + 5})`);
+  await ad2.close();
+  for (const id of ['offer-problems', 'offer-fixes', 'offer-benefits', 'offer-proof']) check(await ad.getByTestId(id).count() === 1, `section: ${id.slice(6)}`);
+  check((await ad.getByTestId('offer-proof').textContent()).includes('500+') && (await ad.getByTestId('offer-proof').textContent()).includes('4.8'), 'happy customers (500+) and rating (4.8)');
+  check((await ad.locator('header a, .site-nav').count()) === 0, 'no website menu on the offer page — nothing leads away from the offer');
+  check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Pay now" button at the bottom of the screen');
+  await ad.locator('.offer-sticky .offer-price.revealed').waitFor();
+  await ad.getByTestId('offer-problems').scrollIntoViewIfNeeded();
+  await ad.waitForTimeout(300);
+  await adShot('03b-offer-scroll');
+  await ad.getByTestId('offer-paynow').click();
+  await ad.waitForTimeout(900);
+  check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Pay now" jumps to the payment section');
+  check((await ad.getByTestId('offer-buyers').textContent()).includes('in the last 24 hours') && (await ad.getByTestId('offer-hurry').textContent()).includes('Hurry'),
+    'payment section: buyers line and "Hurry!" countdown at the top');
+  await ad.waitForTimeout(400);
+  check(!(await ad.getByTestId('offer-sticky').evaluate((el) => el.getBoundingClientRect().top < window.innerHeight)), 'the sticky bar hides while the payment form is on screen');
+  await adShot('03c-offer-pay');
+  await ad.getByTestId('offer-pay').getByTestId('offer-plan-730').click();
+  check((await ad.getByTestId('offer-total').textContent()).replace(/\s+/g, ' ').includes('₹2,250') && (await ad.getByTestId('co-pay').textContent()).includes('Pay now · ₹2,250'),
+    'choosing 2 years: total ₹2,250 and "Pay now · ₹2,250"');
+  check((await ad.getByTestId('offer-plans').getByTestId('offer-plan-730').getAttribute('aria-checked')) === 'true', 'the plan at the top follows the choice');
+  await ad.getByLabel('Full name').fill('Farhan Ali');
+  await ad.getByLabel('Mobile number').fill('9123456789');
+  await ad.getByLabel('Email address').fill('farhan@example.com');
+  await ad.getByTestId('accept-terms').check();
+  await ad.getByTestId('co-pay').click();
+  await ad.getByTestId('rzp-window').waitFor();
+  const adRzp = await ad.evaluate(() => window.__rzpOptions);
+  check(adRzp.amount === 225000 && adRzp.prefill.email === 'farhan@example.com', 'same Razorpay payment as /buy (₹2,250, email prefilled)');
+  await ad.getByTestId('rzp-pay').click();
+  await ad.getByTestId('purchase-success').waitFor();
+  check(/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test((await ad.getByTestId('new-code').textContent()).trim()) && /\(730 days\)/.test(await ad.getByTestId('valid-until').textContent()),
+    'payment → account, 2-year license code shown (and emailed, as on /buy)');
+  await adShot('03d-offer-paid');
+  await adVisitor.close();
 
   // Website: policies, Contact Us (a visitor's message), Help & Support, Login on a phone.
   for (const [path, title] of [['/terms', 'Terms & Conditions'], ['/privacy', 'Privacy Policy'], ['/shipping', 'Shipping Policy'], ['/refunds', 'Cancellation & Refunds']]) {
@@ -420,7 +471,7 @@ try {
   await page.getByLabel('Password').fill('owner-password-1');
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.getByTestId('stats').waitFor();
-  check(/Sales in .*₹3,500/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹3,500 (1 year + 2-year extension)');
+  check(/Sales in .*₹5,750/.test((await page.getByTestId('stats').textContent()).replace(/\s+/g, ' ')), 'dashboard: sales this month ₹5,750 (1 year + 2-year extension + 2 years from the offer page)');
   check((await page.getByTestId('recent-sales').textContent()).includes('meera@example.com'), 'dashboard: recent sales');
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
   await campaign.waitFor();
@@ -475,21 +526,22 @@ try {
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
   check((await page2.getByTestId('price').first().textContent()).includes('1,500') && (await page2.getByTestId('pricing-cards').textContent()).includes('3 years'), 'website shows the new prices at once');
   await page2.close();
-  // The admin switches the buy funnel and the problems section off.
-  await page.getByTestId('site-buy-funnel').uncheck();
+  // The admin switches the offer page and the problems section off.
+  check((await page.getByTestId('offer-link').textContent()).trim() === `${base}/offer`, 'Admin → Website shows the offer page link to copy into ads');
+  await page.getByTestId('offer-enabled').uncheck();
   await page.getByTestId('site-show-problems').uncheck();
   await page.getByTestId('save-site').click();
   await page.getByText('Website updated').waitFor();
   const visitor = await browser.newContext({ viewport: { width: 1280, height: 860 } });
   const page3 = await visitor.newPage();
-  await page3.goto(`${base}/buy`);
+  await page3.goto(`${base}/offer?product=1`);
   await page3.getByTestId('checkout-form').waitFor();
-  check((await page3.getByTestId('funnel').count()) === 0, 'funnel off in Admin → Website: /buy opens the payment form directly');
+  check(new URL(page3.url()).pathname === '/buy', 'offer page off in Admin → Website: the link opens the normal Buy page');
   await page3.goto(base);
   await page3.getByTestId('headline').waitFor();
   check((await page3.getByTestId('problems').count()) === 0, 'problems section can be switched off');
   await visitor.close();
-  await page.getByTestId('site-buy-funnel').check();
+  await page.getByTestId('offer-enabled').check();
   await page.getByTestId('site-show-problems').check();
   await page.getByTestId('save-site').click();
   await page.getByText('Website updated').waitFor();
@@ -500,6 +552,7 @@ try {
   const meeraRow = (await meera.textContent()).replace(/\s+/g, ' ');
   check(meeraRow.includes(code) && meeraRow.includes('₹3,500') && meeraRow.includes('google / cpc · gst-oct'), 'customers: license, amount paid and ad source per customer');
   check((await page.locator('tr', { hasText: 'lead@example.com' }).textContent()).includes('Not bought'), 'customers: unfinished checkout listed as not bought');
+  check((await page.locator('tr', { hasText: 'farhan@example.com' }).textContent()).replace(/\s+/g, ' ').includes('facebook / paid_social · offer-oct'), 'customers: the offer-page buyer came from the Facebook ad');
   await shot('10-customers');
   await page.getByRole('button', { name: 'Add customer' }).click();
   const modal = page.locator('.modal');

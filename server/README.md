@@ -173,13 +173,25 @@ The browser (and the apps) can never create a license, choose an amount or exten
    A "Sound familiar?" section lists the problems small businesses have with billing (slow handwritten
    bills, GST mistakes, broken Excel templates, costly accounting software, no internet, late payments)
    and how DocGen solves each one.
-   **Buy funnel**: visitors who open `/buy` directly (the Buy button, ads, shared links) go through
-   4 steps — tick their problems → see how DocGen fixes those → choose a plan (with the monthly
-   equivalent and the refund promise) → details and payment. The step is in the address, so the
-   browser's Back button works. Signed-in customers and visitors who chose a plan on the pricing cards
-   (`/buy?…&start=details`) go straight to payment. Switch the funnel or the problems section off in
-   Admin → Website → Sections and buying.
-7. **Ads**: point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
+   Switch the problems section off in Admin → Website → Sections. `/buy` is the plain checkout
+   (details → payment).
+   **Offer page for ads** (`/offer`, e.g. `https://docgen.reynrel.in/offer`): a short, separate sales
+   page for Facebook / Instagram ads. It is not linked anywhere on the website, has no website menu and is
+   kept out of search engines (`X-Robots-Tag: noindex` + a robots meta tag). Top to bottom: a red
+   "Limited-time offer · ends in 14:59" bar, the plans on the first screen (the regular price shows first,
+   then it is crossed out and the real price drops in, with "Save ₹250"), the customer numbers and
+   "N people bought DocGen in the last 24 hours", problems → how DocGen fixes them → benefits →
+   happy customers, and the payment form. A sticky **Pay now** bar at the bottom jumps to the form.
+   Payment, account, license and the confirmation email are the same as on `/buy` (shared `CheckoutForm`);
+   UTM tags and `fbclid` are tracked as on the rest of the site. Admin → Website → *Offer page for ads*:
+   the link to copy, on/off (off: `/offer` opens `/buy`), regular price (% above the real price, rounded
+   up to ₹100; default 20 % → ₹1,250 shows as ~~₹1,500~~), countdown minutes (per visitor, kept in the
+   browser, restarts when it runs out; default 15), the buyers line, happy customers ("500+") and rating
+   (4.8). The buyers number is random (12–24) on a visitor's first visit, kept in the browser, and grows by
+   5 on every later visit. Set the customer numbers to your real ones.
+7. **Ads**: for Facebook / Instagram use the offer page, e.g.
+   `https://docgen.reynrel.in/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=<name>`;
+   otherwise point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`
    (Google Ads adds `gclid` by itself; Meta adds `fbclid`). Admin → Dashboard → *Where customers
    come from* shows sign-ups, paying customers, conversion and revenue per campaign.
 8. **Legal pages** for Razorpay approval and ad platforms are built in: `/terms`, `/privacy`, `/shipping`,
