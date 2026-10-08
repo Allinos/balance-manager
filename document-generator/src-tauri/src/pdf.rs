@@ -1,4 +1,4 @@
-//! "Download PDF": saves the current document view as an A4 PDF file without
+//! "Download PDF": saves the current document view as an A4 (or A5) PDF file without
 //! a print dialog, using the platform web engine itself so the PDF looks
 //! exactly like the preview (and no PDF library is bundled).
 //!
@@ -12,7 +12,13 @@ use std::path::PathBuf;
 use tauri::{AppHandle, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
-const MARGIN_MM: f64 = 12.0;
+/// Paper width, height and margin in mm. A5 is offered for receipts and vouchers.
+fn paper_mm(paper: Option<&str>) -> (f64, f64, f64) {
+    match paper {
+        Some("A5") => (148.0, 210.0, 8.0),
+        _ => (210.0, 297.0, 12.0),
+    }
+}
 
 fn safe_file_name(name: &str) -> String {
     let base: String = name
@@ -30,7 +36,7 @@ fn safe_file_name(name: &str) -> String {
 /// Ask where to save and write the PDF. Returns the saved path, or None if cancelled.
 /// Errors starting with "UNSUPPORTED|" tell the UI to fall back to the print dialog.
 #[tauri::command]
-pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name: String) -> AppResult<Option<String>> {
+pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name: String, paper: Option<String>) -> AppResult<Option<String>> {
     if !cfg!(any(windows, target_os = "linux")) {
         return Err(AppError::new("UNSUPPORTED|Direct PDF download is not available on this system."));
     }
@@ -54,7 +60,7 @@ pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name:
         std::fs::remove_file(&path)?;
     }
     let (tx, rx) = std::sync::mpsc::channel::<Result<(), String>>();
-    start_print(&window, path.clone(), tx)?;
+    start_print(&window, path.clone(), paper_mm(paper.as_deref()), tx)?;
     let outcome = tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(std::time::Duration::from_secs(90)))
         .await
         .map_err(|_| AppError::new("PDF creation was interrupted."))?;
@@ -78,7 +84,7 @@ pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name:
 }
 
 #[cfg(target_os = "linux")]
-fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
+fn start_print(window: &WebviewWindow, path: PathBuf, (_width, height, margin): (f64, f64, f64), tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
     use webkit2gtk::PrintOperationExt;
     window
         .with_webview(move |wv| {
@@ -90,11 +96,12 @@ fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sende
             let uri = format!("file://{}", path.to_string_lossy());
             settings.set(gtk::PRINT_SETTINGS_OUTPUT_URI, Some(&uri));
             let setup = gtk::PageSetup::new();
-            setup.set_paper_size(&gtk::PaperSize::new(Some(&gtk::PAPER_NAME_A4)));
-            setup.set_top_margin(MARGIN_MM, gtk::Unit::Mm);
-            setup.set_bottom_margin(MARGIN_MM, gtk::Unit::Mm);
-            setup.set_left_margin(MARGIN_MM, gtk::Unit::Mm);
-            setup.set_right_margin(MARGIN_MM, gtk::Unit::Mm);
+            let name = if height < 250.0 { gtk::PAPER_NAME_A5 } else { gtk::PAPER_NAME_A4 };
+            setup.set_paper_size(&gtk::PaperSize::new(Some(&name)));
+            setup.set_top_margin(margin, gtk::Unit::Mm);
+            setup.set_bottom_margin(margin, gtk::Unit::Mm);
+            setup.set_left_margin(margin, gtk::Unit::Mm);
+            setup.set_right_margin(margin, gtk::Unit::Mm);
             op.set_print_settings(&settings);
             op.set_page_setup(&setup);
             let done = tx.clone();
@@ -114,7 +121,7 @@ fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sende
 }
 
 #[cfg(windows)]
-fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
+fn start_print(window: &WebviewWindow, path: PathBuf, (width, height, margin_mm): (f64, f64, f64), tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
     use webview2_com::Microsoft::Web::WebView2::Win32::{ICoreWebView2Environment6, ICoreWebView2_7};
     use webview2_com::PrintToPdfCompletedHandler;
     use windows::core::{Interface, HSTRING};
@@ -127,9 +134,9 @@ fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sende
                     let core7: ICoreWebView2_7 = core.cast()?;
                     let env6: ICoreWebView2Environment6 = wv.environment().cast()?;
                     let settings = env6.CreatePrintSettings()?;
-                    let margin = MARGIN_MM / 25.4;
-                    settings.SetPageWidth(210.0 / 25.4)?;
-                    settings.SetPageHeight(297.0 / 25.4)?;
+                    let margin = margin_mm / 25.4;
+                    settings.SetPageWidth(width / 25.4)?;
+                    settings.SetPageHeight(height / 25.4)?;
                     settings.SetMarginTop(margin)?;
                     settings.SetMarginBottom(margin)?;
                     settings.SetMarginLeft(margin)?;
@@ -158,6 +165,6 @@ fn start_print(window: &WebviewWindow, path: PathBuf, tx: std::sync::mpsc::Sende
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
-fn start_print(_window: &WebviewWindow, _path: PathBuf, _tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
+fn start_print(_window: &WebviewWindow, _path: PathBuf, _paper: (f64, f64, f64), _tx: std::sync::mpsc::Sender<Result<(), String>>) -> AppResult<()> {
     Err(AppError::new("UNSUPPORTED|Direct PDF download is not available on this system."))
 }

@@ -99,6 +99,10 @@ export const DEFAULT_SETTINGS = {
 /** Settings every document type understands (with their meaning for the settings UI). */
 export const DOC_SETTING_FIELDS = [
   { key: 'title', label: 'Printed title', type: 'text' },
+  {
+    key: 'paperSize', label: 'Paper size', type: 'select', layouts: ['receipt'],
+    options: [{ value: 'A4', label: 'A4 (210 × 297 mm)' }, { value: 'A5', label: 'A5 (148 × 210 mm, half of A4)' }],
+  },
   { key: 'template', label: 'Template', type: 'template' },
   { key: 'showPrices', label: 'Show prices & amounts', type: 'bool' },
   { key: 'showTax', label: 'Show tax columns', type: 'bool' },
@@ -142,19 +146,27 @@ export function resolveDocSettings(typeId, settings, docSettings = {}) {
     notes: '',
     terms: ['TAX_INVOICE', 'SERVICE_INVOICE'].includes(type.id) ? settings.defaultPaymentTerms || '' : '',
     template: '',
+    paperSize: 'A4',
   };
   const resolved = { ...base, ...type.defaults, ...(docSettings[typeId] || {}) };
   // Template: per-type override, else the global default.
   resolved.template = normaliseTemplate(resolved.template || settings.documentStyle);
+  // A5 is offered for receipts and vouchers; bills with item tables are always A4.
+  if (type.layout !== 'receipt' || resolved.paperSize !== 'A5') resolved.paperSize = 'A4';
   return resolved;
 }
 
 /** This document's own choices (e.g. "Show bank details" on a quotation) on top of its type's settings. */
 export function withDocumentOptions(ds, doc) {
   const meta = doc?.meta && typeof doc.meta === 'object' ? doc.meta : {};
+  if (getType(doc?.document_type).layout === 'receipt' && ['A4', 'A5'].includes(meta.paperSize)) ds = { ...ds, paperSize: meta.paperSize };
   if (getType(doc?.document_type).bankOption && typeof meta.showBank === 'boolean') return { ...ds, showBank: meta.showBank };
   return ds;
 }
+
+/** Fields shown for a document type in Settings → Document types. */
+export const docSettingFieldsFor = (type) =>
+  DOC_SETTING_FIELDS.filter((f) => (!f.only || f.only.includes(type.dueSetting)) && (!f.layouts || f.layouts.includes(type.layout)));
 
 /** Whether a document type shows monetary amounts (e.g. challans do not). */
 export const pricesVisible = (typeId, settings, docSettings) =>

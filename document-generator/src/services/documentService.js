@@ -84,7 +84,8 @@ export function newDocument(typeId, { settings, docSettings }) {
       id: null,
       document_type: type.id,
       document_number: '',
-      status: 'DRAFT',
+      // A receipt is written when the money comes in, so it starts as issued.
+      status: type.layout === 'receipt' ? 'ISSUED' : 'DRAFT',
       party_id: null,
       party_name: '',
       party_company: '',

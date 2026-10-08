@@ -1324,6 +1324,11 @@ textarea.input {
 .page-preview-paper {
   transform-origin: top left;
   width: 210mm;
+}
+.page-preview-paper.paper-a5 {
+  width: 148mm;
+}
+.page-preview-paper {
   box-shadow: 0 2px 10px rgba(16, 24, 40, 0.14), 0 0 0 1px rgba(16, 24, 40, 0.06);
 }
 .style-preview {
@@ -3693,4 +3698,26 @@ div.folder-item {
 }
 .form-stack p {
   margin: 0;
+}
+
+/* Receipt editor: what the invoice still owes, and the paper size. */
+.receipt-settle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, #f6f7f9);
+  font-size: 13px;
+  color: var(--text-2, #444);
+}
+.receipt-settle strong {
+  color: var(--text, #111);
+}
+.receipt-paper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
 }

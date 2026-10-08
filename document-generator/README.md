@@ -225,6 +225,18 @@ Purchase Order, Goods Receipt Note, Purchase Invoice/Bill, Credit Note, Debit No
 Payment Receipt (money received), Payment Voucher (money paid out; also the voucher for reverse-charge
 payments, CGST Rule 52), Work Order, Job/Service Completion.
 
+**Payment receipts against invoices** (desktop and mobile, `services/receiptService.js`): in a new
+Payment Receipt, *Receipt for invoice* lists every issued Tax / Service / Proforma Invoice and Bill of
+Supply with its balance due (a Payment Voucher lists Purchase Bills). Choosing one fills the customer,
+the invoice number and date, the invoice amount, what earlier receipts already covered, and suggests the
+balance as the amount. The receipt prints the payment details and a small table: invoice amount ·
+received earlier · this receipt · balance due. Saving an issued receipt marks the invoice *Partly paid*
+or *Paid* (Issued and Partly paid invoices only, never backwards). "Convert → Payment Receipt" on an
+invoice does the same. Receipts are linked to their invoice through `parent_document_id`.
+**Paper size**: receipts and vouchers print on A4 or A5 (148 × 210 mm): per receipt in the editor, with
+the default in Settings → Document types → Receipt. Preview, print (`@page`) and Download PDF (WebView2
+/ WebKitGTK paper size) all follow it; bills with item tables stay A4.
+
 To add one, add an entry — numbering, editor fields, validation, filters, settings and printing
 pick it up automatically. Unknown types from older data still open with safe defaults.
 

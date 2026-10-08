@@ -9,7 +9,7 @@
 import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
-import { dec, div, isZero, toPlain } from '../utils/decimal.js';
+import { dec, div, isZero, sub, toFixed, toPlain } from '../utils/decimal.js';
 import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
 import { stateCode } from '../config/states.js';
 
@@ -407,17 +407,30 @@ export function DocumentFooter({ text, jurisdiction }) {
   );
 }
 
-/** Payment receipt body. */
+/** Payment receipt body: the receipt sentence, payment details and — against an invoice — what is still due. */
 export function ReceiptBody({ doc, dateFormat }) {
   const meta = doc.meta || {};
   const type = getType(doc.document_type);
+  const vendor = type.partyKind === 'vendor';
+  const dp = Number(doc.currency_decimals ?? 2);
+  const settled = !!meta.against_total;
+  const before = meta.received_before || '0';
+  const due = settled ? toFixed(sub(meta.against_total, before), dp) : null;
+  const left = settled ? sub(due, doc.grand_total) : 0n;
+  const balance = toFixed(left < 0n ? 0n : left, dp);
+  const details = [
+    ['Payment mode', meta.payment_mode],
+    [meta.payment_mode === 'Cheque' ? 'Cheque no.' : 'Transaction / ref. no.', meta.payment_reference],
+    [vendor ? 'Against bill' : 'Against invoice', meta.against],
+    [vendor ? 'Bill date' : 'Invoice date', meta.against_date ? formatDate(meta.against_date, dateFormat) : ''],
+  ].filter(([, v]) => v);
   return (
     <div className="doc-receipt">
-      <p>
-        {type.partyKind === 'vendor' ? 'Paid to' : 'Received with thanks from'} <strong>{doc.party_name || '—'}</strong>
+      <p className="doc-receipt-text">
+        {vendor ? 'Paid to' : 'Received with thanks from'} <strong>{doc.party_name || '—'}</strong>
         {doc.party_company && doc.party_company !== doc.party_name ? ` (${doc.party_company})` : ''} the sum of{' '}
         <strong>{formatMoney(doc.grand_total, doc)}</strong> (
-        {amountInWords(doc.grand_total, doc.currency, Number(doc.currency_decimals ?? 2))})
+        {amountInWords(doc.grand_total, doc.currency, dp)})
         {meta.payment_mode ? (
           <>
             {' '}
@@ -433,8 +446,44 @@ export function ReceiptBody({ doc, dateFormat }) {
         ) : null}{' '}
         on {formatDate(doc.issue_date, dateFormat)}.
       </p>
+      {details.length > 0 && (
+        <table className="doc-receipt-details">
+          <tbody>
+            {details.map(([k, v]) => (
+              <tr key={k}>
+                <th>{k}</th>
+                <td>{v}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {settled && (
+        <table className="doc-receipt-settle" data-testid="receipt-settlement">
+          <thead>
+            <tr>
+              <th>{vendor ? 'Bill' : 'Invoice'} amount</th>
+              <th>{vendor ? 'Paid' : 'Received'} earlier</th>
+              <th>This {vendor ? 'payment' : 'receipt'}</th>
+              <th>Balance due</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>{formatMoney(meta.against_total, doc)}</td>
+              <td>{formatMoney(before, doc)}</td>
+              <td>
+                <strong>{formatMoney(doc.grand_total, doc)}</strong>
+              </td>
+              <td>
+                <strong>{left > 0n ? formatMoney(balance, doc) : 'Nil — fully paid'}</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      )}
       <div className="doc-receipt-amount">
-        <span>{type.partyKind === 'vendor' ? 'Amount Paid' : type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
+        <span>{vendor ? 'Amount Paid' : type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
         <strong>{formatMoney(doc.grand_total, doc)}</strong>
       </div>
     </div>

@@ -1,5 +1,5 @@
 /**
- * HTML document renderer (A4). One renderer for every document type; the
+ * HTML document renderer (A4; receipts and vouchers also A5). One renderer for every document type; the
  * document type definition and resolved settings decide what is shown.
  *
  * Payload shape:
@@ -117,7 +117,7 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
 
   return (
     <article
-      className={`doc doc-${template}${sheetClass(page)}`}
+      className={`doc doc-${template}${sheetClass(page)}${ds.paperSize === 'A5' ? ' doc-a5' : ''}${isReceipt ? ' doc-receipt-sheet' : ''}`}
       style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}
     >
       <CancelledMark doc={doc} />

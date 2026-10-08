@@ -327,8 +327,83 @@
 
 /* Receipt */
 .doc-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 4mm;
   font-size: 10.5pt;
-  line-height: 1.8;
+  line-height: 1.7;
+}
+.doc-receipt-text {
+  margin: 0;
+}
+.doc-receipt-details,
+.doc-receipt-settle {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9.2pt;
+  line-height: 1.4;
+}
+.doc-receipt-details th,
+.doc-receipt-details td {
+  padding: 1.6mm 2.5mm;
+  border: 1px solid var(--doc-line);
+  text-align: left;
+  vertical-align: top;
+}
+.doc-receipt-details th {
+  width: 38%;
+  font-weight: 600;
+  color: var(--doc-muted);
+  background: #f7f8fa;
+}
+.doc-receipt-settle th,
+.doc-receipt-settle td {
+  padding: 1.8mm 2.5mm;
+  border: 1px solid var(--doc-line);
+  text-align: right;
+}
+.doc-receipt-settle th {
+  font-weight: 600;
+  font-size: 8.4pt;
+  color: var(--doc-muted);
+  background: #f7f8fa;
+}
+.doc-receipt-amount {
+  align-self: flex-start;
+}
+
+/* A5 (148 × 210 mm): receipts and vouchers on half an A4 sheet. */
+.doc.doc-a5 {
+  width: 148mm;
+  min-height: 210mm;
+  padding: 8mm;
+  gap: 3.5mm;
+  font-size: 8.2pt;
+}
+.doc.doc-a5 .doc-title {
+  font-size: 14pt;
+}
+.doc.doc-a5 .doc-company-name {
+  font-size: 12pt;
+}
+.doc.doc-a5 .doc-logo {
+  max-height: 14mm;
+  max-width: 34mm;
+}
+.doc.doc-a5 .doc-receipt {
+  font-size: 9pt;
+  gap: 3mm;
+}
+.doc.doc-a5 .doc-receipt-details,
+.doc.doc-a5 .doc-receipt-settle {
+  font-size: 8pt;
+}
+.doc.doc-a5 .doc-receipt-settle th {
+  font-size: 7.2pt;
+}
+.doc.doc-a5 .doc-receipt-amount {
+  font-size: 10.5pt;
+  margin-top: 1mm;
 }
 .doc-receipt-amount {
   display: inline-flex;

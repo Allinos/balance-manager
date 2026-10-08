@@ -5,13 +5,13 @@ export const restoreBackup = () => call('backup_restore');
 export const openExternal = (url) => call('open_external', { url });
 
 /**
- * Save the current document view as a PDF file (no print dialog).
+ * Save the current document view as a PDF file (no print dialog), on A4 or A5 paper.
  * Resolves to the saved path, null if cancelled, or throws { unsupported: true }
  * on systems without direct PDF export (the caller then opens the print dialog).
  */
-export async function savePdf(fileName) {
+export async function savePdf(fileName, paper = 'A4') {
   try {
-    return await call('document_save_pdf', { fileName });
+    return await call('document_save_pdf', { fileName, paper });
   } catch (e) {
     if (String(e.message).startsWith('UNSUPPORTED|')) {
       const err = new Error(e.message.split('|')[1]);

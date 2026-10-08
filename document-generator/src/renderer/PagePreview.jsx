@@ -4,7 +4,10 @@ import DocumentRenderer, { PAGED_TEMPLATES, templateOf } from './DocumentRendere
 import { measureFlow, planPages } from './paging.js';
 
 const MM_TO_PX = 96 / 25.4;
-const PAGE_WIDTH_PX = 210 * MM_TO_PX;
+
+/** Paper of a payload: A5 (148 × 210 mm, receipts and vouchers) or A4. Print and PDF use the same size. */
+export const paperSizeOf = (payload) => (payload?.settings?.doc?.paperSize === 'A5' ? 'A5' : 'A4');
+const PAPER = { A4: { width: 210, margin: 12 }, A5: { width: 148, margin: 8 } };
 
 /** Same plan as before (fills rounded), so measuring again does not re-render for nothing. */
 const samePlan = (a, b) =>
@@ -31,7 +34,19 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
   const [scale, setScale] = useState(1);
   const [height, setHeight] = useState(0);
   const [plan, setPlan] = useState(null);
-  const paged = PAGED_TEMPLATES.includes(templateOf(payload));
+  const paper = paperSizeOf(payload);
+  const PAGE_WIDTH_PX = PAPER[paper].width * MM_TO_PX;
+  const paged = paper === 'A4' && PAGED_TEMPLATES.includes(templateOf(payload));
+
+  // print.css sets an A4 page; an A5 document swaps in an A5 page while it is shown.
+  useEffect(() => {
+    if (paper === 'A4') return undefined;
+    const style = document.createElement('style');
+    style.dataset.paper = paper;
+    style.textContent = `@page { size: ${paper}; margin: ${PAPER[paper].margin}mm; }`;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, [paper]);
 
   useEffect(() => {
     const el = outer.current;
@@ -44,7 +59,7 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [maxScale]);
+  }, [maxScale, PAGE_WIDTH_PX]);
 
   useLayoutEffect(() => {
     const el = inner.current;
@@ -93,7 +108,7 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
   return (
     <div className="page-preview" ref={outer}>
       <div className="page-preview-sizer" style={{ height: height * scale, width: PAGE_WIDTH_PX * scale }}>
-        <div className={`page-preview-paper print-root${paged && plan ? ' paged' : ''}`} ref={inner} style={{ transform: `scale(${scale})` }}>
+        <div className={`page-preview-paper print-root paper-${paper.toLowerCase()}${paged && plan ? ' paged' : ''}`} ref={inner} style={{ transform: `scale(${scale})` }}>
           {drawCopy(0)}
           {Array.from({ length: copies - 1 }, (_, i) => (
             <div key={i} className="print-only doc-extra-copy">

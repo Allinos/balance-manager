@@ -17,8 +17,9 @@ import { formatMoney } from '@desktop/utils/format.js';
 import { amountInWords } from '@desktop/utils/numberToWords.js';
 import { dec, isZero } from '@desktop/utils/decimal.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
+import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
 import Icon from '../components/Icon.jsx';
-import { ActionSheet, Field, Header, Input, NumberInput, Picker, Select, Sheet, Spinner, StatusBadge, Suggest, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
+import { ActionSheet, Field, Header, Input, NumberInput, Picker, Segmented, Select, Sheet, Spinner, StatusBadge, Suggest, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
 import { useApp, useDocContext, useDocumentActions } from '../data.jsx';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
@@ -349,6 +350,39 @@ export default function Editor({ typeId, id, query = {} }) {
     [company?.state, ctx.settings.taxSystem],
   );
   const setMeta = (patch) => setDoc({ meta: { ...doc.meta, ...patch } });
+
+  // Receipts: the invoices (or bills) a payment can be against, with what is still due.
+  const [invoices, setInvoices] = useState([]);
+  const receiptType = doc && getType(doc.document_type).layout === 'receipt' ? doc.document_type : null;
+  useEffect(() => {
+    if (!receiptType) return;
+    invoicesForReceipt(receiptType, doc.id)
+      .then((list) => {
+        setInvoices(list);
+        // Converted from an invoice: fill in what was received before and the balance.
+        setModel((m) => {
+          const d = m.document;
+          const inv = d.parent_document_id && !d.meta.against_total ? list.find((i) => i.id === d.parent_document_id) : null;
+          return inv ? { ...m, document: receiptFromInvoice(d, { ...inv, party_name: d.party_name, party_company: d.party_company }, inv.received) } : m;
+        });
+      })
+      .catch(() => setInvoices([]));
+  }, [receiptType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chooseInvoice = async (value) => {
+    const inv = invoices.find((i) => i.document_number.toLowerCase() === String(value || '').trim().toLowerCase());
+    if (!inv) {
+      const free = detachInvoice(doc);
+      setDoc({ ...free, meta: { ...free.meta, against: value || '' } });
+      return;
+    }
+    try {
+      const full = (await getDocument(inv.id)).document;
+      setDoc(receiptFromInvoice(doc, full, inv.received));
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
+  };
   const setItems = (items) => {
     setModel((m) => ({ ...m, items }));
     setDirty(true);
@@ -377,6 +411,12 @@ export default function Editor({ typeId, id, query = {} }) {
       setDirty(false);
       dirtyRef.current = false;
       toast(`${result.document_number} saved`);
+      const inv = model.document.parent_document_id && invoices.find((i) => i.id === model.document.parent_document_id);
+      if (inv) {
+        const receipt = { ...model.document, document_number: result.document_number, grand_total: calc.totals.grand_total };
+        const status = await settleInvoice(receipt, inv.status).catch(() => null);
+        if (status) toast(`${inv.document_number} marked ${statusLabel(inv.document_type, status)}`);
+      }
       go(`/doc/${result.id}${print ? '?print=1' : ''}`, { replace: true });
     } catch (e) {
       toast(e.message, 'bad');
@@ -507,6 +547,43 @@ export default function Editor({ typeId, id, query = {} }) {
           )}
         </section>
 
+        {isReceipt && (
+          <section className="card form" data-testid="receipt-for">
+            <div className="card-title">
+              <h2>{type.partyKind === 'vendor' ? 'Payment for bill' : 'Receipt for invoice'}</h2>
+            </div>
+            <Field label={type.partyKind === 'vendor' ? 'Against bill' : 'Against invoice'} hint="Choose the invoice: the customer, invoice amount and balance due are filled in.">
+              <Picker
+                value={doc.meta.against || ''}
+                onChange={chooseInvoice}
+                options={invoices.map((i) => ({
+                  value: i.document_number,
+                  label: `${i.document_number} · ${i.party_name || '—'}`,
+                  hint: isZero(i.balance) ? 'Paid' : `Due ${formatMoney(i.balance, i)}`,
+                }))}
+                placeholder={type.partyKind === 'vendor' ? 'Choose a bill' : 'Choose an invoice'}
+                title={type.partyKind === 'vendor' ? 'Against bill' : 'Against invoice'}
+                creatable
+                clearable
+                testId="receipt-invoice"
+              />
+            </Field>
+            {doc.meta.against_total && (
+              <div className="receipt-settle" data-testid="receipt-balance">
+                <span>
+                  {type.partyKind === 'vendor' ? 'Bill' : 'Invoice'} <strong>{formatMoney(doc.meta.against_total, doc)}</strong>
+                </span>
+                <span>
+                  {type.partyKind === 'vendor' ? 'Paid' : 'Received'} earlier <strong>{formatMoney(doc.meta.received_before || '0', doc)}</strong>
+                </span>
+                <span>
+                  Balance after this {type.partyKind === 'vendor' ? 'payment' : 'receipt'}{' '}
+                  <strong>{formatMoney(balanceAfter(doc.meta, t.grand_total, Number(doc.currency_decimals ?? 2)), doc)}</strong>
+                </span>
+              </div>
+            )}
+          </section>
+        )}
         <PartySection doc={doc} type={type} onChange={setDoc} saveParty={saveParty} onSaveParty={setSaveParty} taxSystem={settings.taxSystem} />
 
         {type.optional.length > 0 && (
@@ -560,8 +637,8 @@ export default function Editor({ typeId, id, query = {} }) {
                 <Input value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
               </Field>
             </div>
-            <Field label={type.partyKind === 'vendor' ? 'Against bill' : 'Against invoice'}>
-              <Input value={doc.meta.against} onChange={(v) => setMeta({ against: v })} placeholder={type.partyKind === 'vendor' ? 'e.g. PB-00012' : 'e.g. INV-00012'} />
+            <Field label="Paper size">
+              <Segmented value={ds.paperSize} onChange={(v) => setMeta({ paperSize: v })} options={PAPER_SIZES.map((p) => ({ value: p.value, label: p.label }))} testId="paper-size" />
             </Field>
             {!isZero(t.grand_total) && <p className="words">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>}
           </section>

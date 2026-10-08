@@ -12,7 +12,7 @@ import { useAppData } from '../../hooks/useAppData.jsx';
 import { useToast } from '../../hooks/useUi.jsx';
 import { useShortcuts } from '../../hooks/useShortcuts.js';
 import { Link, useRouter } from '../../router/router.jsx';
-import PagePreview from '../../renderer/PagePreview.jsx';
+import PagePreview, { paperSizeOf } from '../../renderer/PagePreview.jsx';
 import { clampCopies } from '../../renderer/copies.js';
 import { isCancelled, useDocumentActions } from './useDocumentActions.js';
 
@@ -170,7 +170,7 @@ export default function DocumentViewPage({ params, query }) {
     if (!doc || downloading) return;
     setDownloading(true);
     try {
-      const path = await savePdf(`${fileTitle}.pdf`);
+      const path = await savePdf(`${fileTitle}.pdf`, paperSizeOf(payload));
       if (path) toast.success(`PDF saved to ${path}`);
     } catch (e) {
       if (e.unsupported) {

@@ -261,9 +261,26 @@ try {
   await a.page.getByTestId('editor').waitFor();
   check((await a.page.getByTestId('amount-received').inputValue()) === '60180.00', 'convert invoice → payment receipt with the amount');
   await a.page.getByTestId('payment-mode').selectOption('UPI');
+  await a.page.getByTestId('receipt-balance').waitFor();
+  await a.page.getByTestId('amount-received').fill('20000');
+  check(/Balance after this receipt\s*₹\s?40,180/.test(await a.page.getByTestId('receipt-balance').textContent()), 'receipt against INV-00001: invoice amount and balance after this receipt (₹40,180)');
+  await a.page.getByTestId('paper-size-A5').click();
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('view').waitFor();
   check((await page1().textContent()).includes('RCT-00001') && (await a.page.locator('.lineage').textContent()).includes('INV-00001'), 'receipt RCT-00001 created from INV-00001');
+  const a5 = await page1().locator('.doc').first().evaluate((d) => [d.classList.contains('doc-a5'), Math.round((d.offsetWidth / 96) * 25.4)]);
+  check(a5[0] && a5[1] === 148 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, 'receipt on A5 paper (148 mm), printed on an A5 page');
+  check((await page1().getByTestId('receipt-settlement').textContent()).includes('60,180'), 'printed receipt: invoice amount, received earlier, this receipt, balance due');
+  await shot(a.page, '05b-receipt-a5');
+  await a.page.goto(invoiceUrl.replace(/#.*$/, '#/doc/new/PAYMENT_RECEIPT'));
+  await a.page.getByTestId('editor').waitFor();
+  await pick(a.page, 'receipt-invoice', 'INV-00001');
+  await a.page.getByTestId('receipt-balance').waitFor();
+  check((await a.page.getByTestId('amount-received').inputValue()) === '40180.00' && (await a.page.getByTestId('receipt-balance').textContent()).includes('20,000'),
+    'new receipt: choose the invoice → customer filled, ₹20,000 received earlier, ₹40,180 suggested');
+  await a.page.getByTestId('save-doc').click();
+  await a.page.getByTestId('view').waitFor();
+  check((await page1().textContent()).includes('RCT-00002'), 'second receipt RCT-00002 saved');
   await a.page.goto(invoiceUrl);
   await a.page.getByTestId('view').waitFor();
   await a.page.getByTestId('view-more').click();
@@ -302,8 +319,8 @@ try {
   await a.page.getByTestId('back').click();
   await a.page.getByTestId('documents-list').waitFor();
   const rows = () => a.page.getByTestId('documents-list').getByTestId('doc-row');
-  await rows().nth(3).waitFor();
-  check((await rows().count()) === 4, 'Documents lists 2 invoices, the receipt and the quotation');
+  await rows().nth(4).waitFor();
+  check((await rows().count()) === 5, 'Documents lists 2 invoices, 2 receipts and the quotation');
   await shot(a.page, '05a-documents');
   check((await a.page.getByTestId('summary-line').textContent()).includes('Cancelled'), 'summary line with status counts');
   await a.page.getByTestId('manager-search').fill('QTN');
@@ -410,7 +427,7 @@ try {
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 5 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
+  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 6 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('add-product').click();
   await a.page.getByTestId('product-name').fill('Added after the backup');
@@ -427,14 +444,14 @@ try {
   check(!(await a.page.getByTestId('product-list').textContent()).includes('Added after the backup'), 'backup restored (product added later is gone)');
   await a.page.goto(`${base}/app/#/documents`);
   await rows().nth(4).waitFor();
-  check((await rows().count()) === 5, 'all 5 documents back after the restore');
+  check((await rows().count()) === 6, 'all 6 documents back after the restore');
 
   console.log('Works offline, no repeated login');
   await a.page.goto(`${base}/app/`);
   await a.page.getByTestId('dashboard').waitFor();
   await a.page.reload();
   await a.page.getByTestId('dashboard').waitFor();
-  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 5, 'reopened without logging in; recent documents');
+  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 6, 'reopened without logging in; recent documents');
   await a.page.waitForTimeout(400);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-dashboard.png') });
   await a.context.setOffline(true);

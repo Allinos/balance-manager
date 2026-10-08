@@ -768,6 +768,58 @@ async function main() {
     await clickText('Single Copy', '.segmented button');
     await clickText('Save changes');
     await sleep(500);
+
+    // Payment receipt against an invoice, on A5 paper.
+    const issued = await invoke('document_save', {
+      payload: {
+        defaultPrefix: 'INV',
+        document: {
+          document_type: 'TAX_INVOICE', document_number: '', status: 'ISSUED', party_name: 'Receipt Traders', party_gstin: '29ABCDE1234F1Z5',
+          party_state: 'Karnataka', issue_date: '2026-10-01', currency: 'INR', currency_symbol: '₹', currency_decimals: 2, exchange_rate: '1',
+          tax_mode: 'NONE', subtotal: '11800.00', taxable: '11800.00', grand_total: '11800.00', meta: '{}',
+        },
+        items: [{ position: 0, name: 'Steel rack', quantity: '1', unit: 'Nos', unit_price: '11800', tax_rate: '0', taxable_amount: '11800', total_amount: '11800' }],
+        taxes: [],
+      },
+    });
+    await go('#/doc/new/PAYMENT_RECEIPT');
+    await waitForText('New Payment Receipt');
+    await sleep(1500); // let the "Settings saved" toast go
+    await exec('document.querySelector("[data-testid=receipt-invoice]").scrollIntoView({ block: "center" })');
+    await pick('receipt-invoice', issued.document_number);
+    await find('[data-testid="receipt-balance"]');
+    const filled = await exec('return [document.querySelector("[data-testid=party-name]").value, document.querySelector("[data-testid=amount-received]").value]');
+    check(filled[0] === 'Receipt Traders' && /^11,?800(\.00)?$/.test(filled[1]), `receipt against ${issued.document_number}: customer and the balance due filled in (${filled.join(' · ')})`);
+    await type('[data-testid="amount-received"]', '5000');
+    await sleep(300);
+    check(/Balance after this receipt\s*₹\s?6,800/.test(await textOf('[data-testid="receipt-balance"]')), 'balance after this receipt: ₹6,800');
+    await clickText('A5 ·', '.segmented button');
+    if (!(await exists('.page-preview .doc'))) await clickText('Preview');
+    await find('.page-preview .doc');
+    await sleep(500);
+    const a5 = await exec('const d=document.querySelector(".page-preview .doc"); return d ? [d.classList.contains("doc-a5"), Math.round(d.offsetWidth / 96 * 25.4), !!d.querySelector(".doc-receipt-settle")] : null');
+    check(a5 && a5[0] && a5[1] === 148 && a5[2], `A5 receipt preview, 148 mm wide, with invoice amount / received earlier / balance (${JSON.stringify(a5)})`);
+    await shot('14b-receipt-a5');
+    await clickCss('[data-testid="save-doc"]');
+    await waitForText('marked Partly paid', 15000);
+    check((await invoke('document_get', { id: issued.id })).document.status === 'PARTIAL', 'saving the receipt marks the invoice Partly paid');
+    for (const f of readdirSync(pdfDir)) rmSync(path.join(pdfDir, f));
+    await clickCss('[data-testid="download-pdf"]');
+    await waitForText('PDF saved to', 60000);
+    const receiptPdf = readFileSync(path.join(pdfDir, readdirSync(pdfDir)[0])).toString('latin1');
+    const pdfBox = (receiptPdf.match(/\/MediaBox\s*\[\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/) || []).slice(1).map(Number);
+    check(pdfBox.length === 2 && Math.abs(pdfBox[0] - 419.5) < 3 && Math.abs(pdfBox[1] - 595.3) < 3, `receipt PDF on A5 paper (${pdfBox.map((v) => Math.round(v)).join(' × ')} pt)`);
+    await go('#/doc/new/PAYMENT_RECEIPT');
+    await waitForText('New Payment Receipt');
+    await sleep(1500); // let the "Settings saved" toast go
+    await exec('document.querySelector("[data-testid=receipt-invoice]").scrollIntoView({ block: "center" })');
+    await pick('receipt-invoice', issued.document_number);
+    await find('[data-testid="receipt-balance"]');
+    check(/^6,?800(\.00)?$/.test(await exec('return document.querySelector("[data-testid=amount-received]").value')) && (await textOf('[data-testid="receipt-balance"]')).includes('5,000'),
+      'second receipt: ₹5,000 received earlier, ₹6,800 suggested');
+    await clickCss('[data-testid="save-doc"]');
+    await waitForText('marked Paid', 15000);
+    check((await invoke('document_get', { id: issued.id })).document.status === 'PAID', 'the second receipt marks the invoice Paid');
     await go('#/settings/about');
     await find('[data-testid="config-summary"]');
     check((await textOf('[data-testid="config-summary"]')).includes('30 days'), 'About shows config check interval, last and next check');

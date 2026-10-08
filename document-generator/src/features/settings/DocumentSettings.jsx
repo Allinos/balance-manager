@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Field, Segmented, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { DOCUMENT_TYPES, TEMPLATES, getType } from '../../config/documentTypes.js';
-import { DOC_SETTING_FIELDS, resolveDocSettings } from '../../config/defaults.js';
+import { docSettingFieldsFor, resolveDocSettings } from '../../config/defaults.js';
 import { saveDocSettings } from '../../services/settingsService.js';
 import { newDocument, renderPayload } from '../../services/documentService.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
@@ -202,7 +202,7 @@ export function DocumentTypeSettings() {
     }
   };
 
-  const fields = DOC_SETTING_FIELDS.filter((f) => !f.only || f.only.includes(type.dueSetting));
+  const fields = docSettingFieldsFor(type);
 
   return (
     <div className="settings-section">
@@ -224,6 +224,13 @@ export function DocumentTypeSettings() {
             data-testid="type-template"
           />
         </Field>
+        {fields
+          .filter((f) => f.type === 'select')
+          .map((f) => (
+            <Field key={f.key} label={f.label}>
+              <Select value={draft[f.key]} onChange={(v) => set({ [f.key]: v })} options={f.options} data-testid={`type-${f.key}`} />
+            </Field>
+          ))}
         {fields
           .filter((f) => f.type === 'text' || f.type === 'number')
           .map((f) => (

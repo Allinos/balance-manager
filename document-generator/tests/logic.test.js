@@ -217,3 +217,37 @@ test('A4 paging: short bills fill one page, long bills split with the tail kept 
   const tight = planPages({ ...m, rows: Array(18).fill(22) });
   assert.ok(tight.length === 2 && tight[1].to - tight[1].from >= 1 && tight[1].to - tight[1].from <= 3);
 });
+
+test('payment receipt against an invoice: party, amounts, balance, paper size', async () => {
+  const { receiptFromInvoice, detachInvoice, balanceAfter } = await import('../src/services/receiptService.js');
+  const { resolveDocSettings, withDocumentOptions, DEFAULT_SETTINGS: defaults, docSettingFieldsFor } = await import('../src/config/defaults.js');
+  const { getType } = await import('../src/config/documentTypes.js');
+  const receipt = { document_type: 'PAYMENT_RECEIPT', party_name: '', parent_document_id: null, meta: { amount_received: '', payment_mode: 'UPI' } };
+  const invoice = {
+    id: 7, document_number: 'INV-00007', issue_date: '2026-10-01', grand_total: '11800.00', currency: 'INR', currency_symbol: '₹', currency_decimals: 2,
+    party_name: 'Asha Traders', party_gstin: '27AAPFU0939F1ZV', party_state: 'Maharashtra',
+  };
+  const r = receiptFromInvoice(receipt, invoice, '5000');
+  assert.equal(r.parent_document_id, 7);
+  assert.equal(r.party_name, 'Asha Traders');
+  assert.equal(r.party_gstin, '27AAPFU0939F1ZV');
+  assert.equal(r.meta.against, 'INV-00007');
+  assert.equal(r.meta.against_total, '11800.00');
+  assert.equal(r.meta.received_before, '5000.00');
+  assert.equal(r.meta.amount_received, '6800.00', 'the balance due is suggested');
+  assert.equal(r.meta.payment_mode, 'UPI', 'other receipt details are kept');
+  assert.equal(balanceAfter(r.meta, '6800'), '0.00');
+  assert.equal(balanceAfter(r.meta, '3000'), '3800.00');
+  assert.equal(balanceAfter(r.meta, '9000'), '0.00', 'never below zero');
+  const d = detachInvoice(r);
+  assert.equal(d.parent_document_id, null);
+  assert.equal(d.meta.against_total, undefined);
+  // Paper: A4 by default, A5 per receipt or per type; invoices always A4.
+  const s = { ...defaults };
+  assert.equal(resolveDocSettings('PAYMENT_RECEIPT', s, {}).paperSize, 'A4');
+  assert.equal(resolveDocSettings('PAYMENT_RECEIPT', s, { PAYMENT_RECEIPT: { paperSize: 'A5' } }).paperSize, 'A5');
+  assert.equal(resolveDocSettings('TAX_INVOICE', s, { TAX_INVOICE: { paperSize: 'A5' } }).paperSize, 'A4');
+  assert.equal(withDocumentOptions(resolveDocSettings('PAYMENT_RECEIPT', s, {}), { document_type: 'PAYMENT_RECEIPT', meta: { paperSize: 'A5' } }).paperSize, 'A5');
+  assert.ok(docSettingFieldsFor(getType('PAYMENT_RECEIPT')).some((f) => f.key === 'paperSize'));
+  assert.ok(!docSettingFieldsFor(getType('TAX_INVOICE')).some((f) => f.key === 'paperSize'));
+});

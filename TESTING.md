@@ -4,14 +4,14 @@ Last full run: **4 October 2026** (after Help & Support, the policy and contact 
 
 | Suite | Command | Result |
 |-------|---------|--------|
-| Desktop JS unit tests | `cd document-generator && npm test` | **25 / 25 passed** (7 October 2026: A4 page splitting; template names without "Tally", setup tax choices GST / VAT / Sales Tax / own name / no tax; ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
+| Desktop JS unit tests | `cd document-generator && npm test` | **26 / 26 passed** (8 October 2026: payment receipt against an invoice — party, balance, A4/A5; A4 page splitting; template names without "Tally", setup tax choices GST / VAT / Sales Tax / own name / no tax; ad rules — 15 ad-free days, 15 days apart, 2 a month, no pile-up) |
 | Desktop Rust tests | `npm run test:rust` | **16 / 16 passed** |
 | Desktop lint + production build | `npx eslint . && npx vite build` | clean |
-| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **179 / 179 checks passed** (7 October 2026, incl. the setup tax step (no invoice shown) and the template step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
+| Desktop end-to-end (real app + real server) | `xvfb-run -a node e2e/run.mjs` | **186 / 186 checks passed** (8 October 2026, incl. a payment receipt against an invoice: balance, A5 preview and A5 PDF, invoice marked Partly paid then Paid; the setup tax step (no invoice shown) and the template step; centred ad over a blurred background, no ads in the first 15 days, bundled ad picture loads offline) |
 | Server API + customer-journey tests (SQLite) | `cd server && npm test` | **61 / 61 passed** (19 API, 41 journey/checkout/terms/payments/licensing/durations/phones/downloads/email/support/prices, 1 rate-limit) |
 | Server API + customer-journey tests (MySQL 8.0) | `TEST_DATABASE_URL=mysql://… npm test` | **54 / 54 passed** (previous run; not re-run this round) |
 | Website, client panel + admin end-to-end (Chromium) | `cd server && npm run build && npm run test:portal` | **140 / 140 passed** (8 October 2026, incl. the plain /buy checkout and the /offer ad page on a phone: price drop, countdown, buyers line, Pay now → payment → license, switchable in Admin → Website) |
-| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **97 / 97 passed** (7 October 2026; incl. the setup tax and template steps and a plain http:// network address) |
+| DocGen Mobile end-to-end (Chromium, phone-sized 390 × 844, touch) | `npm run test:mobile` | **102 / 102 passed** (8 October 2026; incl. a receipt against an invoice with the balance, printed on A5, the setup tax and template steps and a plain http:// network address) |
 | Server, portal and mobile lint | ESLint (desktop rules) over `backend/src`, `backend/test`, `frontend/src`, `mobile/src`, e2e scripts | 0 problems |
 | Server load test (SQLite and MySQL 8.0) | `npm run loadtest` | 0 errors, see below |
 | Windows + macOS installer build (GitHub Actions) | `docgen-build.yml` | Windows: build + unit tests passed (Windows-only PDF code compiles); macOS: see the workflow run |
