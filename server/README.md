@@ -181,7 +181,11 @@ The browser (and the apps) can never create a license, choose an amount or exten
    "Limited-time offer · ends in 14:59" bar, the plans on the first screen (the regular price shows first,
    then it is crossed out and the real price drops in, with "Save ₹250"), the customer numbers and
    "N people bought DocGen in the last 24 hours", problems → how DocGen fixes them → benefits →
-   happy customers, and the payment form. A sticky **Pay now** bar at the bottom jumps to the form.
+   happy customers, and the payment form. Visuals: a hero picture (dashboard + invoice), a key-facts strip,
+   **Before vs. after** (a handwritten bill next to a DocGen GST invoice) with a "time to make one bill" bar
+   chart, the invoice editor with its live preview, the four invoice templates, and two feature rows
+   (Document Manager; UPI QR, A5 payment receipt and a phone sharing on WhatsApp). The pictures are real
+   DocGen screens with sample data, in `frontend/public/img/offer/` (WebP, about 650 KB, loaded as they scroll in). A sticky **Pay now** bar at the bottom jumps to the form.
    Payment, account, license and the confirmation email are the same as on `/buy` (shared `CheckoutForm`);
    UTM tags and `fbclid` are tracked as on the rest of the site. Admin → Website → *Offer page for ads*:
    the link to copy, on/off (off: `/offer` opens `/buy`), regular price (% above the real price, rounded

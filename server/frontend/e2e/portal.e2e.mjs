@@ -416,7 +416,15 @@ try {
   await ad2.getByTestId('offer-page').waitFor();
   check((await ad2.getByTestId('offer-buyers-top').textContent()).includes(`${buyers + 5} people`), `a later visit adds 5 (${buyers + 5})`);
   await ad2.close();
-  for (const id of ['offer-problems', 'offer-fixes', 'offer-benefits', 'offer-proof']) check(await ad.getByTestId(id).count() === 1, `section: ${id.slice(6)}`);
+  for (const id of ['offer-facts', 'offer-problems', 'offer-before-after', 'offer-time-chart', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-benefits', 'offer-proof'])
+    check(await ad.getByTestId(id).count() === 1, `section: ${id.slice(6)}`);
+  check((await ad.getByTestId('offer-templates').locator('img').count()) === 4, 'four invoice templates shown with real invoices');
+  // Every product picture loads (lazy pictures load as they scroll into view).
+  for (let y = 0; y < 20000; y += 500) await ad.evaluate((v) => window.scrollTo(0, v), y);
+  await ad.waitForFunction(() => [...document.querySelectorAll('img[src^="/img/offer/"]')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
+  const pics = await ad.evaluate(() => [...new Set([...document.querySelectorAll('img[src^="/img/offer/"]')].map((i) => i.getAttribute('src')))]);
+  check(pics.length >= 8, `${pics.length} product pictures on the offer page, all loaded (${pics.map((p) => p.slice(11, -5)).join(', ')})`);
+  await ad.evaluate(() => window.scrollTo(0, 0));
   check((await ad.getByTestId('offer-proof').textContent()).includes('500+') && (await ad.getByTestId('offer-proof').textContent()).includes('4.8'), 'happy customers (500+) and rating (4.8)');
   check((await ad.locator('header a, .site-nav').count()) === 0, 'no website menu on the offer page — nothing leads away from the offer');
   check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Pay now" button at the bottom of the screen');

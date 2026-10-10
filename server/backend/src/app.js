@@ -158,7 +158,8 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
       const id = await pixelFor('/');
       res.set('Cache-Control', 'no-cache').type('application/javascript').send(id ? pixelScript(id) : '/* Meta Pixel is off */\n');
     });
-    app.use(express.static(config.portalDist, { index: false, maxAge: '1h' }));
+    // redirect: false — a folder such as img/ never turns a page address into a folder redirect.
+    app.use(express.static(config.portalDist, { index: false, redirect: false, maxAge: '1h' }));
     // Every page of the single-page app gets index.html, with the Pixel in the HTML itself so Meta's tools see it.
     app.get(/^(?!\/api\/).*/, async (req, res) => {
       const id = await pixelFor(req.path);

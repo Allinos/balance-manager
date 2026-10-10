@@ -171,6 +171,229 @@ function Plans({ product, priceId, onPick, percent, revealed }) {
   );
 }
 
+/** Product pictures of the offer page (public/img/offer, made from the real app with sample data). */
+const IMG = (name) => `/img/offer/${name}.webp`;
+
+function Frame({ src, alt, w = 1600, h = 956, eager = false, className = '' }) {
+  return (
+    <div className={`app-frame ${className}`}>
+      <div className="app-frame-bar">
+        <i />
+        <i />
+        <i />
+      </div>
+      <img src={src} alt={alt} width={w} height={h} loading={eager ? 'eager' : 'lazy'} decoding="async" />
+    </div>
+  );
+}
+
+/** A quick sketch of a handwritten bill: crossed-out sums, smudges, no GST details. */
+function HandwrittenBill() {
+  const ink = '#2f4a8a';
+  const line = (y, w, x = 22) => (
+    <path d={`M${x} ${y} q ${w / 4} -4 ${w / 2} 0 t ${w / 2} 0`} stroke={ink} strokeWidth="2.2" fill="none" strokeLinecap="round" />
+  );
+  return (
+    <svg className="hand-bill" viewBox="0 0 220 260" role="img" aria-label="A handwritten bill with corrections">
+      <rect x="6" y="6" width="208" height="248" rx="6" fill="#fffdf4" stroke="#e7dfc4" />
+      {[60, 84, 108, 132, 156, 180, 204].map((y) => (
+        <line key={y} x1="16" x2="204" y1={y} y2={y} stroke="#e9e3cf" />
+      ))}
+      <text x="110" y="34" textAnchor="middle" fontFamily="'Comic Sans MS', 'Segoe Print', cursive" fontSize="17" fill={ink}>
+        Cash Memo
+      </text>
+      {line(54, 120)}
+      {line(78, 150)}
+      {line(102, 96)}
+      {line(126, 132)}
+      <text x="160" y="104" fontFamily="cursive" fontSize="14" fill={ink}>
+        2,850
+      </text>
+      <text x="160" y="128" fontFamily="cursive" fontSize="14" fill={ink}>
+        41,40
+      </text>
+      <line x1="156" x2="200" y1="124" y2="114" stroke="#c0392b" strokeWidth="2.4" />
+      <text x="24" y="176" fontFamily="cursive" fontSize="13" fill={ink}>
+        GST ?? 18% of...
+      </text>
+      <text x="24" y="226" fontFamily="cursive" fontSize="15" fill={ink}>
+        Total
+      </text>
+      <text x="120" y="226" fontFamily="cursive" fontSize="16" fill={ink}>
+        1,53,
+      </text>
+      <text x="150" y="226" fontFamily="cursive" fontSize="16" fill="#c0392b">
+        7?4
+      </text>
+      <ellipse cx="176" cy="200" rx="22" ry="12" fill="#c9a66b" opacity=".18" />
+    </svg>
+  );
+}
+
+const BEFORE = [
+  '3–5 minutes for every bill',
+  'Tax worked out by hand, mistakes slip in',
+  'Customer details written again and again',
+  'Copies get lost — hard to follow up',
+];
+const AFTER = [
+  'A clean GST invoice in under a minute',
+  'CGST, SGST, IGST and HSN done for you',
+  'Saved customers and products, one click',
+  'Every bill saved, searchable, PDF in a tap',
+];
+
+/** Time per bill, in minutes (typical figures for small shops; DocGen: picking saved items). */
+const TIMES = [
+  ['Handwritten bill', 5, 'bad'],
+  ['Excel / Word template', 3, 'warn'],
+  ['DocGen', 0.75, 'good'],
+];
+
+function BeforeAfter() {
+  return (
+    <section className="offer-section" data-testid="offer-before-after">
+      <h2>Before DocGen vs. after</h2>
+      <div className="ba">
+        <div className="ba-card ba-before">
+          <span className="ba-tag">Before</span>
+          <HandwrittenBill />
+          <ul>
+            {BEFORE.map((t) => (
+              <li key={t}>
+                <span className="offer-x" aria-hidden="true">
+                  <Icon name="x" size={13} strokeWidth={2.8} />
+                </span>
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <span className="ba-arrow" aria-hidden="true">
+          →
+        </span>
+        <div className="ba-card ba-after">
+          <span className="ba-tag">With DocGen</span>
+          <img className="ba-invoice" src={IMG('invoice-professional')} alt="GST tax invoice made with DocGen" width="900" height="1273" loading="lazy" />
+          <ul>
+            {AFTER.map((t) => (
+              <li key={t}>
+                <span className="offer-tick" aria-hidden="true">
+                  <Icon name="check" size={13} strokeWidth={2.8} />
+                </span>
+                {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+      <div className="time-chart card" data-testid="offer-time-chart">
+        <strong className="time-title">
+          <Icon name="clock" size={17} /> Time to make one bill
+        </strong>
+        {TIMES.map(([label, min, tone]) => (
+          <div key={label} className="time-row">
+            <span>{label}</span>
+            <div className="time-track">
+              <div className={`time-bar ${tone}`} style={{ width: `${(min / 5) * 100}%` }} />
+            </div>
+            <b>{min < 1 ? '< 1 min' : `${min} min`}</b>
+          </div>
+        ))}
+        <p className="time-note">
+          20 bills a day? That is about <b>1 hour 20 minutes saved every day.</b>
+        </p>
+      </div>
+    </section>
+  );
+}
+
+const TEMPLATE_SHOTS = [
+  ['invoice-professional', 'Professional', 'Full GST layout'],
+  ['invoice-modern', 'Modern', 'Clean, your brand colour'],
+  ['invoice-standard', 'Standard', 'Compact and boxed'],
+  ['invoice-simple', 'Simple', 'Black & white'],
+];
+
+function Templates() {
+  return (
+    <section className="offer-section" data-testid="offer-templates">
+      <h2>Invoices your customers trust</h2>
+      <p className="offer-sub">Four ready-made designs with your logo, GSTIN, bank details and UPI QR code. Print on A4 or share as PDF.</p>
+      <div className="tpl-grid">
+        {TEMPLATE_SHOTS.map(([img, name, note]) => (
+          <figure key={img} className="tpl">
+            <div className="tpl-paper">
+              <img src={IMG(img)} alt={`${name} invoice template`} width="900" height="1273" loading="lazy" />
+            </div>
+            <figcaption>
+              <strong>{name}</strong>
+              <span>{note}</span>
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FeatureRows() {
+  return (
+    <section className="offer-section" data-testid="offer-features">
+      <div className="frow">
+        <div className="frow-text">
+          <span className="frow-icon">
+            <Icon name="file" size={20} />
+          </span>
+          <h3>Every bill in one place</h3>
+          <p>Find any invoice, quotation or challan in seconds. See at a glance what is paid, partly paid or still due.</p>
+          <ul className="frow-points">
+            <li>Search by customer, number or product</li>
+            <li>Quotation → invoice → receipt in one click</li>
+            <li>Sales data for your CA in one download</li>
+          </ul>
+        </div>
+        <Frame src={IMG('documents')} alt="DocGen Document Manager with invoices, quotations and receipts" />
+      </div>
+      <div className="frow reverse">
+        <div className="frow-text">
+          <span className="frow-icon">
+            <Icon name="rupee" size={20} />
+          </span>
+          <h3>Get paid faster</h3>
+          <p>Every invoice carries a UPI QR code. Send it on WhatsApp from your phone and give a payment receipt — A4 or A5 — when the money comes in.</p>
+          <ul className="frow-points">
+            <li>Scan-to-pay UPI QR on the bill</li>
+            <li>Payment receipts with the balance due</li>
+            <li>Same data on your computer and phone</li>
+          </ul>
+        </div>
+        <div className="pay-visual">
+          <img className="pay-receipt" src={IMG('receipt-a5')} alt="Payment receipt on A5 paper" width="800" height="1179" loading="lazy" />
+          <div className="phone-mock" aria-hidden="true">
+            <div className="phone-screen">
+              <div className="phone-top">INV-00042 · Tax Invoice</div>
+              <img src={IMG('invoice-modern')} alt="" width="900" height="1273" loading="lazy" />
+              <div className="phone-share">
+                <span className="wa">
+                  <Icon name="send" size={14} /> Share on WhatsApp
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const KEY_FACTS = [
+  ['clock', '< 1 min', 'per GST bill'],
+  ['file', '18', 'document types'],
+  ['offline', '0', 'internet needed'],
+  ['phone', '2-in-1', 'computer + phone'],
+];
+
 const PROBLEMS = ['slow', 'gst', 'excel', 'offline'];
 
 const BENEFITS = [
@@ -238,8 +461,6 @@ export default function OfferPage() {
   const percent = Number(offer.regularPricePercent) || 0;
   const regular = regularPrice(price.price, percent);
   const off = regular > price.price ? Math.round(((regular - price.price) / regular) * 100) : 0;
-  const shot = data.site.screenshots?.[0];
-  const fixShot = data.site.screenshots?.[1] || shot; // the invoice screenshot, when there is one
   const rating = Number(offer.rating) || 0;
   const goPay = () => {
     payRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -292,16 +513,13 @@ export default function OfferPage() {
               </p>
             )}
             {offer.showBuyers !== false && <Buyers n={buyers} testid="offer-buyers-top" />}
-            {shot && (
-              <div className="app-frame offer-shot hide-mobile">
-                <div className="app-frame-bar">
-                  <i />
-                  <i />
-                  <i />
-                </div>
-                <img src={shot.url} alt={shot.caption || 'DocGen'} />
-              </div>
-            )}
+            <div className="hero-visual-offer hide-mobile">
+              <Frame src={IMG('dashboard')} alt="DocGen dashboard" eager />
+              <img className="hero-float" src={IMG('invoice-modern')} alt="Invoice made with DocGen" width="900" height="1273" />
+              <span className="hero-chip">
+                <Icon name="check" size={14} strokeWidth={2.8} /> GST worked out for you
+              </span>
+            </div>
           </div>
           <div className="card offer-buy" data-testid="offer-plans">
             <div className="offer-buy-head">
@@ -330,6 +548,20 @@ export default function OfferPage() {
           </div>
         </section>
 
+        <div className="facts" data-testid="offer-facts">
+          {KEY_FACTS.map(([icon, big, small]) => (
+            <div key={small} className="fact">
+              <span className="fact-icon">
+                <Icon name={icon} size={18} />
+              </span>
+              <span>
+                <b>{big}</b>
+                <small>{small}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+
         <section className="offer-section" data-testid="offer-problems">
           <h2>Sound familiar?</h2>
           <div className="offer-grid">
@@ -348,32 +580,32 @@ export default function OfferPage() {
         </section>
 
         <div className="lp-band">
-          <section className="offer-section" data-testid="offer-fixes">
-            <h2>DocGen fixes it</h2>
-            <div className="offer-fix">
-              <ul>
-                {PAINS.filter(([id]) => PROBLEMS.includes(id)).map(([id, , , , fix]) => (
-                  <li key={id}>
-                    <span className="offer-tick" aria-hidden="true">
-                      <Icon name="check" size={15} strokeWidth={2.8} />
-                    </span>
-                    {fix}
-                  </li>
-                ))}
-              </ul>
-              {fixShot && (
-                <div className="app-frame">
-                  <div className="app-frame-bar">
-                    <i />
-                    <i />
-                    <i />
-                  </div>
-                  <img src={fixShot.url} alt={fixShot.caption || 'DocGen'} />
-                </div>
-              )}
-            </div>
-          </section>
+          <BeforeAfter />
         </div>
+
+        <section className="offer-section" data-testid="offer-fixes">
+          <h2>DocGen fixes it</h2>
+          <div className="offer-fix">
+            <ul>
+              {PAINS.filter(([id]) => PROBLEMS.includes(id)).map(([id, , , , fix]) => (
+                <li key={id}>
+                  <span className="offer-tick" aria-hidden="true">
+                    <Icon name="check" size={15} strokeWidth={2.8} />
+                  </span>
+                  {fix}
+                </li>
+              ))}
+            </ul>
+            <Frame src={IMG('editor')} alt="Making an invoice in DocGen: details on the left, the invoice on the right" w={1800} h={1012} />
+          </div>
+          <p className="offer-caption">Type on the left — the finished invoice appears on the right as you type.</p>
+        </section>
+
+        <div className="lp-band">
+          <Templates />
+        </div>
+
+        <FeatureRows />
 
         <section className="offer-section" data-testid="offer-benefits">
           <h2>What you get</h2>
@@ -436,8 +668,8 @@ export default function OfferPage() {
               <div className="guarantee">
                 <Icon name="shield" size={20} />
                 <span>
-                  <strong>Buy without worry.</strong> Full refund within 7 days if you have not activated the license, or if DocGen does not work on
-                  your device and we cannot fix it.
+                  <strong>Buy without worry.</strong> Full refund within 7 days if you have not activated the license, or if DocGen does not work on your device
+                  and we cannot fix it.
                 </span>
               </div>
             </div>
