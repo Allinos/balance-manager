@@ -2,7 +2,7 @@
  * Offer page for ads (Facebook / Instagram): https://<site>/offer — not linked anywhere on the website and kept
  * out of search results. It tells one story, in the words of the ads: what DocGen is (invoices, quotations and
  * other business documents from saved customers, vendors and products) → a 25-second demo of the real app →
- * saved details → the YouTube intro video → the problem → document types → before / after → real documents → document manager →
+ * the YouTube intro video → saved details → the problem → document types → before / after → real documents → document manager →
  * reviews and guarantees → FAQ (incl. what happens after payment) → plans and the payment form.
  * "Download" (hero and sticky bar) jumps to the payment form. Payment, account, license and the confirmation
  * email work exactly as on /buy (the same CheckoutForm).
@@ -754,9 +754,10 @@ export default function OfferPage() {
           <Demo videoRef={videoRef} />
         </section>
 
+        <IntroVideo url={data.site.introVideo} autoplay={playIntro} sub="A short look at DocGen: making documents from saved customers and products." />
+
         <SavedOnce />
 
-        <IntroVideo url={data.site.introVideo} autoplay={playIntro} sub="A short look at DocGen: making documents from saved customers and products." />
 
         <div className="lp-band">
           <Problems />

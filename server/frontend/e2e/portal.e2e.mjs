@@ -422,7 +422,7 @@ try {
   check(ytBox.y >= 0 && ytBox.y + ytBox.height <= 844 && (await ad.getByTestId('intro-video').locator('iframe').getAttribute('src')).includes('qycjuev523o'),
     '"Watch demo video" scrolls to the YouTube video and starts it');
   await adShot('03b-offer-demo');
-  const order = ['offer-hero', 'offer-saved', 'intro-video', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
+  const order = ['offer-hero', 'intro-video', 'offer-saved', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
   const ys = [];
   for (const id of order) ys.push(await ad.getByTestId(id).evaluate((el) => el.getBoundingClientRect().top + window.scrollY));
   check(ys.every((y, i) => i === 0 || y > ys[i - 1]), `sections in story order: ${order.map((id) => id.slice(6)).join(' → ')}`);
@@ -453,7 +453,7 @@ try {
   check((await ad.locator('header a, .site-nav').count()) === 0, 'no website menu on the offer page — nothing leads away from the offer');
   check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Download" button at the bottom of the screen');
   check((await ad.getByTestId('offer-paynow').textContent()).includes('Download') && (await ad.getByTestId('offer-pay').locator('h2').first().textContent()) === 'Download DocGen', 'buttons say "Download"');
-  check((await ad.getByTestId('intro-video').locator('iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/qycjuev523o'), 'offer page: the DocGen YouTube video, right after "Stop entering the same details"');
+  check((await ad.getByTestId('intro-video').locator('iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/qycjuev523o'), 'offer page: the DocGen YouTube video, right above "Stop entering the same details"');
   await ad.locator('.offer-sticky .offer-price.revealed').waitFor();
   await ad.getByTestId('offer-saved').scrollIntoViewIfNeeded();
   await ad.waitForTimeout(300);
