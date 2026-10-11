@@ -47,6 +47,8 @@ export const businessSchema = z.object({
   country: z.string().trim().max(60).optional(),
 });
 
+/** The offer page's "N businesses bought DocGen in the last 7 days" line counts paid orders over this many days. */
+export const RECENT_SALES_DAYS = 7;
 // Tracking data must never block a sign-up: over-long values are shortened, malformed ones dropped.
 const shortText = (max) => z.string().trim().max(4000).transform((v) => v.slice(0, max)).optional().default('');
 const attributionSchema = z
@@ -173,12 +175,22 @@ export function portalRoutes(knex) {
     res.json({ plans: await productsForSale(), providers: listProviders(), emailEnabled: mailEnabled() });
   });
 
+  /** Paid orders in the last 7 days, for the offer page's "N businesses bought" line; 0 below 5 (too few to show). */
+  const recentSales = async () => {
+    const since = new Date(Date.now() - RECENT_SALES_DAYS * 86400000).toISOString();
+    const row = await knex('payments').where({ status: 'paid' }).where('paid_at', '>=', since).count({ n: '*' }).first();
+    const n = Number(row?.n) || 0;
+    return n >= 5 ? n : 0;
+  };
+
   /** Everything the product page and checkout show: website content, the product(s) for sale, payment methods. */
   r.get('/site', async (_req, res) => {
     res.set('Cache-Control', 'no-cache');
     const downloads = await getDownloadSettings(knex);
+    const site = await getSiteConfig(knex);
     res.json({
-      site: await getSiteConfig(knex),
+      site,
+      recentSales: site.offer?.showBuyers ? await recentSales() : 0,
       products: await productsForSale(),
       mobileAvailable: downloads.mobile.enabled,
       providers: listProviders(),

@@ -805,6 +805,42 @@ describe('Meta Pixel and Conversions API', () => {
     await api('PUT', '/api/admin/site', { token: adminToken, body: admin.body.site });
   });
 
+  test('offer page: old urgency settings switched off, reviews saved, the sales line uses real paid orders', async () => {
+    const { getSiteConfig } = await import('../src/services/common.js');
+    const row = await knex('app_config').where({ key: 'site' }).first();
+    const before = row?.value;
+    // Settings saved by the first offer page: countdown, made-up buyer number and placeholder numbers.
+    const legacy = { offer: { enabled: true, regularPricePercent: 20, timerMinutes: 15, showBuyers: true, customers: '500+', rating: 4.8 } };
+    if (row) await knex('app_config').where({ key: 'site' }).update({ value: JSON.stringify(legacy) });
+    else await knex('app_config').insert({ key: 'site', value: JSON.stringify(legacy), updated_at: nowIso() });
+    const offer = (await getSiteConfig(knex)).offer;
+    assert.deepEqual(
+      { timerMinutes: offer.timerMinutes, showBuyers: offer.showBuyers, customers: offer.customers, rating: offer.rating, percent: offer.regularPricePercent, version: offer.version },
+      { timerMinutes: 0, showBuyers: false, customers: '', rating: 0, percent: 20, version: 2 },
+    );
+    // Saved now: real numbers and reviews are kept as entered.
+    const site = (await api('GET', '/api/admin/site', { token: adminToken })).body.site;
+    const review = { text: 'Invoices and quotations are much faster now.', name: 'Amit', business: 'Service business' };
+    const saved = await api('PUT', '/api/admin/site', {
+      token: adminToken,
+      body: { ...site, offer: { ...site.offer, showBuyers: true, timerMinutes: 10, customers: '120+', rating: 4.7, ratingSource: 'Google', reviews: [review] } },
+    });
+    assert.equal(saved.status, 200);
+    const pub = (await api('GET', '/api/portal/site')).body;
+    assert.deepEqual(pub.site.offer.reviews, [review]);
+    assert.equal(pub.site.offer.timerMinutes, 10);
+    assert.equal(pub.site.offer.customers, '120+');
+    const paid = await knex('payments').where({ status: 'paid' }).where('paid_at', '>=', new Date(Date.now() - 7 * 86400000).toISOString()).count({ n: '*' }).first();
+    assert.equal(pub.recentSales, Number(paid.n) >= 5 ? Number(paid.n) : 0);
+    const bad = await api('PUT', '/api/admin/site', { token: adminToken, body: { ...site, offer: { ...site.offer, reviews: [{ text: '', name: 'X' }] } } });
+    assert.equal(bad.status, 400);
+    // Switched off: no number at all.
+    await api('PUT', '/api/admin/site', { token: adminToken, body: { ...site, offer: { ...site.offer, showBuyers: false } } });
+    assert.equal((await api('GET', '/api/portal/site')).body.recentSales, 0);
+    if (before) await knex('app_config').where({ key: 'site' }).update({ value: before });
+    else await knex('app_config').where({ key: 'site' }).delete();
+  });
+
   test('the Pixel base code is added to the page HTML (for Meta\'s checks), but not to the admin panel', async () => {
     const { withPixel, pixelScript } = await import('../src/services/meta.js');
     const html = withPixel('<html><head><title>x</title></head><body class="a"><div id="root"></div></body></html>', '1641005901370085');

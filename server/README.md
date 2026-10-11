@@ -177,22 +177,29 @@ The browser (and the apps) can never create a license, choose an amount or exten
    (details → payment).
    **Offer page for ads** (`/offer`, e.g. `https://docgen.reynrel.in/offer`): a short, separate sales
    page for Facebook / Instagram ads. It is not linked anywhere on the website, has no website menu and is
-   kept out of search engines (`X-Robots-Tag: noindex` + a robots meta tag). Top to bottom: a red
-   "Limited-time offer · ends in 14:59" bar, the plans on the first screen (the regular price shows first,
-   then it is crossed out and the real price drops in, with "Save ₹250"), the customer numbers and
-   "N people bought DocGen in the last 24 hours", problems → how DocGen fixes them → benefits →
-   happy customers, and the payment form. Visuals: a hero picture (dashboard + invoice), a key-facts strip,
-   **Before vs. after** (a handwritten bill next to a DocGen GST invoice) with a "time to make one bill" bar
-   chart, the invoice editor with its live preview, the four invoice templates, and two feature rows
-   (Document Manager; UPI QR, A5 payment receipt and a phone sharing on WhatsApp). The pictures are real
-   DocGen screens with sample data, in `frontend/public/img/offer/` (WebP, about 650 KB, loaded as they scroll in). A sticky **Pay now** bar at the bottom jumps to the form.
+   kept out of search engines (`X-Robots-Tag: noindex` + a robots meta tag). It says what the ads say and
+   tells one story, top to bottom: the hero ("Create invoices, quotations & business documents in under a
+   minute", saved customers / vendors / products, GST & Non-GST · 18 document types, "Start with 1 year —
+   ₹1,250 · one-time payment · no auto-renewal · 7-day refund policy", **Get DocGen – ₹1,250** and
+   **▶ Watch 25-sec demo**) next to a 25-second recording of the real app (Quotation → saved customer →
+   saved products → GST worked out → saved; `demo.mp4` H.264 + `demo.webm`, about 350 KB, muted, plays
+   while on screen) → "Stop entering the same details again and again" (saved customer / product pickers)
+   → "Still doing this by hand?" → the 18 document types → **Before vs. after** with a typical-time bar
+   chart → the editor with its live preview → the four invoice templates → Document Manager and getting
+   paid (UPI QR, A5 receipt, Save as PDF on the phone) → reviews and guarantees → FAQ (10 questions, incl.
+   "What happens after I pay?") → plans and the payment form (with the 3 steps after payment). The
+   pictures are real DocGen screens with sample data, in `frontend/public/img/offer/` (loaded as they
+   scroll in). A sticky **Get DocGen** bar at the bottom jumps to the form.
    Payment, account, license and the confirmation email are the same as on `/buy` (shared `CheckoutForm`);
    UTM tags and `fbclid` are tracked as on the rest of the site. Admin → Website → *Offer page for ads*:
    the link to copy, on/off (off: `/offer` opens `/buy`), regular price (% above the real price, rounded
-   up to ₹100; default 20 % → ₹1,250 shows as ~~₹1,500~~), countdown minutes (per visitor, kept in the
-   browser, restarts when it runs out; default 15), the buyers line, happy customers ("500+") and rating
-   (4.8). The buyers number is random (12–24) on a visitor's first visit, kept in the browser, and grows by
-   5 on every later visit. Set the customer numbers to your real ones.
+   up to ₹100; default 20 % → ₹1,250 shows as ~~₹1,500~~), countdown minutes (off by default; per
+   visitor, restarts when it runs out), "N businesses bought DocGen in the last 7 days" (off by default;
+   the real number of paid orders, shown only from 5 up), businesses using DocGen, rating with where it
+   comes from ("4.7 on Google"), and up to 6 customer reviews. Nothing is shown until you enter real
+   numbers and reviews; without reviews the page shows the guarantees (refund, one-time payment, data
+   on your device, help by email). Settings saved by the first version of the page (countdown 15 min,
+   random buyer number, placeholder 500+ / 4.8) are switched off automatically.
 7. **Ads**: for Facebook / Instagram use the offer page, e.g.
    `https://docgen.reynrel.in/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=<name>`;
    otherwise point them at `https://docgen.reynrel.in/?utm_source=google&utm_medium=cpc&utm_campaign=<name>`

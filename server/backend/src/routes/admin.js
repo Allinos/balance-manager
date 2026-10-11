@@ -92,13 +92,27 @@ const siteSchema = z.object({
       enabled: z.boolean().default(true),
       /** Regular price shown crossed out: this many % above the real price, rounded up to ₹100. 0 = none. */
       regularPricePercent: z.coerce.number().int().min(0).max(300).default(20),
+      /** 2 = saved by this version of the page (older settings are migrated in getSiteConfig). */
+      version: z.literal(2).default(2),
       /** Countdown per visitor (minutes; starts again when it runs out). 0 = no countdown. */
-      timerMinutes: z.coerce.number().int().min(0).max(1440).default(15),
-      /** "N people bought DocGen in the last 24 hours" (per visitor, grows on every later visit). */
-      showBuyers: z.boolean().default(true),
-      /** Customer numbers shown on the page: "500+" businesses, rating out of 5. Empty / 0 = hidden. */
+      timerMinutes: z.coerce.number().int().min(0).max(1440).default(0),
+      /** "N businesses bought DocGen in the last 7 days": the real number of paid orders, shown from 5 up. */
+      showBuyers: z.boolean().default(false),
+      /** Customer numbers shown on the page: "500+" businesses, rating out of 5 and where it comes from. Empty / 0 = hidden. */
       customers: z.string().trim().max(20).default(''),
       rating: z.coerce.number().min(0).max(5).default(0),
+      ratingSource: z.string().trim().max(40).default(''),
+      /** Real customer reviews (with their permission). */
+      reviews: z
+        .array(
+          z.object({
+            text: z.string().trim().min(1, 'review text is required').max(300),
+            name: z.string().trim().min(1, 'reviewer name is required').max(60),
+            business: z.string().trim().max(80).default(''),
+          }),
+        )
+        .max(6)
+        .default([]),
     })
     .partial()
     .optional(),

@@ -54,7 +54,8 @@ export default function AdminWebsite() {
     e.preventDefault();
     setSaveError(null);
     try {
-      const r = await adminApi.put('/site', { ...form, videos: videos.filter((v) => v.url) });
+      const reviews = (offer.reviews || []).filter((r) => r.text?.trim() || r.name?.trim());
+      const r = await adminApi.put('/site', { ...form, videos: videos.filter((v) => v.url), offer: { ...offer, reviews } });
       setForm(structuredClone(r.site));
       toast('Website updated');
     } catch (err) {
@@ -124,7 +125,12 @@ export default function AdminWebsite() {
                   <button type="button" className="btn btn-sm" disabled={i === shots.length - 1} onClick={() => moveShot(i, 1)} aria-label="Move right">
                     →
                   </button>
-                  <button type="button" className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => set('screenshots')(shots.filter((_, n) => n !== i))}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() => set('screenshots')(shots.filter((_, n) => n !== i))}
+                  >
                     Remove
                   </button>
                 </div>
@@ -151,10 +157,7 @@ export default function AdminWebsite() {
             <Field label="Title">
               <Input value={v.title} onChange={(x) => setVideo(i, { title: x })} placeholder="DocGen in 2 minutes" maxLength={80} />
             </Field>
-            <Field
-              label="Video link"
-              error={v.url && !embedUrl(v.url) && !/\.(mp4|webm)(\?|$)/i.test(v.url) ? 'Use a YouTube, Vimeo or .mp4 link' : null}
-            >
+            <Field label="Video link" error={v.url && !embedUrl(v.url) && !/\.(mp4|webm)(\?|$)/i.test(v.url) ? 'Use a YouTube, Vimeo or .mp4 link' : null}>
               <div className="row" style={{ flexWrap: 'nowrap' }}>
                 <Input value={v.url} onChange={(x) => setVideo(i, { url: x })} placeholder="https://www.youtube.com/watch?v=…" data-testid={`video-url-${i}`} />
                 <button type="button" className="btn btn-sm" onClick={() => set('videos')(videos.filter((_, n) => n !== i))}>
@@ -185,8 +188,8 @@ export default function AdminWebsite() {
           </a>
         </div>
         <p className="muted small" style={{ margin: 0 }}>
-          A short sales page for Facebook and Instagram ads: plans at the top, problems → how DocGen fixes them → benefits → customers, and
-          the payment form. It is not linked from the website and is hidden from search engines. Paste this link into your ads:
+          A short sales page for Facebook and Instagram ads: what DocGen does, a 25-second demo of the real app, saved customers and products, document types,
+          reviews, FAQ and the payment form. It is not linked from the website and is hidden from search engines. Paste this link into your ads:
         </p>
         <div className="code-box">
           <span className="code" data-testid="offer-link">
@@ -194,40 +197,104 @@ export default function AdminWebsite() {
           </span>
           <CopyButton text={offerUrl} />
         </div>
-        <Check checked={offer.enabled !== false} onChange={setOffer('enabled')} label="Offer page on (off: the link opens the normal Buy page)" data-testid="offer-enabled" />
+        <Check
+          checked={offer.enabled !== false}
+          onChange={setOffer('enabled')}
+          label="Offer page on (off: the link opens the normal Buy page)"
+          data-testid="offer-enabled"
+        />
         <div className="grid-2">
           <Field label="Regular price, % above your price" hint="Shown crossed out, rounded up to ₹100 (₹1,250 + 20% → ₹1,500). 0 = no crossed-out price.">
             <Input type="number" min={0} max={300} value={offer.regularPricePercent} onChange={setOffer('regularPricePercent')} data-testid="offer-percent" />
           </Field>
-          <Field label="Countdown, minutes" hint="Each visitor sees their own countdown; it starts again when it runs out. 0 = no countdown.">
+          <Field label="Countdown, minutes" hint="Off by default (0). Each visitor sees their own countdown; it starts again when it runs out.">
             <Input type="number" min={0} max={1440} value={offer.timerMinutes} onChange={setOffer('timerMinutes')} data-testid="offer-minutes" />
           </Field>
-          <Field label="Happy customers" hint="e.g. 500+. Empty = not shown.">
+          <Field label="Businesses using DocGen" hint="Only a real number, e.g. 120+. Empty = not shown.">
             <Input value={offer.customers} onChange={setOffer('customers')} maxLength={20} data-testid="offer-customers" />
           </Field>
-          <Field label="Average rating (out of 5)" hint="e.g. 4.8. 0 = not shown.">
+          <Field label="Average rating (out of 5)" hint="Shown only with where it comes from. 0 = not shown.">
             <Input type="number" min={0} max={5} step={0.1} value={offer.rating} onChange={setOffer('rating')} data-testid="offer-rating" />
+          </Field>
+          <Field label="Rating from" hint="e.g. Google. The page says “4.8 on Google”.">
+            <Input value={offer.ratingSource} onChange={setOffer('ratingSource')} maxLength={40} data-testid="offer-rating-source" />
           </Field>
         </div>
         <Check
-          checked={offer.showBuyers !== false}
+          checked={!!offer.showBuyers}
           onChange={setOffer('showBuyers')}
-          label="Show “N people bought DocGen in the last 24 hours” (a number per visitor that goes up by 5 on every new visit)"
+          label="Show “N businesses bought DocGen in the last 7 days” — the real number of paid orders, shown only when it is 5 or more"
           data-testid="offer-buyers-switch"
         />
+        <div className="card-head" style={{ marginBottom: 0 }}>
+          <strong>Customer reviews</strong>
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={(offer.reviews || []).length >= 6}
+            onClick={() => setOffer('reviews')([...(offer.reviews || []), { text: '', name: '', business: '' }])}
+            data-testid="add-review"
+          >
+            Add review
+          </button>
+        </div>
+        <p className="muted small" style={{ margin: 0 }}>
+          Only real feedback, with the customer&apos;s permission (for example from WhatsApp). Up to 6. Without reviews the page shows your guarantees instead.
+        </p>
+        {(offer.reviews || []).map((r, i) => {
+          const setReview = (k) => (v) => setOffer('reviews')(offer.reviews.map((x, n) => (n === i ? { ...x, [k]: v } : x)));
+          return (
+            <div key={i} className="card form" style={{ padding: 14 }} data-testid="review-row">
+              <Field label="What they said">
+                <Textarea rows={2} value={r.text} onChange={setReview('text')} maxLength={300} data-testid={`review-text-${i}`} />
+              </Field>
+              <div className="grid-2">
+                <Field label="Name">
+                  <Input value={r.name} onChange={setReview('name')} maxLength={60} placeholder="e.g. Rahul" data-testid={`review-name-${i}`} />
+                </Field>
+                <Field label="Business">
+                  <Input
+                    value={r.business}
+                    onChange={setReview('business')}
+                    maxLength={80}
+                    placeholder="e.g. Electrical contractor, Pune"
+                    data-testid={`review-business-${i}`}
+                  />
+                </Field>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm"
+                style={{ alignSelf: 'flex-start' }}
+                onClick={() => setOffer('reviews')(offer.reviews.filter((_, n) => n !== i))}
+              >
+                Remove
+              </button>
+            </div>
+          );
+        })}
       </div>
 
       <div className="card form" data-testid="pixel-settings">
         <h3>Meta Pixel (Facebook &amp; Instagram ads)</h3>
         <p className="muted small" style={{ margin: 0 }}>
-          Tells Meta when an ad visitor views DocGen, starts checkout and buys, so your ads can optimise for sales. Events: PageView on every
-          page, ViewContent on /offer and /buy, InitiateCheckout at “Pay now”, Purchase after payment (with the amount). Not on the admin
-          panel.
+          Tells Meta when an ad visitor views DocGen, starts checkout and buys, so your ads can optimise for sales. Events: PageView on every page, ViewContent
+          on /offer and /buy, InitiateCheckout at “Pay now”, Purchase after payment (with the amount). Not on the admin panel.
         </p>
         <Check checked={pixel.enabled !== false} onChange={setPixel('enabled')} label="Meta Pixel on" data-testid="pixel-enabled" />
         <div className="grid-2">
-          <Field label="Pixel ID" hint="Events Manager → Data sources → your pixel. A number, not secret." error={saveError?.details?.fields?.['metaPixel.pixelId']}>
-            <Input value={pixel.pixelId || ''} onChange={(v) => setPixel('pixelId')(v.replace(/\D/g, ''))} inputMode="numeric" maxLength={20} data-testid="pixel-id" />
+          <Field
+            label="Pixel ID"
+            hint="Events Manager → Data sources → your pixel. A number, not secret."
+            error={saveError?.details?.fields?.['metaPixel.pixelId']}
+          >
+            <Input
+              value={pixel.pixelId || ''}
+              onChange={(v) => setPixel('pixelId')(v.replace(/\D/g, ''))}
+              inputMode="numeric"
+              maxLength={20}
+              data-testid="pixel-id"
+            />
           </Field>
           <div className="field">
             <span className="field-label">Server events (Conversions API)</span>
@@ -246,9 +313,27 @@ export default function AdminWebsite() {
       <div className="card" data-testid="business-details">
         <h3>Business details</h3>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Shown on <Link to="/contact" target="_blank">Contact Us</Link> and in the <Link to="/terms" target="_blank">Terms</Link>,{' '}
-          <Link to="/privacy" target="_blank">Privacy</Link>, <Link to="/shipping" target="_blank">Shipping</Link> and{' '}
-          <Link to="/refunds" target="_blank">Cancellation &amp; Refunds</Link> pages. Razorpay checks that these match your KYC details.
+          Shown on{' '}
+          <Link to="/contact" target="_blank">
+            Contact Us
+          </Link>{' '}
+          and in the{' '}
+          <Link to="/terms" target="_blank">
+            Terms
+          </Link>
+          ,{' '}
+          <Link to="/privacy" target="_blank">
+            Privacy
+          </Link>
+          ,{' '}
+          <Link to="/shipping" target="_blank">
+            Shipping
+          </Link>{' '}
+          and{' '}
+          <Link to="/refunds" target="_blank">
+            Cancellation &amp; Refunds
+          </Link>{' '}
+          pages. Razorpay checks that these match your KYC details.
         </p>
         <div className="grid-2">
           <Field label="Business / legal name" hint="As registered, e.g. your proprietorship or company name">
@@ -258,7 +343,14 @@ export default function AdminWebsite() {
             <Input value={form.business?.phone} onChange={setBusiness('phone')} maxLength={40} placeholder="+91 98765 43210" data-testid="business-phone" />
           </Field>
           <Field label="Address" span>
-            <Textarea rows={2} value={form.business?.address} onChange={setBusiness('address')} maxLength={400} placeholder="Street, city, state, PIN" data-testid="business-address" />
+            <Textarea
+              rows={2}
+              value={form.business?.address}
+              onChange={setBusiness('address')}
+              maxLength={400}
+              placeholder="Street, city, state, PIN"
+              data-testid="business-address"
+            />
           </Field>
           <Field label="Support hours">
             <Input value={form.business?.hours} onChange={setBusiness('hours')} maxLength={120} />

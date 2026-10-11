@@ -121,7 +121,7 @@ export const DEFAULT_SITE = {
   showProblems: true,
   /** Meta Pixel for Facebook / Instagram ads (the ID is public; the Conversions API token is in .env). */
   metaPixel: { enabled: true, pixelId: '1641005901370085' },
-  offer: { enabled: true, regularPricePercent: 20, timerMinutes: 15, showBuyers: true, customers: '500+', rating: 4.8 },
+  offer: { version: 2, enabled: true, regularPricePercent: 20, timerMinutes: 0, showBuyers: false, customers: '', rating: 0, ratingSource: '', reviews: [] },
   business: {
     legalName: 'Reynrel',
     address: '',
@@ -134,6 +134,12 @@ export const DEFAULT_SITE = {
 export async function getSiteConfig(knex) {
   const row = await knex('app_config').where({ key: 'site' }).first();
   const saved = parseJson(row?.value, {});
+  // Offer settings saved by the first offer page: its per-visitor countdown, made-up buyer number and placeholder
+  // customer numbers (500+, 4.8) are switched off; the admin can turn on the countdown and real numbers again.
+  if (saved.offer && !saved.offer.version) {
+    const { timerMinutes, showBuyers, customers, rating, ...rest } = saved.offer; // eslint-disable-line no-unused-vars
+    saved.offer = { ...rest, ...(customers && customers !== '500+' ? { customers } : {}), ...(rating && Number(rating) !== 4.8 ? { rating } : {}) };
+  }
   const site = { ...DEFAULT_SITE, ...saved, business: { ...DEFAULT_SITE.business, ...saved.business }, offer: { ...DEFAULT_SITE.offer, ...saved.offer }, metaPixel: { ...DEFAULT_SITE.metaPixel, ...saved.metaPixel } };
   // The first Pixel ID (replaced by dataset 1641005901370085): a site saved with it moves to the new one.
   if (site.metaPixel.pixelId === '1862821958226928') site.metaPixel.pixelId = DEFAULT_SITE.metaPixel.pixelId;

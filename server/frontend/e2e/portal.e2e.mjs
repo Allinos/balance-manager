@@ -374,7 +374,7 @@ try {
   await page.getByText('Payment not completed').waitFor();
   check(true, 'closing the payment window keeps the visitor on the checkout');
 
-  console.log('Ad offer page (/offer) on a phone: plans → countdown → Pay now → payment → license');
+  console.log('Ad offer page (/offer) on a phone: hero → demo → story → FAQ → Get DocGen → payment → license');
   const adVisitor = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await routePixel(adVisitor);
   const ad = await adVisitor.newPage();
@@ -387,63 +387,74 @@ try {
   await waitFb(ad, 'ViewContent');
   const view = (await fbCalls(ad)).find((c) => c[1] === 'ViewContent');
   check(view[2].value === 1250 && view[2].currency === 'INR' && view[2].content_ids[0] === 'DOCGEN', 'Meta Pixel: ViewContent on the offer page (₹1,250, INR, DOCGEN)');
-  const firstPrice = await ad.getByTestId('offer-plans').getByTestId('regular-price').first().textContent();
-  check(firstPrice.includes('1,500') && !(await ad.getByTestId('offer-plans').getByTestId('offer-price').first().isVisible()), 'page opens with the regular price (₹1,500)');
+  const h1 = await ad.locator('h1').textContent();
+  check(h1.includes('invoices, quotations') && h1.includes('business documents'), `hero matches the ads: "${h1}"`);
+  const points = await ad.getByTestId('offer-points').textContent();
+  check(['GST & Non-GST', '18 document types', 'Saved customers & products', 'Easy document management'].every((t) => points.includes(t)), 'hero points: GST & Non-GST · 18 document types · saved customers & products · document management');
+  const start = ad.getByTestId('offer-start');
+  check((await start.getByTestId('regular-price').textContent()).includes('1,500') && !(await start.getByTestId('offer-price').isVisible()), 'price line opens with the regular price (₹1,500)');
   await adShot('03a-offer-open');
   await ad.locator('.offer-price.revealed').first().waitFor();
   await ad.waitForTimeout(900);
-  const plan1 = (await ad.getByTestId('offer-plans').getByTestId('offer-plan-365').textContent()).replace(/\s+/g, ' ');
-  check(plan1.includes('₹1,500') && plan1.includes('₹1,250') && plan1.includes('Save ₹250'), 'then the price drops: ₹1,500 crossed out, offer ₹1,250, "Save ₹250"');
-  check((await ad.getByTestId('offer-plans').boundingBox()).y < 844 && (await ad.getByTestId('offer-plan-365').first().boundingBox()).y < 844, 'the plans are on the first screen of a phone');
-  check((await ad.getByTestId('offer-bar').textContent()).includes('17% off'), 'top bar: limited-time offer, 17% off');
-  const t1 = (await ad.getByTestId('offer-timer').textContent()).trim();
-  await ad.waitForTimeout(2100);
-  const t2 = (await ad.getByTestId('offer-timer').textContent()).trim();
-  const secs = (t) => t.split(':').reduce((a, b) => a * 60 + Number(b), 0);
-  check(/^\d\d:\d\d$/.test(t1) && secs(t1) <= 15 * 60 && secs(t2) < secs(t1), `countdown runs (${t1} → ${t2})`);
-  const buyersText = await ad.getByTestId('offer-buyers-top').textContent();
-  const buyers = Number(buyersText.match(/(\d+) people/)[1]);
-  check(buyers >= 12 && buyers <= 24 && buyersText.includes('in the last 24 hours') && (await ad.evaluate(() => localStorage.getItem('docgen.offer.buyers'))) === String(buyers),
-    `"${buyers} people bought DocGen in the last 24 hours" — a random number stored in the browser`);
-  await ad.reload();
-  await ad.getByTestId('offer-page').waitFor();
-  check((await ad.getByTestId('offer-buyers-top').textContent()).includes(`${buyers} people`), 'reloading the page keeps the same number');
-  await ad.getByTestId('offer-timer').waitFor();
-  const t3 = (await ad.getByTestId('offer-timer').textContent()).trim();
-  check(secs(t3) <= secs(t2), `reloading does not restart the countdown (${t2} → ${t3})`);
-  const ad2 = await adVisitor.newPage();
-  await ad2.goto(`${base}/offer`);
-  await ad2.getByTestId('offer-page').waitFor();
-  check((await ad2.getByTestId('offer-buyers-top').textContent()).includes(`${buyers + 5} people`), `a later visit adds 5 (${buyers + 5})`);
-  await ad2.close();
-  for (const id of ['offer-facts', 'offer-problems', 'offer-before-after', 'offer-time-chart', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-benefits', 'offer-proof'])
-    check(await ad.getByTestId(id).count() === 1, `section: ${id.slice(6)}`);
+  const startText = (await start.textContent()).replace(/\s+/g, ' ');
+  check(startText.includes('Start with 1 year') && startText.includes('₹1,250') && ['One-time payment', 'No auto-renewal', '7-day refund policy'].every((t) => startText.includes(t)),
+    'then: "Start with 1 year — ₹1,250 · One-time payment · No auto-renewal · 7-day refund policy"');
+  const buyBtn = await ad.getByTestId('offer-buy').boundingBox();
+  const watchBtn = await ad.getByTestId('offer-watch').boundingBox();
+  check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Get DocGen – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch 25-sec demo'),
+    'first screen of a phone: "Get DocGen – ₹1,250" and "▶ Watch 25-sec demo"');
+  check((await ad.getByTestId('offer-bar').textContent()).includes('save 17%') && (await ad.getByTestId('offer-timer').count()) === 0 && (await ad.getByTestId('offer-buyers').count()) === 0,
+    'no countdown and no buyer number by default; top bar: special price, save 17%');
+  await ad.getByTestId('offer-watch').click();
+  await ad.waitForFunction(() => { const v = document.querySelector('[data-testid=offer-demo-video]'); return v && !v.paused && v.currentTime > 0.5 && v.videoWidth === 1280; }, null, { timeout: 15000 });
+  const demoBox = await ad.getByTestId('offer-demo-video').boundingBox();
+  check(demoBox.y >= 0 && demoBox.y + demoBox.height <= 844, '"Watch demo" scrolls to the 25-second recording of the real app and plays it');
+  await adShot('03b-offer-demo');
+  const order = ['offer-hero', 'offer-saved', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
+  const ys = [];
+  for (const id of order) ys.push(await ad.getByTestId(id).evaluate((el) => el.getBoundingClientRect().top + window.scrollY));
+  check(ys.every((y, i) => i === 0 || y > ys[i - 1]), `sections in story order: ${order.map((id) => id.slice(6)).join(' → ')}`);
+  check((await ad.getByTestId('offer-saved').textContent()).includes('Stop entering the same details again and again') && (await ad.getByTestId('offer-saved').locator('img').count()) === 2,
+    'right under the hero: "Stop entering the same details again and again" with the saved customer / product pickers');
+  const types = await ad.getByTestId('offer-doc-types').textContent();
+  check(types.includes('18 business documents') && ['Tax Invoice', 'Quotation', 'Delivery Challan', 'Purchase Order', 'Payment Receipt', 'Job / Service Completion'].every((t) => types.includes(t)), 'all 18 document types listed');
   check((await ad.getByTestId('offer-templates').locator('img').count()) === 4, 'four invoice templates shown with real invoices');
   // Every product picture loads (lazy pictures load as they scroll into view).
-  for (let y = 0; y < 20000; y += 500) await ad.evaluate((v) => window.scrollTo(0, v), y);
+  await ad.evaluate(async () => {
+    for (const img of document.querySelectorAll('img[src^="/img/offer/"]')) {
+      img.scrollIntoView({ block: 'center' });
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  });
   await ad.waitForFunction(() => [...document.querySelectorAll('img[src^="/img/offer/"]')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 15000 });
   const pics = await ad.evaluate(() => [...new Set([...document.querySelectorAll('img[src^="/img/offer/"]')].map((i) => i.getAttribute('src')))]);
-  check(pics.length >= 8, `${pics.length} product pictures on the offer page, all loaded (${pics.map((p) => p.slice(11, -5)).join(', ')})`);
+  check(pics.length >= 9, `${pics.length} product pictures on the offer page, all loaded (${pics.map((p) => p.slice(11, -5)).join(', ')})`);
   await ad.evaluate(() => window.scrollTo(0, 0));
-  check((await ad.getByTestId('offer-proof').textContent()).includes('500+') && (await ad.getByTestId('offer-proof').textContent()).includes('4.8'), 'happy customers (500+) and rating (4.8)');
+  const proof = await ad.getByTestId('offer-proof').textContent();
+  check(!proof.includes('500+') && !proof.includes('4.8') && (await ad.getByTestId('offer-reviews').count()) === 0 && proof.includes('7-day refund policy') && proof.includes('No monthly fee'),
+    'no made-up numbers or reviews: until the admin adds real ones, the page shows the guarantees');
+  const faq = ad.getByTestId('offer-faq');
+  check((await faq.locator('summary').count()) === 10 && (await faq.locator('details[open] summary').textContent()) === 'What happens after I pay?' && (await faq.locator('details[open] p').textContent()).includes('license key appears on screen'),
+    'FAQ: 10 questions, "What happens after I pay?" open');
+  await faq.getByText('Is DocGen accounting software?').click();
+  check((await faq.locator('details[open]').count()) === 2, 'FAQ answers open with a tap');
   check((await ad.locator('header a, .site-nav').count()) === 0, 'no website menu on the offer page — nothing leads away from the offer');
-  check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Pay now" button at the bottom of the screen');
+  check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Get DocGen" button at the bottom of the screen');
   await ad.locator('.offer-sticky .offer-price.revealed').waitFor();
-  await ad.getByTestId('offer-problems').scrollIntoViewIfNeeded();
+  await ad.getByTestId('offer-saved').scrollIntoViewIfNeeded();
   await ad.waitForTimeout(300);
-  await adShot('03b-offer-scroll');
+  await adShot('03c-offer-saved');
   await ad.getByTestId('offer-paynow').click();
   await ad.waitForTimeout(900);
-  check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Pay now" jumps to the payment section');
-  check((await ad.getByTestId('offer-buyers').textContent()).includes('in the last 24 hours') && (await ad.getByTestId('offer-hurry').textContent()).includes('Hurry'),
-    'payment section: buyers line and "Hurry!" countdown at the top');
+  check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Get DocGen" jumps to the payment section');
+  check((await ad.getByTestId('offer-after-pay').textContent()).includes('license key shows on screen'), 'payment section: what happens after payment, in 3 steps');
   await ad.waitForTimeout(400);
   check(!(await ad.getByTestId('offer-sticky').evaluate((el) => el.getBoundingClientRect().top < window.innerHeight)), 'the sticky bar hides while the payment form is on screen');
-  await adShot('03c-offer-pay');
+  await adShot('03d-offer-pay');
   await ad.getByTestId('offer-pay').getByTestId('offer-plan-730').click();
   check((await ad.getByTestId('offer-total').textContent()).replace(/\s+/g, ' ').includes('₹2,250') && (await ad.getByTestId('co-pay').textContent()).includes('Pay now · ₹2,250'),
     'choosing 2 years: total ₹2,250 and "Pay now · ₹2,250"');
-  check((await ad.getByTestId('offer-plans').getByTestId('offer-plan-730').getAttribute('aria-checked')) === 'true', 'the plan at the top follows the choice');
+  check((await ad.getByTestId('offer-plan-730').getAttribute('aria-checked')) === 'true' && (await ad.getByTestId('offer-sticky').textContent()).includes('₹2,250'), 'the sticky bar follows the choice');
   await ad.getByLabel('Full name').fill('Farhan Ali');
   await ad.getByLabel('Mobile number').fill('9123456789');
   await ad.getByLabel('Email address').fill('farhan@example.com');
@@ -461,7 +472,7 @@ try {
   const purchase = (await fbCalls(ad)).find((c) => c[1] === 'Purchase');
   check(purchase[2].value === 2250 && purchase[2].currency === 'INR' && /^purchase-\d+$/.test(purchase[3]?.eventID || ''),
     `Meta Pixel: Purchase after payment (₹2,250) with the event id the server also sends (${purchase[3]?.eventID})`);
-  await adShot('03d-offer-paid');
+  await adShot('03e-offer-paid');
   await adVisitor.close();
 
   // Website: policies, Contact Us (a visitor's message), Help & Support, Login on a phone.
@@ -588,8 +599,31 @@ try {
   await visitor.close();
   await page.getByTestId('offer-enabled').check();
   await page.getByTestId('site-show-problems').check();
+  // Real customer numbers and a review (the page never shows made-up ones).
+  await page.getByTestId('offer-customers').fill('120+');
+  await page.getByTestId('offer-rating').fill('4.7');
+  await page.getByTestId('offer-rating-source').fill('Google');
+  await page.getByTestId('offer-buyers-switch').check();
+  await page.getByTestId('add-review').click();
+  await page.getByTestId('review-text-0').fill('Earlier I made every quotation in Excel. Now I just select the customer and products.');
+  await page.getByTestId('review-name-0').fill('Rahul');
+  await page.getByTestId('review-business-0').fill('Electrical contractor');
+  await page.getByTestId('add-review').click(); // left empty: dropped when saving
   await page.getByTestId('save-site').click();
-  await page.getByText('Website updated').waitFor();
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid=review-row]').length === 1, null, { timeout: 10000 }).catch(() => {});
+  check((await page.getByTestId('review-row').count()) === 1, 'Admin → Website: a customer review added (an empty one is dropped)');
+  const sales = (await (await fetch(`${base}/api/portal/site`)).json()).recentSales;
+  const visitor2 = await browser.newContext({ viewport: { width: 1280, height: 860 } });
+  const page4 = await visitor2.newPage();
+  await page4.goto(`${base}/offer`);
+  await page4.getByTestId('offer-reviews').waitFor();
+  const proof2 = (await page4.getByTestId('offer-proof').textContent()).replace(/\s+/g, ' ');
+  check(proof2.includes('120+') && proof2.includes('4.7 ★') && proof2.includes('rating on Google') && proof2.includes('Now I just select the customer and products.') && proof2.includes('Rahul') && proof2.includes('Electrical contractor'),
+    'offer page: the admin\'s real numbers (120+, 4.7 on Google) and the review');
+  check((await page4.getByTestId('offer-proof-line').textContent()).includes('4.7 on Google'), 'hero: rating shown with where it comes from');
+  check(sales === 0 ? (await page4.getByTestId('offer-buyers').count()) === 0 : (await page4.getByTestId('offer-buyers').textContent()).includes(`${sales} businesses`),
+    `"N businesses bought DocGen in the last 7 days" uses the real number of paid orders (${sales || 'fewer than 5: not shown'})`);
+  await visitor2.close();
 
   await page.getByTestId('nav-customers').click();
   const meera = page.locator('table:has(th:text("Came from")) tr', { hasText: 'meera@example.com' });
