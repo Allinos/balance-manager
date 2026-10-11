@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { clientApi, money } from '../../api.js';
+import { bootSite, clientApi, money } from '../../api.js';
 import { Spinner, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
@@ -287,7 +287,7 @@ export function PricingCards({ product }) {
 }
 
 export default function ProductPage() {
-  const { data, loading } = useLoad(() => clientApi.get('/site'), []);
+  const { data, loading } = useLoad(() => clientApi.get('/site'), [], bootSite());
   if (loading || !data) {
     return (
       <div className="site">

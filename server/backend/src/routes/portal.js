@@ -160,43 +160,53 @@ export const publicPlan = (p, prices = null) => ({
   sortOrder: p.sort_order,
 });
 
+/** Products on sale with their price per license duration. */
+async function productsOnSale(knex) {
+  const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
+  const prices = await pricesByPlan(knex, rows);
+  return rows.map((p) => publicPlan(p, prices.get(p.id)));
+}
+
+/** Paid orders in the last 7 days, for the offer page's "N businesses bought" line; 0 below 5 (too few to show). */
+async function recentSales(knex) {
+  const since = new Date(Date.now() - RECENT_SALES_DAYS * 86400000).toISOString();
+  const row = await knex('payments').where({ status: 'paid' }).where('paid_at', '>=', since).count({ n: '*' }).first();
+  const n = Number(row?.n) || 0;
+  return n >= 5 ? n : 0;
+}
+
+/**
+ * Everything the product page, the offer page and checkout show (GET /api/portal/site). The server also puts it
+ * into the HTML of / and /offer, so those pages show at once without waiting for this request.
+ */
+export async function sitePayload(knex) {
+  const downloads = await getDownloadSettings(knex);
+  const site = await getSiteConfig(knex);
+  return {
+    site,
+    recentSales: site.offer?.showBuyers ? await recentSales(knex) : 0,
+    products: await productsOnSale(knex),
+    mobileAvailable: downloads.mobile.enabled,
+    providers: listProviders(),
+    emailEnabled: mailEnabled(),
+    supportEmail: config.supportEmail,
+  };
+}
+
 export function portalRoutes(knex) {
   const r = Router();
   const auth = requireClient(knex);
 
-  /** Products on sale with their price per license duration. */
-  const productsForSale = async () => {
-    const rows = await knex('plans').where({ is_active: true, is_public: true }).orderBy('sort_order');
-    const prices = await pricesByPlan(knex, rows);
-    return rows.map((p) => publicPlan(p, prices.get(p.id)));
-  };
+  const productsForSale = () => productsOnSale(knex);
 
   r.get('/plans', async (_req, res) => {
     res.json({ plans: await productsForSale(), providers: listProviders(), emailEnabled: mailEnabled() });
   });
 
-  /** Paid orders in the last 7 days, for the offer page's "N businesses bought" line; 0 below 5 (too few to show). */
-  const recentSales = async () => {
-    const since = new Date(Date.now() - RECENT_SALES_DAYS * 86400000).toISOString();
-    const row = await knex('payments').where({ status: 'paid' }).where('paid_at', '>=', since).count({ n: '*' }).first();
-    const n = Number(row?.n) || 0;
-    return n >= 5 ? n : 0;
-  };
-
   /** Everything the product page and checkout show: website content, the product(s) for sale, payment methods. */
   r.get('/site', async (_req, res) => {
     res.set('Cache-Control', 'no-cache');
-    const downloads = await getDownloadSettings(knex);
-    const site = await getSiteConfig(knex);
-    res.json({
-      site,
-      recentSales: site.offer?.showBuyers ? await recentSales() : 0,
-      products: await productsForSale(),
-      mobileAvailable: downloads.mobile.enabled,
-      providers: listProviders(),
-      emailEnabled: mailEnabled(),
-      supportEmail: config.supportEmail,
-    });
+    res.json(await sitePayload(knex));
   });
 
   /**

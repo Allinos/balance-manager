@@ -382,6 +382,17 @@ try {
   const adShot = (name) => ad.screenshot({ path: path.join(shots, `${name}.png`) });
   const offerRes = await fetch(`${base}/offer`);
   check(offerRes.status === 200 && /noindex/.test(offerRes.headers.get('x-robots-tag') || ''), 'offer page is served with X-Robots-Tag: noindex (kept out of search results)');
+  const offerHtml = await offerRes.text();
+  check(offerHtml.includes('Create invoices, quotations &amp; business documents in under a minute') && offerHtml.includes('Download – ₹1,250') && offerHtml.includes('₹1,500')
+    && offerHtml.includes('id="boot-site"') && !/127\.0\.0\.1|localhost|taking long/.test(offerHtml),
+    'the offer page HTML itself has the headline, price and Download button (shows before the app loads); no developer message');
+  const gz = await fetch(`${base}/offer`, { headers: { 'Accept-Encoding': 'gzip' } });
+  check(gz.headers.get('content-encoding') === 'gzip', 'pages are sent compressed (gzip)');
+  const noJs = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
+  const nj = await noJs.newPage();
+  await nj.goto(`${base}/offer`);
+  check((await nj.locator('h1').textContent()).includes('Create invoices') && (await nj.locator('.hero-ctas a').boundingBox()).y < 844, 'even before any JavaScript runs, a phone shows the headline, price and Download button on the first screen');
+  await noJs.close();
   await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
   await ad.getByTestId('offer-page').waitFor();
   await waitFb(ad, 'ViewContent');
@@ -392,10 +403,7 @@ try {
   const points = await ad.getByTestId('offer-points').textContent();
   check(['GST & Non-GST', '18 document types', 'Saved customers & products', 'Easy document management'].every((t) => points.includes(t)), 'hero points: GST & Non-GST · 18 document types · saved customers & products · document management');
   const start = ad.getByTestId('offer-start');
-  check((await start.getByTestId('regular-price').textContent()).includes('1,500') && !(await start.getByTestId('offer-price').isVisible()), 'price line opens with the regular price (₹1,500)');
   await adShot('03a-offer-open');
-  await ad.locator('.offer-price.revealed').first().waitFor();
-  await ad.waitForTimeout(900);
   const startText = (await start.textContent()).replace(/\s+/g, ' ');
   check(startText.includes('Start with 1 year') && startText.includes('₹1,250') && ['One-time payment', 'No auto-renewal', '7-day refund policy'].every((t) => startText.includes(t)),
     'then: "Start with 1 year — ₹1,250 · One-time payment · No auto-renewal · 7-day refund policy"');

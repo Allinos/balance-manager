@@ -46,7 +46,8 @@ export function proxyMessage(status) {
   if (status === 413) {
     return 'The file is too large for the web server in front of DocGen (HTTP 413). Raise the upload limit — Nginx: client_max_body_size 700m; Cloudflare allows at most 100 MB per upload — or paste a download link instead.';
   }
-  if (status === 502 || status === 503) return `The DocGen server is not reachable behind the web server (HTTP ${status}). Check that it is running (pm2 status / pm2 logs).`;
+  if (status === 502 || status === 503)
+    return `The DocGen server is not reachable behind the web server (HTTP ${status}). Check that it is running (pm2 status / pm2 logs).`;
   if (status === 504 || status === 524) {
     return `The web server stopped waiting for DocGen (HTTP ${status}). For large uploads raise the proxy timeouts (Nginx: proxy_read_timeout / proxy_send_timeout 600s).`;
   }
@@ -108,3 +109,23 @@ export const dateTime = (iso) =>
   iso ? new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 export const validity = (lic) => (lic.lifetime ? 'Lifetime' : lic.expiresAt ? date(lic.expiresAt) : `${lic.durationDays} days from activation`);
+
+let booted;
+/**
+ * The website data (/api/portal/site) the server put into the HTML of / and /offer (<script type="application/json"
+ * id="boot-site">), so those pages show at once. Used once: later visits within the app load it fresh.
+ */
+export function bootSite() {
+  if (booted !== undefined) return null;
+  booted = null;
+  try {
+    const el = typeof document !== 'undefined' && document.getElementById('boot-site');
+    if (el) {
+      booted = JSON.parse(el.textContent);
+      el.remove();
+    }
+  } catch {
+    booted = null;
+  }
+  return booted;
+}

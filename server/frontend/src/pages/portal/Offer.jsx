@@ -13,10 +13,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
-import { clientApi, money } from '../../api.js';
+import { bootSite, clientApi, money } from '../../api.js';
 import { Spinner, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
-import { useAuth } from '../../App.jsx';
 import { SUPPORT_EMAIL } from '../../constants.js';
 import { CheckoutForm, PurchaseSuccess } from './Checkout.jsx';
 import { licenseLength, period, planCards } from './ProductPage.jsx';
@@ -598,12 +597,12 @@ function Faq({ items }) {
 const HERO_POINTS = ['GST & Non-GST', `${DOC_COUNT} document types`, 'Saved customers & products', 'Easy document management'];
 
 export default function OfferPage() {
-  const { client } = useAuth();
   const location = useLocation();
   const [params] = useSearchParams();
-  const { data, loading } = useLoad(() => clientApi.get('/site'), []);
+  const { data, loading } = useLoad(() => clientApi.get('/site'), [], bootSite());
   const [priceId, setPriceId] = useState(null);
-  const [revealed, setRevealed] = useState(false);
+  // Prices show at once (the server puts the same hero into the HTML, so nothing changes when the app starts).
+  const revealed = true;
   const [result, setResult] = useState(null);
   const [payVisible, setPayVisible] = useState(false);
   const payRef = useRef(null);
@@ -630,12 +629,6 @@ export default function OfferPage() {
     const p = data?.products?.find((x) => x.id === Number(params.get('product'))) || data?.products?.[0];
     if (p && data.site?.offer?.enabled !== false) track('ViewContent', saleParams(p, p.prices[0]));
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-  // The regular price shows first, then drops to the offer price.
-  useEffect(() => {
-    if (!data) return undefined;
-    const t = setTimeout(() => setRevealed(true), 1200);
-    return () => clearTimeout(t);
-  }, [data]);
   // The sticky "Download" bar hides while the payment form is on screen.
   useEffect(() => {
     const el = payRef.current;
@@ -645,7 +638,7 @@ export default function OfferPage() {
     return () => io.disconnect();
   }, [data, result]);
 
-  if (loading || !data || client.user === undefined) return <Spinner />;
+  if (loading || !data) return <Spinner />;
   if (offer.enabled === false) return <Navigate to={`/buy${location.search}`} replace />;
   const products = data.products || [];
   const product = products.find((p) => p.id === Number(params.get('product'))) || products[0];

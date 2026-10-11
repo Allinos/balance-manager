@@ -103,8 +103,10 @@ export function ToastProvider({ children }) {
 export const useToast = () => useContext(ToastCtx);
 
 /** Load data with loading/error state and a reload function. */
-export function useLoad(fn, deps) {
-  const [state, setState] = useState({ data: null, error: null, loading: true });
+/** Load data once (and again with `reload`). `initial`: data already on the page (put into the HTML by the server) — shown at once, not fetched again. */
+export function useLoad(fn, deps, initial = null) {
+  const [state, setState] = useState({ data: initial, error: null, loading: !initial });
+  const skipFirst = useRef(!!initial);
   const load = useCallback(async () => {
     setState((s) => ({ ...s, loading: true }));
     try {
@@ -115,6 +117,10 @@ export function useLoad(fn, deps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   useEffect(() => {
+    if (skipFirst.current) {
+      skipFirst.current = false;
+      return;
+    }
     load();
   }, [load]);
   return { ...state, reload: load };

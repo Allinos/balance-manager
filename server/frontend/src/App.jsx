@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useState } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { clientApi, adminApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
@@ -9,26 +9,32 @@ import ProductPage from './pages/portal/ProductPage.jsx';
 import CheckoutPage from './pages/portal/Checkout.jsx';
 import OfferPage from './pages/portal/Offer.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
-import ClientHome from './pages/portal/ClientHome.jsx';
-import Services from './pages/portal/Services.jsx';
-import DownloadsPage from './pages/portal/DownloadsPage.jsx';
 import MobilePage from './pages/portal/MobilePage.jsx';
 import { ContactPage, PolicyPage } from './pages/portal/InfoPages.jsx';
-import SupportPage, { MySupport, MySupportRequest } from './pages/portal/Support.jsx';
 import PanelLayout from './components/PanelLayout.jsx';
-import Account from './pages/portal/Account.jsx';
-import AdminLogin from './pages/admin/AdminLogin.jsx';
-import AdminDashboard from './pages/admin/AdminDashboard.jsx';
-import AdminClients, { AdminClientDetail } from './pages/admin/AdminClients.jsx';
-import AdminLicenses from './pages/admin/AdminLicenses.jsx';
-import AdminProducts from './pages/admin/AdminProducts.jsx';
-import AdminDownloads from './pages/admin/AdminDownloads.jsx';
-import AdminWebsite from './pages/admin/AdminWebsite.jsx';
-import AdminPayments from './pages/admin/AdminPayments.jsx';
-import AdminAds from './pages/admin/AdminAds.jsx';
-import AdminConfig from './pages/admin/AdminConfig.jsx';
-import AdminAudit from './pages/admin/AdminAudit.jsx';
-import AdminSupport, { AdminSupportRequest } from './pages/admin/AdminSupport.jsx';
+
+// The admin panel and the account pages load only when opened, so the website and the ad page stay small.
+const ClientHome = lazy(() => import('./pages/portal/ClientHome.jsx'));
+const Services = lazy(() => import('./pages/portal/Services.jsx'));
+const DownloadsPage = lazy(() => import('./pages/portal/DownloadsPage.jsx'));
+const SupportPage = lazy(() => import('./pages/portal/Support.jsx'));
+const MySupport = lazy(() => import('./pages/portal/Support.jsx').then((m) => ({ default: m.MySupport })));
+const MySupportRequest = lazy(() => import('./pages/portal/Support.jsx').then((m) => ({ default: m.MySupportRequest })));
+const Account = lazy(() => import('./pages/portal/Account.jsx'));
+const AdminLogin = lazy(() => import('./pages/admin/AdminLogin.jsx'));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard.jsx'));
+const AdminClients = lazy(() => import('./pages/admin/AdminClients.jsx'));
+const AdminClientDetail = lazy(() => import('./pages/admin/AdminClients.jsx').then((m) => ({ default: m.AdminClientDetail })));
+const AdminLicenses = lazy(() => import('./pages/admin/AdminLicenses.jsx'));
+const AdminProducts = lazy(() => import('./pages/admin/AdminProducts.jsx'));
+const AdminDownloads = lazy(() => import('./pages/admin/AdminDownloads.jsx'));
+const AdminWebsite = lazy(() => import('./pages/admin/AdminWebsite.jsx'));
+const AdminPayments = lazy(() => import('./pages/admin/AdminPayments.jsx'));
+const AdminAds = lazy(() => import('./pages/admin/AdminAds.jsx'));
+const AdminConfig = lazy(() => import('./pages/admin/AdminConfig.jsx'));
+const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
+const AdminSupport = lazy(() => import('./pages/admin/AdminSupport.jsx'));
+const AdminSupportRequest = lazy(() => import('./pages/admin/AdminSupport.jsx').then((m) => ({ default: m.AdminSupportRequest })));
 
 // ----------------------------------------------------------------- sessions
 const AuthCtx = createContext(null);
@@ -316,51 +322,53 @@ export default function App() {
         <DialogProvider>
           <AuthProvider>
             <PixelPageViews />
-            <Routes>
-              <Route path="/" element={<ProductPage />} />
-              <Route path="/buy" element={<CheckoutPage />} />
-              {/* Ad landing page: not linked from the website. */}
-              <Route path="/offer" element={<OfferPage />} />
-              <Route path="/register" element={<KeepQuery to="/buy" />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/mobile" element={<MobilePage />} />
-              <Route path="/support" element={<SupportPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/terms" element={<PolicyPage id="terms" />} />
-              <Route path="/privacy" element={<PolicyPage id="privacy" />} />
-              <Route path="/shipping" element={<PolicyPage id="shipping" />} />
-              <Route path="/refunds" element={<PolicyPage id="refunds" />} />
-              <Route path="/cancellation-refunds" element={<Navigate to="/refunds" replace />} />
-              <Route path="/account" element={<PortalLayout />}>
-                <Route index element={<ClientHome />} />
-                <Route path="services" element={<Services />} />
-                <Route path="downloads" element={<DownloadsPage />} />
-                <Route path="support" element={<MySupport />} />
-                <Route path="support/:id" element={<MySupportRequest />} />
-                <Route path="settings" element={<Account />} />
-                <Route path="*" element={<Navigate to="/account" replace />} />
-              </Route>
-              <Route path="/admin/login" element={<AdminLogin />} />
-              <Route path="/admin" element={<AdminLayout />}>
-                <Route index element={<AdminDashboard />} />
-                <Route path="clients" element={<AdminClients />} />
-                <Route path="clients/:id" element={<AdminClientDetail />} />
-                <Route path="support" element={<AdminSupport />} />
-                <Route path="support/:id" element={<AdminSupportRequest />} />
-                <Route path="licenses" element={<AdminLicenses />} />
-                <Route path="payments" element={<AdminPayments />} />
-                <Route path="products" element={<AdminProducts />} />
-                <Route path="plans" element={<Navigate to="/admin/products" replace />} />
-                <Route path="downloads" element={<AdminDownloads />} />
-                <Route path="website" element={<AdminWebsite />} />
-                <Route path="ads" element={<AdminAds />} />
-                <Route path="config" element={<AdminConfig />} />
-                <Route path="audit" element={<AdminAudit />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
+            <Suspense fallback={<Spinner />}>
+              <Routes>
+                <Route path="/" element={<ProductPage />} />
+                <Route path="/buy" element={<CheckoutPage />} />
+                {/* Ad landing page: not linked from the website. */}
+                <Route path="/offer" element={<OfferPage />} />
+                <Route path="/register" element={<KeepQuery to="/buy" />} />
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/mobile" element={<MobilePage />} />
+                <Route path="/support" element={<SupportPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/terms" element={<PolicyPage id="terms" />} />
+                <Route path="/privacy" element={<PolicyPage id="privacy" />} />
+                <Route path="/shipping" element={<PolicyPage id="shipping" />} />
+                <Route path="/refunds" element={<PolicyPage id="refunds" />} />
+                <Route path="/cancellation-refunds" element={<Navigate to="/refunds" replace />} />
+                <Route path="/account" element={<PortalLayout />}>
+                  <Route index element={<ClientHome />} />
+                  <Route path="services" element={<Services />} />
+                  <Route path="downloads" element={<DownloadsPage />} />
+                  <Route path="support" element={<MySupport />} />
+                  <Route path="support/:id" element={<MySupportRequest />} />
+                  <Route path="settings" element={<Account />} />
+                  <Route path="*" element={<Navigate to="/account" replace />} />
+                </Route>
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route path="/admin" element={<AdminLayout />}>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="clients" element={<AdminClients />} />
+                  <Route path="clients/:id" element={<AdminClientDetail />} />
+                  <Route path="support" element={<AdminSupport />} />
+                  <Route path="support/:id" element={<AdminSupportRequest />} />
+                  <Route path="licenses" element={<AdminLicenses />} />
+                  <Route path="payments" element={<AdminPayments />} />
+                  <Route path="products" element={<AdminProducts />} />
+                  <Route path="plans" element={<Navigate to="/admin/products" replace />} />
+                  <Route path="downloads" element={<AdminDownloads />} />
+                  <Route path="website" element={<AdminWebsite />} />
+                  <Route path="ads" element={<AdminAds />} />
+                  <Route path="config" element={<AdminConfig />} />
+                  <Route path="audit" element={<AdminAudit />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
           </AuthProvider>
         </DialogProvider>
       </ToastProvider>

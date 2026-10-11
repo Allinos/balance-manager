@@ -175,6 +175,12 @@ The browser (and the apps) can never create a license, choose an amount or exten
    and how DocGen solves each one.
    Switch the problems section off in Admin → Website → Sections. `/buy` is the plain checkout
    (details → payment).
+   **Fast first screen**: the server puts the first screen of `/` and `/offer` (headline, price, Buy /
+   Download button, demo picture) and the page data straight into the HTML (`services/prerender.js`), so it
+   shows before the app's JavaScript loads; other pages show a plain "Loading…". Pages and files are sent
+   gzip-compressed, the built files are cached for a year, and the admin panel and account pages load only
+   when opened. Measured on a simulated slow-4G phone (local server): headline and price visible in about
+   1 second, the whole app ready in about 2.3 seconds, about 300 KB transferred.
    **Intro video**: Admin → Website → *Intro video* (default `https://www.youtube.com/watch?v=qycjuev523o`) is
    shown on the landing page (right after the hero, followed by "Stop entering the same details" and the 18
    document types) and on the offer page; embedded from youtube-nocookie.com. Empty = not shown.

@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import express from 'express';
 import helmet from 'helmet';
+import compression from 'compression';
 import cors from 'cors';
 import multer from 'multer';
 import { config } from './config.js';
@@ -16,6 +17,8 @@ import { adminRoutes } from './routes/admin.js';
 import { getProvider } from './payments/index.js';
 import { audit, bumpStat, getSiteConfig } from './services/common.js';
 import { pixelScript, validPixelId, withPixel } from './services/meta.js';
+import { landingShell, offerShell, withShell } from './services/prerender.js';
+import { sitePayload } from './routes/portal.js';
 import { PLATFORMS, installerPath, isEntitled } from './services/downloads.js';
 import { verifyPurposeToken } from './lib/security.js';
 
@@ -25,6 +28,8 @@ import { verifyPurposeToken } from './lib/security.js';
  */
 export function createApp(knex, { logger = console, vite = null } = {}) {
   const app = express();
+  // gzip for pages, the app's JavaScript/CSS and API answers (the app's main file shrinks from ~380 KB to ~120 KB).
+  app.use(compression());
   app.disable('x-powered-by');
   if (config.trustProxy) app.set('trust proxy', 1);
 
@@ -159,13 +164,26 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
       res.set('Cache-Control', 'no-cache').type('application/javascript').send(id ? pixelScript(id) : '/* Meta Pixel is off */\n');
     });
     // redirect: false — a folder such as img/ never turns a page address into a folder redirect.
+    // Built files have a content hash in their name (assets/index-AbC123.js): the browser keeps them for a year.
+    app.use('/assets', express.static(path.join(config.portalDist, 'assets'), { index: false, redirect: false, maxAge: '365d', immutable: true }));
     app.use(express.static(config.portalDist, { index: false, redirect: false, maxAge: '1h' }));
     // Every page of the single-page app gets index.html, with the Pixel in the HTML itself so Meta's tools see it.
     app.get(/^(?!\/api\/).*/, async (req, res) => {
       const id = await pixelFor(req.path);
       // The ad offer page is for ad visitors only: keep it out of search results.
       if (req.path === '/offer') res.set('X-Robots-Tag', 'noindex, nofollow');
-      res.set('Cache-Control', 'no-cache').type('html').send(id ? withPixel(indexHtml, id) : indexHtml);
+      // / and /offer: the first screen and the page data in the HTML itself, so they show before the app loads.
+      let html = withShell(indexHtml, '', null);
+      if (req.path === '/' || req.path === '/offer') {
+        try {
+          const payload = await sitePayload(knex);
+          const shell = req.path === '/' ? landingShell(payload) : payload.site?.offer?.enabled !== false ? offerShell(payload) : '';
+          html = withShell(indexHtml, shell, payload);
+        } catch {
+          /* the plain "Loading…" page; the app loads its data itself */
+        }
+      }
+      res.set('Cache-Control', 'no-cache').type('html').send(id ? withPixel(html, id) : html);
     });
   }
 
