@@ -184,7 +184,7 @@ The browser (and the apps) can never create a license, choose an amount or exten
    tells one story, top to bottom: the hero ("Create invoices, quotations & business documents in under a
    minute", saved customers / vendors / products, GST & Non-GST · 18 document types, "Start with 1 year —
    ₹1,250 · one-time payment · no auto-renewal · 7-day refund policy", **Download – ₹1,250** and
-   **▶ Watch 25-sec demo**) next to a 25-second recording of the real app (Quotation → saved customer →
+   **▶ Watch demo video** — it scrolls to the YouTube intro video and starts it) next to a 25-second recording of the real app (Quotation → saved customer →
    saved products → GST worked out → saved; `demo.mp4` H.264 + `demo.webm`, about 350 KB, muted, plays
    while on screen) → "Stop entering the same details again and again" (saved customer / product pickers)
    → "Still doing this by hand?" → the 18 document types → **Before vs. after** with a typical-time bar

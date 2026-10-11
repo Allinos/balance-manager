@@ -401,14 +401,18 @@ try {
     'then: "Start with 1 year — ₹1,250 · One-time payment · No auto-renewal · 7-day refund policy"');
   const buyBtn = await ad.getByTestId('offer-buy').boundingBox();
   const watchBtn = await ad.getByTestId('offer-watch').boundingBox();
-  check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Download – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch 25-sec demo'),
-    'first screen of a phone: "Download – ₹1,250" and "▶ Watch 25-sec demo"');
+  check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Download – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch demo video'),
+    'first screen of a phone: "Download – ₹1,250" and "▶ Watch demo video"');
   check((await ad.getByTestId('offer-bar').textContent()).includes('save 17%') && (await ad.getByTestId('offer-timer').count()) === 0 && (await ad.getByTestId('offer-buyers').count()) === 0,
     'no countdown and no buyer number by default; top bar: special price, save 17%');
+  await ad.waitForFunction(() => { const v = document.querySelector('[data-testid=offer-demo-video]'); return v && !v.paused && v.videoWidth === 1280; }, null, { timeout: 15000 });
+  check(true, 'the 25-second recording of the real app plays next to the headline');
   await ad.getByTestId('offer-watch').click();
-  await ad.waitForFunction(() => { const v = document.querySelector('[data-testid=offer-demo-video]'); return v && !v.paused && v.currentTime > 0.5 && v.videoWidth === 1280; }, null, { timeout: 15000 });
-  const demoBox = await ad.getByTestId('offer-demo-video').boundingBox();
-  check(demoBox.y >= 0 && demoBox.y + demoBox.height <= 844, '"Watch demo" scrolls to the 25-second recording of the real app and plays it');
+  await ad.waitForFunction(() => /autoplay=1/.test(document.querySelector('[data-testid=intro-video] iframe')?.src || ''), null, { timeout: 5000 });
+  await ad.waitForTimeout(900);
+  const ytBox = await ad.getByTestId('intro-video').locator('iframe').boundingBox();
+  check(ytBox.y >= 0 && ytBox.y + ytBox.height <= 844 && (await ad.getByTestId('intro-video').locator('iframe').getAttribute('src')).includes('qycjuev523o'),
+    '"Watch demo video" scrolls to the YouTube video and starts it');
   await adShot('03b-offer-demo');
   const order = ['offer-hero', 'offer-saved', 'intro-video', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
   const ys = [];

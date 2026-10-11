@@ -608,6 +608,7 @@ export default function OfferPage() {
   const [payVisible, setPayVisible] = useState(false);
   const payRef = useRef(null);
   const videoRef = useRef(null);
+  const [playIntro, setPlayIntro] = useState(false);
   const offer = data?.site?.offer || {};
   const seconds = useCountdown(data ? Number(offer.timerMinutes) || 0 : 0);
 
@@ -666,7 +667,14 @@ export default function OfferPage() {
     payRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(() => payRef.current?.querySelector('[data-testid=co-name]:not(:disabled)')?.focus({ preventScroll: true }), 600);
   };
+  // "Watch demo" goes to the YouTube video and starts it (muted, as browsers require for autoplay); without one, the recording at the top.
   const watchDemo = () => {
+    const yt = document.querySelector('[data-testid=intro-video]');
+    if (yt) {
+      yt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPlayIntro(true);
+      return;
+    }
     document.getElementById('demo')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     const v = videoRef.current;
     if (v) {
@@ -727,7 +735,7 @@ export default function OfferPage() {
                 <span className="play-dot" aria-hidden="true">
                   ▶
                 </span>{' '}
-                Watch {DEMO.seconds}-sec demo
+                Watch demo video
               </button>
             </div>
             {(rating > 0 && offer.ratingSource) || offer.customers || recentSales ? (
@@ -755,7 +763,7 @@ export default function OfferPage() {
 
         <SavedOnce />
 
-        <IntroVideo url={data.site.introVideo} sub="A short look at DocGen: making documents from saved customers and products." />
+        <IntroVideo url={data.site.introVideo} autoplay={playIntro} sub="A short look at DocGen: making documents from saved customers and products." />
 
         <div className="lp-band">
           <Problems />

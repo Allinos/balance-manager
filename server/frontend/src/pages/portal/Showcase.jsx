@@ -10,9 +10,10 @@ import { embedUrl } from './ProductPage.jsx';
 export const IMG = (name) => `/img/offer/${name}.webp`;
 
 /** The short DocGen video on YouTube (Admin → Website → Intro video); shown privacy-friendly via youtube-nocookie. */
-export function IntroVideo({ url, title = 'See DocGen in action', sub, testid = 'intro-video', className = 'offer-section' }) {
-  const src = embedUrl(url || '');
-  if (!src) return null;
+export function IntroVideo({ url, autoplay = false, title = 'See DocGen in action', sub, testid = 'intro-video', className = 'offer-section' }) {
+  const embed = embedUrl(url || '');
+  if (!embed) return null;
+  const src = autoplay ? `${embed}${embed.includes('?') ? '&' : '?'}autoplay=1&mute=1` : embed;
   const vertical = /\/shorts\//.test(url);
   return (
     <section className={className} data-testid={testid}>
