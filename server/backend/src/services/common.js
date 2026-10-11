@@ -117,6 +117,8 @@ export const DEFAULT_SITE = {
     { url: '/screenshots/documents.png', caption: 'All your documents in one place' },
   ],
   videos: [],
+  /** Short DocGen video on YouTube, shown on the landing page and the offer page ('' = none). */
+  introVideo: 'https://www.youtube.com/watch?v=qycjuev523o',
   showComparison: true,
   showProblems: true,
   /** Meta Pixel for Facebook / Instagram ads (the ID is public; the Conversions API token is in .env). */

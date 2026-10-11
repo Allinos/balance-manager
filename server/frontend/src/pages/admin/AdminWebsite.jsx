@@ -140,6 +140,19 @@ export default function AdminWebsite() {
         )}
       </div>
 
+      <div className="card form" data-testid="intro-video-settings">
+        <h3>Intro video</h3>
+        <Field label="YouTube or Vimeo link" hint="A short video shown near the top of the website and on the offer page for ads. Empty = not shown.">
+          <Input
+            value={form.introVideo}
+            onChange={set('introVideo')}
+            maxLength={500}
+            placeholder="https://www.youtube.com/watch?v=…"
+            data-testid="intro-video-url"
+          />
+        </Field>
+      </div>
+
       <div className="card form">
         <div className="card-head" style={{ marginBottom: 0 }}>
           <h3>Product videos</h3>

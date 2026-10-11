@@ -175,12 +175,15 @@ The browser (and the apps) can never create a license, choose an amount or exten
    and how DocGen solves each one.
    Switch the problems section off in Admin → Website → Sections. `/buy` is the plain checkout
    (details → payment).
+   **Intro video**: Admin → Website → *Intro video* (default `https://www.youtube.com/watch?v=qycjuev523o`) is
+   shown on the landing page (right after the hero, followed by "Stop entering the same details" and the 18
+   document types) and on the offer page; embedded from youtube-nocookie.com. Empty = not shown.
    **Offer page for ads** (`/offer`, e.g. `https://docgen.reynrel.in/offer`): a short, separate sales
    page for Facebook / Instagram ads. It is not linked anywhere on the website, has no website menu and is
    kept out of search engines (`X-Robots-Tag: noindex` + a robots meta tag). It says what the ads say and
    tells one story, top to bottom: the hero ("Create invoices, quotations & business documents in under a
    minute", saved customers / vendors / products, GST & Non-GST · 18 document types, "Start with 1 year —
-   ₹1,250 · one-time payment · no auto-renewal · 7-day refund policy", **Get DocGen – ₹1,250** and
+   ₹1,250 · one-time payment · no auto-renewal · 7-day refund policy", **Download – ₹1,250** and
    **▶ Watch 25-sec demo**) next to a 25-second recording of the real app (Quotation → saved customer →
    saved products → GST worked out → saved; `demo.mp4` H.264 + `demo.webm`, about 350 KB, muted, plays
    while on screen) → "Stop entering the same details again and again" (saved customer / product pickers)
@@ -189,7 +192,8 @@ The browser (and the apps) can never create a license, choose an amount or exten
    paid (UPI QR, A5 receipt, Save as PDF on the phone) → reviews and guarantees → FAQ (10 questions, incl.
    "What happens after I pay?") → plans and the payment form (with the 3 steps after payment). The
    pictures are real DocGen screens with sample data, in `frontend/public/img/offer/` (loaded as they
-   scroll in). A sticky **Get DocGen** bar at the bottom jumps to the form.
+   scroll in). A sticky **Download** bar at the bottom jumps to the form (the buttons lead to payment; the
+   download link comes right after it).
    Payment, account, license and the confirmation email are the same as on `/buy` (shared `CheckoutForm`);
    UTM tags and `fbclid` are tracked as on the rest of the site. Admin → Website → *Offer page for ads*:
    the link to copy, on/off (off: `/offer` opens `/buy`), regular price (% above the real price, rounded

@@ -2,9 +2,9 @@
  * Offer page for ads (Facebook / Instagram): https://<site>/offer — not linked anywhere on the website and kept
  * out of search results. It tells one story, in the words of the ads: what DocGen is (invoices, quotations and
  * other business documents from saved customers, vendors and products) → a 25-second demo of the real app →
- * the problem → saved details → document types → before / after → real documents → document manager →
+ * saved details → the YouTube intro video → the problem → document types → before / after → real documents → document manager →
  * reviews and guarantees → FAQ (incl. what happens after payment) → plans and the payment form.
- * "Get DocGen" (hero and sticky bar) jumps to the payment form. Payment, account, license and the confirmation
+ * "Download" (hero and sticky bar) jumps to the payment form. Payment, account, license and the confirmation
  * email work exactly as on /buy (the same CheckoutForm).
  *
  * Settings: Admin → Website → "Offer page for ads" (on/off, regular price %, countdown, real sales line,
@@ -21,6 +21,7 @@ import { SUPPORT_EMAIL } from '../../constants.js';
 import { CheckoutForm, PurchaseSuccess } from './Checkout.jsx';
 import { licenseLength, period, planCards } from './ProductPage.jsx';
 import { saleParams, track } from '../../pixel.js';
+import { DOC_COUNT, DOC_GROUPS, DocTypes, IMG, IntroVideo, SavedOnce } from './Showcase.jsx';
 
 const KEY_ENDS = 'docgen.offer.ends';
 
@@ -151,7 +152,6 @@ function Plans({ product, priceId, onPick, percent, revealed }) {
 }
 
 /** Product pictures and the demo of the offer page (public/img/offer, made from the real app with sample data). */
-const IMG = (name) => `/img/offer/${name}.webp`;
 /** MP4 (H.264) plays everywhere people browse; WebM for browsers built without H.264. */
 const DEMO = { mp4: '/img/offer/demo.mp4', webm: '/img/offer/demo.webm', poster: IMG('demo-poster'), seconds: 25 };
 
@@ -240,53 +240,6 @@ function Demo({ videoRef }) {
   );
 }
 
-/** Customers, vendors and products: saved once, picked by typing a few letters (the ads' main promise). */
-const SAVED = [
-  ['user', 'Customer added once', 'Next time, type two letters and pick them — address, phone and GSTIN fill in.'],
-  ['box', 'Vendor added once', 'Reuse them on purchase orders, purchase bills and payment vouchers.'],
-  ['file', 'Product added once', 'HSN/SAC, unit, price and GST rate come with it on every document.'],
-];
-
-function SavedOnce() {
-  return (
-    <section className="offer-section" data-testid="offer-saved">
-      <h2>Stop entering the same details again and again</h2>
-      <p className="offer-sub">Save a customer, vendor or product the first time. After that, search, pick and your document is filled in.</p>
-      <div className="saved-grid">
-        {SAVED.map(([icon, title, text]) => (
-          <div key={title} className="saved-card">
-            <span className="saved-icon">
-              <Icon name={icon} size={20} />
-            </span>
-            <div>
-              <strong>
-                {title} <Icon name="check" size={16} strokeWidth={2.8} className="saved-tick" />
-              </strong>
-              <p>{text}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="saved-shots">
-        <figure>
-          <img
-            src={IMG('pick-customer')}
-            alt="Typing “Ra” shows the saved customers Patel Traders and Rao Constructions"
-            width="1000"
-            height="470"
-            loading="lazy"
-          />
-          <figcaption>Type a few letters — pick the saved customer</figcaption>
-        </figure>
-        <figure>
-          <img src={IMG('pick-product')} alt="Typing “chair” shows saved products with HSN, price and GST" width="1000" height="490" loading="lazy" />
-          <figcaption>Pick a saved product — HSN, price and GST come with it</figcaption>
-        </figure>
-      </div>
-    </section>
-  );
-}
-
 /** The everyday problems the ads talk about. */
 const PROBLEMS = [
   ['user', 'Typing the same customer details every time', 'Name, address, phone and GSTIN — again for every invoice and every quotation.'],
@@ -315,41 +268,6 @@ function Problems() {
       <p className="offer-simple">
         <b>You don&apos;t need complicated accounting software</b> just to make a professional invoice or quotation.
       </p>
-    </section>
-  );
-}
-
-/** The 18 document types of the app (document-generator/src/config/documentTypes.js), grouped as people think of them. */
-export const DOC_GROUPS = [
-  ['rupee', 'Sell', ['Tax Invoice', 'Service Invoice', 'Bill of Supply', 'Proforma Invoice', 'Credit Note', 'Debit Note']],
-  ['file', 'Quote and confirm', ['Quotation', 'Estimate', 'Sales Order', 'Delivery Challan', 'Job / Service Completion']],
-  ['box', 'Buy', ['Purchase Order', 'Purchase Invoice / Bill', 'Goods Receipt Note', 'Reverse Quotation', 'Work Order']],
-  ['card', 'Payments', ['Payment Receipt', 'Payment Voucher']],
-];
-const DOC_COUNT = DOC_GROUPS.reduce((n, [, , list]) => n + list.length, 0);
-
-function DocTypes() {
-  return (
-    <section className="offer-section" data-testid="offer-doc-types">
-      <h2>{DOC_COUNT} business documents in one simple app</h2>
-      <p className="offer-sub">GST and Non-GST. Every document can become the next one: quotation → invoice → payment receipt.</p>
-      <div className="doc-groups">
-        {DOC_GROUPS.map(([icon, title, list]) => (
-          <div key={title} className="doc-group">
-            <strong>
-              <span className="frow-icon small">
-                <Icon name={icon} size={16} />
-              </span>
-              {title}
-            </strong>
-            <ul>
-              {list.map((d) => (
-                <li key={d}>{d}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }
@@ -717,7 +635,7 @@ export default function OfferPage() {
     const t = setTimeout(() => setRevealed(true), 1200);
     return () => clearTimeout(t);
   }, [data]);
-  // The sticky "Get DocGen" bar hides while the payment form is on screen.
+  // The sticky "Download" bar hides while the payment form is on screen.
   useEffect(() => {
     const el = payRef.current;
     if (!el || typeof IntersectionObserver === 'undefined') return undefined;
@@ -803,7 +721,7 @@ export default function OfferPage() {
             </div>
             <div className="hero-ctas">
               <button type="button" className="btn btn-primary btn-lg" onClick={goPay} data-testid="offer-buy">
-                Get DocGen – {money(cheapest.price, product.currency)}
+                Download – {money(cheapest.price, product.currency)}
               </button>
               <button type="button" className="btn btn-lg btn-demo" onClick={watchDemo} data-testid="offer-watch">
                 <span className="play-dot" aria-hidden="true">
@@ -836,6 +754,8 @@ export default function OfferPage() {
         </section>
 
         <SavedOnce />
+
+        <IntroVideo url={data.site.introVideo} sub="A short look at DocGen: making documents from saved customers and products." />
 
         <div className="lp-band">
           <Problems />
@@ -883,7 +803,7 @@ export default function OfferPage() {
         <Faq items={faq} />
 
         <section className="offer-section offer-pay" id="pay" ref={payRef} data-testid="offer-pay">
-          <h2>Get DocGen</h2>
+          <h2>Download DocGen</h2>
           <p className="offer-sub center">Choose how long you want it. One-time payment — it does not renew by itself.</p>
           <RecentSales n={recentSales} testid="offer-buyers" />
           <div className="offer-pay-grid">
@@ -931,7 +851,7 @@ export default function OfferPage() {
           <small>{licenseLength(price.durationDays)} · one-time</small>
         </div>
         <button type="button" className="btn btn-primary btn-lg" onClick={goPay} tabIndex={payVisible ? -1 : 0} data-testid="offer-paynow">
-          Get DocGen →
+          Download →
         </button>
       </div>
     </div>

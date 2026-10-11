@@ -1,6 +1,6 @@
 /**
  * Public product page: what DocGen is, what it looks like, price cards per license duration, DocGen Mobile,
- * comparison and a short FAQ. Headline, screenshots and videos come from Admin → Website; prices from Admin → Products.
+ * comparison and a short FAQ. Also the intro video, saved customers / products and the 18 document types (Showcase.jsx). Headline, screenshots and videos come from Admin → Website; prices from Admin → Products.
  */
 
 import { useState } from 'react';
@@ -10,23 +10,39 @@ import { Spinner, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
 import { ProblemSection } from './Pitch.jsx';
+import { DocTypes, IntroVideo, SavedOnce } from './Showcase.jsx';
 
 const FEATURES = [
   ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
   ['printer', 'Professional templates', 'Professional, Standard, Modern or Simple — with your logo, signature, bank details and UPI QR code.'],
-  ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license. Same documents, same templates.'],
+  ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license, with the same templates on both.'],
   ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
   ['rupee', 'One-time payment', 'Pay once for 1, 2 or 5 years. No monthly fees, no per-invoice costs.'],
 ];
 
 const FAQ = [
-  ['Do I have to pay every month?', 'No. You pay once for the period you choose — 1, 2 or 5 years — and use everything during that time. Renew whenever you like from your account.'],
-  ['Can I use DocGen on my phone?', 'Yes. The same license works on your computer and on your phone. DocGen Mobile installs from the browser in a few seconds — see the step-by-step guide on the mobile page.'],
+  [
+    'Do I have to pay every month?',
+    'No. You pay once for the period you choose — 1, 2 or 5 years — and use everything during that time. Renew whenever you like from your account.',
+  ],
+  [
+    'Can I use DocGen on my phone?',
+    'Yes. The same license works on your computer and on your phone. DocGen Mobile installs from the browser in a few seconds — see the step-by-step guide on the mobile page.',
+  ],
   ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
-  ['How do I get my license?', 'Right after payment your license key and download link appear on screen and arrive by email. You are signed in to your account at once.'],
-  ['Can I get a refund?', 'Yes — within 7 days of payment if the license has not been activated, or if DocGen does not work on your device and we cannot fix it. See Cancellation & Refunds.'],
-  ['Is my data safe?', 'Your documents, customers and products stay on your computer or phone and are never uploaded. Back them up to a file whenever you like.'],
+  [
+    'How do I get my license?',
+    'Right after payment your license key and download link appear on screen and arrive by email. You are signed in to your account at once.',
+  ],
+  [
+    'Can I get a refund?',
+    'Yes — within 7 days of payment if the license has not been activated, or if DocGen does not work on your device and we cannot fix it. See Cancellation & Refunds.',
+  ],
+  [
+    'Is my data safe?',
+    'Your documents, customers and products stay on your computer or phone and are never uploaded. Back them up to a file whenever you like.',
+  ],
 ];
 
 function Faq() {
@@ -87,7 +103,13 @@ function Video({ video }) {
     <div className="video">
       <div className="video-frame">
         {src ? (
-          <iframe src={src} title={video.title || 'DocGen video'} loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowFullScreen />
+          <iframe
+            src={src}
+            title={video.title || 'DocGen video'}
+            loading="lazy"
+            allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
         ) : direct ? (
           <video src={video.url} controls preload="metadata" style={{ width: '100%', height: '100%' }} />
         ) : null}
@@ -251,7 +273,11 @@ export function PricingCards({ product }) {
               <Icon name="check" size={15} strokeWidth={2.4} /> Free updates &amp; support{p.durationDays ? ` for ${p.periodText.toLowerCase()}` : ''}
             </li>
           </ul>
-          <Link className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`} to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`} data-testid={`buy-${p.durationDays}`}>
+          <Link
+            className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`}
+            to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`}
+            data-testid={`buy-${p.durationDays}`}
+          >
             Buy {p.periodText.toLowerCase() === 'lifetime' ? 'lifetime license' : p.periodText}
           </Link>
         </div>
@@ -280,7 +306,7 @@ export default function ProductPage() {
       <main>
         <section className="lp-section hero">
           <div>
-            <span className="lp-eyebrow">GST billing for Indian businesses</span>
+            <span className="lp-eyebrow">Simple document software for small businesses</span>
             <h1 data-testid="headline">{site.headline}</h1>
             <p className="lp-lead">{site.subheadline}</p>
             <div className="hero-cta">
@@ -311,7 +337,15 @@ export default function ProductPage() {
           </div>
         </section>
 
+        <div className="lp-band">
+          <IntroVideo url={site.introVideo} sub="A short look at DocGen: invoices, quotations and more from saved customers and products." />
+        </div>
+
+        <SavedOnce />
+
         {site.showProblems !== false && <ProblemSection />}
+
+        <DocTypes />
 
         <div className="lp-band">
           <section className="lp-section" id="features">
@@ -355,7 +389,9 @@ export default function ProductPage() {
           <section className="lp-section" id="pricing">
             <div className="lp-head">
               <span className="lp-eyebrow">Pricing</span>
-              <h2 className="lp-title">{products.length && products[0].prices.length > 1 ? 'One-time payment. Choose your plan.' : 'One-time payment. No subscription.'}</h2>
+              <h2 className="lp-title">
+                {products.length && products[0].prices.length > 1 ? 'One-time payment. Choose your plan.' : 'One-time payment. No subscription.'}
+              </h2>
               <p className="lp-lead">
                 {products.length && products[0].prices.length > 1
                   ? 'Every plan includes all features, the desktop and the mobile app. The longer the period, the less you pay per year.'
@@ -384,8 +420,8 @@ export default function ProductPage() {
               <span className="lp-eyebrow">DocGen Mobile</span>
               <h2 className="lp-title">Your billing, in your pocket</h2>
               <p className="lp-lead">
-                All document types and the same templates as on your computer, on Android and iPhone — even without internet. Installs from the
-                browser in seconds; one license covers your computer and up to {product?.maxMobileDevices || 2} phones.
+                All document types and the same templates as on your computer, on Android and iPhone — even without internet. Installs from the browser in
+                seconds; one license covers your computer and up to {product?.maxMobileDevices || 2} phones.
               </p>
               <div className="hero-cta" style={{ marginTop: 18 }}>
                 <Link className="btn btn-primary btn-lg" to="/mobile" data-testid="get-mobile">

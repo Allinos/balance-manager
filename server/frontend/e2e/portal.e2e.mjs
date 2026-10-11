@@ -374,7 +374,7 @@ try {
   await page.getByText('Payment not completed').waitFor();
   check(true, 'closing the payment window keeps the visitor on the checkout');
 
-  console.log('Ad offer page (/offer) on a phone: hero → demo → story → FAQ → Get DocGen → payment → license');
+  console.log('Ad offer page (/offer) on a phone: hero → demo → story → FAQ → Download → payment → license');
   const adVisitor = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await routePixel(adVisitor);
   const ad = await adVisitor.newPage();
@@ -401,8 +401,8 @@ try {
     'then: "Start with 1 year — ₹1,250 · One-time payment · No auto-renewal · 7-day refund policy"');
   const buyBtn = await ad.getByTestId('offer-buy').boundingBox();
   const watchBtn = await ad.getByTestId('offer-watch').boundingBox();
-  check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Get DocGen – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch 25-sec demo'),
-    'first screen of a phone: "Get DocGen – ₹1,250" and "▶ Watch 25-sec demo"');
+  check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Download – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch 25-sec demo'),
+    'first screen of a phone: "Download – ₹1,250" and "▶ Watch 25-sec demo"');
   check((await ad.getByTestId('offer-bar').textContent()).includes('save 17%') && (await ad.getByTestId('offer-timer').count()) === 0 && (await ad.getByTestId('offer-buyers').count()) === 0,
     'no countdown and no buyer number by default; top bar: special price, save 17%');
   await ad.getByTestId('offer-watch').click();
@@ -410,7 +410,7 @@ try {
   const demoBox = await ad.getByTestId('offer-demo-video').boundingBox();
   check(demoBox.y >= 0 && demoBox.y + demoBox.height <= 844, '"Watch demo" scrolls to the 25-second recording of the real app and plays it');
   await adShot('03b-offer-demo');
-  const order = ['offer-hero', 'offer-saved', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
+  const order = ['offer-hero', 'offer-saved', 'intro-video', 'offer-problems', 'offer-doc-types', 'offer-before-after', 'offer-fixes', 'offer-templates', 'offer-features', 'offer-proof', 'offer-faq', 'offer-pay'];
   const ys = [];
   for (const id of order) ys.push(await ad.getByTestId(id).evaluate((el) => el.getBoundingClientRect().top + window.scrollY));
   check(ys.every((y, i) => i === 0 || y > ys[i - 1]), `sections in story order: ${order.map((id) => id.slice(6)).join(' → ')}`);
@@ -439,14 +439,16 @@ try {
   await faq.getByText('Is DocGen accounting software?').click();
   check((await faq.locator('details[open]').count()) === 2, 'FAQ answers open with a tap');
   check((await ad.locator('header a, .site-nav').count()) === 0, 'no website menu on the offer page — nothing leads away from the offer');
-  check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Get DocGen" button at the bottom of the screen');
+  check(await ad.getByTestId('offer-paynow').isVisible(), 'sticky "Download" button at the bottom of the screen');
+  check((await ad.getByTestId('offer-paynow').textContent()).includes('Download') && (await ad.getByTestId('offer-pay').locator('h2').first().textContent()) === 'Download DocGen', 'buttons say "Download"');
+  check((await ad.getByTestId('intro-video').locator('iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/qycjuev523o'), 'offer page: the DocGen YouTube video, right after "Stop entering the same details"');
   await ad.locator('.offer-sticky .offer-price.revealed').waitFor();
   await ad.getByTestId('offer-saved').scrollIntoViewIfNeeded();
   await ad.waitForTimeout(300);
   await adShot('03c-offer-saved');
   await ad.getByTestId('offer-paynow').click();
   await ad.waitForTimeout(900);
-  check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Get DocGen" jumps to the payment section');
+  check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Download" jumps to the payment section');
   check((await ad.getByTestId('offer-after-pay').textContent()).includes('license key shows on screen'), 'payment section: what happens after payment, in 3 steps');
   await ad.waitForTimeout(400);
   check(!(await ad.getByTestId('offer-sticky').evaluate((el) => el.getBoundingClientRect().top < window.innerHeight)), 'the sticky bar hides while the payment form is on screen');
@@ -578,6 +580,9 @@ try {
   const page2 = await context.newPage();
   await page2.goto(base);
   await page2.getByTestId('videos').waitFor();
+  check((await page2.getByTestId('intro-video').locator('iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/qycjuev523o')
+    && (await page2.getByTestId('offer-saved').count()) === 1 && (await page2.getByTestId('offer-doc-types').count()) === 1,
+    'website: the DocGen YouTube video, saved customers & products and the 18 document types');
   check((await page2.getByTestId('headline').textContent()) === 'Invoices your customers trust', 'website headline changed by the admin');
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
   check((await page2.getByTestId('price').first().textContent()).includes('1,500') && (await page2.getByTestId('pricing-cards').textContent()).includes('3 years'), 'website shows the new prices at once');

@@ -74,6 +74,8 @@ const siteSchema = z.object({
     .max(6)
     .default([]),
   videos: z.array(z.object({ title: z.string().trim().max(80).default(''), url: httpsUrl.refine((v) => v !== '', 'enter the video address') })).max(2).default([]),
+  /** Short intro video (YouTube / Vimeo link) on the landing page and the offer page; '' = none. */
+  introVideo: httpsUrl.optional(),
   showComparison: z.boolean().default(true),
   /** Home page: "Sound familiar?" section with the problems DocGen solves. */
   showProblems: z.boolean().default(true),
