@@ -79,46 +79,46 @@ export default function CompanySettings() {
 
       <div className="grid-2">
         <Field label="Company name" required>
-          <TextInput value={c.name} onChange={(v) => set({ name: v })} />
+          <TextInput placeholder="e.g. Sharma Furniture Works" value={c.name} onChange={(v) => set({ name: v })} />
         </Field>
         <Field label="Legal name">
-          <TextInput value={c.legal_name} onChange={(v) => set({ legal_name: v })} />
+          <TextInput placeholder="Registered name, if different" value={c.legal_name} onChange={(v) => set({ legal_name: v })} />
         </Field>
         <Field label="Trade name">
-          <TextInput value={c.trade_name} onChange={(v) => set({ trade_name: v })} />
+          <TextInput placeholder="Brand / trade name, if any" value={c.trade_name} onChange={(v) => set({ trade_name: v })} />
         </Field>
         <Field label="Phone">
-          <TextInput value={c.phone} onChange={(v) => set({ phone: v })} />
+          <TextInput placeholder="e.g. +91 98450 12345" value={c.phone} onChange={(v) => set({ phone: v })} />
         </Field>
         <Field label="Address" className="span-2">
-          <TextArea rows={2} value={c.address} onChange={(v) => set({ address: v })} />
+          <TextArea placeholder="Building, street, area" rows={2} value={c.address} onChange={(v) => set({ address: v })} />
         </Field>
         <Field label="City">
-          <TextInput value={c.city} onChange={(v) => set({ city: v })} />
+          <TextInput placeholder="e.g. Bengaluru" value={c.city} onChange={(v) => set({ city: v })} />
         </Field>
         <Field label="State" hint={gst ? 'Used to choose CGST+SGST or IGST automatically' : ''}>
-          <TextInput value={c.state} onChange={(v) => set({ state: v })} list="company-states" />
+          <TextInput placeholder="e.g. Karnataka" value={c.state} onChange={(v) => set({ state: v })} list="company-states" />
         </Field>
         <Field label="PIN / ZIP code">
-          <TextInput value={c.pin} onChange={(v) => set({ pin: v })} />
+          <TextInput placeholder="e.g. 560058" value={c.pin} onChange={(v) => set({ pin: v })} />
         </Field>
         <Field label="Country">
-          <TextInput value={c.country} onChange={(v) => set({ country: v })} />
+          <TextInput placeholder="e.g. India" value={c.country} onChange={(v) => set({ country: v })} />
         </Field>
         <Field label="Email">
-          <TextInput type="email" value={c.email} onChange={(v) => set({ email: v })} />
+          <TextInput placeholder="e.g. sales@yourcompany.in" type="email" value={c.email} onChange={(v) => set({ email: v })} />
         </Field>
         <Field label="Website">
-          <TextInput value={c.website} onChange={(v) => set({ website: v })} />
+          <TextInput placeholder="e.g. www.yourcompany.in" value={c.website} onChange={(v) => set({ website: v })} />
         </Field>
         <Field label="GSTIN">
-          <TextInput value={c.gstin} onChange={(v) => set({ gstin: v.toUpperCase() })} />
+          <TextInput placeholder="e.g. 29AAACS1234K1Z9" value={c.gstin} onChange={(v) => set({ gstin: v.toUpperCase() })} />
         </Field>
         <Field label="PAN" help="Your 10-character Permanent Account Number. Printed as “Company's PAN” on GST invoices.">
-          <TextInput value={c.pan} onChange={(v) => set({ pan: v.toUpperCase() })} />
+          <TextInput placeholder="e.g. AAACS1234K" value={c.pan} onChange={(v) => set({ pan: v.toUpperCase() })} />
         </Field>
         <Field label="VAT number">
-          <TextInput value={c.vat_number} onChange={(v) => set({ vat_number: v })} />
+          <TextInput placeholder="e.g. 100123456700003" value={c.vat_number} onChange={(v) => set({ vat_number: v })} />
         </Field>
       </div>
       <datalist id="company-states">
@@ -130,28 +130,28 @@ export default function CompanySettings() {
       <h3>Bank details</h3>
       <div className="grid-2">
         <Field label="Bank name">
-          <TextInput value={c.bank_name} onChange={(v) => set({ bank_name: v })} data-testid="company-bank-name" />
+          <TextInput placeholder="e.g. State Bank of India" value={c.bank_name} onChange={(v) => set({ bank_name: v })} data-testid="company-bank-name" />
         </Field>
         <Field label="Account holder">
-          <TextInput value={c.account_holder} onChange={(v) => set({ account_holder: v })} />
+          <TextInput placeholder="Name on the bank account" value={c.account_holder} onChange={(v) => set({ account_holder: v })} />
         </Field>
         <Field label="Account number">
-          <TextInput value={c.account_number} onChange={(v) => set({ account_number: v })} data-testid="company-account-number" />
+          <TextInput placeholder="e.g. 38291045671" value={c.account_number} onChange={(v) => set({ account_number: v })} data-testid="company-account-number" />
         </Field>
         <Field label="IFSC" help="11-character bank branch code, printed with your bank details so customers can pay by NEFT/RTGS.">
-          <TextInput value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} data-testid="company-ifsc" />
+          <TextInput placeholder="e.g. SBIN0001234" value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} data-testid="company-ifsc" />
         </Field>
         <Field label="Branch">
-          <TextInput value={c.branch} onChange={(v) => set({ branch: v })} />
+          <TextInput placeholder="e.g. Peenya Industrial Area" value={c.branch} onChange={(v) => set({ branch: v })} />
         </Field>
         <Field label="UPI ID" hint="Used for the optional UPI payment QR code">
-          <TextInput value={c.upi_id} onChange={(v) => set({ upi_id: v })} data-testid="company-upi" />
+          <TextInput placeholder="e.g. yourname@sbi" value={c.upi_id} onChange={(v) => set({ upi_id: v })} data-testid="company-upi" />
         </Field>
         <Field label="SWIFT">
-          <TextInput value={c.swift} onChange={(v) => set({ swift: v.toUpperCase() })} />
+          <TextInput placeholder="e.g. SBININBB" value={c.swift} onChange={(v) => set({ swift: v.toUpperCase() })} />
         </Field>
         <Field label="IBAN">
-          <TextInput value={c.iban} onChange={(v) => set({ iban: v.toUpperCase() })} />
+          <TextInput placeholder="For international payments" value={c.iban} onChange={(v) => set({ iban: v.toUpperCase() })} />
         </Field>
       </div>
       <SaveBar dirty={dirty} onSave={save} />

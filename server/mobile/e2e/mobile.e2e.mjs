@@ -119,6 +119,14 @@ try {
   await a.page.getByTestId('activate').click();
   await a.page.getByTestId('setup').waitFor();
   check((await a.page.getByTestId('company-name').inputValue()) === 'Nair Traders', 'activated; business name taken from the account');
+  await a.page.evaluate(() => {
+    window.__opened = [];
+    window.open = (url, target) => window.__opened.push([url, target]);
+  });
+  await a.page.getByTestId('setup-tutorial').click();
+  const opened = await a.page.evaluate(() => window.__opened);
+  check(/youtube\.com\/watch\?v=qycjuev523o/.test(opened[0]?.[0]) && opened[0][1] === '_blank' && (await a.page.getByTestId('setup').count()) === 1,
+    'setup: "Watch Configuration Tutorial" opens YouTube in a new tab; setup stays open');
   await a.page.getByTestId('company-gstin').fill('27AAPFU0939F1ZV');
   check((await a.page.getByTestId('company-state').textContent()).includes('Maharashtra'), 'GSTIN fills the state');
   await a.page.getByTestId('setup-next').click();
@@ -268,8 +276,12 @@ try {
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('view').waitFor();
   check((await page1().textContent()).includes('RCT-00001') && (await a.page.locator('.lineage').textContent()).includes('INV-00001'), 'receipt RCT-00001 created from INV-00001');
-  const a5 = await page1().locator('.doc').first().evaluate((d) => [d.classList.contains('doc-a5'), Math.round((d.offsetWidth / 96) * 25.4)]);
-  check(a5[0] && a5[1] === 148 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, 'receipt on A5 paper (148 mm), printed on an A5 page');
+  // The A5 sheet is the A4 layout drawn at 80 %: compare its drawn width with the 148 mm paper around it.
+  const a5 = await page1().locator('.doc').first().evaluate((d) => {
+    const p = d.closest('.page-preview-paper');
+    return [d.classList.contains('doc-a5w') && p.classList.contains('paper-a5'), Math.round((148 * d.getBoundingClientRect().width) / p.getBoundingClientRect().width)];
+  });
+  check(a5[0] && Math.abs(a5[1] - 148) <= 1 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, `receipt on A5 paper (148 mm), printed on an A5 page (${a5[1]} mm)`);
   check((await page1().getByTestId('receipt-settlement').textContent()).includes('60,180'), 'printed receipt: invoice amount, received earlier, this receipt, balance due');
   await shot(a.page, '05b-receipt-a5');
   await a.page.goto(invoiceUrl.replace(/#.*$/, '#/doc/new/PAYMENT_RECEIPT'));
@@ -311,9 +323,23 @@ try {
   const quoteTotal = await a.page.getByTestId('grand-total').textContent();
   check(quoteTotal.includes('26,550.00'), `discount 10% → 22,500 + GST 18% = 26,550.00 (${quoteTotal})`);
   check(!(await a.page.getByTestId('show-bank').isChecked()), 'quotation: "Show bank details" off by default');
+  // Additional charges: as many as needed, each with its own GST rate, added before tax.
+  await a.page.getByTestId('add-charge').click();
+  await a.page.getByTestId('charge-label-0').fill('Freight');
+  await a.page.getByTestId('charge-amount-0').fill('500');
+  await pick(a.page, 'charge-tax-0', '18%');
+  await a.page.getByTestId('charges').getByText('+ Packing').click();
+  await a.page.getByTestId('charge-amount-1').fill('100');
+  const withCharges = await a.page.getByTestId('grand-total').textContent();
+  check(withCharges.includes('27,240.00'), `two charges: Freight 500 @ 18 % + Packing 100 @ 0 % → 26,550 + 590 + 100 = 27,240.00 (${withCharges})`);
+  check((await a.page.getByTestId('doc-terms').inputValue()).startsWith('1. Prices are valid'), 'quotation starts with its own default terms');
+  check((await a.page.locator('[data-testid=party-address]').getAttribute('placeholder')).length > 5, 'fields show example placeholders');
+  await a.page.getByTestId('paper-size-A5').click();
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('view').waitFor();
   check(!(await page1().textContent()).includes('HDFC0001234'), 'quotation printed without bank details');
+  check((await page1().textContent()).includes('Freight') && (await page1().textContent()).includes('Packing'), 'printed quotation lists the charges');
+  check((await page1().locator('.doc-a5w').count()) >= 1 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, 'quotation on A5 paper (chosen per document)');
 
   console.log('Documents');
   await a.page.getByTestId('back').click();
@@ -382,6 +408,38 @@ try {
   await a.page.waitForTimeout(300);
   check((await a.page.getByTestId('product-row').count()) === 1, 'filter by category');
   await shot(a.page, '05-products');
+
+  console.log('Customers & Vendors (optional modules)');
+  check((await a.page.getByTestId('party-links').textContent()).includes('Customers & Vendors') && !(await a.page.getByTestId('link-customer').count()), 'modules off by default: only a small + under Products');
+  await a.page.getByTestId('nav-parties-add').click();
+  await a.page.getByTestId('module-customer-toggle').check();
+  await a.page.getByTestId('open-customer').click();
+  await a.page.getByTestId('parties-customer').waitFor();
+  await a.page.getByTestId('party-row').first().waitFor();
+  check((await a.page.getByTestId('party-list').textContent()).includes('ABC Construction Pvt Ltd'), 'Customers: customers saved from documents are listed, with their document count');
+  await a.page.getByTestId('party-search').fill('zzz');
+  await a.page.getByText('Nothing found').waitFor();
+  await a.page.getByTestId('party-search').fill('');
+  await a.page.getByTestId('add-party').click();
+  await a.page.getByTestId('party-form-name').fill('Walk-in Retail');
+  await a.page.getByTestId('party-form-phone').fill('9876543210');
+  await a.page.getByTestId('party-form-save').click();
+  await a.page.getByTestId('party-list').getByText('Walk-in Retail').waitFor();
+  check(true, 'Customers: add a customer');
+  await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').click();
+  await a.page.getByTestId('party-delete').click();
+  check((await a.page.getByTestId('confirm-ok').textContent()) === 'Archive', 'a customer on documents is archived, not deleted');
+  await a.page.getByTestId('confirm-ok').click();
+  await a.page.waitForTimeout(400);
+  check(!(await a.page.getByTestId('party-list').textContent()).includes('ABC Construction'), 'archived customer hidden from the list');
+  await a.page.getByTestId('party-archived').getByText('Archived').click();
+  await a.page.getByTestId('party-restore').click();
+  await a.page.getByTestId('party-archived').getByText('Active').click();
+  await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').waitFor();
+  check(true, 'archived customer restored; documents never changed');
+  await a.page.goto(`${base}/app/#/products`);
+  await a.page.getByTestId('link-customer').waitFor();
+  check(true, 'Customers appears under Products once switched on');
 
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();

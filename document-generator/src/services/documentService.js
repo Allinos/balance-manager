@@ -11,7 +11,7 @@ import { call } from './api.js';
 import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
 import { isValidGstin } from '../config/states.js';
 import { resolveDocSettings, withDocumentOptions, CURRENCY_PRESETS } from '../config/defaults.js';
-import { calcDocument } from '../utils/calc.js';
+import { calcDocument, chargesOf } from '../utils/calc.js';
 import { dec, toFixed, round } from '../utils/decimal.js';
 import { todayISO, addDays } from '../utils/dates.js';
 import { saveParty } from './catalogService.js';
@@ -57,6 +57,27 @@ export function blankItem(settings, typeId) {
     package_info: '',
   };
 }
+
+/** A blank additional-charge row (label, amount before tax, tax rate). */
+export const blankCharge = (label = '') => ({ _key: newKey(), label, amount: '', tax_rate: '0' });
+
+/**
+ * The document with its additional charges as a list (meta.charges). A document saved before the list existed
+ * had one Shipping and one Other charges amount: they become two rows at 0 % tax, so the total stays the same.
+ * Used when a document is edited, duplicated or converted; viewing an old document never changes it.
+ */
+export function withCharges(doc) {
+  const meta = doc.meta || {};
+  if (chargesOf(doc)) return { ...doc, meta: { ...meta, charges: meta.charges.map((c) => ({ ...c, _key: c._key || newKey() })) } };
+  const charges = [];
+  if (dec(doc.shipping) !== 0n) charges.push({ ...blankCharge('Shipping'), amount: String(doc.shipping) });
+  if (dec(doc.other_charges) !== 0n) charges.push({ ...blankCharge(doc.other_charges_label || 'Other charges'), amount: String(doc.other_charges) });
+  return { ...doc, shipping: '0', other_charges: '0', meta: { ...meta, charges } };
+}
+
+/** Charges worth saving (a row with a label or an amount); the editor's row keys are not stored. */
+const savedCharges = (list) =>
+  (list || []).filter((c) => String(c.label || '').trim() || dec(c.amount) !== 0n).map(({ label = '', amount = '0', tax_rate = '0' }) => ({ label: String(label).trim(), amount: String(amount || '0'), tax_rate: String(tax_rate || '0') }));
 
 function parseMeta(meta) {
   if (!meta) return {};
@@ -120,6 +141,9 @@ export function newDocument(typeId, { settings, docSettings }) {
         payment_mode: 'Cash',
         payment_reference: '',
         against: '',
+        charges: [],
+        // The declaration printed on this document (editable per document; Settings → Document Types sets the default).
+        declaration: ds.declaration || '',
       },
     },
     items: type.layout === 'receipt' ? [] : [blankItem(settings, type.id)],
@@ -160,7 +184,7 @@ export function modelFromBundle(bundle) {
 export function modelFromSource(bundle, targetType, mode, ctx) {
   const fresh = newDocument(targetType, ctx);
   const source = modelFromBundle(bundle);
-  const s = source.document;
+  const s = withCharges(source.document);
   const partyFields = [
     'party_id', 'party_name', 'party_company', 'party_address', 'party_phone', 'party_email', 'party_gstin',
     'party_tax_id', 'party_state', 'shipping_address', 'place_of_supply',
@@ -189,8 +213,11 @@ export function modelFromSource(bundle, targetType, mode, ctx) {
     meta: {
       ...fresh.document.meta,
       roundOffMode: s.meta.roundOffMode || fresh.document.meta.roundOffMode,
-      // A duplicate keeps this document's own "show bank details" choice.
+      charges: s.meta.charges.map((c) => ({ ...c, _key: newKey() })),
+      // A duplicate keeps this document's own "show bank details" choice, paper size and declaration.
       ...(mode === 'duplicate' && typeof s.meta.showBank === 'boolean' ? { showBank: s.meta.showBank } : {}),
+      ...(mode === 'duplicate' && ['A4', 'A5'].includes(s.meta.paperSize) ? { paperSize: s.meta.paperSize } : {}),
+      ...(mode === 'duplicate' && typeof s.meta.declaration === 'string' ? { declaration: s.meta.declaration } : {}),
     },
   };
   if (getType(targetType).layout === 'receipt') {
@@ -286,6 +313,9 @@ export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
       state: doc.party_state,
       gstin: doc.party_gstin,
       tax_id: doc.party_tax_id,
+      // Customer or vendor from the document type; one already saved as the other kind becomes "both".
+      kind: getType(doc.document_type).partyKind === 'vendor' ? 'vendor' : 'customer',
+      merge_kind: true,
     });
   }
   const { lines, taxes, totals } = calculate(model, ctx);
@@ -297,7 +327,7 @@ export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
       id: doc.id || undefined,
       party_name: doc.party_name.trim(),
       ...totals,
-      meta: doc.meta,
+      meta: chargesOf(doc) ? { ...doc.meta, charges: savedCharges(doc.meta.charges) } : doc.meta,
     },
     items: lines.map((l) => ({
       product_id: l.product_id || null,

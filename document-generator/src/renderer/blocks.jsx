@@ -9,8 +9,9 @@
 import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
-import { dec, div, isZero, sub, toFixed, toPlain } from '../utils/decimal.js';
-import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
+import { dec, div, isZero, toPlain } from '../utils/decimal.js';
+import { chargeLines } from '../utils/calc.js';
+import { EXTRA_FIELDS } from '../config/documentTypes.js';
 import { stateCode } from '../config/states.js';
 
 const lines = (...parts) => parts.filter((p) => p && String(p).trim()).join('\n');
@@ -269,6 +270,10 @@ export function TotalsSummary({ doc, ds }) {
   const showTax = ds.showTax !== false && doc.tax_mode !== 'NONE';
   const rows = [['Subtotal', m(doc.subtotal)]];
   if (!isZero(doc.discount)) rows.push(['Discount', `- ${m(doc.discount)}`]);
+  // Additional charges are added before tax (their tax is in the tax rows).
+  const charges = chargeLines(doc, { taxMode: showTax ? doc.tax_mode : 'NONE' });
+  charges.forEach((c) => rows.push([c.label, m(c.amount)]));
+  if (charges.length && showTax) rows.push(['Taxable Value', m(doc.taxable)]);
   if (showTax) {
     if (doc.tax_mode === 'INTRA') {
       rows.push(['CGST', m(doc.cgst)]);
@@ -279,13 +284,13 @@ export function TotalsSummary({ doc, ds }) {
       rows.push([doc.tax_label || 'Tax', m(doc.tax)]);
     }
   }
-  if (!isZero(doc.shipping)) rows.push(['Shipping', m(doc.shipping)]);
-  if (!isZero(doc.other_charges)) rows.push([doc.other_charges_label || 'Other charges', m(doc.other_charges)]);
+  if (!doc.meta?.charges && !isZero(doc.shipping)) rows.push(['Shipping', m(doc.shipping)]);
+  if (!doc.meta?.charges && !isZero(doc.other_charges)) rows.push([doc.other_charges_label || 'Other charges', m(doc.other_charges)]);
   if (!isZero(doc.round_off)) rows.push(['Round Off', m(doc.round_off)]);
   return (
     <div className="doc-totals">
-      {rows.map(([k, v]) => (
-        <div className="doc-total-row" key={k}>
+      {rows.map(([k, v], i) => (
+        <div className="doc-total-row" key={`${i}-${k}`}>
           <span>{k}</span>
           <span>{v}</span>
         </div>
@@ -404,89 +409,6 @@ export function DocumentFooter({ text, jurisdiction }) {
       {jurisdiction && <div className="doc-jurisdiction">SUBJECT TO {jurisdiction.toUpperCase()} JURISDICTION</div>}
       {text && <div>{text}</div>}
     </footer>
-  );
-}
-
-/** Payment receipt body: the receipt sentence, payment details and — against an invoice — what is still due. */
-export function ReceiptBody({ doc, dateFormat }) {
-  const meta = doc.meta || {};
-  const type = getType(doc.document_type);
-  const vendor = type.partyKind === 'vendor';
-  const dp = Number(doc.currency_decimals ?? 2);
-  const settled = !!meta.against_total;
-  const before = meta.received_before || '0';
-  const due = settled ? toFixed(sub(meta.against_total, before), dp) : null;
-  const left = settled ? sub(due, doc.grand_total) : 0n;
-  const balance = toFixed(left < 0n ? 0n : left, dp);
-  const details = [
-    ['Payment mode', meta.payment_mode],
-    [meta.payment_mode === 'Cheque' ? 'Cheque no.' : 'Transaction / ref. no.', meta.payment_reference],
-    [vendor ? 'Against bill' : 'Against invoice', meta.against],
-    [vendor ? 'Bill date' : 'Invoice date', meta.against_date ? formatDate(meta.against_date, dateFormat) : ''],
-  ].filter(([, v]) => v);
-  return (
-    <div className="doc-receipt">
-      <p className="doc-receipt-text">
-        {vendor ? 'Paid to' : 'Received with thanks from'} <strong>{doc.party_name || '—'}</strong>
-        {doc.party_company && doc.party_company !== doc.party_name ? ` (${doc.party_company})` : ''} the sum of{' '}
-        <strong>{formatMoney(doc.grand_total, doc)}</strong> (
-        {amountInWords(doc.grand_total, doc.currency, dp)})
-        {meta.payment_mode ? (
-          <>
-            {' '}
-            by <strong>{meta.payment_mode}</strong>
-          </>
-        ) : null}
-        {meta.payment_reference ? ` (Ref: ${meta.payment_reference})` : ''}
-        {meta.against ? (
-          <>
-            {' '}
-            against <strong>{meta.against}</strong>
-          </>
-        ) : null}{' '}
-        on {formatDate(doc.issue_date, dateFormat)}.
-      </p>
-      {details.length > 0 && (
-        <table className="doc-receipt-details">
-          <tbody>
-            {details.map(([k, v]) => (
-              <tr key={k}>
-                <th>{k}</th>
-                <td>{v}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {settled && (
-        <table className="doc-receipt-settle" data-testid="receipt-settlement">
-          <thead>
-            <tr>
-              <th>{vendor ? 'Bill' : 'Invoice'} amount</th>
-              <th>{vendor ? 'Paid' : 'Received'} earlier</th>
-              <th>This {vendor ? 'payment' : 'receipt'}</th>
-              <th>Balance due</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>{formatMoney(meta.against_total, doc)}</td>
-              <td>{formatMoney(before, doc)}</td>
-              <td>
-                <strong>{formatMoney(doc.grand_total, doc)}</strong>
-              </td>
-              <td>
-                <strong>{left > 0n ? formatMoney(balance, doc) : 'Nil — fully paid'}</strong>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      )}
-      <div className="doc-receipt-amount">
-        <span>{vendor ? 'Amount Paid' : type.short === 'Receipt' ? 'Amount Received' : 'Amount'}</span>
-        <strong>{formatMoney(doc.grand_total, doc)}</strong>
-      </div>
-    </div>
   );
 }
 

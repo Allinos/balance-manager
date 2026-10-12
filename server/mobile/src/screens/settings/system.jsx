@@ -126,7 +126,7 @@ function SequenceCard({ seq, onSaved }) {
       </div>
       <div className="grid-2">
         <Field label="Prefix">
-          <Input value={s.prefix} onChange={(v) => set({ prefix: v.replace(/\s/g, '') })} maxLength={20} data-testid={`seq-prefix-${s.doc_type}`} />
+          <Input placeholder="e.g. INV" value={s.prefix} onChange={(v) => set({ prefix: v.replace(/\s/g, '') })} maxLength={20} data-testid={`seq-prefix-${s.doc_type}`} />
         </Field>
         <Field label="Format">
           <select
@@ -144,10 +144,10 @@ function SequenceCard({ seq, onSaved }) {
           </select>
         </Field>
         <Field label="Next number">
-          <input className="input" type="number" min="1" value={s.next_number} onChange={(e) => set({ next_number: e.target.value })} data-testid={`seq-next-${s.doc_type}`} />
+          <input placeholder="1" className="input" type="number" min="1" value={s.next_number} onChange={(e) => set({ next_number: e.target.value })} data-testid={`seq-next-${s.doc_type}`} />
         </Field>
         <Field label="Digits">
-          <input className="input" type="number" min="1" max="12" value={s.padding} onChange={(e) => set({ padding: e.target.value })} />
+          <input placeholder="5" className="input" type="number" min="1" max="12" value={s.padding} onChange={(e) => set({ padding: e.target.value })} />
         </Field>
       </div>
       <Toggle checked={!!s.reset_yearly} onChange={(v) => set({ reset_yearly: v })} label="Restart every financial year" />

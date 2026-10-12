@@ -32,7 +32,34 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   amount (Settings → Company → bank details and UPI ID). Each quotation has its own **Show bank
   details** switch (off by default).
 - **Saved customers**: typing a name offers saved customers/vendors; one click fills the details.
-  (There is no separate customer management screen.)
+- **Customers & Vendors (optional)**: both screens are off by default. A small, transparent **+** under
+  *Products & Services* (or Settings → Customers & Vendors) switches each on independently; once on, it
+  takes the place of the + in the sidebar. Each lists, searches, adds, edits and deletes records (contact,
+  GSTIN → state, billing/shipping address, notes, number of documents, last document). **Deleting never
+  touches documents**: a customer or vendor that appears on any document is *archived* instead (hidden from
+  lists and suggestions, restorable under *Archived*); every document keeps the details printed on it.
+  A party saved from a sales document is a customer, from a purchase document a vendor, from both: *both*.
+- **Additional charges**: as many as needed per document (Freight, Packing, Loading, Installation … or
+  any name; a minus amount is a deduction), each with its own GST / tax rate. Charges are added before
+  tax, so subtotal, taxable value, CGST/SGST/IGST, the GST / HSN summary and the grand total are worked out
+  automatically. Documents saved before this keep their single Shipping + Other charges exactly as printed;
+  when edited, those become two charge rows at 0 % (same total).
+- **A4 or A5 for every document type** (Settings → Document Types → Paper size, and per document in the
+  editor). An A5 document is the same layout as its A4 version drawn at 80 % (CSS zoom), so all four
+  templates keep their formatting; Professional and Modern still fill whole pages and split long bills
+  (page height 242.5 mm before scaling). Preview, print (`@page A5`) and Download PDF all follow it.
+- **Default terms & conditions and declarations** for every document type (`config/documentTerms.js`):
+  editable per type in Settings → Document Types and per document in the editor (*Use the default terms*
+  puts the type's text back). Invoices start with the payment terms from Settings → Documents. A new
+  document keeps the declaration it was created with, so later changes in Settings never alter old documents.
+- **Payment receipts / vouchers**: company header with receipt number and date, *Received from* and
+  *Payment details* boxes, the amount in large figures with the amount in words, and — against an invoice —
+  the invoice's taxable value, discount, charges, CGST/SGST/IGST, total, received earlier, this receipt
+  and balance due; terms, declaration and two signatures. Boxed in Professional/Standard, accent colour in
+  Modern, black and white in Simple; A4 or A5.
+- **Placeholders** with an example in every field (documents, products, customers, settings, setup).
+- **First-start setup**: a YouTube **Watch Configuration Tutorial** button opens the tutorial in the
+  browser (`APP_CONFIG.setupTutorialUrl`).
 - **Round Off** as a Yes/No choice directly above Grand Total.
 - **Number of copies** (Settings → Documents): single, double, triple or 4 copies when printing or
   saving a PDF, labelled Original for Recipient / Duplicate for Transporter / Triplicate for Supplier.
@@ -110,7 +137,7 @@ document-generator/
 │   └── utils/                    decimal, GST calc, words, dates, HSN summary, QR
 ├── src-tauri/                    Rust backend
 │   ├── remote-config.json        ◀ server URL, portal URL, license public key
-│   ├── migrations/               001 … 004 (004 = folders, files, history, license state)
+│   ├── migrations/               001 … 005 (004 = folders, files, history, license state; 005 = customer/vendor kind, archive)
 │   └── src/  commands.rs (documents, catalog, settings), files.rs (folders & external files),
 │             license.rs (trial, activation, tokens), remote.rs (server calls, config validation),
 │             pdf.rs (direct PDF), numbering.rs, db.rs
@@ -199,7 +226,10 @@ SQLite is compiled in. On first start DocGen creates the database and runs all m
 | Linux | `~/.local/share/com.docgen.desktop/docgen.sqlite` |
 
 Migrations are in `src-tauri/migrations/` and listed in `src-tauri/src/db.rs`. Upgrades from
-v1.0 are automatic (tested in `upgrade_from_version_1_keeps_documents_items_and_links`).
+v1.0 are automatic (tested in `upgrade_from_version_1_keeps_documents_items_and_links`). Migration 005
+adds `kind` (customer / vendor / both, sorted from the documents each party is on), `notes` and
+`archived_at` to `parties` (tested in `upgrade_to_version_5_sorts_saved_parties_into_customers_and_vendors`).
+Additional charges and a document's own declaration and paper size are stored in `documents.meta`.
 Money is stored as exact decimal text; each document keeps a snapshot of party, lines, taxes
 and totals as printed. External files are stored as de-duplicated blobs (`file_blobs`).
 Indexes cover list, search, folder and status queries (20,000 documents: manager opens in ~0.7 s).
@@ -229,13 +259,13 @@ payments, CGST Rule 52), Work Order, Job/Service Completion.
 Payment Receipt, *Receipt for invoice* lists every issued Tax / Service / Proforma Invoice and Bill of
 Supply with its balance due (a Payment Voucher lists Purchase Bills). Choosing one fills the customer,
 the invoice number and date, the invoice amount, what earlier receipts already covered, and suggests the
-balance as the amount. The receipt prints the payment details and a small table: invoice amount ·
-received earlier · this receipt · balance due. Saving an issued receipt marks the invoice *Partly paid*
+balance as the amount. The receipt prints the payment details, the invoice's figures (taxable value,
+discount, charges, taxes, total) and received earlier · this receipt · balance due. Saving an issued receipt marks the invoice *Partly paid*
 or *Paid* (Issued and Partly paid invoices only, never backwards). "Convert → Payment Receipt" on an
 invoice does the same. Receipts are linked to their invoice through `parent_document_id`.
-**Paper size**: receipts and vouchers print on A4 or A5 (148 × 210 mm): per receipt in the editor, with
-the default in Settings → Document types → Receipt. Preview, print (`@page`) and Download PDF (WebView2
-/ WebKitGTK paper size) all follow it; bills with item tables stay A4.
+**Paper size**: every document type prints on A4 or A5 (148 × 210 mm): per document in the editor, with
+the default in Settings → Document types. Preview, print (`@page`) and Download PDF (WebView2
+/ WebKitGTK paper size) all follow it.
 
 To add one, add an entry — numbering, editor fields, validation, filters, settings and printing
 pick it up automatically. Unknown types from older data still open with safe defaults.

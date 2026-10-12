@@ -5,6 +5,7 @@ import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, tax
 import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
+import TutorialButton from '@desktop/components/TutorialButton.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field, Input, Picker, useUi } from '../components/ui.jsx';
 import { ImagePicker, SamplePreview } from '../components/docs.jsx';
@@ -74,6 +75,7 @@ export default function Setup() {
           <span key={s} className={`${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>{s}</span>
         ))}
       </div>
+      <TutorialButton className="align-start" onError={(e) => toast(e.message, 'bad')} />
       {step === 0 && (
         <div className="form">
           <div>

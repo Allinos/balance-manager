@@ -47,29 +47,29 @@
 
 /** Optional "additional details" fields (stored in document.meta). */
 export const EXTRA_FIELDS = {
-  buyerOrderNo: { label: "Buyer's order no." },
+  buyerOrderNo: { label: "Buyer's order no.", placeholder: 'e.g. PO/2026/118' },
   buyerOrderDate: { label: 'Order date', type: 'date' },
-  deliveryNote: { label: 'Delivery note no.', help: 'Number of the delivery challan / note sent with the goods, if any.' },
+  deliveryNote: { label: 'Delivery note no.', placeholder: 'e.g. DC-00012', help: 'Number of the delivery challan / note sent with the goods, if any.' },
   deliveryNoteDate: { label: 'Delivery note date', type: 'date' },
-  dispatchDocNo: { label: 'Dispatch doc. no.', help: 'Transport document number, e.g. LR (lorry receipt) or courier docket number.' },
-  dispatchedThrough: { label: 'Dispatched through' },
-  destination: { label: 'Destination' },
-  vehicleNo: { label: 'Vehicle no.' },
-  ewayBillNo: { label: 'E-way bill no.', help: 'Required for moving goods worth more than ₹50,000. Generated on the GST e-way bill portal.' },
-  paymentTerms: { label: 'Mode / terms of payment' },
-  termsOfDelivery: { label: 'Terms of delivery', help: 'Who pays transport and when ownership passes, e.g. "Ex-works", "Door delivery", "FOR destination".' },
+  dispatchDocNo: { label: 'Dispatch doc. no.', placeholder: 'e.g. LR 45871', help: 'Transport document number, e.g. LR (lorry receipt) or courier docket number.' },
+  dispatchedThrough: { label: 'Dispatched through', placeholder: 'e.g. VRL Logistics' },
+  destination: { label: 'Destination', placeholder: 'e.g. Mysuru' },
+  vehicleNo: { label: 'Vehicle no.', placeholder: 'e.g. KA 01 AB 1234' },
+  ewayBillNo: { label: 'E-way bill no.', placeholder: 'e.g. 1912 3456 7890', help: 'Required for moving goods worth more than ₹50,000. Generated on the GST e-way bill portal.' },
+  paymentTerms: { label: 'Mode / terms of payment', placeholder: 'e.g. 30 days credit / Advance' },
+  termsOfDelivery: { label: 'Terms of delivery', placeholder: 'e.g. Door delivery', help: 'Who pays transport and when ownership passes, e.g. "Ex-works", "Door delivery", "FOR destination".' },
   reverseCharge: { label: 'Tax payable on reverse charge', type: 'yesno', help: 'Choose Yes only when the buyer, not you, must pay the GST (reverse charge mechanism, e.g. GTA or legal services). Usually No.' },
-  supplierInvoiceNo: { label: "Supplier's invoice no." },
+  supplierInvoiceNo: { label: "Supplier's invoice no.", placeholder: 'e.g. SB/1045' },
   supplierInvoiceDate: { label: "Supplier's invoice date", type: 'date' },
-  againstInvoice: { label: 'Against invoice no.', help: 'Number of the original invoice this note corrects.' },
+  againstInvoice: { label: 'Against invoice no.', placeholder: 'e.g. INV-00012', help: 'Number of the original invoice this note corrects.' },
   againstInvoiceDate: { label: 'Original invoice date', type: 'date' },
-  reason: { label: 'Reason' },
-  servicePeriod: { label: 'Service period' },
-  siteLocation: { label: 'Site / location' },
+  reason: { label: 'Reason', placeholder: 'e.g. Goods returned (damaged)' },
+  servicePeriod: { label: 'Service period', placeholder: 'e.g. 1–31 Oct 2026' },
+  siteLocation: { label: 'Site / location', placeholder: 'e.g. Whitefield site, Block B' },
   startDate: { label: 'Start date', type: 'date' },
   completedOn: { label: 'Completed on', type: 'date' },
-  technician: { label: 'Completed by (technician)' },
-  purpose: { label: 'Purpose of movement', help: 'Why goods move without a sale, e.g. Job work, Sent on approval, Stock transfer.' },
+  technician: { label: 'Completed by (technician)', placeholder: 'e.g. Ravi Kumar' },
+  purpose: { label: 'Purpose of movement', placeholder: 'e.g. Job work', help: 'Why goods move without a sale, e.g. Job work, Sent on approval, Stock transfer.' },
 };
 
 const DISPATCH = ['buyerOrderNo', 'buyerOrderDate', 'deliveryNote', 'dispatchDocNo', 'dispatchedThrough', 'destination', 'vehicleNo', 'ewayBillNo', 'termsOfDelivery'];
@@ -122,7 +122,6 @@ export const DOCUMENT_TYPES = [
     defaults: {
       validityDays: 15,
       showBank: false,
-      terms: '1. Prices are valid for the period mentioned above.\n2. Taxes extra as applicable.\n3. Delivery within 7 days of order confirmation.',
     },
   }),
   def({
@@ -136,7 +135,6 @@ export const DOCUMENT_TYPES = [
       validityDays: 15,
       showBank: false,
       showQr: false,
-      terms: '1. The rates above are the prices at which we offer to buy.\n2. Please confirm availability and delivery schedule.\n3. A purchase order will follow on acceptance.',
     },
   }),
   def({
@@ -145,7 +143,7 @@ export const DOCUMENT_TYPES = [
     statuses: OFFER_STATUSES, statusLabels: { ISSUED: 'Sent' },
     optional: ['siteLocation', 'paymentTerms'],
     conversions: ['QUOTATION', 'TAX_INVOICE', 'SERVICE_INVOICE', 'WORK_ORDER'],
-    defaults: { validityDays: 30, showBank: false, terms: 'This is an estimate. Final charges may vary with actual quantities and scope.' },
+    defaults: { validityDays: 30, showBank: false },
   }),
   def({
     id: 'PROFORMA_INVOICE', label: 'Proforma Invoice', short: 'Proforma', prefix: 'PI', title: 'PROFORMA INVOICE',
@@ -153,7 +151,7 @@ export const DOCUMENT_TYPES = [
     statuses: OFFER_STATUSES, statusLabels: { ISSUED: 'Sent' },
     optional: ['paymentTerms', 'termsOfDelivery', 'buyerOrderNo'],
     conversions: ['TAX_INVOICE', 'SERVICE_INVOICE', 'SALES_ORDER'],
-    defaults: { validityDays: 15, terms: '1. This is a proforma invoice and not a demand for payment.\n2. Final invoice will be issued on dispatch.' },
+    defaults: { validityDays: 15 },
   }),
   def({
     id: 'SALES_ORDER', label: 'Sales Order', short: 'Sales Order', prefix: 'SO', title: 'SALES ORDER',
@@ -161,7 +159,7 @@ export const DOCUMENT_TYPES = [
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'Confirmed', COMPLETED: 'Fulfilled' },
     optional: ['buyerOrderNo', 'buyerOrderDate', 'paymentTerms', 'termsOfDelivery', 'destination'],
     conversions: ['TAX_INVOICE', 'DELIVERY_CHALLAN', 'PROFORMA_INVOICE'],
-    defaults: { deliveryDays: 7, showBank: false, terms: '1. Delivery as per the schedule above.\n2. Payment as per agreed terms.' },
+    defaults: { deliveryDays: 7, showBank: false },
   }),
   def({
     id: 'DELIVERY_CHALLAN', label: 'Delivery Challan', short: 'Delivery Challan', prefix: 'DC', title: 'DELIVERY CHALLAN',
@@ -169,7 +167,7 @@ export const DOCUMENT_TYPES = [
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'Dispatched', COMPLETED: 'Delivered' },
     optional: ['purpose', 'dispatchedThrough', 'vehicleNo', 'ewayBillNo', 'destination', 'buyerOrderNo'],
     conversions: ['TAX_INVOICE'],
-    defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false, showQr: false, terms: 'Received the above goods in good condition.' },
+    defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false, showQr: false },
   }),
   def({
     id: 'PURCHASE_ORDER', label: 'Purchase Order', short: 'Purchase Order', prefix: 'PO', title: 'PURCHASE ORDER',
@@ -177,7 +175,7 @@ export const DOCUMENT_TYPES = [
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'Sent', COMPLETED: 'Received' },
     optional: ['paymentTerms', 'termsOfDelivery', 'destination'],
     conversions: ['GOODS_RECEIPT', 'PURCHASE_INVOICE'],
-    defaults: { deliveryDays: 7, showBank: false, showQr: false, terms: '1. Please mention the PO number on your invoice.\n2. Goods must match the specification and quantity ordered.' },
+    defaults: { deliveryDays: 7, showBank: false, showQr: false },
   }),
   def({
     id: 'GOODS_RECEIPT', label: 'Goods Receipt Note', short: 'Goods Receipt', prefix: 'GRN', title: 'GOODS RECEIPT NOTE',
@@ -185,7 +183,7 @@ export const DOCUMENT_TYPES = [
     statuses: ['DRAFT', 'COMPLETED', 'CANCELLED'], statusLabels: { COMPLETED: 'Received' },
     optional: ['supplierInvoiceNo', 'supplierInvoiceDate', 'vehicleNo', 'dispatchedThrough'],
     conversions: ['PURCHASE_INVOICE'],
-    defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false, terms: '' },
+    defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false },
   }),
   def({
     id: 'PURCHASE_INVOICE', label: 'Purchase Invoice / Bill', short: 'Purchase Bill', prefix: 'PB', title: 'PURCHASE INVOICE',
@@ -193,7 +191,7 @@ export const DOCUMENT_TYPES = [
     statuses: INVOICE_STATUSES, statusLabels: { ISSUED: 'Recorded' },
     optional: ['supplierInvoiceNo', 'supplierInvoiceDate', 'reverseCharge', 'paymentTerms'],
     conversions: ['DEBIT_NOTE', 'PAYMENT_VOUCHER'],
-    defaults: { dueDays: 30, showBank: false, showQr: false, terms: '' },
+    defaults: { dueDays: 30, showBank: false, showQr: false },
   }),
   def({
     id: 'CREDIT_NOTE', label: 'Credit Note', short: 'Credit Note', prefix: 'CN', title: 'CREDIT NOTE',
@@ -201,7 +199,7 @@ export const DOCUMENT_TYPES = [
     statuses: ['DRAFT', 'ISSUED', 'COMPLETED', 'CANCELLED'], statusLabels: { COMPLETED: 'Adjusted' },
     required: ['party_name', 'issue_date', 'items', 'meta.againstInvoice'],
     optional: ['againstInvoice', 'againstInvoiceDate', 'reason', 'reverseCharge'],
-    defaults: { showBank: false, terms: 'This credit note is issued against the invoice referenced above.' },
+    defaults: { showBank: false },
   }),
   def({
     id: 'DEBIT_NOTE', label: 'Debit Note', short: 'Debit Note', prefix: 'DN', title: 'DEBIT NOTE',
@@ -209,7 +207,7 @@ export const DOCUMENT_TYPES = [
     statuses: INVOICE_STATUSES,
     required: ['party_name', 'issue_date', 'items', 'meta.againstInvoice'],
     optional: ['againstInvoice', 'againstInvoiceDate', 'reason'],
-    defaults: { showBank: true, terms: 'This debit note is issued against the invoice referenced above.' },
+    defaults: { showBank: true },
   }),
   def({
     id: 'BILL_OF_SUPPLY', label: 'Bill of Supply', short: 'Bill of Supply', prefix: 'BOS', title: 'BILL OF SUPPLY',
@@ -227,7 +225,7 @@ export const DOCUMENT_TYPES = [
     group: 'payment', partyLabel: 'Received From', dateLabel: 'Receipt Date', layout: 'receipt', financial: true, icon: 'wallet',
     statuses: ['DRAFT', 'ISSUED', 'CANCELLED'],
     required: ['party_name', 'issue_date', 'meta.amount_received'],
-    defaults: { showBank: false, showQr: false, showTaxBreakup: false, terms: '' },
+    defaults: { showBank: false, showQr: false, showTaxBreakup: false },
   }),
   def({
     // Money paid out (to a supplier, for expenses, or under reverse charge — CGST Rule 52).
@@ -235,7 +233,7 @@ export const DOCUMENT_TYPES = [
     group: 'payment', partyLabel: 'Paid To', partyKind: 'vendor', dateLabel: 'Payment Date', layout: 'receipt', financial: true, icon: 'coins',
     statuses: ['DRAFT', 'ISSUED', 'CANCELLED'], statusLabels: { ISSUED: 'Paid' },
     required: ['party_name', 'issue_date', 'meta.amount_received'],
-    defaults: { showBank: false, showQr: false, showTaxBreakup: false, terms: '' },
+    defaults: { showBank: false, showQr: false, showTaxBreakup: false },
   }),
   def({
     id: 'WORK_ORDER', label: 'Work Order', short: 'Work Order', prefix: 'WO', title: 'WORK ORDER',
@@ -243,7 +241,7 @@ export const DOCUMENT_TYPES = [
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'In progress' },
     optional: ['siteLocation', 'startDate', 'paymentTerms'],
     conversions: ['JOB_COMPLETION', 'PURCHASE_INVOICE'],
-    defaults: { deliveryDays: 15, showBank: false, terms: '1. Work to be carried out as per the scope above.\n2. Payment on satisfactory completion.' },
+    defaults: { deliveryDays: 15, showBank: false },
   }),
   def({
     id: 'JOB_COMPLETION', label: 'Job / Service Completion', short: 'Job Completion', prefix: 'JCR', title: 'JOB COMPLETION REPORT',
@@ -251,7 +249,7 @@ export const DOCUMENT_TYPES = [
     statuses: ['DRAFT', 'COMPLETED', 'CANCELLED'],
     optional: ['siteLocation', 'completedOn', 'technician', 'buyerOrderNo'],
     conversions: ['SERVICE_INVOICE', 'TAX_INVOICE'],
-    defaults: { showPrices: false, showTax: false, showBank: false, showAmountInWords: false, terms: 'The work described above has been completed to the customer\'s satisfaction.' },
+    defaults: { showPrices: false, showTax: false, showBank: false, showAmountInWords: false },
   }),
 ];
 

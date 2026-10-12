@@ -9,9 +9,11 @@ import { EXTRA_FIELDS, PAYMENT_MODES, TYPE_MAP, getType, statusLabel, statusesFo
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { isServiceUnit, unitOptions } from '@desktop/config/units.js';
 import { isValidRate, rateValue, taxRateOptions } from '@desktop/config/taxRates.js';
-import { blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, renderPayload, saveDocument } from '@desktop/services/documentService.js';
+import { blankCharge, blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, renderPayload, saveDocument, withCharges } from '@desktop/services/documentService.js';
+import { CHARGE_SUGGESTIONS } from '@desktop/features/documents/editor/ChargesEditor.jsx';
 import { listParties, listProducts, saveProduct } from '@desktop/services/catalogService.js';
 import { previewNumber } from '@desktop/services/settingsService.js';
+import { resolveDocSettings } from '@desktop/config/defaults.js';
 import { exclusivePrice } from '@desktop/utils/calc.js';
 import { formatMoney } from '@desktop/utils/format.js';
 import { amountInWords } from '@desktop/utils/numberToWords.js';
@@ -69,24 +71,24 @@ function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, tax
         />
       </Field>
       <Field label="Company">
-        <Input value={doc.party_company} onChange={(v) => onChange({ party_company: v })} />
+        <Input placeholder="e.g. Rahul Mehta" value={doc.party_company} onChange={(v) => onChange({ party_company: v })} />
       </Field>
       <Field label="Address">
-        <TextArea rows={2} value={doc.party_address} onChange={(v) => onChange({ party_address: v })} data-testid="party-address" />
+        <TextArea placeholder={"Building, street, area\nCity – PIN code"} rows={2} value={doc.party_address} onChange={(v) => onChange({ party_address: v })} data-testid="party-address" />
       </Field>
       <div className="grid-2">
         <Field label="Phone">
-          <Input type="tel" value={doc.party_phone} onChange={(v) => onChange({ party_phone: v })} data-testid="party-phone" />
+          <Input placeholder="e.g. 98450 12345" type="tel" value={doc.party_phone} onChange={(v) => onChange({ party_phone: v })} data-testid="party-phone" />
         </Field>
         <Field label="Email">
-          <Input type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} autoCapitalize="none" />
+          <Input placeholder="e.g. accounts@example.com" type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} autoCapitalize="none" />
         </Field>
       </div>
       <Field
         label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}
         hint={taxSystem === 'GST' ? (doc.party_gstin && !isValidGstin(doc.party_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : 'Leave empty for unregistered customers. The state is filled in from it.') : ''}
       >
-        <Input
+        <Input placeholder={taxSystem === 'GST' ? 'e.g. 29ABCDE1234F1Z5' : 'e.g. 100123456700003'}
           value={taxSystem === 'GST' ? doc.party_gstin : doc.party_tax_id}
           onChange={(v) => onChange(taxSystem === 'GST' ? gstinChange(v) : { party_tax_id: v })}
           maxLength={taxSystem === 'GST' ? 15 : 40}
@@ -99,7 +101,7 @@ function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, tax
       </Field>
       {shipOpen ? (
         <Field label="Shipping address">
-          <TextArea rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
+          <TextArea placeholder="Delivery address, if different" rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
         </Field>
       ) : (
         <button type="button" className="btn btn-sm btn-ghost align-start" onClick={() => setShipOpen(true)}>
@@ -146,20 +148,20 @@ function ItemCard({ it, index, line, doc, units, rateOptions, cols, onUpdate, on
       <input className="input input-desc" placeholder="Description (optional)" value={it.description} onChange={(e) => onUpdate({ description: e.target.value })} />
       <div className="grid-2">
         <Field label="Qty">
-          <NumberInput value={it.quantity} onChange={(v) => onUpdate({ quantity: v })} data-testid={`item-qty-${index}`} />
+          <NumberInput placeholder="1" value={it.quantity} onChange={(v) => onUpdate({ quantity: v })} data-testid={`item-qty-${index}`} />
         </Field>
         <Field label="Unit">
           <Picker value={it.unit} onChange={(v) => onUpdate({ unit: v || '' })} options={units} title="Unit" creatable testId={`item-unit-${index}`} />
         </Field>
         {cols.rate && (
           <Field label="Rate">
-            <NumberInput value={it.unit_price} onChange={(v) => onUpdate({ unit_price: v })} data-testid={`item-rate-${index}`} />
+            <NumberInput placeholder="0.00" value={it.unit_price} onChange={(v) => onUpdate({ unit_price: v })} data-testid={`item-rate-${index}`} />
           </Field>
         )}
         {cols.disc && (
           <Field label="Discount">
             <div className="disc-input">
-              <NumberInput value={it.discount_value} onChange={(v) => onUpdate({ discount_value: v })} data-testid={`item-disc-${index}`} />
+              <NumberInput placeholder="0" value={it.discount_value} onChange={(v) => onUpdate({ discount_value: v })} data-testid={`item-disc-${index}`} />
               <button type="button" className="disc-type" onClick={() => onUpdate({ discount_type: it.discount_type === 'PERCENT' ? 'AMOUNT' : 'PERCENT' })} data-testid={`item-disc-type-${index}`}>
                 {it.discount_type === 'PERCENT' ? '%' : doc.currency_symbol?.trim() || '#'}
               </button>
@@ -168,7 +170,7 @@ function ItemCard({ it, index, line, doc, units, rateOptions, cols, onUpdate, on
         )}
         {cols.hsn && (
           <Field label="HSN / SAC">
-            <Input value={it.hsn_sac} onChange={(v) => onUpdate({ hsn_sac: v })} inputMode="numeric" data-testid={`item-hsn-${index}`} />
+            <Input placeholder="e.g. 9403" value={it.hsn_sac} onChange={(v) => onUpdate({ hsn_sac: v })} inputMode="numeric" data-testid={`item-hsn-${index}`} />
           </Field>
         )}
         {showTax && (
@@ -196,6 +198,41 @@ function ItemCard({ it, index, line, doc, units, rateOptions, cols, onUpdate, on
           </strong>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Additional charges (freight, packing …): as many as needed, each with its own tax rate. */
+function ChargesSection({ charges, onChange, settings, showTax, taxLabel }) {
+  const rateOptions = useMemo(() => taxRateOptions(settings, undefined), [settings]);
+  const update = (key, patch) => onChange(charges.map((c) => (c._key === key ? { ...c, ...patch } : c)));
+  const unused = CHARGE_SUGGESTIONS.filter((l) => !charges.some((c) => c.label.trim().toLowerCase() === l.toLowerCase()));
+  return (
+    <div className="charges" data-testid="charges">
+      <span className="field-label">Additional charges</span>
+      {charges.map((c, i) => (
+        <div className={`charge-row ${showTax ? '' : 'no-tax'}`} key={c._key} data-testid={`charge-row-${i}`}>
+          <Input value={c.label} onChange={(v) => update(c._key, { label: v })} placeholder="e.g. Freight" aria-label={`Charge ${i + 1} name`} maxLength={60} data-testid={`charge-label-${i}`} />
+          <NumberInput value={c.amount} onChange={(v) => update(c._key, { amount: v })} allowNegative placeholder="0.00" aria-label={`Charge ${i + 1} amount`} data-testid={`charge-amount-${i}`} />
+          {showTax && (
+            <Picker value={rateValue(c.tax_rate)} onChange={(v) => v !== '' && isValidRate(v) && update(c._key, { tax_rate: v })} options={rateOptions} title={`${taxLabel || 'Tax'} rate`} creatable testId={`charge-tax-${i}`} />
+          )}
+          <button type="button" className="icon-btn" aria-label={`Remove charge ${i + 1}`} onClick={() => onChange(charges.filter((x) => x._key !== c._key))}>
+            <Icon name="x" size={18} />
+          </button>
+        </div>
+      ))}
+      <div className="chip-row">
+        <button type="button" className="chip" onClick={() => onChange([...charges, blankCharge()])} data-testid="add-charge">
+          + Add charge
+        </button>
+        {unused.slice(0, 3).map((l) => (
+          <button type="button" key={l} className="chip" onClick={() => onChange([...charges, blankCharge(l)])}>
+            + {l}
+          </button>
+        ))}
+      </div>
+      <span className="field-hint">Each charge is added before tax at its own rate. A minus amount is a deduction, e.g. Advance received.</span>
     </div>
   );
 }
@@ -292,6 +329,7 @@ export default function Editor({ typeId, id, query = {} }) {
         let m;
         if (id) {
           m = modelFromBundle(await getDocument(id));
+          m = { ...m, document: withCharges(m.document) };
           if (m.document.status === 'CANCELLED' || m.document.status === 'VOID') {
             throw new Error(`${m.document.document_number} is cancelled and cannot be edited. Duplicate it to create a new document.`);
           }
@@ -357,14 +395,18 @@ export default function Editor({ typeId, id, query = {} }) {
   useEffect(() => {
     if (!receiptType) return;
     invoicesForReceipt(receiptType, doc.id)
-      .then((list) => {
+      .then(async (list) => {
         setInvoices(list);
-        // Converted from an invoice: fill in what was received before and the balance.
-        setModel((m) => {
-          const d = m.document;
-          const inv = d.parent_document_id && !d.meta.against_total ? list.find((i) => i.id === d.parent_document_id) : null;
-          return inv ? { ...m, document: receiptFromInvoice(d, { ...inv, party_name: d.party_name, party_company: d.party_company }, inv.received) } : m;
-        });
+        // Converted from an invoice: fill in the invoice's figures, what was received before and the balance.
+        const d = model.document;
+        const inv = d.parent_document_id && !d.meta.against_total ? list.find((i) => i.id === d.parent_document_id) : null;
+        if (!inv) return;
+        const full = await getDocument(inv.id).then((b) => b.document).catch(() => null);
+        setModel((m) =>
+          m.document.meta.against_total
+            ? m
+            : { ...m, document: receiptFromInvoice(m.document, { ...inv, ...(full || {}), party_name: m.document.party_name, party_company: m.document.party_company }, inv.received) },
+        );
       })
       .catch(() => setInvoices([]));
   }, [receiptType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -438,6 +480,7 @@ export default function Editor({ typeId, id, query = {} }) {
   if (!model || !calc) return <Spinner />;
 
   const ds = calc.docSettings;
+  const defaults = resolveDocSettings(doc.document_type, settings, ctx.docSettings);
   const roundMode = ['AUTO', 'MANUAL'].includes(doc.meta.roundOffMode) ? doc.meta.roundOffMode : 'NONE';
   const t = calc.totals;
   const isReceipt = type.layout === 'receipt';
@@ -514,7 +557,7 @@ export default function Editor({ typeId, id, query = {} }) {
             </Field>
           </div>
           <Field label="Reference" hint="Printed for reference, e.g. the customer's PO or your job number.">
-            <Input value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
+            <Input placeholder="e.g. PO-1045" value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
           </Field>
           {settings.taxSystem === 'GST' && !isReceipt && (
             <Field label="Place of supply" hint="Same state as yours → CGST + SGST; other state → IGST.">
@@ -542,7 +585,7 @@ export default function Editor({ typeId, id, query = {} }) {
           )}
           {doc.currency !== settings.baseCurrency && (
             <Field label={`Exchange rate (1 ${doc.currency} = ? ${settings.baseCurrency})`}>
-              <NumberInput value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
+              <NumberInput placeholder="e.g. 83.25" value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
             </Field>
           )}
         </section>
@@ -613,7 +656,7 @@ export default function Editor({ typeId, id, query = {} }) {
                     ) : f.type === 'yesno' ? (
                       <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
                     ) : (
-                      <Input value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
+                      <Input placeholder={f.placeholder || ""} value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
                     )}
                   </Field>
                 );
@@ -627,19 +670,16 @@ export default function Editor({ typeId, id, query = {} }) {
               <h2>Payment</h2>
             </div>
             <Field label={`Amount ${type.partyKind === 'vendor' ? 'paid' : 'received'} (${doc.currency_symbol.trim() || doc.currency})`} required>
-              <NumberInput value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
+              <NumberInput placeholder="0.00" value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
             </Field>
             <div className="grid-2">
               <Field label="Payment mode">
                 <Select value={doc.meta.payment_mode} onChange={(v) => setMeta({ payment_mode: v })} options={PAYMENT_MODES} data-testid="payment-mode" />
               </Field>
               <Field label="Transaction / cheque no.">
-                <Input value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
+                <Input placeholder="e.g. UPI ref / cheque no." value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
               </Field>
             </div>
-            <Field label="Paper size">
-              <Segmented value={ds.paperSize} onChange={(v) => setMeta({ paperSize: v })} options={PAPER_SIZES.map((p) => ({ value: p.value, label: p.label }))} testId="paper-size" />
-            </Field>
             {!isZero(t.grand_total) && <p className="words">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>}
           </section>
         ) : (
@@ -648,19 +688,13 @@ export default function Editor({ typeId, id, query = {} }) {
 
         {!isReceipt && showPrices && (
           <section className="card form" data-testid="totals">
-            <div className="grid-2">
-              <Field label="Shipping / freight">
-                <NumberInput value={doc.shipping} onChange={(v) => setDoc({ shipping: v })} data-testid="shipping" />
-              </Field>
-              <Field label="Other charges">
-                <NumberInput value={doc.other_charges} onChange={(v) => setDoc({ other_charges: v })} allowNegative data-testid="other-charges" />
-              </Field>
-            </div>
-            {!isZero(doc.other_charges || '0') && (
-              <Field label="Other charges label" hint="e.g. Packing, Loading, or Advance received (minus amount).">
-                <Input value={doc.other_charges_label} onChange={(v) => setDoc({ other_charges_label: v })} />
-              </Field>
-            )}
+            <ChargesSection
+              charges={doc.meta.charges || []}
+              onChange={(charges) => setMeta({ charges })}
+              settings={settings}
+              showTax={doc.tax_mode !== 'NONE' && ds.showTax !== false}
+              taxLabel={doc.tax_label}
+            />
             <div className="totals">
               <div>
                 <span>Subtotal</span>
@@ -672,6 +706,12 @@ export default function Editor({ typeId, id, query = {} }) {
                   <span>− {formatMoney(t.discount, doc)}</span>
                 </div>
               )}
+              {calc.charges.map((c, i) => (
+                <div key={i} data-testid={`total-charge-${i}`}>
+                  <span>{c.label}</span>
+                  <span>{formatMoney(c.amount, doc)}</span>
+                </div>
+              ))}
               {doc.tax_mode === 'INTRA' && ds.showTax !== false && (
                 <>
                   <div>
@@ -696,13 +736,13 @@ export default function Editor({ typeId, id, query = {} }) {
                   <span>{formatMoney(t.tax, doc)}</span>
                 </div>
               )}
-              {!isZero(t.shipping) && (
+              {!doc.meta.charges && !isZero(t.shipping) && (
                 <div>
                   <span>Shipping</span>
                   <span>{formatMoney(t.shipping, doc)}</span>
                 </div>
               )}
-              {!isZero(t.other_charges) && (
+              {!doc.meta.charges && !isZero(t.other_charges) && (
                 <div>
                   <span>{doc.other_charges_label || 'Other charges'}</span>
                   <span>{formatMoney(t.other_charges, doc)}</span>
@@ -735,8 +775,21 @@ export default function Editor({ typeId, id, query = {} }) {
           <Field label="Notes (shown on the document)">
             <TextArea rows={2} value={doc.notes} onChange={(v) => setDoc({ notes: v })} placeholder="e.g. Thank you for your business!" data-testid="doc-notes" />
           </Field>
-          <Field label="Terms & conditions">
-            <TextArea rows={3} value={doc.terms} onChange={(v) => setDoc({ terms: v })} data-testid="doc-terms" />
+          <Field label="Terms & conditions" hint="Starts with this type's default terms (Settings → Document Types); changes here apply to this document only.">
+            <TextArea rows={4} value={doc.terms} onChange={(v) => setDoc({ terms: v })} placeholder="1. Payment due within 15 days." data-testid="doc-terms" />
+          </Field>
+          {defaults.terms && doc.terms !== defaults.terms && (
+            <button type="button" className="link-btn small" onClick={() => setDoc({ terms: defaults.terms })} data-testid="terms-default">
+              Use the default terms
+            </button>
+          )}
+          {ds.showDeclaration !== false && (
+            <Field label="Declaration">
+              <TextArea rows={2} value={ds.declaration || ''} onChange={(v) => setMeta({ declaration: v })} placeholder="e.g. We declare that the particulars given above are true and correct." data-testid="doc-declaration" />
+            </Field>
+          )}
+          <Field label="Paper size" hint="A4, or A5 (half of A4) for print and PDF. Each type's default is in Settings → Document Types.">
+            <Segmented value={ds.paperSize} onChange={(v) => setMeta({ paperSize: v })} options={PAPER_SIZES.map((p) => ({ value: p.value, label: p.label }))} testId="paper-size" />
           </Field>
           {type.bankOption && showPrices && (
             <>

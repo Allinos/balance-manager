@@ -3,6 +3,7 @@
 import { DEFAULT_VISIBLE_TYPES, getType, normaliseTemplate } from './documentTypes.js';
 import { STATE_NAMES } from './states.js';
 import { DEFAULT_UNITS } from './units.js';
+import { defaultDeclarationFor, defaultTermsFor } from './documentTerms.js';
 
 export { DEFAULT_UNITS };
 
@@ -88,6 +89,8 @@ export const DEFAULT_SETTINGS = {
   visibleDocTypes: DEFAULT_VISIBLE_TYPES,
   dashboardTypes: [], // empty = the business type's first 8 document types
   documentCopies: 1, // 1–4 copies when printing / downloading
+  customersModule: false, // Customers screen (config/partyModules.js); off until switched on
+  vendorsModule: false, // Vendors screen
   units: DEFAULT_UNITS,
   qrContent: 'UPI', // 'UPI' | 'DOCUMENT' | 'CONTACT' | 'CUSTOM'
   qrCustomText: '',
@@ -98,9 +101,9 @@ export const DEFAULT_SETTINGS = {
 
 /** Settings every document type understands (with their meaning for the settings UI). */
 export const DOC_SETTING_FIELDS = [
-  { key: 'title', label: 'Printed title', type: 'text' },
+  { key: 'title', label: 'Printed title', type: 'text', placeholder: 'e.g. TAX INVOICE' },
   {
-    key: 'paperSize', label: 'Paper size', type: 'select', layouts: ['receipt'],
+    key: 'paperSize', label: 'Paper size (print & PDF)', type: 'select',
     options: [{ value: 'A4', label: 'A4 (210 × 297 mm)' }, { value: 'A5', label: 'A5 (148 × 210 mm, half of A4)' }],
   },
   { key: 'template', label: 'Template', type: 'template' },
@@ -119,8 +122,9 @@ export const DOC_SETTING_FIELDS = [
   { key: 'dueDays', label: 'Default due in (days)', type: 'number', only: ['dueDays'] },
   { key: 'validityDays', label: 'Default validity (days)', type: 'number', only: ['validityDays'] },
   { key: 'deliveryDays', label: 'Default delivery in (days)', type: 'number', only: ['deliveryDays'] },
-  { key: 'notes', label: 'Default notes', type: 'textarea' },
-  { key: 'terms', label: 'Default terms & conditions', type: 'textarea' },
+  { key: 'notes', label: 'Default notes', type: 'textarea', placeholder: 'e.g. Thank you for your business!' },
+  { key: 'terms', label: 'Default terms & conditions', type: 'textarea', placeholder: '1. Payment due within 15 days.\n2. Goods once sold will not be taken back.' },
+  { key: 'declaration', label: 'Default declaration', type: 'textarea', placeholder: 'e.g. We declare that the particulars given above are true and correct.' },
 ];
 
 /**
@@ -144,22 +148,24 @@ export function resolveDocSettings(typeId, settings, docSettings = {}) {
     showPackage: false,
     showDeclaration: type.financial && type.group !== 'payment',
     notes: '',
-    terms: ['TAX_INVOICE', 'SERVICE_INVOICE'].includes(type.id) ? settings.defaultPaymentTerms || '' : '',
+    terms: defaultTermsFor(type.id, settings),
+    declaration: defaultDeclarationFor(type.id, settings),
     template: '',
     paperSize: 'A4',
   };
   const resolved = { ...base, ...type.defaults, ...(docSettings[typeId] || {}) };
   // Template: per-type override, else the global default.
   resolved.template = normaliseTemplate(resolved.template || settings.documentStyle);
-  // A5 is offered for receipts and vouchers; bills with item tables are always A4.
-  if (type.layout !== 'receipt' || resolved.paperSize !== 'A5') resolved.paperSize = 'A4';
+  if (resolved.paperSize !== 'A5') resolved.paperSize = 'A4';
   return resolved;
 }
 
 /** This document's own choices (e.g. "Show bank details" on a quotation) on top of its type's settings. */
 export function withDocumentOptions(ds, doc) {
   const meta = doc?.meta && typeof doc.meta === 'object' ? doc.meta : {};
-  if (getType(doc?.document_type).layout === 'receipt' && ['A4', 'A5'].includes(meta.paperSize)) ds = { ...ds, paperSize: meta.paperSize };
+  if (['A4', 'A5'].includes(meta.paperSize)) ds = { ...ds, paperSize: meta.paperSize };
+  // The declaration written on this document (set when it was created; older documents use the type's).
+  if (typeof meta.declaration === 'string') ds = { ...ds, declaration: meta.declaration };
   if (getType(doc?.document_type).bankOption && typeof meta.showBank === 'boolean') return { ...ds, showBank: meta.showBank };
   return ds;
 }

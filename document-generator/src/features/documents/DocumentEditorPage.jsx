@@ -15,8 +15,10 @@ import {
   newDocument,
   renderPayload,
   saveDocument,
+  withCharges,
 } from '../../services/documentService.js';
 import { previewNumber } from '../../services/settingsService.js';
+import { resolveDocSettings } from '../../config/defaults.js';
 import { formatMoney } from '../../utils/format.js';
 import { amountInWords } from '../../utils/numberToWords.js';
 import { isZero } from '../../utils/decimal.js';
@@ -28,6 +30,7 @@ import PagePreview from '../../renderer/PagePreview.jsx';
 import PartyFields from './editor/PartyFields.jsx';
 import { useDocumentActions } from './useDocumentActions.js';
 import ItemsEditor from './editor/ItemsEditor.jsx';
+import ChargesEditor from './editor/ChargesEditor.jsx';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '../../services/receiptService.js';
 
 const PREVIEW_KEY = 'docgen.editor.preview';
@@ -73,6 +76,7 @@ export default function DocumentEditorPage({ params, query }) {
         let m;
         if (params.id) {
           m = modelFromBundle(await getDocument(params.id));
+          m = { ...m, document: withCharges(m.document) };
           if (m.document.status === 'CANCELLED' || m.document.status === 'VOID') {
             throw new Error(`${m.document.document_number} is cancelled and cannot be edited. Duplicate it to create a new document.`);
           }
@@ -142,14 +146,14 @@ export default function DocumentEditorPage({ params, query }) {
   useEffect(() => {
     if (!receiptType) return;
     invoicesForReceipt(receiptType, doc.id)
-      .then((list) => {
+      .then(async (list) => {
         setInvoices(list);
-        // Converted from an invoice: fill in what was received before and the balance.
-        setModel((m) => {
-          const d = m.document;
-          const inv = d.parent_document_id && !d.meta.against_total ? list.find((i) => i.id === d.parent_document_id) : null;
-          return inv ? { ...m, document: receiptFromInvoice(d, { ...inv, ...pickParty(d) }, inv.received) } : m;
-        });
+        // Converted from an invoice: fill in the invoice's figures, what was received before and the balance.
+        const d = model.document;
+        const inv = d.parent_document_id && !d.meta.against_total ? list.find((i) => i.id === d.parent_document_id) : null;
+        if (!inv) return;
+        const full = await getDocument(inv.id).then((b) => b.document).catch(() => null);
+        setModel((m) => (m.document.meta.against_total ? m : { ...m, document: receiptFromInvoice(m.document, { ...inv, ...(full || {}), ...pickParty(m.document) }, inv.received) }));
       })
       .catch(() => setInvoices([]));
   }, [receiptType]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -234,6 +238,8 @@ export default function DocumentEditorPage({ params, query }) {
   if (!model || !calc) return <Spinner />;
 
   const ds = calc.docSettings;
+  // The type's own defaults (Settings → Document Types), to offer "Use the default terms".
+  const defaults = resolveDocSettings(doc.document_type, settings, ctx.docSettings);
   const roundMode = ['AUTO', 'MANUAL'].includes(doc.meta.roundOffMode) ? doc.meta.roundOffMode : 'NONE';
   const t = calc.totals;
   const isReceipt = type.layout === 'receipt';
@@ -339,7 +345,10 @@ export default function DocumentEditorPage({ params, query }) {
                 />
               </Field>
               <Field label="Reference" help="Any number you want printed for reference, e.g. the customer's purchase order or your job number.">
-                <TextInput value={doc.reference} onChange={(v) => setDoc({ reference: v })} />
+                <TextInput value={doc.reference} onChange={(v) => setDoc({ reference: v })} placeholder="e.g. PO-1045" />
+              </Field>
+              <Field label="Paper size" help="Prints and saves the PDF on A4 or A5 (half of A4). The default for each document type is set in Settings → Document Types.">
+                <Segmented value={ds.paperSize} onChange={(v) => setMeta({ paperSize: v })} options={PAPER_SIZES.map((p) => ({ value: p.value, label: p.label }))} testId="paper-size" />
               </Field>
               {showPrices && !isReceipt && settings.taxSystem !== 'NONE' && ds.showTax !== false && (
                 <Field label="Tax" help="CGST + SGST for a sale within your own state, IGST for a sale to another state. Chosen automatically from Place of supply.">
@@ -379,7 +388,7 @@ export default function DocumentEditorPage({ params, query }) {
               )}
               {doc.currency !== settings.baseCurrency && (
                 <Field label={`Exchange rate (1 ${doc.currency} = ? ${settings.baseCurrency})`} help="How much one unit of this currency is worth in your base currency. Used for your records; the document shows amounts in the selected currency.">
-                  <NumberInput value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
+                  <NumberInput placeholder="e.g. 83.25" value={doc.exchange_rate} onChange={(v) => setDoc({ exchange_rate: v })} />
                 </Field>
               )}
             </div>
@@ -463,7 +472,7 @@ export default function DocumentEditorPage({ params, query }) {
                         ) : f.type === 'yesno' ? (
                           <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
                         ) : (
-                          <TextInput value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
+                          <TextInput placeholder={f.placeholder || ""} value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
                         )}
                       </Field>
                     );
@@ -480,22 +489,14 @@ export default function DocumentEditorPage({ params, query }) {
               </div>
               <div className="grid-4">
                 <Field label={`Amount ${type.partyKind === 'vendor' ? 'paid' : 'received'} (${doc.currency_symbol.trim() || doc.currency})`} required>
-                  <NumberInput value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
+                  <NumberInput placeholder="0.00" value={doc.meta.amount_received} onChange={(v) => setMeta({ amount_received: v })} data-testid="amount-received" />
                 </Field>
                 <Field label="Payment mode">
                   <Select value={doc.meta.payment_mode} onChange={(v) => setMeta({ payment_mode: v })} options={PAYMENT_MODES} />
                 </Field>
                 <Field label="Transaction / cheque no.">
-                  <TextInput value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
+                  <TextInput placeholder="e.g. UPI ref / cheque no." value={doc.meta.payment_reference} onChange={(v) => setMeta({ payment_reference: v })} />
                 </Field>
-              </div>
-              <div className="receipt-paper">
-                <span className="field-label">Paper size</span>
-                <Segmented
-                  value={ds.paperSize}
-                  onChange={(v) => setMeta({ paperSize: v })}
-                  options={PAPER_SIZES.map((p) => ({ value: p.value, label: `${p.label} · ${p.hint.split(',')[0]}` }))}
-                />
               </div>
               {!isZero(t.grand_total) && <p className="words-preview">{amountInWords(t.grand_total, doc.currency, Number(doc.currency_decimals))}</p>}
             </section>
@@ -505,22 +506,25 @@ export default function DocumentEditorPage({ params, query }) {
 
           {!isReceipt && showPrices && (
             <section className="card editor-section totals-section">
-              <div className="grid-2 totals-inputs">
-                <Field label="Shipping / freight">
-                  <NumberInput value={doc.shipping} onChange={(v) => setDoc({ shipping: v })} />
-                </Field>
-                <div className="grid-2 tight">
-                  <Field label="Other charges label" help="Name for an extra charge or deduction added after tax, e.g. Packing, Loading or Advance received (use a minus amount).">
-                    <TextInput value={doc.other_charges_label} onChange={(v) => setDoc({ other_charges_label: v })} />
-                  </Field>
-                  <Field label="Amount">
-                    <NumberInput value={doc.other_charges} onChange={(v) => setDoc({ other_charges: v })} allowNegative />
-                  </Field>
-                </div>
-              </div>
+              <ChargesEditor
+                charges={doc.meta.charges || []}
+                onChange={(charges) => setMeta({ charges })}
+                settings={settings}
+                showTax={doc.tax_mode !== 'NONE' && ds.showTax !== false}
+                taxLabel={doc.tax_label}
+              />
               <div className="totals-box" data-testid="totals">
-                <div><span>Subtotal</span><span>{formatMoney(t.subtotal, doc)}</span></div>
+                <div><span>Subtotal</span><span data-testid="total-subtotal">{formatMoney(t.subtotal, doc)}</span></div>
                 {!isZero(t.discount) && <div><span>Discount</span><span>− {formatMoney(t.discount, doc)}</span></div>}
+                {calc.charges.map((c, i) => (
+                  <div key={i} className="charge-total" data-testid={`total-charge-${i}`}>
+                    <span>{c.label}</span>
+                    <span>{formatMoney(c.amount, doc)}</span>
+                  </div>
+                ))}
+                {calc.charges.length > 0 && ds.showTax !== false && doc.tax_mode !== 'NONE' && (
+                  <div className="muted"><span>Taxable value</span><span data-testid="total-taxable">{formatMoney(t.taxable, doc)}</span></div>
+                )}
                 {doc.tax_mode === 'INTRA' && ds.showTax !== false && (
                   <>
                     <div><span>CGST</span><span data-testid="total-cgst">{formatMoney(t.cgst, doc)}</span></div>
@@ -529,8 +533,8 @@ export default function DocumentEditorPage({ params, query }) {
                 )}
                 {doc.tax_mode === 'INTER' && ds.showTax !== false && <div><span>IGST</span><span>{formatMoney(t.igst, doc)}</span></div>}
                 {doc.tax_mode === 'SIMPLE' && ds.showTax !== false && <div><span>{doc.tax_label}</span><span>{formatMoney(t.tax, doc)}</span></div>}
-                {!isZero(t.shipping) && <div><span>Shipping</span><span>{formatMoney(t.shipping, doc)}</span></div>}
-                {!isZero(t.other_charges) && <div><span>{doc.other_charges_label || 'Other charges'}</span><span>{formatMoney(t.other_charges, doc)}</span></div>}
+                {!doc.meta.charges && !isZero(t.shipping) && <div><span>Shipping</span><span>{formatMoney(t.shipping, doc)}</span></div>}
+                {!doc.meta.charges && !isZero(t.other_charges) && <div><span>{doc.other_charges_label || 'Other charges'}</span><span>{formatMoney(t.other_charges, doc)}</span></div>}
                 <div className="roundoff-row" data-testid="round-off">
                   <span className="roundoff-label">
                     Round Off
@@ -546,7 +550,7 @@ export default function DocumentEditorPage({ params, query }) {
                     {roundMode === 'MANUAL' && (
                       <label className="radio">
                         <input type="radio" name="round-off" checked readOnly /> Manual
-                        <NumberInput className="roundoff-manual" value={doc.round_off} onChange={(v) => setDoc({ round_off: v })} allowNegative aria-label="Round off amount" />
+                        <NumberInput placeholder="0.00" className="roundoff-manual" value={doc.round_off} onChange={(v) => setDoc({ round_off: v })} allowNegative aria-label="Round off amount" />
                       </label>
                     )}
                   </span>
@@ -561,12 +565,25 @@ export default function DocumentEditorPage({ params, query }) {
           <section className="card editor-section">
             <div className="grid-2">
               <Field label="Notes (shown on the document)">
-                <TextArea rows={3} value={doc.notes} onChange={(v) => setDoc({ notes: v })} placeholder="e.g. Thank you for your business!" />
+                <TextArea rows={4} value={doc.notes} onChange={(v) => setDoc({ notes: v })} placeholder="e.g. Thank you for your business!" data-testid="doc-notes" />
               </Field>
-              <Field label="Terms & conditions">
-                <TextArea rows={3} value={doc.terms} onChange={(v) => setDoc({ terms: v })} />
+              <Field
+                label="Terms & conditions"
+                help="Starts with the default terms of this document type (Settings → Document Types). Changes here apply to this document only."
+              >
+                <TextArea rows={4} value={doc.terms} onChange={(v) => setDoc({ terms: v })} placeholder="1. Payment due within 15 days.&#10;2. Goods once sold will not be taken back." data-testid="doc-terms" />
+                {defaults.terms && doc.terms !== defaults.terms && (
+                  <button type="button" className="link small" onClick={() => setDoc({ terms: defaults.terms })} data-testid="terms-default">
+                    Use the default terms
+                  </button>
+                )}
               </Field>
             </div>
+            {ds.showDeclaration !== false && (
+              <Field label="Declaration" help="Printed above the signature. Change the default in Settings → Document Types; changes here apply to this document only.">
+                <TextArea rows={2} value={ds.declaration || ''} onChange={(v) => setMeta({ declaration: v })} placeholder="e.g. We declare that the particulars given above are true and correct." data-testid="doc-declaration" />
+              </Field>
+            )}
             {type.bankOption && showPrices && (
               <div className="bank-option">
                 <Toggle checked={ds.showBank !== false} onChange={(v) => setMeta({ showBank: v })} label="Show bank details" data-testid="show-bank" />

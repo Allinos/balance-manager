@@ -124,3 +124,20 @@
     overflow: visible;
   }
 }
+
+/* A5 bills: 165 mm before the 80 % zoom = the 132 mm between the 8 mm A5 margins; one sheet = 194 mm of paper. */
+@media print {
+  .doc.doc-a5w {
+    width: 165mm !important;
+  }
+  .doc.doc-a5w.doc-sheet {
+    height: 242mm !important;
+  }
+  .doc.doc-a5w.doc-sheet-overflow {
+    height: auto !important;
+  }
+  html.print-webkit .doc.doc-a5w.doc-sheet {
+    width: 165mm !important;
+    height: auto !important;
+  }
+}

@@ -12,7 +12,8 @@ import { qrDataUrl, upiLink } from '../utils/qr.js';
 import { formatMoney } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import TallyProDocument from './TallyProDocument.jsx';
-import { sheetClass } from './paging.js';
+import ReceiptDocument from './ReceiptDocument.jsx';
+import { a5Class, sheetClass } from './paging.js';
 import { copyLabel } from './copies.js';
 import {
   AmountInWords,
@@ -28,7 +29,6 @@ import {
   PageFooter,
   PartyBlock,
   QrBlock,
-  ReceiptBody,
   ShippingBlock,
   SignatureBlock,
   TaxSummary,
@@ -106,8 +106,8 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
   const taxBreakup = showPrices && showTax && ds.showTaxBreakup !== false;
   const modern = template === 'modern';
   const copy = copyLabel(type, copyIndex, copies);
-  if (template === 'tally-pro' && !isReceipt)
-    return <TallyProDocument payload={payload} type={type} qr={qr} copy={copy} paging={paging} />;
+  if (isReceipt) return <ReceiptDocument payload={payload} template={template} copy={copy} paging={paging} />;
+  if (template === 'tally-pro') return <TallyProDocument payload={payload} type={type} qr={qr} copy={copy} paging={paging} />;
 
   // One A4 page of a paged bill: page 1 has the header, the last page the totals and signature.
   const page = paging?.mode === 'page' && modern ? paging : null;
@@ -117,7 +117,7 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
 
   return (
     <article
-      className={`doc doc-${template}${sheetClass(page)}${ds.paperSize === 'A5' ? ' doc-a5' : ''}${isReceipt ? ' doc-receipt-sheet' : ''}`}
+      className={`doc doc-${template}${sheetClass(page)}${a5Class(ds, paging)}`}
       style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}
     >
       <CancelledMark doc={doc} />
@@ -142,39 +142,33 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
         <ContinuationHead company={company} title={title} doc={doc} />
       )}
 
-      {isReceipt ? (
-        <ReceiptBody doc={doc} dateFormat={settings.dateFormat} />
-      ) : (
-        <>
-          <ItemsTable
-            items={page ? items.slice(page.from, page.to) : items}
-            doc={doc}
-            ds={ds}
-            start={page ? page.from : 0}
-            colWidths={page?.colWidths}
-            hideFoot={!tail}
-            noEmptyRow={!!page && items.length > 0}
-            fill={page ? page.fill : 0}
-          />
-          {!tail && <ContinuedNote next={page.pageNo + 1} />}
-          {tail && showPrices && (
-            <section className="doc-summary">
-              <div className="doc-summary-left">
-                {ds.showAmountInWords !== false && <AmountInWords doc={doc} />}
-                {modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
-              </div>
-              <TotalsSummary doc={doc} ds={ds} />
-            </section>
-          )}
-          {!modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
-        </>
+      <ItemsTable
+        items={page ? items.slice(page.from, page.to) : items}
+        doc={doc}
+        ds={ds}
+        start={page ? page.from : 0}
+        colWidths={page?.colWidths}
+        hideFoot={!tail}
+        noEmptyRow={!!page && items.length > 0}
+        fill={page ? page.fill : 0}
+      />
+      {!tail && <ContinuedNote next={page.pageNo + 1} />}
+      {tail && showPrices && (
+        <section className="doc-summary">
+          <div className="doc-summary-left">
+            {ds.showAmountInWords !== false && <AmountInWords doc={doc} />}
+            {modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
+          </div>
+          <TotalsSummary doc={doc} ds={ds} />
+        </section>
       )}
+      {!modern && taxBreakup && <TaxSummary taxes={taxes} doc={doc} />}
 
       {!tail ? null : modern ? (
         <>
           {/* Modern: notes and terms side by side, then bank · QR · signature in one row, so a normal bill fits one A4 page. */}
           <TermsAndConditions notes={doc.notes} terms={doc.terms} />
-          {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
+          {ds.showDeclaration !== false && <Declaration text={ds.declaration} />}
           <section className="doc-closing">
             <div className="doc-closing-pay">
               {bank && <BankDetails company={company} />}
@@ -193,7 +187,7 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
           )}
 
           <TermsAndConditions notes={doc.notes} terms={doc.terms} />
-          {ds.showDeclaration !== false && <Declaration text={settings.declaration} />}
+          {ds.showDeclaration !== false && <Declaration text={ds.declaration} />}
           <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
         </>
       )}

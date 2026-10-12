@@ -22,9 +22,10 @@ import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
 import { dec, div, isZero, toFixed, toPlain } from '../utils/decimal.js';
+import { chargeLines } from '../utils/calc.js';
 import { hsnSummary } from '../utils/hsn.js';
 import { EXTRA_FIELDS } from '../config/documentTypes.js';
-import { sheetClass } from './paging.js';
+import { a5Class, sheetClass } from './paging.js';
 import { CancelledMark, ContinuationHead, ContinuedNote, PageFooter, QrBlock, stateLine } from './blocks.jsx';
 
 /** Goods documents show the full Tally dispatch grid even when cells are empty. */
@@ -110,7 +111,10 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
   }
 
   const chargeRows = [];
+  // Additional charges (freight, packing …) come before the tax, which includes their tax.
+  const extraCharges = chargeLines(doc, { taxMode: showTax ? doc.tax_mode : 'NONE' });
   if (showPrices) {
+    extraCharges.forEach((c) => chargeRows.push([c.label, c.amount]));
     if (showTax && intra) {
       chargeRows.push(['CGST', doc.cgst]);
       chargeRows.push(['SGST', doc.sgst]);
@@ -119,11 +123,11 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
     } else if (showTax && doc.tax_mode === 'SIMPLE') {
       chargeRows.push([doc.tax_label || 'Tax', doc.tax]);
     }
-    if (!isZero(doc.shipping)) chargeRows.push(['Freight / Shipping', doc.shipping]);
-    if (!isZero(doc.other_charges)) chargeRows.push([doc.other_charges_label || 'Other charges', doc.other_charges]);
+    if (!doc.meta?.charges && !isZero(doc.shipping)) chargeRows.push(['Freight / Shipping', doc.shipping]);
+    if (!doc.meta?.charges && !isZero(doc.other_charges)) chargeRows.push([doc.other_charges_label || 'Other charges', doc.other_charges]);
     if (!isZero(doc.round_off)) chargeRows.push(['Round Off', doc.round_off]);
   }
-  const hsnRows = showTax ? hsnSummary(items) : [];
+  const hsnRows = showTax ? hsnSummary([...items, ...extraCharges.map((c) => ({ ...c, hsn_sac: c.label }))]) : [];
   // Paged (full A4, see paging.js): page 1 has the header, the last page the totals; an empty filler row
   // stretches the table so its column lines run to the foot of the page. Unpaged: a few empty rows as before.
   const page = paging?.mode === 'page' ? paging : null;
@@ -136,7 +140,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
   const middle = Array.from({ length: colCount - 3 }, (_, i) => <td key={`m${i}`} />);
 
   return (
-    <article className={`doc doc-tp ${compact ? 'doc-tp-compact' : ''}${sheetClass(page)}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
+    <article className={`doc doc-tp ${compact ? 'doc-tp-compact' : ''}${sheetClass(page)}${a5Class(ds, paging)}`} style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}>
       <CancelledMark doc={doc} />
       {head ? (
         <div className="tp-title-row">
@@ -276,8 +280,8 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                 </tr>
               )}
               {tail &&
-                chargeRows.map(([label, value]) => (
-                  <tr key={label} className="tp-charge">
+                chargeRows.map(([label, value], i) => (
+                  <tr key={`${i}-${label}`} className="tp-charge">
                     <td />
                     <td className="c-desc tp-charge-label">{label}</td>
                     {middle}
@@ -478,10 +482,10 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                     <div className="doc-pre">{doc.terms}</div>
                   </div>
                 )}
-                {ds.showDeclaration !== false && settings.declaration?.trim() && (
+                {ds.showDeclaration !== false && ds.declaration?.trim() && (
                   <div className="tp-declaration">
                     <div className="tp-underline">Declaration</div>
-                    <div className="doc-pre">{settings.declaration}</div>
+                    <div className="doc-pre">{ds.declaration}</div>
                   </div>
                 )}
                 {receiverSign && (

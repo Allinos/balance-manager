@@ -1180,7 +1180,35 @@ textarea.input {
   letter-spacing: 0.04em;
   color: var(--muted);
   font-weight: 650;
-  padding: 0 2px;
+  /* Same inset as a row (10 px padding + 1 px border), so every heading sits over its field. */
+  padding: 0 11px;
+}
+.items-head > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+/* Left-aligned headings start where the text inside the field starts. */
+.items-head > span:not(.num) {
+  padding-left: 11px;
+}
+.items-head > span.c-unit {
+  padding-left: 8px;
+}
+.items-head > span.num {
+  justify-content: flex-end;
+  /* Right-aligned numbers sit inside an input with 10 px text padding. */
+  padding-right: 11px;
+}
+.items-head > span.c-disc {
+  padding-right: 43px;
+}
+.items-head > span.c-tax {
+  padding-right: 8px;
+}
+.items-head > span.c-amt {
+  padding-right: 0;
 }
 .items-row {
   padding: 10px;
@@ -1250,6 +1278,47 @@ textarea.input {
 }
 .totals-inputs {
   grid-template-columns: 1fr;
+}
+/* Additional charges: name · amount · tax % · remove, as many rows as needed. */
+.charges {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.charges-head .field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.charge-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.charge-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px 86px 32px;
+  gap: 6px;
+  align-items: center;
+}
+.charge-rows.no-tax .charge-row {
+  grid-template-columns: minmax(0, 1fr) 112px 32px;
+}
+.charge-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.charge-add .chip {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+}
+.totals-box > div.muted {
+  color: var(--muted);
+  font-size: 13px;
 }
 .totals-box {
   background: var(--surface-2);
@@ -3720,4 +3789,104 @@ div.folder-item {
   align-items: center;
   gap: 12px;
   margin-top: 12px;
+}
+
+/* ------------------------- Customers & Vendors ------------------------- */
+/* The small + under Products & Services (sidebar): transparent, grey, turns into the module links once switched on. */
+.nav-add {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 2px 0 0 4px;
+  padding: 5px 9px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12.5px;
+  align-self: flex-start;
+}
+.nav-add:hover,
+.nav-add.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  text-decoration: none;
+  background: transparent;
+}
+.sidebar-collapsed .nav-add {
+  align-self: center;
+  margin: 2px 0 0;
+  padding: 6px;
+}
+.card-pad {
+  padding: 18px;
+}
+.module-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 14px 0;
+}
+.module-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.module-card.on {
+  border-color: var(--accent-line, var(--accent));
+  background: var(--accent-soft);
+}
+.module-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--accent);
+}
+.module-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.module-card .toggle-text {
+  display: none;
+}
+
+/* "Watch Configuration Tutorial" (first-start setup) */
+.setup-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.setup-top .setup-steps {
+  margin: 0;
+}
+.tutorial-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tutorial-btn:hover {
+  border-color: #ff0000;
+  color: #c00;
 }

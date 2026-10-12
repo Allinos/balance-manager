@@ -47,25 +47,25 @@ export function CompanySection() {
           <ImagePicker label="Stamp" value={c.stamp} onChange={(v) => set({ stamp: v })} testId="stamp-pick" />
         </div>
         <Field label="Company name" required>
-          <Input value={c.name} onChange={(v) => set({ name: v })} data-testid="company-name" />
+          <Input placeholder="e.g. Sharma Furniture Works" value={c.name} onChange={(v) => set({ name: v })} data-testid="company-name" />
         </Field>
         <div className="grid-2">
           <Field label="Legal name">
-            <Input value={c.legal_name} onChange={(v) => set({ legal_name: v })} />
+            <Input placeholder="Registered name, if different" value={c.legal_name} onChange={(v) => set({ legal_name: v })} />
           </Field>
           <Field label="Trade name">
-            <Input value={c.trade_name} onChange={(v) => set({ trade_name: v })} />
+            <Input placeholder="Brand / trade name, if any" value={c.trade_name} onChange={(v) => set({ trade_name: v })} />
           </Field>
         </div>
         <Field label="Address">
-          <TextArea rows={2} value={c.address} onChange={(v) => set({ address: v })} data-testid="company-address" />
+          <TextArea placeholder="Building, street, area" rows={2} value={c.address} onChange={(v) => set({ address: v })} data-testid="company-address" />
         </Field>
         <div className="grid-2">
           <Field label="City">
-            <Input value={c.city} onChange={(v) => set({ city: v })} />
+            <Input placeholder="e.g. Bengaluru" value={c.city} onChange={(v) => set({ city: v })} />
           </Field>
           <Field label="PIN / ZIP">
-            <Input value={c.pin} onChange={(v) => set({ pin: v })} inputMode="numeric" />
+            <Input placeholder="e.g. 560058" value={c.pin} onChange={(v) => set({ pin: v })} inputMode="numeric" />
           </Field>
         </div>
         <Field label="State" hint={settings.taxSystem === 'GST' ? 'Decides CGST + SGST or IGST automatically' : ''}>
@@ -73,28 +73,28 @@ export function CompanySection() {
         </Field>
         <div className="grid-2">
           <Field label="Country">
-            <Input value={c.country} onChange={(v) => set({ country: v })} />
+            <Input placeholder="e.g. India" value={c.country} onChange={(v) => set({ country: v })} />
           </Field>
           <Field label="Phone">
-            <Input type="tel" value={c.phone} onChange={(v) => set({ phone: v })} data-testid="company-phone" />
+            <Input placeholder="e.g. 98450 12345" type="tel" value={c.phone} onChange={(v) => set({ phone: v })} data-testid="company-phone" />
           </Field>
         </div>
         <Field label="Email">
-          <Input type="email" value={c.email} onChange={(v) => set({ email: v })} autoCapitalize="none" />
+          <Input placeholder="e.g. sales@yourcompany.in" type="email" value={c.email} onChange={(v) => set({ email: v })} autoCapitalize="none" />
         </Field>
         <Field label="Website">
-          <Input value={c.website} onChange={(v) => set({ website: v })} autoCapitalize="none" />
+          <Input placeholder="e.g. www.yourcompany.in" value={c.website} onChange={(v) => set({ website: v })} autoCapitalize="none" />
         </Field>
         <div className="grid-2">
           <Field label="GSTIN">
-            <Input value={c.gstin} onChange={(v) => set({ gstin: v.toUpperCase() })} maxLength={15} data-testid="company-gstin" />
+            <Input placeholder="e.g. 29AAACS1234K1Z9" value={c.gstin} onChange={(v) => set({ gstin: v.toUpperCase() })} maxLength={15} data-testid="company-gstin" />
           </Field>
           <Field label="PAN">
-            <Input value={c.pan} onChange={(v) => set({ pan: v.toUpperCase() })} maxLength={10} />
+            <Input placeholder="e.g. AAACS1234K" value={c.pan} onChange={(v) => set({ pan: v.toUpperCase() })} maxLength={10} />
           </Field>
         </div>
         <Field label="VAT number">
-          <Input value={c.vat_number} onChange={(v) => set({ vat_number: v })} />
+          <Input placeholder="e.g. 100123456700003" value={c.vat_number} onChange={(v) => set({ vat_number: v })} />
         </Field>
 
         <div className="section-label">Bank details & UPI</div>
@@ -103,27 +103,27 @@ export function CompanySection() {
         </Field>
         <div className="grid-2">
           <Field label="Bank name">
-            <Input value={c.bank_name} onChange={(v) => set({ bank_name: v })} data-testid="company-bank-name" />
+            <Input placeholder="e.g. State Bank of India" value={c.bank_name} onChange={(v) => set({ bank_name: v })} data-testid="company-bank-name" />
           </Field>
           <Field label="Branch">
-            <Input value={c.branch} onChange={(v) => set({ branch: v })} />
+            <Input placeholder="e.g. Peenya Industrial Area" value={c.branch} onChange={(v) => set({ branch: v })} />
           </Field>
         </div>
         <Field label="Account holder">
-          <Input value={c.account_holder} onChange={(v) => set({ account_holder: v })} />
+          <Input placeholder="Name on the bank account" value={c.account_holder} onChange={(v) => set({ account_holder: v })} />
         </Field>
         <div className="grid-2">
           <Field label="Account number">
-            <Input value={c.account_number} onChange={(v) => set({ account_number: v })} inputMode="numeric" data-testid="company-account-number" />
+            <Input placeholder="e.g. 38291045671" value={c.account_number} onChange={(v) => set({ account_number: v })} inputMode="numeric" data-testid="company-account-number" />
           </Field>
           <Field label="IFSC">
-            <Input value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} maxLength={11} data-testid="company-ifsc" />
+            <Input placeholder="e.g. SBIN0001234" value={c.ifsc} onChange={(v) => set({ ifsc: v.toUpperCase() })} maxLength={11} data-testid="company-ifsc" />
           </Field>
           <Field label="SWIFT">
-            <Input value={c.swift} onChange={(v) => set({ swift: v.toUpperCase() })} />
+            <Input placeholder="e.g. SBININBB" value={c.swift} onChange={(v) => set({ swift: v.toUpperCase() })} />
           </Field>
           <Field label="IBAN">
-            <Input value={c.iban} onChange={(v) => set({ iban: v.toUpperCase() })} />
+            <Input placeholder="For international payments" value={c.iban} onChange={(v) => set({ iban: v.toUpperCase() })} />
           </Field>
         </div>
       </div>
@@ -201,20 +201,20 @@ export function DocumentsSection() {
         </Field>
         {draft.qrContent === 'CUSTOM' && (
           <Field label="QR custom text">
-            <Input value={draft.qrCustomText} onChange={(v) => set({ qrCustomText: v })} />
+            <Input placeholder="e.g. https://www.yourcompany.in" value={draft.qrCustomText} onChange={(v) => set({ qrCustomText: v })} />
           </Field>
         )}
         <Field label="Default payment terms (invoices)">
-          <TextArea rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
+          <TextArea placeholder="e.g. Payment due within 15 days of invoice date." rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
         </Field>
         <Field label="Declaration (tax invoices)">
-          <TextArea rows={3} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
+          <TextArea placeholder="e.g. We declare that this invoice shows the actual price…" rows={3} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
         </Field>
         <Field label="Jurisdiction" hint='"Mumbai" prints "SUBJECT TO MUMBAI JURISDICTION"'>
-          <Input value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
+          <Input placeholder="e.g. Bengaluru" value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
         </Field>
         <Field label="Footer text">
-          <Input value={draft.footerText} onChange={(v) => set({ footerText: v })} />
+          <Input placeholder="e.g. This is a computer-generated document." value={draft.footerText} onChange={(v) => set({ footerText: v })} />
         </Field>
       </div>
       <SaveBar dirty={dirty} onSave={save} />
@@ -289,6 +289,7 @@ export function DocumentTypesSection() {
               <Input
                 type={f.type === 'number' ? 'number' : 'text'}
                 min="0"
+                placeholder={f.placeholder || (f.type === 'number' ? 'e.g. 15' : '')}
                 value={draft[f.key] ?? ''}
                 onChange={(v) => set({ [f.key]: f.type === 'number' ? Math.max(0, parseInt(v || '0', 10)) : v })}
                 data-testid={`type-${f.key}`}
@@ -306,7 +307,7 @@ export function DocumentTypesSection() {
           .filter((f) => f.type === 'textarea')
           .map((f) => (
             <Field key={f.key} label={f.label}>
-              <TextArea rows={4} value={draft[f.key] ?? ''} onChange={(v) => set({ [f.key]: v })} data-testid={`type-${f.key}`} />
+              <TextArea rows={f.key === 'terms' ? 6 : 3} value={draft[f.key] ?? ''} onChange={(v) => set({ [f.key]: v })} placeholder={f.placeholder} data-testid={`type-${f.key}`} />
             </Field>
           ))}
         <button className="btn btn-ghost" onClick={reset}>

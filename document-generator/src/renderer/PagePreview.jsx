@@ -1,11 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DocumentRenderer, { PAGED_TEMPLATES, templateOf } from './DocumentRenderer.jsx';
-import { measureFlow, planPages } from './paging.js';
+import { PAGE_HEIGHT, PAGE_HEIGHT_A5, WEBKIT_PRINT, measureFlow, planPages } from './paging.js';
 
 const MM_TO_PX = 96 / 25.4;
 
-/** Paper of a payload: A5 (148 × 210 mm, receipts and vouchers) or A4. Print and PDF use the same size. */
+/** Paper of a payload: A5 (148 × 210 mm) or A4, per document type or per document. Print and PDF use the same size. */
 export const paperSizeOf = (payload) => (payload?.settings?.doc?.paperSize === 'A5' ? 'A5' : 'A4');
 const PAPER = { A4: { width: 210, margin: 12 }, A5: { width: 148, margin: 8 } };
 
@@ -36,7 +36,7 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
   const [plan, setPlan] = useState(null);
   const paper = paperSizeOf(payload);
   const PAGE_WIDTH_PX = PAPER[paper].width * MM_TO_PX;
-  const paged = paper === 'A4' && PAGED_TEMPLATES.includes(templateOf(payload));
+  const paged = PAGED_TEMPLATES.includes(templateOf(payload));
 
   // print.css sets an A4 page; an A5 document swaps in an A5 page while it is shown.
   useEffect(() => {
@@ -83,8 +83,9 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
       const doc = el.querySelector('.doc');
       if (!live || !doc || !doc.offsetWidth) return;
       const m = measureFlow(doc);
+      const cap = (paper === 'A5' ? PAGE_HEIGHT_A5 : PAGE_HEIGHT) * (WEBKIT_PRINT ? 0.97 : 1);
       const pages = m
-        ? planPages(m).map((p, i, all) => ({ ...p, mode: 'page', pageNo: i + 1, pageCount: all.length, colWidths: m.colWidths }))
+        ? planPages(m, cap).map((p, i, all) => ({ ...p, mode: 'page', pageNo: i + 1, pageCount: all.length, colWidths: m.colWidths }))
         : null;
       setPlan((prev) => (pages && samePlan(prev, pages) ? prev : pages));
     };
@@ -96,7 +97,7 @@ export default function PagePreview({ payload, maxScale = 1, copies = 1 }) {
       live = false;
       ro.disconnect();
     };
-  }, [payload, paged]);
+  }, [payload, paged, paper]);
 
   const drawCopy = (copyIndex) =>
     paged && plan ? (

@@ -138,7 +138,7 @@ export function CurrencySettings() {
                 <strong>{c.code}</strong>
               </td>
               <td>
-                <input className="input" value={c.symbol} onChange={(e) => update(c.code, { symbol: e.target.value })} />
+                <input placeholder="e.g. $" className="input" value={c.symbol} onChange={(e) => update(c.code, { symbol: e.target.value })} />
               </td>
               <td>
                 <select className="input" value={c.decimals} onChange={(e) => update(c.code, { decimals: Number(e.target.value) })}>
@@ -153,7 +153,7 @@ export function CurrencySettings() {
                 {c.code === draft.baseCurrency ? (
                   <span className="muted">1 (base)</span>
                 ) : (
-                  <NumberInput value={c.rate} onChange={(v) => update(c.code, { rate: v })} />
+                  <NumberInput placeholder="e.g. 83.25" value={c.rate} onChange={(v) => update(c.code, { rate: v })} />
                 )}
               </td>
               <td>
@@ -236,7 +236,7 @@ function SequenceRow({ seq, onSaved }) {
         <strong>{type?.short || s.doc_type}</strong>
       </td>
       <td>
-        <input className="input" value={s.prefix} onChange={(e) => set({ prefix: e.target.value.replace(/\s/g, '') })} maxLength={20} />
+        <input placeholder="e.g. INV" className="input" value={s.prefix} onChange={(e) => set({ prefix: e.target.value.replace(/\s/g, '') })} maxLength={20} />
       </td>
       <td>
         <select
@@ -253,10 +253,10 @@ function SequenceRow({ seq, onSaved }) {
         </select>
       </td>
       <td>
-        <input className="input num" type="number" min="1" value={s.next_number} onChange={(e) => set({ next_number: e.target.value })} />
+        <input placeholder="1" className="input num" type="number" min="1" value={s.next_number} onChange={(e) => set({ next_number: e.target.value })} />
       </td>
       <td>
-        <input className="input num" type="number" min="1" max="12" value={s.padding} onChange={(e) => set({ padding: e.target.value })} />
+        <input placeholder="5" className="input num" type="number" min="1" max="12" value={s.padding} onChange={(e) => set({ padding: e.target.value })} />
       </td>
       <td className="center">
         <input type="checkbox" checked={!!s.reset_yearly} onChange={(e) => set({ reset_yearly: e.target.checked })} title="Restart numbering every financial year" />

@@ -361,7 +361,7 @@ export default function DocumentManagerPage({ query }) {
                           }
                         }}
                       >
-                        <input className="input" value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} autoFocus onBlur={() => setRenaming(null)} />
+                        <input placeholder="Folder name" className="input" value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} autoFocus onBlur={() => setRenaming(null)} />
                       </form>
                     ) : (
                       <div className="file-name">

@@ -8,6 +8,7 @@ import { formatMoney } from '@desktop/utils/format.js';
 import Icon from '../components/Icon.jsx';
 import { Empty, Field, Header, Input, NumberInput, Picker, Segmented, Select, Sheet, Spinner, TextArea, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
+import { PartyLinks } from './Parties.jsx';
 
 const emptyProduct = (settings) => ({
   type: 'PRODUCT', name: '', sku: '', category_id: '', description: '', hsn_sac: '', unit: settings.units?.[0] || 'Nos', selling_price: '',
@@ -65,11 +66,11 @@ function ProductSheet({ initial, categories, settings, onClose, onSaved }) {
           testId="product-type"
         />
         <Field label="Name" required>
-          <Input value={p.name} onChange={(v) => set({ name: v })} data-testid="product-name" />
+          <Input placeholder="e.g. Office chair, Installation" value={p.name} onChange={(v) => set({ name: v })} data-testid="product-name" />
         </Field>
         <div className="grid-2">
           <Field label="SKU / Code">
-            <Input value={p.sku} onChange={(v) => set({ sku: v })} />
+            <Input placeholder="e.g. CHR-001" value={p.sku} onChange={(v) => set({ sku: v })} />
           </Field>
           <Field label="Unit">
             <Picker value={p.unit} onChange={(v) => set({ unit: v || '' })} options={unitOptions(settings.units || [], p.type === 'SERVICE' ? 'service' : 'product')} title="Unit" creatable testId="product-unit" />
@@ -80,7 +81,7 @@ function ProductSheet({ initial, categories, settings, onClose, onSaved }) {
         </Field>
         <div className="grid-2">
           <Field label={p.type === 'SERVICE' ? 'SAC code' : 'HSN code'}>
-            <Input value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v.replace(/[^0-9]/g, '').slice(0, 8) })} inputMode="numeric" data-testid="product-hsn" />
+            <Input placeholder="e.g. 9401 or 998314" value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v.replace(/[^0-9]/g, '').slice(0, 8) })} inputMode="numeric" data-testid="product-hsn" />
           </Field>
           {settings.taxSystem !== 'NONE' && (
             <Field label={settings.taxSystem === 'GST' ? 'GST' : `${settings.taxLabel || 'Tax'} rate`}>
@@ -97,7 +98,7 @@ function ProductSheet({ initial, categories, settings, onClose, onSaved }) {
           )}
         </div>
         <Field label="Description">
-          <TextArea rows={2} value={p.description} onChange={(v) => set({ description: v })} />
+          <TextArea placeholder="Size, model or other details" rows={2} value={p.description} onChange={(v) => set({ description: v })} />
         </Field>
         <div className="grid-2">
           <Field label="Selling price">
@@ -125,11 +126,11 @@ function ProductSheet({ initial, categories, settings, onClose, onSaved }) {
                 <NumberInput value={p.purchase_price} onChange={(v) => set({ purchase_price: v })} placeholder="0.00" data-testid="product-purchase-price" />
               </Field>
               <Field label="Barcode">
-                <Input value={p.barcode} onChange={(v) => set({ barcode: v })} inputMode="numeric" />
+                <Input placeholder="e.g. 8901234567890" value={p.barcode} onChange={(v) => set({ barcode: v })} inputMode="numeric" />
               </Field>
             </div>
             <Field label="Notes">
-              <TextArea rows={2} value={p.notes} onChange={(v) => set({ notes: v })} />
+              <TextArea placeholder="Internal notes (not printed)" rows={2} value={p.notes} onChange={(v) => set({ notes: v })} />
             </Field>
           </>
         ) : (
@@ -198,7 +199,7 @@ function CategoriesSheet({ categories, onClose, onChanged }) {
           <div key={c.id} className="list-item static">
             {editing?.id === c.id ? (
               <>
-                <input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
+                <input placeholder="Category name" className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
                 <button className="btn btn-sm btn-primary" onClick={rename}>
                   Save
                 </button>
@@ -263,6 +264,7 @@ export default function Products() {
         }
       />
       <div className="page" data-testid="products">
+        <PartyLinks />
         <div className="search">
           <Icon name="search" size={18} />
           <input className="input" placeholder="Name, SKU, HSN or category" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="product-search" />

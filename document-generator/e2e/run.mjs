@@ -350,6 +350,7 @@ async function main() {
     await startApp();
     await waitForText('Welcome to DocGen');
     check((await bodyText()).includes('Create. Manage. Grow.'), 'welcome shows name and tagline');
+    check((await textOf('[data-testid="setup-tutorial"]')).includes('Watch Configuration Tutorial') && (await exists('[data-testid="setup-tutorial"] svg')), 'setup: YouTube "Watch Configuration Tutorial" button');
     await shot('01-welcome');
     await clickCss('[data-testid="setup-next"]');
     await type('[data-testid="setup-company"]', 'Sharma Furniture Works');
@@ -725,8 +726,8 @@ async function main() {
     check(/your units/i.test(unitPop) && unitPop.includes('Crate'), `custom units listed in the unit selector (${unitPop.replace(/\n/g, ' ').slice(0, 80)})`);
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
     await go('#/manager');
-    const nav = await exec('return document.querySelector(".sidebar").innerText');
-    check(!/Customers/.test(nav), 'Customer & Vendor management removed from the navigation');
+    check(!(await exists('.nav-item[href="#/parties/customer"]')) && !(await exists('.nav-item[href="#/parties/vendor"]')) && (await exists('[data-testid="nav-parties-add"]')),
+      'Customers & Vendors are off by default: only a small + under Products & Services');
     const parties = await invoke('parties_list', { search: 'ABC' });
     check(parties.some((pt) => pt.gstin === '29ABCDE1234F1Z5'), 'saved customer data kept (used when typing a name on documents)');
     await go('#/products');
@@ -793,12 +794,15 @@ async function main() {
     await type('[data-testid="amount-received"]', '5000');
     await sleep(300);
     check(/Balance after this receipt\s*₹\s?6,800/.test(await textOf('[data-testid="receipt-balance"]')), 'balance after this receipt: ₹6,800');
-    await clickText('A5 ·', '.segmented button');
+    await exec('document.querySelector("[data-testid=paper-size-A5]").scrollIntoView({ block: "center" })');
+    await clickCss('[data-testid="paper-size-A5"]');
     if (!(await exists('.page-preview .doc'))) await clickText('Preview');
     await find('.page-preview .doc');
     await sleep(500);
-    const a5 = await exec('const d=document.querySelector(".page-preview .doc"); return d ? [d.classList.contains("doc-a5"), Math.round(d.offsetWidth / 96 * 25.4), !!d.querySelector(".doc-receipt-settle")] : null');
-    check(a5 && a5[0] && a5[1] === 148 && a5[2], `A5 receipt preview, 148 mm wide, with invoice amount / received earlier / balance (${JSON.stringify(a5)})`);
+    // The A5 sheet is the A4 layout drawn at 80 %: compare its drawn width with the 148 mm paper around it.
+    const a5 = await exec(`const d=document.querySelector(".page-preview .doc"), p=d && d.closest(".page-preview-paper");
+      return d ? [d.classList.contains("doc-a5w") && p.classList.contains("paper-a5"), Math.round(148 * d.getBoundingClientRect().width / p.getBoundingClientRect().width), !!d.querySelector(".rc-settle"), !!d.querySelector(".rc-amount")] : null`);
+    check(a5 && a5[0] && Math.abs(a5[1] - 148) <= 1 && a5[2] && a5[3], `A5 receipt preview, 148 mm wide: amount received, invoice amount / received earlier / balance (${JSON.stringify(a5)})`);
     await shot('14b-receipt-a5');
     await clickCss('[data-testid="save-doc"]');
     await waitForText('marked Partly paid', 15000);
@@ -865,7 +869,7 @@ async function main() {
     await keys(ENTER);
     check((await focusIs('item-name-1')), 'Enter on Add Item starts a new row');
     await keys(ENTER);
-    check((await focusIs(/Shipping/)), `Enter on an empty item name leaves the item list (${await focused()})`);
+    check((await focusIs('add-charge')), `Enter on an empty item name leaves the item list for Additional charges (${await focused()})`);
     const kbTotal = await textOf('[data-testid="grand-total"]');
     check(kbTotal.includes('3,540.00'), `keyboard-entered invoice totals correctly: 3 × 1,000 + 18% (${kbTotal})`);
     await keys('\uE009s');
@@ -886,6 +890,79 @@ async function main() {
     await keys(ENTER);
     await waitForText('Keyboard Chair');
     check(!(await exists('.modal')), 'Enter on the last field saves the product');
+
+    // ------------------------------------------------------------------ 8c
+    section('8c. Additional charges, A5 bills, terms, customers & vendors');
+    await go('#/doc/new/TAX_INVOICE');
+    await waitForText('New Tax Invoice');
+    await type('[data-testid="party-name"]', 'Charges Test Co');
+    await type('[data-testid="item-name-0"]', 'Steel cupboard');
+    await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
+    await type('[data-testid="item-rate-0"]', '1000');
+    await clickCss('[data-testid="add-charge"]');
+    await type('[data-testid="charge-label-0"]', 'Freight');
+    await type('[data-testid="charge-amount-0"]', '500');
+    await pick('charge-tax-0', '18%');
+    await clickText('+ Packing', '.chip');
+    await type('[data-testid="charge-amount-1"]', '100');
+    await sleep(300);
+    const chargeTotal = await textOf('[data-testid="grand-total"]');
+    check(chargeTotal.includes('1,870.00'), `two charges, each with its own GST rate: 1,000 + 18% + Freight 500 + 18% + Packing 100 = 1,870.00 (${chargeTotal})`);
+    check((await textOf('[data-testid="total-taxable"]')).includes('1,600.00') && (await textOf('[data-testid="total-cgst"]')).includes('135.00'), 'charges are added before tax: taxable 1,600, CGST 135');
+    check((await exec('return document.querySelector("[data-testid=doc-terms]").value')).startsWith('1. Payment due within 15 days') && (await exists('[data-testid="doc-declaration"]')),
+      'invoice starts with its default terms and declaration (editable here)');
+    check((await exec('return [...document.querySelectorAll(".editor-form input:not([type=checkbox]):not([type=radio]):not([type=date]), .editor-form textarea")].filter(e=>!e.placeholder).length')) === 0,
+      'every field in the document editor shows a placeholder');
+    await exec('document.querySelector("[data-testid=paper-size-A5]").scrollIntoView({ block: "center" })');
+    await clickCss('[data-testid="paper-size-A5"]');
+    await clickCss('[data-testid="save-doc"]');
+    await waitForText('saved', 10000);
+    await find('.page-preview .doc-a5w');
+    const a5Bill = await exec('return document.querySelector(".page-preview").innerText');
+    check(a5Bill.includes('Freight') && a5Bill.includes('Packing') && (await exists('.page-preview .doc-a5w.doc-a5z')), 'A5 invoice: same layout drawn on A5, with the charges and the GST summary');
+    for (const f of readdirSync(pdfDir)) rmSync(path.join(pdfDir, f));
+    await clickCss('[data-testid="download-pdf"]');
+    await waitForText('PDF saved to', 60000);
+    const billPdf = readFileSync(path.join(pdfDir, readdirSync(pdfDir)[0])).toString('latin1');
+    const billBox = (billPdf.match(/\/MediaBox\s*\[\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/) || []).slice(1).map(Number);
+    check(billBox.length === 2 && Math.abs(billBox[0] - 419.5) < 3 && Math.abs(billBox[1] - 595.3) < 3, `invoice PDF on A5 paper (${billBox.map((v) => Math.round(v)).join(' × ')} pt)`);
+    const chargedId = Number((await exec('return location.hash')).match(/doc\/(\d+)/)[1]);
+    const stored = await invoke('document_get', { id: chargedId });
+    check(stored.document.grand_total === '1870.00' && stored.document.other_charges === '600.00' && JSON.parse(stored.document.meta).charges.length === 2, 'saved: grand total, charges total and both charge rows');
+    await go(`#/doc/${chargedId}/edit`);
+    await find('[data-testid="charge-row-1"]');
+    check((await exec('return document.querySelector("[data-testid=charge-label-1]").value')) === 'Packing', 'editing keeps both charges');
+    await go('#/dashboard');
+    await clickCss('[data-testid="nav-parties-add"]');
+    await find('[data-testid="module-customer"]');
+    await clickCss('[data-testid="module-customer"] .toggle');
+    await clickCss('[data-testid="open-customer"]');
+    await find('[data-testid="party-table"]');
+    check(await exists('.nav-item[href="#/parties/customer"]'), 'Customers switched on: it appears in the sidebar under Products & Services');
+    const abcRow = await exec('return [...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction"))?.innerText || ""');
+    check(/ABC Construction[\s\S]*\b[1-9]\d*\b/.test(abcRow), `saved customers listed with their documents (${abcRow.replace(/\s+/g, ' ')})`);
+    await clickCss('[data-testid="add-party"]');
+    await type('[data-testid="party-form-name"]', 'Walk-in Retail');
+    await type('[data-testid="party-form-gstin"]', '27AAPFU0939F1ZV');
+    check(await hasText('[data-testid="party-form-state"]', 'Maharashtra'), 'customer form: GSTIN fills the state');
+    // (notices in the bottom corner can sit over the dialog's buttons for a moment)
+    await exec('document.querySelector("[data-testid=party-form-save]").click()');
+    await waitForText('Walk-in Retail saved');
+    const before = await invoke('document_get', { id: 1 });
+    await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-delete]").click()`);
+    check((await textOf('.dialog-message')).includes('archived'), 'deleting a customer that is on documents offers to archive it');
+    await clickCss('[data-testid="confirm-ok"]');
+    await waitForText('archived — documents unchanged');
+    const after = await invoke('document_get', { id: 1 });
+    check(after.document.party_name === before.document.party_name && after.document.party_id === before.document.party_id && after.document.grand_total === before.document.grand_total,
+      'the archived customer’s invoices are unchanged');
+    const [archivedAbc] = await invoke('parties_query', { filter: { kind: 'customer', archived: true, search: 'ABC Construction' } });
+    check(archivedAbc && !(await invoke('parties_list', { search: 'ABC' })).some((pt) => pt.id === archivedAbc.id), 'archived customer is no longer suggested in documents');
+    await clickCss('[data-testid="party-archived-archived"]');
+    await clickCss('[data-testid="party-restore"]');
+    await waitForText('restored');
+    check((await invoke('parties_list', { search: 'ABC' })).some((pt) => pt.id === archivedAbc.id), 'archived customer restored');
+    await shot('20-customers');
 
     // ------------------------------------------------------------------ 9
     section('9. Sign in with account');

@@ -75,10 +75,10 @@ export default function Activation({ onDone, message }) {
         ) : (
           <>
             <Field label="Email">
-              <Input type="email" value={email} onChange={setEmail} autoComplete="username" data-testid="login-email" />
+              <Input placeholder="you@example.com" type="email" value={email} onChange={setEmail} autoComplete="username" data-testid="login-email" />
             </Field>
             <Field label="Password">
-              <Input type="password" value={password} onChange={setPassword} autoComplete="current-password" data-testid="login-password" />
+              <Input placeholder="Your password" type="password" value={password} onChange={setPassword} autoComplete="current-password" data-testid="login-password" />
             </Field>
           </>
         )}

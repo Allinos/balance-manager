@@ -116,12 +116,12 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
             </span>
           )}
           <span className="num">Qty</span>
-          <span>Unit</span>
+          <span className="c-unit">Unit</span>
           {cols.includes('pkg') && <span>Package</span>}
           {cols.includes('rate') && <span className="num">Rate</span>}
-          {cols.includes('disc') && <span className="num">Discount</span>}
-          {cols.includes('tax') && <span>{doc.tax_label || 'Tax'} %</span>}
-          {cols.includes('amount') && <span className="num">Amount</span>}
+          {cols.includes('disc') && <span className="num c-disc">Discount</span>}
+          {cols.includes('tax') && <span className="num c-tax">{doc.tax_label || 'Tax'} %</span>}
+          {cols.includes('amount') && <span className="num c-amt">Amount</span>}
           <span />
         </div>
         {items.map((it, index) => {
@@ -157,9 +157,9 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
                 />
               </div>
               {cols.includes('hsn') && (
-                <input className="input" value={it.hsn_sac} onChange={(e) => update(it._key, { hsn_sac: e.target.value })} aria-label="HSN/SAC" />
+                <input placeholder="e.g. 9403" className="input" value={it.hsn_sac} onChange={(e) => update(it._key, { hsn_sac: e.target.value })} aria-label="HSN/SAC" />
               )}
-              <NumberInput value={it.quantity} onChange={(v) => update(it._key, { quantity: v })} aria-label="Quantity" data-testid={`item-qty-${index}`} />
+              <NumberInput placeholder="1" value={it.quantity} onChange={(v) => update(it._key, { quantity: v })} aria-label="Quantity" data-testid={`item-qty-${index}`} />
               <SearchSelect
                 className="ss-compact"
                 value={it.unit}
@@ -181,11 +181,11 @@ export default function ItemsEditor({ items, lines, doc, ds, settings, onChange 
                 />
               )}
               {cols.includes('rate') && (
-                <NumberInput value={it.unit_price} onChange={(v) => update(it._key, { unit_price: v })} aria-label="Unit price" data-testid={`item-rate-${index}`} />
+                <NumberInput placeholder="0.00" value={it.unit_price} onChange={(v) => update(it._key, { unit_price: v })} aria-label="Unit price" data-testid={`item-rate-${index}`} />
               )}
               {cols.includes('disc') && (
                 <div className="disc-input">
-                  <NumberInput value={it.discount_value} onChange={(v) => update(it._key, { discount_value: v })} aria-label="Discount" />
+                  <NumberInput placeholder="0" value={it.discount_value} onChange={(v) => update(it._key, { discount_value: v })} aria-label="Discount" />
                   <button
                     type="button"
                     className="disc-type"

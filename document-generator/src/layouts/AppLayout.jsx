@@ -10,6 +10,7 @@ import { APP_CONFIG } from '../config/appConfig.js';
 import { openExternal } from '../services/systemService.js';
 import TrialLine from '../features/license/TrialLine.jsx';
 import BrandName from '../components/BrandName.jsx';
+import { PARTY_MODULES, enabledModules } from '../config/partyModules.js';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', match: ['/dashboard'] },
@@ -69,7 +70,7 @@ function readCollapsed() {
 
 export default function AppLayout({ children }) {
   const { path } = useRouter();
-  const { company } = useAppData();
+  const { company, settings } = useAppData();
   const toast = useToast();
   const [chooser, setChooser] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -124,7 +125,23 @@ export default function AppLayout({ children }) {
         <button className="btn btn-primary btn-block new-doc-btn" onClick={() => setChooser(true)} title="New document (Ctrl+N)">
           <Icon name="plus" /> <span className="nav-text">New Document</span>
         </button>
-        <nav className="nav">{NAV.map(navItem)}</nav>
+        <nav className="nav">
+          {NAV.map(navItem)}
+          {/* Customers / Vendors appear here once switched on; until both are on, a small + leads to the switches. */}
+          {enabledModules(settings).map((m) => navItem({ to: `/parties/${m.kind}`, label: m.label, icon: m.icon, match: [`/parties/${m.kind}`] }))}
+          {enabledModules(settings).length < PARTY_MODULES.length && (
+            <Link
+              to="/parties"
+              className={`nav-add ${path === '/parties' ? 'active' : ''}`}
+              title="Customers & Vendors: switch on the screens you need"
+              aria-label="Add Customers or Vendors to the sidebar"
+              data-testid="nav-parties-add"
+            >
+              <Icon name="plus" size={15} />
+              <span className="nav-text">{enabledModules(settings).length ? 'Add Vendors / Customers' : 'Customers & Vendors'}</span>
+            </Link>
+          )}
+        </nav>
         <div className="sidebar-bottom">
           <TrialLine />
           <nav className="nav">{BOTTOM.map(navItem)}</nav>

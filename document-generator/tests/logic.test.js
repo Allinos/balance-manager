@@ -242,12 +242,60 @@ test('payment receipt against an invoice: party, amounts, balance, paper size', 
   const d = detachInvoice(r);
   assert.equal(d.parent_document_id, null);
   assert.equal(d.meta.against_total, undefined);
-  // Paper: A4 by default, A5 per receipt or per type; invoices always A4.
+  // Paper: A4 by default, A5 per document type (Settings → Document Types) or per document — for every type.
   const s = { ...defaults };
   assert.equal(resolveDocSettings('PAYMENT_RECEIPT', s, {}).paperSize, 'A4');
   assert.equal(resolveDocSettings('PAYMENT_RECEIPT', s, { PAYMENT_RECEIPT: { paperSize: 'A5' } }).paperSize, 'A5');
-  assert.equal(resolveDocSettings('TAX_INVOICE', s, { TAX_INVOICE: { paperSize: 'A5' } }).paperSize, 'A4');
+  assert.equal(resolveDocSettings('TAX_INVOICE', s, {}).paperSize, 'A4');
+  assert.equal(resolveDocSettings('TAX_INVOICE', s, { TAX_INVOICE: { paperSize: 'A5' } }).paperSize, 'A5');
+  assert.equal(resolveDocSettings('TAX_INVOICE', s, { TAX_INVOICE: { paperSize: 'Letter' } }).paperSize, 'A4', 'unknown sizes fall back to A4');
   assert.equal(withDocumentOptions(resolveDocSettings('PAYMENT_RECEIPT', s, {}), { document_type: 'PAYMENT_RECEIPT', meta: { paperSize: 'A5' } }).paperSize, 'A5');
+  assert.equal(withDocumentOptions(resolveDocSettings('QUOTATION', s, { QUOTATION: { paperSize: 'A5' } }), { document_type: 'QUOTATION', meta: { paperSize: 'A4' } }).paperSize, 'A4');
   assert.ok(docSettingFieldsFor(getType('PAYMENT_RECEIPT')).some((f) => f.key === 'paperSize'));
-  assert.ok(!docSettingFieldsFor(getType('TAX_INVOICE')).some((f) => f.key === 'paperSize'));
+  assert.ok(docSettingFieldsFor(getType('TAX_INVOICE')).some((f) => f.key === 'paperSize'));
+});
+
+test('default terms and declarations: one set per document type, editable per type and per document', async () => {
+  const { DEFAULT_SETTINGS, resolveDocSettings, withDocumentOptions } = await import('../src/config/defaults.js');
+  const { newDocument, modelFromSource } = await import('../src/services/documentService.js');
+  const settings = { ...DEFAULT_SETTINGS };
+  for (const t of DOCUMENT_TYPES) {
+    const ds = resolveDocSettings(t.id, settings, {});
+    assert.equal(typeof ds.terms, 'string', t.id);
+    assert.equal(typeof ds.declaration, 'string', t.id);
+  }
+  // Invoices start with the payment terms from Settings → Documents.
+  assert.match(resolveDocSettings('TAX_INVOICE', { ...settings, defaultPaymentTerms: 'Pay in 7 days.' }, {}).terms, /^1\. Pay in 7 days\.\n2\. /);
+  assert.match(resolveDocSettings('QUOTATION', settings, {}).terms, /valid until/);
+  assert.equal(resolveDocSettings('TAX_INVOICE', settings, {}).declaration, settings.declaration);
+  // A type's own text wins (Settings → Document Types).
+  const docSettings = { QUOTATION: { terms: 'Our own terms', declaration: 'Our own declaration' } };
+  const ctx = { settings, docSettings };
+  const m = newDocument('QUOTATION', ctx);
+  assert.equal(m.document.terms, 'Our own terms');
+  assert.equal(m.document.meta.declaration, 'Our own declaration', 'a new document keeps the declaration it was created with');
+  // A document's own declaration is printed instead of the type's.
+  const ds = withDocumentOptions(resolveDocSettings('QUOTATION', settings, docSettings), { document_type: 'QUOTATION', meta: { declaration: 'Just this one' } });
+  assert.equal(ds.declaration, 'Just this one');
+  // A duplicate keeps the document's own text, paper size and charges.
+  const source = { document: { ...m.document, id: 7, document_number: 'QTN-7', terms: 'Edited', meta: JSON.stringify({ ...m.document.meta, declaration: 'Edited too', paperSize: 'A5', charges: [{ label: 'Freight', amount: '200', tax_rate: '18' }] }) }, items: [], parent: null };
+  const dup = modelFromSource(source, 'QUOTATION', 'duplicate', ctx);
+  assert.equal(dup.document.terms, 'Edited');
+  assert.equal(dup.document.meta.declaration, 'Edited too');
+  assert.equal(dup.document.meta.paperSize, 'A5');
+  assert.deepEqual(dup.document.meta.charges.map((c) => [c.label, c.amount]), [['Freight', '200']]);
+  // Converting starts the new type with its own defaults.
+  const inv = modelFromSource(source, 'TAX_INVOICE', 'convert', ctx);
+  assert.match(inv.document.terms, /^1\. /);
+  assert.equal(inv.document.meta.charges.length, 1, 'charges move to the converted document');
+});
+
+test('Customers & Vendors modules are off by default', async () => {
+  const { DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  const { PARTY_MODULES, enabledModules } = await import('../src/config/partyModules.js');
+  assert.equal(DEFAULT_SETTINGS.customersModule, false);
+  assert.equal(DEFAULT_SETTINGS.vendorsModule, false);
+  assert.deepEqual(enabledModules(DEFAULT_SETTINGS), []);
+  assert.deepEqual(enabledModules({ ...DEFAULT_SETTINGS, vendorsModule: true }).map((m) => m.kind), ['vendor']);
+  assert.equal(PARTY_MODULES.length, 2);
 });

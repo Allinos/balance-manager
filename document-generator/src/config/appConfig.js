@@ -17,6 +17,8 @@ export const APP_CONFIG = {
   // International format without "+" or spaces, used for https://wa.me/<number>
   whatsappNumber: '+919864773099',
   youtubeChannel: 'https://www.youtube.com/@FlowStack-India',
+  // "Watch Configuration Tutorial" in the first-start setup (desktop and mobile). Opens in the browser.
+  setupTutorialUrl: 'https://www.youtube.com/watch?v=qycjuev523o',
   premiumFeatures: [
     'All document types and templates, no ads',
     'Use on more than one computer',

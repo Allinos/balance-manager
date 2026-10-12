@@ -7,7 +7,11 @@
  *                       (INTRA: CGST = SGST = Taxable × rate/2 / 100 each)
  *   Line total        = Taxable + Tax
  *
- *   Grand total = Subtotal − Discount + Tax + Shipping + Other charges ± Round off
+ *   Additional charges (freight, packing, loading …, document.meta.charges) are added before tax, each with
+ *   its own tax rate, so their tax lands in the tax totals and the GST summary:
+ *   Grand total = Subtotal − Discount + Charges + Tax ± Round off
+ *
+ *   Documents saved before charges existed keep their single Shipping + Other charges (added after tax).
  */
 
 import { dec, mul, sub, add, sum, percentOf, round, toFixed, div, min, max, isZero, toPlain } from './decimal.js';
@@ -76,6 +80,36 @@ export function calcLine(item, { taxMode = TAX_MODES.INTRA, decimals = 2 } = {})
   };
 }
 
+/** The document's additional charges (meta.charges), or null for an older document that has none. */
+export function chargesOf(doc) {
+  const list = doc?.meta?.charges;
+  return Array.isArray(list) ? list : null;
+}
+
+/** A charge row with something in it (a label alone is kept while typing but not counted). */
+export const chargeCounts = (c) => !!c && !isZero(dec(c.amount));
+
+/**
+ * The additional charges of a document as calculated lines (label, amount before tax, rate, tax amounts).
+ * Also used by the printed document, which shows a saved document as it was stored.
+ */
+export function chargeLines(doc, { taxMode = doc?.tax_mode || TAX_MODES.INTRA, decimals = Number(doc?.currency_decimals ?? 2) } = {}) {
+  return (chargesOf(doc) || []).filter(chargeCounts).map((c) => {
+    const l = calcLine({ quantity: '1', unit_price: c.amount, discount_value: '0', tax_rate: c.tax_rate || '0' }, { taxMode, decimals });
+    return {
+      label: String(c.label || '').trim() || 'Other charges',
+      amount: l.taxable_amount,
+      taxable_amount: l.taxable_amount,
+      tax_rate: l.tax_rate,
+      cgst_amount: l.cgst_amount,
+      sgst_amount: l.sgst_amount,
+      igst_amount: l.igst_amount,
+      tax_amount: l.tax_amount,
+      total_amount: l.total_amount,
+    };
+  });
+}
+
 /**
  * Calculate every line, the tax breakdown per rate and the document totals.
  * @param {Object} doc  document fields (tax_mode, shipping, other_charges, round_off, meta)
@@ -85,17 +119,22 @@ export function calcLine(item, { taxMode = TAX_MODES.INTRA, decimals = 2 } = {})
 export function calcDocument(doc, items, { decimals = 2, roundOffMode = 'AUTO', includeTax = true } = {}) {
   const taxMode = includeTax ? doc.tax_mode || TAX_MODES.INTRA : TAX_MODES.NONE;
   const lines = items.map((it) => ({ ...it, ...calcLine(it, { taxMode, decimals }) }));
+  // Additional charges: one line each (quantity 1, no discount), taxed at their own rate.
+  const chargeList = chargesOf(doc);
+  const charges = chargeLines(doc, { taxMode, decimals });
+  const taxed = [...lines, ...charges];
 
   const subtotal = sum(lines.map((l) => l.gross_amount));
   const discount = sum(lines.map((l) => l.discount_amount));
-  const taxable = sum(lines.map((l) => l.taxable_amount));
-  const cgst = sum(lines.map((l) => l.cgst_amount));
-  const sgst = sum(lines.map((l) => l.sgst_amount));
-  const igst = sum(lines.map((l) => l.igst_amount));
-  const tax = sum(lines.map((l) => l.tax_amount));
-  const shipping = round(doc.shipping, decimals);
-  const other = round(doc.other_charges, decimals);
-  const beforeRound = taxable + tax + shipping + other;
+  const taxable = sum(taxed.map((l) => l.taxable_amount));
+  const cgst = sum(taxed.map((l) => l.cgst_amount));
+  const sgst = sum(taxed.map((l) => l.sgst_amount));
+  const igst = sum(taxed.map((l) => l.igst_amount));
+  const tax = sum(taxed.map((l) => l.tax_amount));
+  // With charges, "other_charges" is their total (already in taxable) and the old single shipping is not used.
+  const shipping = chargeList ? 0n : round(doc.shipping, decimals);
+  const other = chargeList ? sum(charges.map((c) => c.amount)) : round(doc.other_charges, decimals);
+  const beforeRound = taxable + tax + shipping + (chargeList ? 0n : other);
 
   let roundOff = 0n;
   if (roundOffMode === 'AUTO') roundOff = round(beforeRound, 0) - beforeRound;
@@ -105,7 +144,7 @@ export function calcDocument(doc, items, { decimals = 2, roundOffMode = 'AUTO', 
   // Tax breakdown grouped by rate (used for the GST summary table).
   const groups = new Map();
   if (taxMode !== TAX_MODES.NONE) {
-    for (const l of lines) {
+    for (const l of taxed) {
       const key = l.tax_rate;
       const g = groups.get(key) || { tax_rate: key, taxable: 0n, cgst: 0n, sgst: 0n, igst: 0n, tax: 0n };
       g.taxable += dec(l.taxable_amount);
@@ -132,6 +171,7 @@ export function calcDocument(doc, items, { decimals = 2, roundOffMode = 'AUTO', 
   return {
     lines,
     taxes,
+    charges,
     totals: {
       subtotal: f(subtotal),
       discount: f(discount),

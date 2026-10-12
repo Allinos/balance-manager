@@ -49,6 +49,8 @@ pub fn run() {
             commands::parties_list,
             commands::party_save,
             commands::party_delete,
+            commands::parties_query,
+            commands::party_archive,
             commands::documents_list,
             commands::document_get,
             commands::document_save,

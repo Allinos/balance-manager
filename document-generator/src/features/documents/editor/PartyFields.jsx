@@ -70,23 +70,23 @@ export default function PartyFields({ doc, type, onChange: change, saveParty, on
           />
         </Field>
         <Field label="Company">
-          <TextInput value={doc.party_company} onChange={(v) => onChange({ party_company: v })} />
+          <TextInput placeholder="e.g. Rahul Mehta" value={doc.party_company} onChange={(v) => onChange({ party_company: v })} />
         </Field>
         <Field label="Address" className="span-2">
-          <TextArea rows={2} value={doc.party_address} onChange={(v) => onChange({ party_address: v })} />
+          <TextArea placeholder={"Building, street, area\nCity – PIN code"} rows={2} value={doc.party_address} onChange={(v) => onChange({ party_address: v })} />
         </Field>
         <Field label="Phone">
-          <TextInput value={doc.party_phone} onChange={(v) => onChange({ party_phone: v })} />
+          <TextInput placeholder="e.g. +91 98450 12345" value={doc.party_phone} onChange={(v) => onChange({ party_phone: v })} />
         </Field>
         <Field label="Email">
-          <TextInput type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} />
+          <TextInput placeholder="e.g. accounts@example.com" type="email" value={doc.party_email} onChange={(v) => onChange({ party_email: v })} />
         </Field>
         <Field
           label={taxSystem === 'GST' ? 'GSTIN' : 'Tax / VAT number'}
           help={taxSystem === 'GST' ? "The customer's 15-character GST number. Leave empty for unregistered customers. Their state is filled in from it." : undefined}
           hint={taxSystem === 'GST' && doc.party_gstin && !isValidGstin(doc.party_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : ''}
         >
-          <TextInput
+          <TextInput placeholder={taxSystem === 'GST' ? 'e.g. 29ABCDE1234F1Z5' : 'e.g. 100123456700003'}
             value={taxSystem === 'GST' ? doc.party_gstin : doc.party_tax_id}
             onChange={(v) => onChange(taxSystem === 'GST' ? gstinChange(v) : { party_tax_id: v })}
             maxLength={taxSystem === 'GST' ? 15 : 40}
@@ -109,7 +109,7 @@ export default function PartyFields({ doc, type, onChange: change, saveParty, on
 
       {shipOpen ? (
         <Field label="Shipping address" className="mt">
-          <TextArea rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
+          <TextArea placeholder="Delivery address, if different from billing" rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
         </Field>
       ) : (
         <div>

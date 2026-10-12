@@ -6,6 +6,7 @@ import { Header, go } from '../components/ui.jsx';
 import { CompanySection, DocumentTypesSection, DocumentsSection } from './settings/business.jsx';
 import { AboutSection, BackupSection, HelpSection, LicenseSection, NumberingSection, TaxSection } from './settings/system.jsx';
 import { useApp } from '../data.jsx';
+import { PartyModulesSection } from './Parties.jsx';
 
 export const SECTIONS = [
   { id: 'company', label: 'Company', icon: 'building', detail: 'Name, address, GSTIN, logo, bank & UPI', Component: CompanySection },
@@ -13,6 +14,7 @@ export const SECTIONS = [
   { id: 'types', label: 'Document Types', icon: 'layers', detail: 'Title, template and terms per type', Component: DocumentTypesSection },
   { id: 'tax', label: 'Tax', icon: 'percent', detail: 'GST / VAT, rates', Component: TaxSection },
   { id: 'numbering', label: 'Numbering', icon: 'hash', detail: 'Prefix, format, next number', Component: NumberingSection },
+  { id: 'parties', label: 'Customers & Vendors', icon: 'users', detail: 'Optional screens, off by default', Component: PartyModulesSection },
   { id: 'license', label: 'License & Account', icon: 'key', detail: 'Key, validity, sign out', Component: LicenseSection },
   { id: 'backup', label: 'Backup', icon: 'database', detail: 'Save or restore all data', Component: BackupSection },
   { id: 'help', label: 'Help & Support', icon: 'help', detail: 'Guides, questions, contact', Component: HelpSection },

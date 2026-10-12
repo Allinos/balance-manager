@@ -90,3 +90,46 @@ test('dates', () => {
   assert.equal(formatDate('2026-09-24'), '24-09-2026');
   assert.deepEqual(rangeFor('all'), { from: '', to: '' });
 });
+
+test('additional charges: several rows, each taxed at its own rate, in the totals and GST summary', async () => {
+  const { calcDocument, chargeLines } = await import('../src/utils/calc.js');
+  const items = [{ quantity: '2', unit_price: '1000', discount_value: '10', discount_type: 'PERCENT', tax_rate: '18' }];
+  const doc = {
+    tax_mode: 'INTRA',
+    shipping: '0',
+    other_charges: '0',
+    meta: { charges: [{ label: 'Freight', amount: '500', tax_rate: '18' }, { label: 'Packing', amount: '100', tax_rate: '0' }, { label: '', amount: '', tax_rate: '5' }] },
+  };
+  const { totals, taxes, charges } = calcDocument(doc, items, { roundOffMode: 'NONE' });
+  // Items 2,000 − 10 % = 1,800; charges 500 @ 18 % + 100 @ 0 %; tax 18 % of 2,300 = 414.
+  assert.equal(totals.subtotal, '2000.00');
+  assert.equal(totals.discount, '200.00');
+  assert.equal(totals.other_charges, '600.00');
+  assert.equal(totals.taxable, '2400.00');
+  assert.equal(totals.cgst, '207.00');
+  assert.equal(totals.sgst, '207.00');
+  assert.equal(totals.tax, '414.00');
+  assert.equal(totals.shipping, '0.00');
+  assert.equal(totals.grand_total, '2814.00');
+  assert.deepEqual(charges.map((c) => [c.label, c.amount, c.tax_amount]), [['Freight', '500.00', '90.00'], ['Packing', '100.00', '0.00']]);
+  assert.deepEqual(taxes.map((t) => [t.tax_rate, t.taxable_amount, t.tax_amount]), [['0', '100.00', '0.00'], ['18', '2300.00', '414.00']]);
+  // A minus amount works as a deduction; IGST for another state.
+  const deduct = calcDocument({ ...doc, tax_mode: 'INTER', meta: { charges: [{ label: 'Advance received', amount: '-1000', tax_rate: '0' }] } }, items, { roundOffMode: 'NONE' });
+  assert.equal(deduct.totals.igst, '324.00');
+  assert.equal(deduct.totals.grand_total, '1124.00');
+  // The printed document works the lines out from the stored document the same way.
+  assert.deepEqual(chargeLines({ ...doc, currency_decimals: 2 }).map((c) => c.total_amount), ['590.00', '100.00']);
+});
+
+test('older documents keep their single shipping and other charges (added after tax)', async () => {
+  const { calcDocument } = await import('../src/utils/calc.js');
+  const items = [{ quantity: '1', unit_price: '1000', tax_rate: '18' }];
+  const { totals } = calcDocument({ tax_mode: 'INTRA', shipping: '100', other_charges: '50', meta: {} }, items, { roundOffMode: 'NONE' });
+  assert.equal(totals.tax, '180.00');
+  assert.equal(totals.grand_total, '1330.00');
+  const { withCharges } = await import('../src/services/documentService.js');
+  const edited = withCharges({ shipping: '100', other_charges: '50', other_charges_label: 'Loading', tax_mode: 'INTRA', meta: {} });
+  assert.deepEqual(edited.meta.charges.map((c) => [c.label, c.amount, c.tax_rate]), [['Shipping', '100', '0'], ['Loading', '50', '0']]);
+  const again = calcDocument(edited, items, { roundOffMode: 'NONE' });
+  assert.equal(again.totals.grand_total, '1330.00');
+});

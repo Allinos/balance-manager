@@ -14,6 +14,7 @@ import { ImagePicker } from '../settings/CompanySettings.jsx';
 import { StylePreview } from '../settings/DocumentSettings.jsx';
 import ActivationOptions from '../license/ActivationOptions.jsx';
 import BrandName from '../../components/BrandName.jsx';
+import TutorialButton from '../../components/TutorialButton.jsx';
 
 const STEPS = ['Welcome', 'Company', 'Business', 'Tax', 'Template', 'Activate'];
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
@@ -115,10 +116,13 @@ export default function SetupWizard() {
   return (
     <div className="setup">
       <div className={`setup-card ${step === 5 ? 'wide' : ''}`} data-keynav>
-        <div className="setup-steps" aria-label="Setup progress">
-          {STEPS.map((s, i) => (
-            <span key={s} className={`setup-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} title={s} />
-          ))}
+        <div className="setup-top">
+          <div className="setup-steps" aria-label="Setup progress">
+            {STEPS.map((s, i) => (
+              <span key={s} className={`setup-dot ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`} title={s} />
+            ))}
+          </div>
+          <TutorialButton onError={(e) => toast.error(e.message)} />
         </div>
 
         {step === 0 && (

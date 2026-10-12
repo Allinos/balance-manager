@@ -136,20 +136,20 @@ export default function DocumentSettings() {
         </Field>
         {draft.qrContent === 'CUSTOM' && (
           <Field label="QR custom text">
-            <TextInput value={draft.qrCustomText} onChange={(v) => set({ qrCustomText: v })} />
+            <TextInput placeholder="e.g. https://www.yourcompany.in" value={draft.qrCustomText} onChange={(v) => set({ qrCustomText: v })} />
           </Field>
         )}
         <Field label="Default payment terms (invoices)">
-          <TextArea rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
+          <TextArea placeholder="e.g. Payment due within 15 days of invoice date." rows={2} value={draft.defaultPaymentTerms} onChange={(v) => set({ defaultPaymentTerms: v })} />
         </Field>
         <Field label="Declaration (tax invoices)" help="Standard statement printed at the bottom of tax invoices, as in Tally.">
-          <TextArea rows={2} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
+          <TextArea placeholder="e.g. We declare that this invoice shows the actual price…" rows={2} value={draft.declaration} onChange={(v) => set({ declaration: v })} />
         </Field>
         <Field label="Jurisdiction" help='The city whose courts handle disputes. "Mumbai" prints "SUBJECT TO MUMBAI JURISDICTION" at the bottom.'>
-          <TextInput value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
+          <TextInput placeholder="e.g. Bengaluru" value={draft.jurisdiction} onChange={(v) => set({ jurisdiction: v })} maxLength={60} />
         </Field>
         <Field label="Footer text">
-          <TextInput value={draft.footerText} onChange={(v) => set({ footerText: v })} />
+          <TextInput placeholder="e.g. This is a computer-generated document." value={draft.footerText} onChange={(v) => set({ footerText: v })} />
         </Field>
         <SaveBar dirty={dirty} onSave={save} />
       </div>
@@ -207,7 +207,10 @@ export function DocumentTypeSettings() {
   return (
     <div className="settings-section">
       <h2>Document types</h2>
-      <p className="muted">Each document type can have its own title, visible sections and default terms.</p>
+      <p className="muted">
+        Each document type can have its own title, paper size (A4 or A5), visible sections, default terms and declaration. New documents start with
+        these; each document can still be changed on its own.
+      </p>
       <div className="pill-row">
         {DOCUMENT_TYPES.map((t) => (
           <button key={t.id} className={`pill ${t.id === typeId ? 'active' : ''}`} onClick={() => choose(t.id)}>
@@ -238,6 +241,7 @@ export function DocumentTypeSettings() {
               <TextInput
                 type={f.type === 'number' ? 'number' : 'text'}
                 min="0"
+                placeholder={f.placeholder || (f.type === 'number' ? 'e.g. 15' : '')}
                 value={draft[f.key] ?? ''}
                 onChange={(v) => set({ [f.key]: f.type === 'number' ? Math.max(0, parseInt(v || '0', 10)) : v })}
               />
@@ -255,7 +259,7 @@ export function DocumentTypeSettings() {
         .filter((f) => f.type === 'textarea')
         .map((f) => (
           <Field key={f.key} label={f.label}>
-            <TextArea rows={4} value={draft[f.key] ?? ''} onChange={(v) => set({ [f.key]: v })} />
+            <TextArea rows={f.key === 'terms' ? 6 : 3} value={draft[f.key] ?? ''} onChange={(v) => set({ [f.key]: v })} placeholder={f.placeholder} data-testid={`type-${f.key}`} />
           </Field>
         ))}
       <div className="row gap">

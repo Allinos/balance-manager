@@ -336,10 +336,14 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
 - **What is on the phone:** Dashboard (cards per document type with +, Customize, recent documents); Documents
   (search, type filter, status change, view / edit / print / duplicate / convert / cancel / delete / restore, and the
   sales CSV download); editor (saved customers and products, GSTIN → state, CGST/SGST or IGST from the place of supply,
-  discounts, shipping, other charges, round off, additional details per type, receipts and payment vouchers, live
+  discounts, any number of additional charges each with its own GST rate, round off, additional details per type, default
+  terms and declaration per type (editable per document), A4 or A5 per document, receipts and payment vouchers, live
   preview); document view (template per document, Print / Save as PDF with 1–4 copies, share, history, contact the
-  customer by call / WhatsApp / email); Products & Services with categories; Settings (Company with logo, signature and
-  stamp, Documents, Document Types, Tax, Numbering, License, Backup, Help, About).
+  customer by call / WhatsApp / email); Products & Services with categories, and under it the optional Customers and
+  Vendors screens (off by default; a small + switches them on; deleting archives a party that is on documents, so
+  documents never change); Settings (Company with logo, signature and stamp, Documents, Document Types with paper size,
+  terms and declaration, Tax, Numbering, Customers & Vendors, License, Backup, Help, About). The first-start setup has a
+  "Watch Configuration Tutorial" YouTube button (opens in a new tab).
   Left out on the phone: uploaded files (Document Manager → Files), the Units, General (date format, sample data) and
   Currency settings, and the desktop's ads, theme switch and keyboard shortcuts. The built-in units, the default date
   format and the currency chosen at setup are used.

@@ -78,10 +78,10 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
         />
         <div className="grid-2">
           <Field label="Name" required>
-            <TextInput value={p.name} onChange={(v) => set({ name: v })} autoFocus data-testid="product-name" />
+            <TextInput placeholder="e.g. Office chair, Installation" value={p.name} onChange={(v) => set({ name: v })} autoFocus data-testid="product-name" />
           </Field>
           <Field label="SKU / Code">
-            <TextInput value={p.sku} onChange={(v) => set({ sku: v })} />
+            <TextInput placeholder="e.g. CHR-001" value={p.sku} onChange={(v) => set({ sku: v })} />
           </Field>
           <Field label="Category">
             <SearchSelect
@@ -111,7 +111,7 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
                 : 'Harmonized System of Nomenclature code for GST (4–8 digits, e.g. 9403 for furniture). Printed on invoices and in the HSN summary.'
             }
           >
-            <TextInput value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v.replace(/[^0-9]/g, '').slice(0, 8) })} inputMode="numeric" data-testid="product-hsn" />
+            <TextInput placeholder="e.g. 9401 or 998314" value={p.hsn_sac} onChange={(v) => set({ hsn_sac: v.replace(/[^0-9]/g, '').slice(0, 8) })} inputMode="numeric" data-testid="product-hsn" />
           </Field>
           {settings.taxSystem !== 'NONE' ? (
             <Field label={settings.taxSystem === 'GST' ? 'GST' : `${settings.taxLabel || 'Tax'} rate`}>
@@ -129,7 +129,7 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
             <div />
           )}
           <Field label="Description" className="span-2">
-            <TextArea rows={2} value={p.description} onChange={(v) => set({ description: v })} />
+            <TextArea placeholder="Size, model or other details printed under the name" rows={2} value={p.description} onChange={(v) => set({ description: v })} />
           </Field>
           <Field label="Selling price">
             <NumberInput value={p.selling_price} onChange={(v) => set({ selling_price: v })} placeholder="0.00" data-testid="product-price" />
@@ -155,10 +155,10 @@ function ProductForm({ initial, categories, settings, onClose, onSaved }) {
               <NumberInput value={p.purchase_price} onChange={(v) => set({ purchase_price: v })} placeholder="0.00" />
             </Field>
             <Field label="Barcode">
-              <TextInput value={p.barcode} onChange={(v) => set({ barcode: v })} />
+              <TextInput placeholder="e.g. 8901234567890" value={p.barcode} onChange={(v) => set({ barcode: v })} />
             </Field>
             <Field label="Notes" className="span-2">
-              <TextArea rows={2} value={p.notes} onChange={(v) => set({ notes: v })} />
+              <TextArea placeholder="Internal notes (not printed)" rows={2} value={p.notes} onChange={(v) => set({ notes: v })} />
             </Field>
           </div>
         ) : (
@@ -235,7 +235,7 @@ function CategoriesModal({ categories, onClose, onChanged }) {
           <li key={c.id}>
             {editing?.id === c.id ? (
               <>
-                <input className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
+                <input placeholder="Category name" className="input" value={editing.name} onChange={(e) => setEditing({ ...editing, name: e.target.value })} autoFocus />
                 <button className="btn btn-sm btn-primary" onClick={rename}>
                   Save
                 </button>

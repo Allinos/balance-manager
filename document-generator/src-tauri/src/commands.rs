@@ -32,7 +32,11 @@ const PRODUCT_COLUMNS: &[&str] = &[
 
 const PARTY_COLUMNS: &[&str] = &[
     "name", "company_name", "phone", "email", "address", "shipping_address", "state", "gstin", "tax_id", "is_demo",
+    "kind", "notes",
 ];
+
+/// A saved party is a customer, a vendor or both.
+const PARTY_KINDS: &[&str] = &["customer", "vendor", "both"];
 
 const DOCUMENT_COLUMNS: &[&str] = &[
     "document_type", "document_number", "status", "party_id", "party_name", "party_company", "party_address",
@@ -334,18 +338,19 @@ pub fn product_delete(db: State<'_, Db>, id: i64) -> AppResult<()> {
 // Parties (customers / vendors)
 // ---------------------------------------------------------------------------
 
+/// Saved parties for the name suggestions in the document editor (archived ones are left out).
 #[tauri::command]
 pub fn parties_list(db: State<'_, Db>, search: Option<String>) -> AppResult<Vec<Value>> {
     let search = search.unwrap_or_default();
     db.with(|c| {
         if search.trim().is_empty() {
-            query_json(c, "SELECT * FROM parties ORDER BY name COLLATE NOCASE LIMIT 1000", &[])
+            query_json(c, "SELECT * FROM parties WHERE archived_at IS NULL ORDER BY name COLLATE NOCASE LIMIT 1000", &[])
         } else {
             let pat = text(&like_pattern(&search));
             query_json(
                 c,
-                "SELECT * FROM parties WHERE name LIKE ?1 ESCAPE '\\' OR company_name LIKE ?1 ESCAPE '\\'
-                 OR phone LIKE ?1 ESCAPE '\\' OR gstin LIKE ?1 ESCAPE '\\'
+                "SELECT * FROM parties WHERE archived_at IS NULL AND (name LIKE ?1 ESCAPE '\\' OR company_name LIKE ?1 ESCAPE '\\'
+                 OR phone LIKE ?1 ESCAPE '\\' OR gstin LIKE ?1 ESCAPE '\\')
                  ORDER BY name COLLATE NOCASE LIMIT 50",
                 &[pat],
             )
@@ -353,19 +358,94 @@ pub fn parties_list(db: State<'_, Db>, search: Option<String>) -> AppResult<Vec<
     })
 }
 
+/// Customers & Vendors screen: parties of one kind ("both" counts as either), active or archived,
+/// with how many documents each has and the date of the latest one.
+#[tauri::command]
+pub fn parties_query(db: State<'_, Db>, filter: Option<Value>) -> AppResult<Vec<Value>> {
+    let filter = filter.unwrap_or(Value::Null);
+    let kind = filter.get("kind").and_then(Value::as_str).unwrap_or("");
+    let archived = filter.get("archived").and_then(Value::as_bool).unwrap_or(false);
+    let search = filter.get("search").and_then(Value::as_str).unwrap_or("").trim().to_string();
+    let mut sql = String::from(
+        "SELECT p.*, (SELECT COUNT(*) FROM documents d WHERE d.party_id = p.id AND d.deleted_at IS NULL) AS document_count,
+                (SELECT MAX(d.issue_date) FROM documents d WHERE d.party_id = p.id AND d.deleted_at IS NULL) AS last_document_date
+           FROM parties p WHERE ",
+    );
+    sql.push_str(if archived { "p.archived_at IS NOT NULL" } else { "p.archived_at IS NULL" });
+    let mut args: Vec<SqlValue> = Vec::new();
+    if PARTY_KINDS.contains(&kind) && kind != "both" {
+        sql.push_str(" AND p.kind IN (?, 'both')");
+        args.push(text(kind));
+    }
+    if !search.is_empty() {
+        sql.push_str(
+            " AND (p.name LIKE ? ESCAPE '\\' OR p.company_name LIKE ? ESCAPE '\\' OR p.phone LIKE ? ESCAPE '\\'
+               OR p.email LIKE ? ESCAPE '\\' OR p.gstin LIKE ? ESCAPE '\\')",
+        );
+        let pat = like_pattern(&search);
+        for _ in 0..5 {
+            args.push(text(&pat));
+        }
+    }
+    sql.push_str(" ORDER BY p.name COLLATE NOCASE LIMIT 2000");
+    db.with(|c| query_json(c, &sql, &args))
+}
+
 #[tauri::command]
 pub fn party_save(db: State<'_, Db>, party: Value) -> AppResult<i64> {
     let data = as_object(&party)?;
     require_name(data, "customer")?;
-    db.with(|c| upsert(c, "parties", get_id(data), data, PARTY_COLUMNS, true))
+    let mut data = data.clone();
+    if let Some(kind) = data.get("kind").and_then(Value::as_str) {
+        if !PARTY_KINDS.contains(&kind) {
+            return Err(AppError::new("Choose customer, vendor or both."));
+        }
+    }
+    let merge = data.remove("merge_kind").and_then(|v| v.as_bool()).unwrap_or(false);
+    db.with(|c| {
+        // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
+        if let (true, Some(id), Some(kind)) = (merge, get_id(&data), data.get("kind").and_then(Value::as_str).map(str::to_string)) {
+            let current: Option<String> = c
+                .query_row("SELECT kind FROM parties WHERE id = ?1", [id], |r| r.get(0))
+                .ok();
+            if let Some(current) = current {
+                let next = if current == kind { kind } else { "both".to_string() };
+                data.insert("kind".into(), Value::String(next));
+            }
+        }
+        upsert(c, "parties", get_id(&data), &data, PARTY_COLUMNS, true)
+    })
 }
 
+/// Archive a party (hidden from lists and suggestions) or bring it back. Documents are never changed.
 #[tauri::command]
-pub fn party_delete(db: State<'_, Db>, id: i64) -> AppResult<()> {
+pub fn party_archive(db: State<'_, Db>, id: i64, archived: bool) -> AppResult<()> {
     db.with(|c| {
-        c.execute("DELETE FROM parties WHERE id = ?1", [id])?;
+        let at = if archived { SqlValue::Text(now()) } else { SqlValue::Null };
+        let changed = c.execute("UPDATE parties SET archived_at = ?1, updated_at = ?2 WHERE id = ?3", rusqlite::params![at, now(), id])?;
+        if changed == 0 {
+            return Err(AppError::new("This customer or vendor no longer exists."));
+        }
         Ok(())
     })
+}
+
+/// Delete a party safely: one that appears on any document is archived instead, so invoices, receipts
+/// and their history stay exactly as they are. Returns "archived" or "deleted".
+#[tauri::command]
+pub fn party_delete(db: State<'_, Db>, id: i64) -> AppResult<String> {
+    db.with(|c| delete_or_archive_party(c, id))
+}
+
+fn delete_or_archive_party(c: &rusqlite::Connection, id: i64) -> AppResult<String> {
+    let used: i64 = c.query_row("SELECT COUNT(*) FROM documents WHERE party_id = ?1", [id], |r| r.get(0))?;
+    if used > 0 {
+        c.execute("UPDATE parties SET archived_at = COALESCE(archived_at, ?1), updated_at = ?1 WHERE id = ?2", rusqlite::params![now(), id])?;
+        Ok("archived".to_string())
+    } else {
+        c.execute("DELETE FROM parties WHERE id = ?1", [id])?;
+        Ok("deleted".to_string())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1104,6 +1184,34 @@ mod tests {
     }
 
     #[test]
+    fn upgrade_to_version_5_sorts_saved_parties_into_customers_and_vendors() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("v4.sqlite");
+        {
+            let conn = rusqlite::Connection::open(&path).unwrap();
+            conn.execute_batch("PRAGMA foreign_keys = OFF; CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);").unwrap();
+            for (v, name, sql) in &crate::db::MIGRATIONS[..4] {
+                conn.execute_batch(sql).unwrap();
+                conn.execute("INSERT INTO schema_migrations VALUES (?1, ?2, 'x')", rusqlite::params![v, name]).unwrap();
+            }
+            conn.execute_batch(
+                "INSERT INTO parties (id, name) VALUES (1, 'Buyer'), (2, 'Supplier'), (3, 'Both Ways'), (4, 'Never Used');
+                 INSERT INTO documents (document_type, document_number, issue_date, party_id) VALUES
+                   ('TAX_INVOICE', 'INV-1', '2026-09-01', 1), ('PURCHASE_ORDER', 'PO-1', '2026-09-01', 2),
+                   ('QUOTATION', 'QTN-1', '2026-09-01', 3), ('PURCHASE_INVOICE', 'PB-1', '2026-09-01', 3);",
+            )
+            .unwrap();
+        }
+        let conn = open_connection(&path).unwrap();
+        let mut st = conn.prepare("SELECT kind, archived_at IS NULL FROM parties ORDER BY id").unwrap();
+        let kinds: Vec<(String, bool)> = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap().map(|r| r.unwrap()).collect();
+        assert_eq!(
+            kinds,
+            vec![("customer".into(), true), ("vendor".into(), true), ("both".into(), true), ("customer".into(), true)]
+        );
+    }
+
+    #[test]
     fn sales_csv_lists_invoices_with_party_gst_details() {
         let (_dir, db) = temp_db();
         db.with(|c| {
@@ -1164,6 +1272,31 @@ mod tests {
             assert_eq!(numbering::allocate(c, "TAX_INVOICE", "INV", "2027-03-31").unwrap(), "INV/2026-27/0001");
             assert_eq!(numbering::allocate(c, "TAX_INVOICE", "INV", "2027-03-31").unwrap(), "INV/2026-27/0002");
             assert_eq!(numbering::allocate(c, "TAX_INVOICE", "INV", "2027-04-01").unwrap(), "INV/2027-28/0001");
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn deleting_a_party_on_documents_archives_it_and_keeps_the_documents() {
+        let (_dir, db) = temp_db();
+        db.with(|c| {
+            c.execute("INSERT INTO parties (name, kind) VALUES ('Used Traders', 'customer'), ('Unused Co', 'vendor')", [])?;
+            c.execute(
+                "INSERT INTO documents (document_type, document_number, party_id, party_name, issue_date, grand_total)
+                 VALUES ('TAX_INVOICE', 'INV-1', 1, 'Used Traders', '2026-10-01', '1180.00')",
+                [],
+            )?;
+            assert_eq!(delete_or_archive_party(c, 1)?, "archived");
+            assert_eq!(delete_or_archive_party(c, 2)?, "deleted");
+            let archived: Option<String> = c.query_row("SELECT archived_at FROM parties WHERE id = 1", [], |r| r.get(0))?;
+            assert!(archived.is_some());
+            let gone: i64 = c.query_row("SELECT COUNT(*) FROM parties WHERE id = 2", [], |r| r.get(0))?;
+            assert_eq!(gone, 0);
+            let (party_id, name): (Option<i64>, String) =
+                c.query_row("SELECT party_id, party_name FROM documents WHERE document_number = 'INV-1'", [], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            assert_eq!(party_id, Some(1));
+            assert_eq!(name, "Used Traders");
             Ok(())
         })
         .unwrap();

@@ -1164,3 +1164,221 @@
   visibility: hidden;
   pointer-events: none;
 }
+
+/* ------------------- A5 bills (Settings → Document Types → Paper size) -------------------
+   The same layout as A4, laid out 165 mm wide (+ 10 mm padding) and drawn at 80 % (paging.js A5_ZOOM), so a bill
+   on A5 looks exactly like its A4 version, only smaller: 148 × 210 mm on screen, 132 mm inside the 8 mm print margins.
+   The off-screen copy that is measured for paging has doc-a5w without the zoom. Receipts keep their own A5 layout (.doc-a5). */
+.doc.doc-a5w {
+  width: 185mm;
+  min-height: 262.5mm;
+  padding: 10mm;
+}
+.doc.doc-a5w.doc-a5z {
+  zoom: 0.8;
+}
+.doc.doc-a5w.doc-sheet {
+  height: 262.5mm;
+  min-height: 262.5mm;
+}
+.doc.doc-a5w.doc-sheet-overflow {
+  height: auto;
+}
+
+/* ------------------------------ Payment receipt / voucher (ReceiptDocument.jsx) ------------------------------ */
+.rc {
+  gap: 4mm;
+}
+.rc .doc-sign-space {
+  height: 15mm;
+}
+.rc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 4mm;
+  border-bottom: 2px solid var(--doc-accent);
+}
+.rc-company {
+  display: flex;
+  gap: 5mm;
+  align-items: flex-start;
+  min-width: 0;
+}
+.rc-title {
+  text-align: right;
+  flex-shrink: 0;
+}
+.rc-title-text {
+  font-size: 17pt;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--doc-accent);
+  white-space: nowrap;
+  margin-bottom: 2mm;
+}
+.rc-no {
+  margin-left: auto;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+.rc-no th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--doc-muted);
+  padding: 0.6mm 4mm 0.6mm 0;
+}
+.rc-no td {
+  text-align: right;
+  font-weight: 700;
+  padding: 0.6mm 0;
+}
+.rc-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  font-size: 8.8pt;
+}
+.rc-box {
+  border: 1px solid var(--doc-line);
+  border-radius: 1.5mm;
+  padding: 3mm 3.5mm;
+}
+.rc-party-name {
+  font-size: 10.5pt;
+  font-weight: 700;
+  margin-bottom: 0.6mm;
+}
+.rc-kv {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rc-kv th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--doc-muted);
+  padding: 0.7mm 3mm 0.7mm 0;
+  width: 42%;
+  vertical-align: top;
+}
+.rc-kv td {
+  padding: 0.7mm 0;
+  font-weight: 600;
+  vertical-align: top;
+}
+.rc-amount {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6mm;
+  padding: 4mm 5mm;
+  border-radius: 1.5mm;
+  background: color-mix(in srgb, var(--doc-accent) 8%, #fff);
+  border: 1px solid color-mix(in srgb, var(--doc-accent) 35%, #fff);
+}
+.rc-amount-label {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--doc-accent);
+}
+.rc-amount-words {
+  margin-top: 1mm;
+  font-size: 9.4pt;
+  font-weight: 600;
+}
+.rc-amount-value {
+  font-size: 20pt;
+  font-weight: 800;
+  white-space: nowrap;
+  color: var(--doc-ink);
+}
+.rc-sentence {
+  margin: 0;
+  font-size: 9.6pt;
+  line-height: 1.6;
+}
+.rc-settle {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+.rc-settle th,
+.rc-settle td {
+  padding: 1.5mm 3mm;
+  border-bottom: 1px solid var(--doc-line);
+  text-align: left;
+}
+.rc-settle th {
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--doc-muted);
+  background: #f5f6f9;
+}
+.rc-settle .c-num {
+  text-align: right;
+  white-space: nowrap;
+}
+.rc-settle-total td {
+  font-weight: 700;
+  border-top: 1px solid var(--doc-ink);
+}
+.rc-settle-balance td {
+  font-weight: 800;
+  font-size: 10pt;
+  border-bottom: 2px solid var(--doc-ink);
+}
+.rc-terms {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  font-size: 8.4pt;
+}
+.rc-terms > div:only-child {
+  grid-column: 1 / -1;
+}
+.rc-declaration {
+  font-size: 8.4pt;
+}
+.rc-sign {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 10mm;
+  margin-top: auto;
+  padding-top: 1mm;
+  font-size: 8.6pt;
+}
+.rc-sign-col {
+  width: 62mm;
+  text-align: center;
+}
+.rc-sign-right .doc-sign-for {
+  font-weight: 700;
+}
+/* Professional and Standard: boxed like their bills. */
+.rc-boxed .rc-head {
+  border: 1px solid var(--doc-ink);
+  border-radius: 0;
+  padding: 3mm 4mm;
+}
+.rc-boxed .rc-box,
+.rc-boxed .rc-amount {
+  border-radius: 0;
+  border-color: var(--doc-ink);
+}
+.rc-boxed .rc-amount {
+  background: #f5f6f9;
+}
+.rc-boxed .rc-title-text,
+.rc-boxed .rc-amount-label {
+  color: var(--doc-ink);
+}
+/* Simple: black and white. */
+.rc-simple .rc-amount {
+  background: #fff;
+}

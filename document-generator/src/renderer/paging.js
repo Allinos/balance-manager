@@ -14,6 +14,12 @@
 export const MM = 96 / 25.4;
 /** Printable height of A4 inside the 12 mm margins, less 0.5 mm so rounding never spills onto a new page. */
 export const PAGE_HEIGHT = (297 - 24 - 0.5) * MM;
+/**
+ * A5 bills (148 × 210 mm, 8 mm margins) use the same layout as A4, drawn at 80 % (CSS zoom, see document.css):
+ * 165 mm wide before scaling, so the printable height before scaling is (210 − 16) / 0.8 = 242.5 mm.
+ */
+export const A5_ZOOM = 0.8;
+export const PAGE_HEIGHT_A5 = ((210 - 16) / A5_ZOOM - 0.5) * MM;
 /** Space kept at the foot of every page of a multi-page bill for "Page 1 of 3". */
 export const FOOTER_RESERVE = 6 * MM;
 /** Fixed heights (also set in document.css): the "continued" header and the "Continued on page 2" line. */
@@ -92,6 +98,12 @@ export function planPages(m, cap = WEBKIT_PRINT ? PAGE_HEIGHT * 0.97 : PAGE_HEIG
 /** Classes of one paged A4 sheet. */
 export const sheetClass = (page) =>
   page ? ` doc-sheet${page.last ? ' doc-sheet-last' : ''}${page.overflow ? ' doc-sheet-overflow' : ''}` : '';
+
+/**
+ * Classes of a bill printed on A5: the A4 layout at its A5 width (doc-a5w) and, except in the off-screen copy
+ * that is measured for paging, scaled to the paper (doc-a5z).
+ */
+export const a5Class = (ds, paging) => (ds?.paperSize === 'A5' ? ` doc-a5w${paging?.mode === 'measure' ? '' : ' doc-a5z'}` : '');
 
 const box = (el) => el.getBoundingClientRect();
 

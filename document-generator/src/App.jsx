@@ -12,6 +12,7 @@ import DocumentViewPage from './features/documents/DocumentViewPage.jsx';
 import ProductsPage from './features/products/ProductsPage.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
 import HelpPage from './features/help/HelpPage.jsx';
+import PartiesPage, { PartyModulesPage } from './features/parties/PartiesPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
 import ActivationRequired from './features/license/ActivationRequired.jsx';
 import { useServerSync } from './hooks/useServerSync.js';
@@ -22,6 +23,8 @@ const ROUTES = [
   ['/dashboard', DashboardPage],
   ['/manager', DocumentManagerPage],
   ['/products', ProductsPage],
+  ['/parties', PartyModulesPage],
+  ['/parties/:kind', PartiesPage],
   ['/help', HelpPage],
   ['/settings', SettingsPage],
   ['/settings/:section', SettingsPage],
@@ -31,7 +34,7 @@ const ROUTES = [
 ];
 
 /** Older addresses (v1.0). */
-const REDIRECTS = { '/customers': '/manager', '/documents': '/dashboard', '/created': '/manager', '/premium': '/settings/license' };
+const REDIRECTS = { '/customers': '/parties/customer', '/vendors': '/parties/vendor', '/documents': '/dashboard', '/created': '/manager', '/premium': '/settings/license' };
 
 function useTheme(theme) {
   useEffect(() => {

@@ -85,15 +85,37 @@ export function receiptFromInvoice(doc, invoice, receivedBefore = '0') {
       against_total: toFixed(invoice.grand_total, dp),
       received_before: toFixed(receivedBefore, dp),
       amount_received: toFixed(balance > 0n ? balance : 0n, dp),
+      ...invoiceBreakup(invoice, dp),
     },
+  };
+}
+
+/**
+ * The invoice's own figures, printed on the receipt (value, discount, charges, taxes, round off). Only a full
+ * invoice (getDocument) has them; a list row has just the total, and then the receipt shows the total only.
+ */
+function invoiceBreakup(invoice, dp) {
+  if (invoice.subtotal === undefined || invoice.taxable === undefined) return {};
+  const f = (v) => toFixed(v || '0', dp);
+  return {
+    against_subtotal: f(invoice.subtotal),
+    against_discount: f(invoice.discount),
+    against_charges: f(add(invoice.shipping || '0', invoice.other_charges || '0')),
+    against_taxable: f(invoice.taxable),
+    against_tax: f(invoice.tax),
+    against_cgst: f(invoice.cgst),
+    against_sgst: f(invoice.sgst),
+    against_igst: f(invoice.igst),
+    against_round_off: f(invoice.round_off),
+    against_tax_mode: invoice.tax_mode || '',
+    against_tax_label: invoice.tax_label || '',
   };
 }
 
 /** The receipt no longer belongs to an invoice. */
 export function detachInvoice(doc) {
   const meta = { ...doc.meta, against: '' };
-  delete meta.against_date;
-  delete meta.against_total;
+  for (const k of Object.keys(meta)) if (k.startsWith('against_')) delete meta[k];
   delete meta.received_before;
   return { ...doc, parent_document_id: null, meta };
 }

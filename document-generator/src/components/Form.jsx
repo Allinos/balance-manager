@@ -86,9 +86,9 @@ export function Toggle({ checked, onChange, label, hint, ...rest }) {
 }
 
 /** Segmented control for 2–4 choices. */
-export function Segmented({ value, onChange, options }) {
+export function Segmented({ value, onChange, options, testId }) {
   return (
-    <div className="segmented" role="radiogroup">
+    <div className="segmented" role="radiogroup" data-testid={testId}>
       {options.map((o) => (
         <button
           type="button"
@@ -97,6 +97,7 @@ export function Segmented({ value, onChange, options }) {
           aria-checked={value === o.value}
           className={value === o.value ? 'active' : ''}
           onClick={() => onChange(o.value)}
+          data-testid={testId ? `${testId}-${o.value}` : undefined}
         >
           {o.label}
         </button>

@@ -34,8 +34,20 @@ const PRODUCT_DEFAULTS = {
   tax_rate: '0', tax_type: 'EXCLUSIVE', barcode: '', notes: '', is_demo: 0,
 };
 
-const PARTY_COLUMNS = ['name', 'company_name', 'phone', 'email', 'address', 'shipping_address', 'state', 'gstin', 'tax_id', 'is_demo'];
-const PARTY_DEFAULTS = { ...Object.fromEntries(PARTY_COLUMNS.map((c) => [c, ''])), is_demo: 0 };
+const PARTY_COLUMNS = ['name', 'company_name', 'phone', 'email', 'address', 'shipping_address', 'state', 'gstin', 'tax_id', 'is_demo', 'kind', 'notes'];
+const PARTY_DEFAULTS = { ...Object.fromEntries(PARTY_COLUMNS.map((c) => [c, ''])), is_demo: 0, kind: 'customer', archived_at: null };
+const PARTY_KINDS = ['customer', 'vendor', 'both'];
+/** Purchase-side document types: a party saved on them is a vendor (migration 005 on the desktop). */
+const VENDOR_TYPES = new Set(['REVERSE_QUOTATION', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'PAYMENT_VOUCHER', 'WORK_ORDER']);
+
+/** A party's kind; parties saved before kinds existed are sorted by the documents they appear on. */
+function partyKind(p, docs) {
+  if (PARTY_KINDS.includes(p.kind)) return p.kind;
+  const mine = docs.filter((d) => d.party_id === p.id);
+  const vendor = mine.some((d) => VENDOR_TYPES.has(d.document_type));
+  const customer = mine.some((d) => !VENDOR_TYPES.has(d.document_type));
+  return vendor && customer ? 'both' : vendor ? 'vendor' : 'customer';
+}
 
 const DOCUMENT_COLUMNS = [
   'document_type', 'document_number', 'status', 'party_id', 'party_name', 'party_company', 'party_address',
@@ -300,18 +312,67 @@ const commands = {
   parties_list: ({ search } = {}) =>
     read(['parties'], async ({ parties }) => {
       const q = String(search || '').trim().toLowerCase();
-      const rows = (await parties.getAll()).sort(byName);
+      const rows = (await parties.getAll()).filter((p) => !p.archived_at).sort(byName);
       if (!q) return rows.slice(0, 1000);
       return rows.filter((p) => [p.name, p.company_name, p.phone, p.gstin].some((v) => contains(v, q))).slice(0, 50);
     }),
+  parties_query: ({ filter } = {}) =>
+    read(['parties', 'documents'], async ({ parties, documents }) => {
+      const f = filter || {};
+      const q = String(f.search || '').trim().toLowerCase();
+      const docs = (await documents.getAll()).filter((d) => !d.deleted_at);
+      return (await parties.getAll())
+        .filter((p) => (f.archived ? !!p.archived_at : !p.archived_at))
+        .map((p) => {
+          const mine = docs.filter((d) => d.party_id === p.id);
+          return {
+            ...p,
+            kind: partyKind(p, docs),
+            notes: p.notes || '',
+            document_count: mine.length,
+            last_document_date: mine.reduce((a, d) => (d.issue_date > a ? d.issue_date : a), '') || null,
+          };
+        })
+        .filter((p) => !PARTY_KINDS.includes(f.kind) || f.kind === 'both' || p.kind === f.kind || p.kind === 'both')
+        .filter((p) => !q || [p.name, p.company_name, p.phone, p.email, p.gstin].some((v) => contains(v, q)))
+        .sort(byName)
+        .slice(0, 2000);
+    }),
   party_save: ({ party }) => {
     requireName(party, 'customer');
-    return write(['parties'], ({ parties }) => upsert(parties, idOf(party), party, PARTY_COLUMNS, PARTY_DEFAULTS));
+    if (party.kind !== undefined && !PARTY_KINDS.includes(party.kind)) fail('Choose customer, vendor or both.');
+    return write(['parties', 'documents'], async ({ parties, documents }) => {
+      const id = idOf(party);
+      const data = { ...party };
+      // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
+      if (party.merge_kind && id && party.kind) {
+        const current = await parties.get(id);
+        if (current) {
+          const was = partyKind(current, await documents.getAll());
+          data.kind = was === party.kind ? was : 'both';
+        }
+      }
+      return upsert(parties, id, data, PARTY_COLUMNS, PARTY_DEFAULTS);
+    });
   },
+  party_archive: ({ id, archived }) =>
+    write(['parties'], async ({ parties }) => {
+      const p = await parties.get(Number(id));
+      if (!p) fail('This customer or vendor no longer exists.');
+      await parties.put({ ...p, archived_at: archived ? now() : null, updated_at: now() });
+    }),
+  /** A party on any document is archived instead of deleted, so documents and their history never change. */
   party_delete: ({ id }) =>
     write(['parties', 'documents'], async ({ parties, documents }) => {
-      for (const d of await documents.getAll()) if (d.party_id === Number(id)) await documents.put({ ...d, party_id: null });
+      const used = (await documents.getAll()).some((d) => d.party_id === Number(id));
+      const p = await parties.get(Number(id));
+      if (!p) return 'deleted';
+      if (used) {
+        await parties.put({ ...p, archived_at: p.archived_at || now(), updated_at: now() });
+        return 'archived';
+      }
       await parties.delete(Number(id));
+      return 'deleted';
     }),
 
   // ---------------------------------------------------------------- documents
