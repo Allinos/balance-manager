@@ -6,7 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { clientApi, date, money } from '../../api.js';
+import { bootSite, clientApi, date, money } from '../../api.js';
 import { getAttribution } from '../../attribution.js';
 import { pixelCookies, saleParams, track } from '../../pixel.js';
 import { CopyButton, ErrorText, Field, Input, Spinner, useLoad } from '../../components/ui.jsx';
@@ -233,7 +233,7 @@ export function CheckoutForm({ product, price, onPrice, priceTiles = true, onSte
 export default function CheckoutPage() {
   const { client } = useAuth();
   const [params] = useSearchParams();
-  const { data, loading } = useLoad(() => clientApi.get('/site'), []);
+  const { data, loading } = useLoad(() => clientApi.get('/site'), [], bootSite());
   // Meta Pixel: the buyer sees the product and its price (once per visit of the page).
   useEffect(() => {
     const p = data?.products?.find((x) => x.id === Number(params.get('product'))) || data?.products?.[0];

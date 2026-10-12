@@ -10,8 +10,11 @@ import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
 
 const APP_PATH = '/app/';
-const isPhone = () => /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
-const isLocal = () => ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+// On the server (the page's HTML is rendered there too) there is no browser: a computer on a secure address is assumed.
+const inBrowser = typeof window !== 'undefined';
+const isPhone = () => inBrowser && /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+const isLocal = () => inBrowser && ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+const insecure = () => inBrowser && !window.isSecureContext;
 
 /** Step-by-step Android installation (pictures in /install). */
 const ANDROID_STEPS = [
@@ -30,7 +33,7 @@ const FEATURES = [
 
 export default function MobilePage() {
   const [qr, setQr] = useState('');
-  const appUrl = `${window.location.origin}${APP_PATH}`;
+  const appUrl = `${inBrowser ? window.location.origin : ''}${APP_PATH}`;
   useEffect(() => {
     QRCode.toDataURL(appUrl, { margin: 1, width: 180 }).then(setQr).catch(() => setQr(''));
   }, [appUrl]);
@@ -73,7 +76,7 @@ export default function MobilePage() {
                 </span>
               </div>
             )}
-            {(isLocal() || !window.isSecureContext) && (
+            {(isLocal() || insecure()) && (
               <div className="alert alert-info small" style={{ marginTop: 14 }} data-testid="install-https-note">
                 <strong>Testing note:</strong> phones install DocGen Mobile only from an <b>https://</b> address.{' '}
                 {isLocal()

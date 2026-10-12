@@ -6,7 +6,7 @@
 
 import { useEffect } from 'react';
 import { Link, NavLink } from 'react-router-dom';
-import { clientApi } from '../../api.js';
+import { bootSite, clientApi } from '../../api.js';
 import { useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
@@ -32,7 +32,7 @@ export function useSite() {
       };
     }
     return siteCache.promise;
-  }, []);
+  }, [], bootSite());
 }
 
 export function useBusiness() {

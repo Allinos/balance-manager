@@ -37,7 +37,7 @@ const AdminSupport = lazy(() => import('./pages/admin/AdminSupport.jsx'));
 const AdminSupportRequest = lazy(() => import('./pages/admin/AdminSupport.jsx').then((m) => ({ default: m.AdminSupportRequest })));
 
 // ----------------------------------------------------------------- sessions
-const AuthCtx = createContext(null);
+export const AuthCtx = createContext(null);
 
 function useSessionState(kind, loadMe) {
   const [user, setUser] = useState(undefined); // undefined = loading, null = signed out

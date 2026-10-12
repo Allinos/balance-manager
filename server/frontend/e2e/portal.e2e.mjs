@@ -382,7 +382,8 @@ try {
   const adShot = (name) => ad.screenshot({ path: path.join(shots, `${name}.png`) });
   const offerRes = await fetch(`${base}/offer`);
   check(offerRes.status === 200 && /noindex/.test(offerRes.headers.get('x-robots-tag') || ''), 'offer page is served with X-Robots-Tag: noindex (kept out of search results)');
-  const offerHtml = await offerRes.text();
+  // React marks the edge between two text pieces with <!-- -->; the page address appears only in the canonical / og:url tags.
+  const offerHtml = (await offerRes.text()).replace(/<!-- -->/g, '').replace(/<link rel="canonical"[^>]*>|<meta property="og:url"[^>]*>/g, '');
   check(offerHtml.includes('Create invoices, quotations &amp; business documents in under a minute') && offerHtml.includes('Download – ₹1,250') && offerHtml.includes('₹1,500')
     && offerHtml.includes('id="boot-site"') && !/127\.0\.0\.1|localhost|taking long/.test(offerHtml),
     'the offer page HTML itself has the headline, price and Download button (shows before the app loads); no developer message');
@@ -391,8 +392,38 @@ try {
   const noJs = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 844 } });
   const nj = await noJs.newPage();
   await nj.goto(`${base}/offer`);
-  check((await nj.locator('h1').textContent()).includes('Create invoices') && (await nj.locator('.hero-ctas a').boundingBox()).y < 844, 'even before any JavaScript runs, a phone shows the headline, price and Download button on the first screen');
+  check((await nj.locator('h1').textContent()).includes('Create invoices') && (await nj.getByTestId('offer-buy').boundingBox()).y < 844, 'even before any JavaScript runs, a phone shows the headline, price and Download button on the first screen');
+  check((await nj.getByTestId('offer-faq').textContent()).includes('What happens after I pay?') && (await nj.getByTestId('offer-pay').count()) === 1, 'without JavaScript the whole offer page is there (down to the FAQ and the plans)');
+  // Every public page carries its whole text in the HTML (for search engines, link previews and AI assistants).
+  const PAGES_NOJS = [
+    ['/', ['Pricing', 'FAQ', '₹1,250'], 'DocGen — GST invoices'],
+    ['/buy', ['1 year', '₹1,250'], 'Buy DocGen'],
+    ['/mobile', ['DocGen in your pocket'], 'DocGen Mobile'],
+    ['/support', ['Help'], 'Help & Support'],
+    ['/contact', ['We are happy to help'], 'Contact Us'],
+    ['/terms', ['Terms & Conditions', 'Last updated'], 'Terms & Conditions'],
+    ['/privacy', ['Privacy Policy'], 'Privacy Policy'],
+    ['/refunds', ['Refund'], 'Cancellation & Refunds'],
+  ];
+  for (const [url, texts, title] of PAGES_NOJS) {
+    await nj.goto(`${base}${url}`);
+    const body = await nj.locator('body').innerText();
+    const missing = [...texts.filter((t) => !body.includes(t)), ...((await nj.title()).includes(title) ? [] : [`title "${await nj.title()}"`]), ...(body.includes('Loading…') ? ['Loading…'] : [])];
+    check(!missing.length, `${url}: its content and title are in the HTML itself (no JavaScript needed)${missing.length ? ` — missing: ${missing.join(', ')}` : ''}`);
+  }
+  const homeHtml = await (await fetch(`${base}/`)).text();
+  check(/<meta name="description" content="[^"]{40,}"/.test(homeHtml) && homeHtml.includes(`<link rel="canonical" href="${base}/"`) && homeHtml.includes('og:title'), 'home page HTML: description, canonical address and link-preview tags');
+  await nj.goto(`${base}/account`);
+  check((await nj.locator('body').innerText()).includes('Loading…'), 'the account and admin panels are not rendered on the server');
   await noJs.close();
+  const robots = await (await fetch(`${base}/robots.txt`)).text();
+  check(robots.includes('Allow: /') && robots.includes('Disallow: /admin') && robots.includes(`Sitemap: ${base}/sitemap.xml`), 'robots.txt: website open to search engines, panels and API not, sitemap listed');
+  const sitemap = await fetch(`${base}/sitemap.xml`);
+  const sitemapXml = await sitemap.text();
+  check(sitemap.headers.get('content-type').includes('xml') && [`${base}/<`, `${base}/buy<`, `${base}/terms<`, `${base}/contact<`].every((u) => sitemapXml.includes(`<loc>${u}`)) && !sitemapXml.includes('/offer') && !sitemapXml.includes('/admin'),
+    'sitemap.xml lists the public pages (not the ad page or the panels)');
+  const offerHead = await fetch(`${base}/offer`);
+  check(offerHead.headers.get('x-robots-tag') === 'noindex, nofollow' && (await offerHead.text()).includes('<meta name="robots" content="noindex, nofollow"'), 'the ad page stays out of search results');
   await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
   await ad.getByTestId('offer-page').waitFor();
   await waitFb(ad, 'ViewContent');

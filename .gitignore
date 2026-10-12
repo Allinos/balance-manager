@@ -6,6 +6,7 @@ node_modules/
 .DS_Store
 coverage/
 dist/
+dist-ssr/
 # server data (database, keys, uploads)
 server/data/
 # desktop build output and test artefacts

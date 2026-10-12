@@ -175,9 +175,16 @@ The browser (and the apps) can never create a license, choose an amount or exten
    and how DocGen solves each one.
    Switch the problems section off in Admin → Website → Sections. `/buy` is the plain checkout
    (details → payment).
-   **Fast first screen**: the server puts the first screen of `/` and `/offer` (headline, price, Buy /
-   Download button, demo picture) and the page data straight into the HTML (`services/prerender.js`), so it
-   shows before the app's JavaScript loads; other pages show a plain "Loading…". Pages and files are sent
+   **Whole pages in the HTML**: every public page (`/`, `/offer`, `/buy`, `/mobile`, `/support`, `/contact`, the
+   four policies, `/login`) is rendered to HTML on the server with the same React components
+   (`frontend/src/entry-server.jsx`, built to `frontend/dist-ssr`, used by `backend/src/services/ssr.js`), with its
+   own `<title>`, description, canonical address and link-preview tags, and the page data. Visitors see the page
+   at once, and search engines, WhatsApp/Facebook previews and AI assistants (ChatGPT etc.) that do not run
+   JavaScript read the full text. The account and admin panels still show "Loading…" until the app starts.
+   Without the dist-ssr build, `/` and `/offer` fall back to their first screen (`services/prerender.js`).
+   `robots.txt` (panels and API excluded) and `sitemap.xml` (the public pages, not the ad page) are generated
+   from `PORTAL_URL`. The website data is kept in memory for a minute, so most page views need no database
+   query; anything saved in the admin panel shows at once. Pages and files are sent
    gzip-compressed, the built files are cached for a year, and the admin panel and account pages load only
    when opened. Measured on a simulated slow-4G phone (local server): headline and price visible in about
    1 second, the whole app ready in about 2.3 seconds, about 300 KB transferred.

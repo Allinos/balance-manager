@@ -111,21 +111,28 @@ export const dateTime = (iso) =>
 export const validity = (lic) => (lic.lifetime ? 'Lifetime' : lic.expiresAt ? date(lic.expiresAt) : `${lic.durationDays} days from activation`);
 
 let booted;
+let bootedAt = 0;
+let serverBoot;
+/** On the server: the page data the HTML is rendered with (services/ssr.js in the backend). */
+export const setServerBoot = (payload) => {
+  serverBoot = payload;
+};
 /**
- * The website data (/api/portal/site) the server put into the HTML of / and /offer (<script type="application/json"
- * id="boot-site">), so those pages show at once. Used once: later visits within the app load it fresh.
+ * The website data (/api/portal/site) the server put into the HTML of every public page (<script type="application/json"
+ * id="boot-site">), so the page shows at once without asking the server again. Read during the first minute of the
+ * visit (every part of the first page gets the same data); later pages within the app load it fresh.
  */
 export function bootSite() {
-  if (booted !== undefined) return null;
-  booted = null;
-  try {
-    const el = typeof document !== 'undefined' && document.getElementById('boot-site');
-    if (el) {
-      booted = JSON.parse(el.textContent);
-      el.remove();
-    }
-  } catch {
+  if (serverBoot !== undefined) return serverBoot;
+  if (booted === undefined) {
     booted = null;
+    bootedAt = Date.now();
+    try {
+      const el = typeof document !== 'undefined' && document.getElementById('boot-site');
+      if (el) booted = JSON.parse(el.textContent);
+    } catch {
+      booted = null;
+    }
   }
-  return booted;
+  return booted && Date.now() - bootedAt < 60000 ? booted : null;
 }

@@ -187,6 +187,24 @@ async function popularDays(knex) {
   return counts[0].days;
 }
 
+/** How long the website data is kept in memory: most page views then need no database query at all. */
+export const SITE_CACHE_MS = 60_000;
+const siteCache = new WeakMap(); // knex → { at, promise }
+
+/**
+ * sitePayload, kept for a minute (per database). Anything an admin saves clears it at once (adminRoutes), so
+ * website changes show immediately; only "bought in the last 7 days" and "Most popular" can lag up to a minute.
+ */
+export function cachedSitePayload(knex) {
+  const hit = siteCache.get(knex);
+  if (hit && Date.now() - hit.at < SITE_CACHE_MS) return hit.promise;
+  const promise = sitePayload(knex);
+  siteCache.set(knex, { at: Date.now(), promise });
+  promise.catch(() => siteCache.delete(knex));
+  return promise;
+}
+export const clearSiteCache = (knex) => siteCache.delete(knex);
+
 /**
  * Everything the product page, the offer page and checkout show (GET /api/portal/site). The server also puts it
  * into the HTML of / and /offer, so those pages show at once without waiting for this request.
@@ -219,7 +237,7 @@ export function portalRoutes(knex) {
   /** Everything the product page and checkout show: website content, the product(s) for sale, payment methods. */
   r.get('/site', async (_req, res) => {
     res.set('Cache-Control', 'no-cache');
-    res.json(await sitePayload(knex));
+    res.json(await cachedSitePayload(knex));
   });
 
   /**

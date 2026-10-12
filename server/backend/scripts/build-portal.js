@@ -1,6 +1,7 @@
 /**
  * Build what the backend serves next to the API:
  *   server/frontend → frontend/dist   website, client panel, admin panel
+ *                   → frontend/dist-ssr  the public pages rendered to HTML on the server (src/entry-server.jsx)
  *   server/mobile   → mobile/dist     DocGen Mobile (installable web app at /app/)
  *
  *   node scripts/build-portal.js             build both
@@ -18,18 +19,22 @@ import { fileURLToPath } from 'node:url';
 
 const serverDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PROJECTS = [
-  { name: 'website, client panel and admin panel', dir: path.join(serverDir, 'frontend') },
+  { name: 'website, client panel and admin panel', dir: path.join(serverDir, 'frontend'), ssr: 'src/entry-server.jsx' },
   // DocGen Mobile uses the desktop app's document types, templates and GST engine (document-generator/src).
   { name: 'DocGen Mobile', dir: path.join(serverDir, 'mobile'), shared: [path.join(serverDir, '..', 'document-generator', 'src')] },
 ];
 const WORKSPACES = ['backend', 'frontend', 'mobile'].map((w) => path.join(serverDir, w)).filter((d) => fs.existsSync(path.join(d, 'package.json')));
 const builtIndex = (p) => path.join(p.dir, 'dist', 'index.html');
+const ssrFile = (p) => path.join(p.dir, 'dist-ssr', 'entry-server.js');
+/** Built and up to date: index.html (and the server renderer) newer than every source. */
+const upToDate = (p) =>
+  [builtIndex(p), ...(p.ssr ? [ssrFile(p)] : [])].every((f) => fs.existsSync(f) && fs.statSync(f).mtimeMs >= newestOf(p));
 
 /** Newest modification time among a project's sources. */
 function newestSource(dir) {
   let newest = 0;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (['dist', 'e2e', 'node_modules', 'test'].includes(entry.name)) continue;
+    if (['dist', 'dist-ssr', 'e2e', 'node_modules', 'test'].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
     newest = Math.max(newest, entry.isDirectory() ? newestSource(full) : fs.statSync(full).mtimeMs);
   }
@@ -66,7 +71,7 @@ if (missing.length) {
 
 const ifNeeded = process.argv.includes('--if-needed');
 const newestOf = (p) => Math.max(newestSource(p.dir), ...(p.shared || []).filter((d) => fs.existsSync(d)).map(newestSource));
-const todo = PROJECTS.filter((p) => fs.existsSync(p.dir) && !(ifNeeded && fs.existsSync(builtIndex(p)) && fs.statSync(builtIndex(p)).mtimeMs >= newestOf(p)));
+const todo = PROJECTS.filter((p) => fs.existsSync(p.dir) && !(ifNeeded && upToDate(p)));
 if (!todo.length) process.exit(0);
 
 const vite = await import('vite');
@@ -74,6 +79,14 @@ for (const p of todo) {
   console.log(`Building the ${p.name}…`);
   try {
     await vite.build({ configFile: path.join(p.dir, 'vite.config.js'), logLevel: 'warn' });
+    // The public pages as HTML on the server (outside dist/, so it is never served as a file).
+    if (p.ssr) {
+      await vite.build({
+        configFile: path.join(p.dir, 'vite.config.js'),
+        logLevel: 'error',
+        build: { ssr: p.ssr, outDir: 'dist-ssr', emptyOutDir: true, copyPublicDir: false },
+      });
+    }
     console.log(`Built ${path.relative(serverDir, path.join(p.dir, 'dist'))}.`);
   } catch (e) {
     console.error(`\nCould not build the ${p.name}: ${String(e.message || e).split('\n')[0]}`);

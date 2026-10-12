@@ -18,7 +18,8 @@ import { getProvider } from './payments/index.js';
 import { audit, bumpStat, getSiteConfig } from './services/common.js';
 import { pixelScript, validPixelId, withPixel } from './services/meta.js';
 import { landingShell, offerShell, withShell } from './services/prerender.js';
-import { sitePayload } from './routes/portal.js';
+import { cachedSitePayload } from './routes/portal.js';
+import { DEFAULT_PATHS, loadRenderer, robotsTxt, sitemapXml, withHead } from './services/ssr.js';
 import { PLATFORMS, installerPath, isEntitled } from './services/downloads.js';
 import { verifyPurposeToken } from './lib/security.js';
 
@@ -147,6 +148,15 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
     app.get(/^\/app\/.*/, (_req, res) => res.sendFile(mobileIndex, { headers: { 'Cache-Control': 'no-cache' } }));
   }
 
+  /** The website's own address: PORTAL_URL, or the address this request came to when that is still localhost. */
+  const baseUrl = (req) => (/\/\/(localhost|127\.0\.0\.1)(:|$)/.test(config.portalUrl) ? `${req.protocol}://${req.get('host')}` : config.portalUrl);
+  // For search engines and AI assistants: what may be read, and the list of public pages.
+  app.get('/robots.txt', (req, res) => res.set('Cache-Control', 'public, max-age=3600').type('text/plain').send(robotsTxt(baseUrl(req))));
+  app.get('/sitemap.xml', async (req, res) => {
+    const renderer = vite ? null : await loadRenderer(config.portalDist);
+    res.set('Cache-Control', 'public, max-age=3600').type('application/xml').send(sitemapXml(baseUrl(req), renderer?.INDEXED_PATHS || DEFAULT_PATHS));
+  });
+
   // React client portal + admin panel (single-page app), on the same port as the API.
   if (vite) {
     app.use(vite.middlewares);
@@ -168,17 +178,33 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
     app.use('/assets', express.static(path.join(config.portalDist, 'assets'), { index: false, redirect: false, maxAge: '365d', immutable: true }));
     app.use(express.static(config.portalDist, { index: false, redirect: false, maxAge: '1h' }));
     // Every page of the single-page app gets index.html, with the Pixel in the HTML itself so Meta's tools see it.
+    // The public pages (/, /buy, /mobile, /support, /contact, the policies, /offer …) come with their whole content
+    // rendered in (services/ssr.js) plus the page data, so they show before the app loads and can be read without
+    // JavaScript. The account and admin panels show "Loading…" until the app starts.
+    const renderer = loadRenderer(config.portalDist);
     app.get(/^(?!\/api\/).*/, async (req, res) => {
       const id = await pixelFor(req.path);
-      // The ad offer page is for ad visitors only: keep it out of search results.
-      if (req.path === '/offer') res.set('X-Robots-Tag', 'noindex, nofollow');
-      // / and /offer: the first screen and the page data in the HTML itself, so they show before the app loads.
+      // The ad offer page is for ad visitors only: keep it out of search results; panels too.
+      const noindex = req.path === '/offer' || req.path.startsWith('/admin') || req.path.startsWith('/account');
+      if (noindex) res.set('X-Robots-Tag', 'noindex, nofollow');
       let html = withShell(indexHtml, '', null);
-      if (req.path === '/' || req.path === '/offer') {
+      if (!req.path.startsWith('/admin') && !req.path.startsWith('/account')) {
         try {
-          const payload = await sitePayload(knex);
-          const shell = req.path === '/' ? landingShell(payload) : payload.site?.offer?.enabled !== false ? offerShell(payload) : '';
-          html = withShell(indexHtml, shell, payload);
+          const payload = await cachedSitePayload(knex);
+          const offerOff = req.path === '/offer' && payload.site?.offer?.enabled === false;
+          let page = null;
+          try {
+            page = offerOff ? null : (await renderer)?.render(req.originalUrl, payload);
+          } catch (e) {
+            logger.warn?.({ err: e.message, path: req.path }, 'page could not be rendered on the server');
+          }
+          const canonical = `${baseUrl(req)}${req.path === '/' ? '/' : req.path.replace(/\/+$/, '')}`;
+          if (page) html = withHead(withShell(indexHtml, page.html, payload), { ...page, canonical, noindex: noindex || !page.index });
+          else if (req.path === '/' || req.path === '/offer') {
+            // Renderer not built: the first screen only (headline, price, button).
+            const shell = req.path === '/' ? landingShell(payload) : offerOff ? '' : offerShell(payload);
+            html = withShell(indexHtml, shell, payload);
+          }
         } catch {
           /* the plain "Loading…" page; the app loads its data itself */
         }

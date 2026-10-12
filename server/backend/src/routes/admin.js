@@ -15,7 +15,7 @@ import { audit, getAppConfig, getSiteConfig, saveAppConfig, saveSiteConfig } fro
 import { createLicense, effectiveStatus, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
 import { pricesByPlan, saveProductPrices } from '../services/products.js';
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, addMessage, publicRequest, requestMessages, setStatus } from '../services/support.js';
-import { businessSchema, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
+import { businessSchema, clearSiteCache, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
 import { DOWNLOAD_LABELS, PLATFORMS, getDownloadSettings, listInstallers, removeInstaller, saveDownloadSettings, storeInstaller } from '../services/downloads.js';
 
 const httpsUrl = z
@@ -221,6 +221,11 @@ const adRow = (b) => ({
 
 export function adminRoutes(knex) {
   const r = Router();
+  // Whatever an admin saves (website, products, prices, downloads …) shows on the website at once.
+  r.use((req, res, next) => {
+    if (req.method !== 'GET') res.on('finish', () => clearSiteCache(knex)); // after the change is written
+    next();
+  });
   const auth = requireAdmin(knex);
   const ownerOnly = requireAdmin(knex, ['owner', 'admin']);
   const log = (req, action, entity, entityId, details = {}) =>

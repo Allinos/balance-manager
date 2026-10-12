@@ -10,4 +10,6 @@ export default defineConfig({
   root: path.dirname(fileURLToPath(import.meta.url)),
   plugins: [react()],
   build: { chunkSizeWarningLimit: 800 },
+  // The server renderer (dist-ssr) needs no copy of public/.
+  ...(process.argv.includes('--ssr') ? { publicDir: false } : {}),
 });
