@@ -18,7 +18,7 @@ import { Spinner, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SUPPORT_EMAIL } from '../../constants.js';
 import { CheckoutForm, PurchaseSuccess } from './Checkout.jsx';
-import { licenseLength, period, planCards } from './ProductPage.jsx';
+import { licenseLength, period, planBadge, planCards, planMath, recommendedPlan } from './ProductPage.jsx';
 import { saleParams, track } from '../../pixel.js';
 import { DOC_COUNT, DOC_GROUPS, DocTypes, IMG, IntroVideo, SavedOnce } from './Showcase.jsx';
 
@@ -116,28 +116,6 @@ function PriceDrop({ price, regular, currency, revealed, big = false }) {
   );
 }
 
-/** Plan length in months: 3 months → 3, 1 year → 12, 5 years → 60. */
-const months = (days) => (days % 365 === 0 ? (days / 365) * 12 : Math.round(days / 30));
-
-/** The plan the page puts first: 1 year (a small step for a new buyer, and cheaper per month than short plans). */
-export const recommendedPlan = (cards) => (cards.length > 1 ? cards.find((c) => c.durationDays === 365) || null : null);
-
-/**
- * Price per month and what a longer plan saves against buying the shortest plan again and again
- * (3 months ₹650 ×4 = ₹2,600 vs 1 year ₹1,930 → "Save ₹670 (26%)").
- */
-export function planMath(cards) {
-  const timed = cards.filter((c) => c.durationDays > 0);
-  const shortest = timed.reduce((a, b) => (b.durationDays < a.durationDays ? b : a), timed[0]);
-  return (p) => {
-    if (!p.durationDays) return { perMonth: 0, save: 0, savePercent: 0 };
-    const m = months(p.durationDays);
-    const repeat = shortest && p !== shortest ? (shortest.price / months(shortest.durationDays)) * m : 0;
-    const save = repeat > p.price ? Math.round(repeat - p.price) : 0;
-    return { perMonth: Math.round(p.price / m), save, savePercent: save ? Math.round((save / repeat) * 100) : 0, shortest };
-  };
-}
-
 function Plans({ product, priceId, onPick, percent, revealed, popularDays }) {
   const cards = planCards(product);
   const featured = recommendedPlan(cards);
@@ -149,7 +127,7 @@ function Plans({ product, priceId, onPick, percent, revealed, popularDays }) {
         const on = p.id === priceId;
         const { perMonth, save, savePercent, shortest } = math(p);
         // "Most popular" only when real orders say so; otherwise the 1-year plan is simply "Recommended".
-        const badge = p === featured ? (popularDays === p.durationDays ? 'Most popular' : 'Recommended') : p.isBest ? 'Best value' : '';
+        const badge = planBadge(p, featured, popularDays);
         return (
           <button
             key={p.id ?? p.durationDays}

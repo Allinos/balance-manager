@@ -4106,3 +4106,26 @@ a.stat:hover {
   height: 100%;
   border: 0;
 }
+
+/* Plans on the website and at checkout: price per month, savings, badges (1 year "Recommended", cheapest per year "Best value"). */
+.plan-month {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.plan-save,
+.tile-save {
+  align-self: flex-start;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--good);
+}
+.plan-badge.alt {
+  background: var(--good);
+}
+.price-tile.featured:not(.selected) {
+  border-color: var(--accent-line);
+}
+.price-tile-tag.pick {
+  color: var(--accent);
+}

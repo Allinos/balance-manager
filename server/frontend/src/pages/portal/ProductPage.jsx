@@ -236,17 +236,52 @@ export function planCards(product) {
   });
 }
 
-/** Pricing: one card per plan (1 year, 2 years, 5 years …), each with its own price, duration and details. */
-export function PricingCards({ product }) {
+/** Plan length in months: 3 months → 3, 1 year → 12, 5 years → 60. */
+export const months = (days) => (days % 365 === 0 ? (days / 365) * 12 : Math.round(days / 30));
+
+/** The plan the page puts first: 1 year (a small step for a new buyer, and cheaper per month than short plans). */
+export const recommendedPlan = (cards) => (cards.length > 1 ? cards.find((c) => c.durationDays === 365) || null : null);
+
+/**
+ * Price per month and what a longer plan saves against buying the shortest plan again and again
+ * (3 months ₹650 ×4 = ₹2,600 vs 1 year ₹1,930 → "Save ₹670 (26%)").
+ */
+export function planMath(cards) {
+  const timed = cards.filter((c) => c.durationDays > 0);
+  const shortest = timed.reduce((a, b) => (b.durationDays < a.durationDays ? b : a), timed[0]);
+  return (p) => {
+    if (!p.durationDays) return { perMonth: 0, save: 0, savePercent: 0 };
+    const m = months(p.durationDays);
+    const repeat = shortest && p !== shortest ? (shortest.price / months(shortest.durationDays)) * m : 0;
+    const save = repeat > p.price ? Math.round(repeat - p.price) : 0;
+    return { perMonth: Math.round(p.price / m), save, savePercent: save ? Math.round((save / repeat) * 100) : 0, shortest };
+  };
+}
+
+/** The card's badge: the 1-year plan is "Recommended" ("Most popular" once real orders say so); the cheapest per year "Best value". */
+export const planBadge = (p, featured, popularDays) =>
+  featured && p.id === featured.id && p.durationDays === featured.durationDays ? (popularDays === p.durationDays ? 'Most popular' : 'Recommended') : p.isBest ? 'Best value' : '';
+
+/**
+ * Pricing: one card per plan (3 months, 1 year, 5 years …), each with its price, price per month, what it saves
+ * against the shortest plan, and its details. The 1-year plan is highlighted; the cheapest per year says "Best value".
+ */
+export function PricingCards({ product, popularDays = null }) {
   const cards = planCards(product);
+  const featured = recommendedPlan(cards);
+  const math = planMath(cards);
   const devices = `${product.maxDevices} ${product.maxDevices === 1 ? 'computer' : 'computers'}${
     product.maxMobileDevices ? ` + ${product.maxMobileDevices} ${product.maxMobileDevices === 1 ? 'phone' : 'phones'}` : ''
   }`;
   return (
     <div className="pricing-cards" data-testid="pricing-cards" style={{ '--cards': Math.min(cards.length, 4) }}>
-      {cards.map((p) => (
-        <div key={p.id ?? p.durationDays} className={`plan-card ${p.isBest ? 'best' : ''}`} data-testid="price-card">
-          {p.isBest && <span className="plan-badge">Best value</span>}
+      {cards.map((p) => {
+        const { perMonth, save, savePercent, shortest } = math(p);
+        const badge = planBadge(p, featured, popularDays);
+        const lead = featured ? p === featured : p.isBest;
+        return (
+        <div key={p.id ?? p.durationDays} className={`plan-card ${lead ? 'best' : ''}`} data-testid="price-card">
+          {badge && <span className={`plan-badge ${lead ? '' : 'alt'}`} data-testid="plan-badge">{badge}</span>}
           <span className="plan-name" data-testid="plan-name">
             {p.name}
           </span>
@@ -256,8 +291,18 @@ export function PricingCards({ product }) {
           <strong className="plan-price" data-testid="price">
             {money(p.price, product.currency)}
           </strong>
+          {perMonth > 0 && cards.length > 1 && (
+            <span className="plan-month" data-testid="plan-per-month">
+              {money(perMonth, product.currency)}/month
+            </span>
+          )}
+          {save > 0 && (
+            <span className="plan-save" data-testid="plan-save" title={`Compared with buying the ${period(shortest.durationDays)} plan again and again`}>
+              Save {money(save, product.currency)} ({savePercent}%)
+            </span>
+          )}
           <span className="plan-sub">
-            {perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · ` : ''}pay once, no auto-debit — renew only if you like it
+            {p.durationDays ? `Pay once for ${period(p.durationDays)}` : 'Pay once'} · no auto-debit — renew only if you like it
           </span>
           <ul className="ticks small">
             <li>
@@ -274,14 +319,15 @@ export function PricingCards({ product }) {
             </li>
           </ul>
           <Link
-            className={`btn btn-block ${p.isBest || cards.length === 1 ? 'btn-primary' : ''}`}
+            className={`btn btn-block ${lead || cards.length === 1 ? 'btn-primary' : ''}`}
             to={`/buy?product=${product.id}${p.id ? `&price=${p.id}` : ''}`}
             data-testid={`buy-${p.durationDays}`}
           >
             Buy {p.periodText.toLowerCase() === 'lifetime' ? 'lifetime license' : p.periodText}
           </Link>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -402,7 +448,7 @@ export default function ProductPage() {
               products.map((p) => (
                 <div key={p.id} className="pricing-group">
                   {products.length > 1 && <h3 className="center">{p.name}</h3>}
-                  <PricingCards product={p} />
+                  <PricingCards product={p} popularDays={data.popularDays} />
                 </div>
               ))
             ) : (

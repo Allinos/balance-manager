@@ -16,6 +16,10 @@ import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader, useAuth } from '../../App.jsx';
 import { licenseLength } from './ProductPage.jsx';
 import { PriceTiles } from './Services.jsx';
+import { planCards, recommendedPlan } from './ProductPage.jsx';
+
+/** The price chosen at first: the 1-year plan when there is one, else the first price. */
+const defaultPrice = (product) => product.prices.find((x) => x.id === recommendedPlan(planCards(product))?.id) || product.prices[0];
 
 function Steps({ step }) {
   const items = ['Your details', 'Payment', 'License & download'];
@@ -117,7 +121,7 @@ export function PurchaseSuccess({ result, emailEnabled, email }) {
  * @param {{product, price, onPrice?: (id) => void, priceTiles?: boolean, onStep?: (n) => void, onSuccess: (result, form) => void,
  *   payLabel?: string, autoFocus?: boolean, children?: any}} props  children: shown above the pay button (e.g. the offer's price line)
  */
-export function CheckoutForm({ product, price, onPrice, priceTiles = true, onStep = () => {}, onSuccess, payLabel, autoFocus = false, children }) {
+export function CheckoutForm({ product, price, onPrice, priceTiles = true, onStep = () => {}, onSuccess, payLabel, autoFocus = false, popularDays = null, children }) {
   const { client } = useAuth();
   const navigate = useNavigate();
   const { pay, element } = usePayment();
@@ -192,7 +196,7 @@ export function CheckoutForm({ product, price, onPrice, priceTiles = true, onSte
         {priceTiles && product.prices.length > 1 && (
           <div className="field">
             <span className="field-label">License duration</span>
-            <PriceTiles prices={product.prices} value={price.id} onChange={onPrice} currency={product.currency} />
+            <PriceTiles prices={product.prices} value={price.id} onChange={onPrice} currency={product.currency} popularDays={popularDays} />
           </div>
         )}
         <Field label="Full name" error={fieldError('name')}>
@@ -237,7 +241,7 @@ export default function CheckoutPage() {
   // Meta Pixel: the buyer sees the product and its price (once per visit of the page).
   useEffect(() => {
     const p = data?.products?.find((x) => x.id === Number(params.get('product'))) || data?.products?.[0];
-    if (p) track('ViewContent', saleParams(p, p.prices.find((x) => x.id === Number(params.get('price'))) || p.prices[0]));
+    if (p) track('ViewContent', saleParams(p, p.prices.find((x) => x.id === Number(params.get('price'))) || defaultPrice(p)));
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   const [step, setStep] = useState(0);
   const [result, setResult] = useState(null);
@@ -253,7 +257,8 @@ export default function CheckoutPage() {
   }
   const products = data?.products || [];
   const product = products.find((p) => p.id === Number(params.get('product'))) || products[0];
-  const price = product && (product.prices.find((p) => p.id === (priceId ?? Number(params.get('price')))) || product.prices[0]);
+  // The 1-year plan is chosen until the buyer picks another one (or the link names a price).
+  const price = product && (product.prices.find((p) => p.id === (priceId ?? Number(params.get('price')))) || defaultPrice(product));
 
   return (
     <div className="site">
@@ -274,7 +279,7 @@ export default function CheckoutPage() {
               <p className="muted" style={{ marginBottom: 18 }}>
                 {client.user ? 'You are signed in. The license is added to your account.' : 'Your account is created automatically after payment.'}
               </p>
-              <CheckoutForm product={product} price={price} onPrice={setPriceId} onStep={setStep} autoFocus onSuccess={(r, form) => setResult({ ...r, email: form.email })} />
+              <CheckoutForm product={product} price={price} onPrice={setPriceId} onStep={setStep} autoFocus popularDays={data.popularDays} onSuccess={(r, form) => setResult({ ...r, email: form.email })} />
             </div>
             <OrderSummary product={product} price={price} />
           </div>

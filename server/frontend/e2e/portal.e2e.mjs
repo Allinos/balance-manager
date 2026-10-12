@@ -148,8 +148,14 @@ try {
   const cards = page.getByTestId('price-card');
   check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
   const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
-  check(/1-year license.*1,250.*2-year license.*2,250.*5-year license.*4,999/.test(pricing) && pricing.includes('pay once, no auto-debit'), 'pricing cards: 1, 2 and 5 years with their prices, pay once, no auto-debit');
+  check(/1-year license.*1,250.*2-year license.*2,250.*5-year license.*4,999/.test(pricing) && pricing.includes('Pay once for 1 year · no auto-debit'), 'pricing cards: 1, 2 and 5 years with their prices, pay once, no auto-debit');
   check(pricing.includes('Best value') && (await cards.nth(2).textContent()).includes('Best value'), 'pricing cards: lowest price per year marked "Best value"');
+  check((await cards.nth(0).textContent()).includes('Recommended') && (await cards.nth(0).getAttribute('class')).includes('best') && !pricing.includes('Most popular'),
+    'pricing cards: the 1-year plan is highlighted as "Recommended" ("Most popular" only when real orders say so)');
+  const months = (await page.getByTestId('plan-per-month').allTextContents()).join(' ');
+  const saves = (await page.getByTestId('plan-save').allTextContents()).join(' ');
+  check(['₹104/month', '₹94/month', '₹83/month'].every((t) => months.includes(t)) && saves.includes('Save ₹250 (10%)') && saves.includes('Save ₹1,251 (20%)'),
+    `pricing cards: price per month and what longer plans save (${months} · ${saves})`);
   const names = await page.getByTestId('plan-name').allTextContents();
   const periods = await page.getByTestId('plan-period').allTextContents();
   check(names.join(',') === 'Standard,Plus,Premium' && periods.join(',') === '1-year license,2-year license,5-year license',
@@ -180,6 +186,9 @@ try {
   check((await page.getByTestId('order-total').textContent()).includes('4,999') && (await page.getByTestId('co-pay').textContent()).includes('4,999'), 'checkout: choosing 5 years updates the total (₹4,999)');
   await page.getByTestId('price-365').click();
   check((await page.getByTestId('order-total').textContent()).includes('1,250'), 'checkout: back to 1 year (₹1,250)');
+  const tiles = (await page.locator('.price-tiles').textContent()).replace(/\s+/g, ' ');
+  check(tiles.includes('Recommended') && tiles.includes('Best value') && tiles.includes('₹104/month') && tiles.includes('Save ₹1,251 (20%)') && tiles.includes('no auto-debit') && !/one-time/i.test(tiles),
+    'checkout: plans show the badge, price per month and savings, "pay once, no auto-debit"');
   await page.getByLabel('Full name').fill('Meera Sharma');
   await page.getByLabel('Mobile number').fill('12345');
   await page.getByLabel('Email address').fill('meera@example.com');

@@ -12,6 +12,7 @@ import { CopyButton, Empty, ErrorText, Spinner, useLoad, useToast } from '../../
 import { TERMS_REQUIRED, TermsCheck, usePayment } from '../../components/Payment.jsx';
 import Icon from '../../components/Icons.jsx';
 import { sortLicenses } from './ClientHome.jsx';
+import { planBadge, planCards, planMath, recommendedPlan } from './ProductPage.jsx';
 
 const DAY = 86400000;
 
@@ -23,30 +24,43 @@ export function newExpiry(license, days, now = Date.now()) {
   return { fromActivation: (license.durationDays || 0) + days };
 }
 
-/** "₹1,125 / year" for multi-year prices. */
-const perYear = (p, currency) => (p.durationDays > 365 && p.durationDays % 365 === 0 ? `${money(p.price / (p.durationDays / 365), currency)} / year` : '');
-
-export function PriceTiles({ prices, value, onChange, currency }) {
+/** License durations to choose from: price, price per month, what a longer one saves, and the plan badges (as on the website). */
+export function PriceTiles({ prices, value, onChange, currency, popularDays = null }) {
+  const cards = planCards({ prices, name: '' });
+  const featured = recommendedPlan(cards);
+  const math = planMath(cards);
   return (
     <div className="price-tiles" role="radiogroup" aria-label="License duration">
-      {prices.map((p) => (
+      {cards.map((p) => {
+        const { perMonth, save, savePercent } = math(p);
+        const badge = planBadge(p, featured, popularDays);
+        return (
         <button
           key={p.id ?? p.durationDays}
           type="button"
           role="radio"
           aria-checked={value === p.id}
-          className={`price-tile ${value === p.id ? 'selected' : ''}`}
+          className={`price-tile ${value === p.id ? 'selected' : ''} ${p === featured ? 'featured' : ''}`}
           onClick={() => onChange(p.id)}
           data-testid={`price-${p.durationDays}`}
         >
           <span className="price-tile-label">
             {p.period || p.label}
-            {p.tag && <em className="price-tile-tag">{p.tag}</em>}
+            {(badge || p.tag) && <em className={`price-tile-tag ${p === featured ? 'pick' : ''}`}>{badge || p.tag}</em>}
           </span>
           <strong>{money(p.price, currency)}</strong>
-          <span className="muted small">{perYear(p, currency) || (p.durationDays ? 'one-time payment' : 'pay once')}</span>
+          <span className="muted small" data-testid="tile-per-month">
+            {perMonth > 0 && cards.length > 1 ? `${money(perMonth, currency)}/month · ` : ''}
+            {p.durationDays ? 'pay once, no auto-debit' : 'pay once'}
+          </span>
+          {save > 0 && (
+            <span className="tile-save" data-testid="tile-save">
+              Save {money(save, currency)} ({savePercent}%)
+            </span>
+          )}
         </button>
-      ))}
+        );
+      })}
     </div>
   );
 }
