@@ -352,7 +352,7 @@ export function BackupSection() {
 }
 
 const GUIDES = [
-  ['Create your first invoice', ['On the Dashboard tap + on the Invoices card (or the round + button).', 'Type the customer name or pick a saved one — "Save this customer" keeps it for next time.', 'Add items: pick a saved product or type name, quantity, unit and rate. GST is calculated automatically.', 'Tap Save. The number comes from your series (Settings → Numbering).', 'Tap Print / PDF and choose "Save as PDF" to send it on WhatsApp or email.']],
+  ['Create your first invoice', ['On the Dashboard tap + on the Invoices card (or the round + button).', 'Type the customer name or pick a saved one — "Save this customer" keeps it for next time.', 'Add items: pick a saved product or type name, quantity, unit and rate. GST is calculated automatically.', 'Tap Save. The number comes from your series (Settings → Numbering).', 'Tap Share to send it as a PDF on WhatsApp, email or any app, or Download to save the PDF on your phone.']],
   ['GST invoice checklist', ['Enter your GSTIN, state and PAN in Settings → Company.', "Enter the customer's GSTIN — the state is filled in from it.", 'Place of supply decides CGST + SGST (same state) or IGST (other state).', 'Add HSN / SAC codes to products — the HSN summary is printed on the invoice.', 'The Professional template has the complete GST layout.']],
   ['Documents', ['Documents lists everything you created. Search by number, customer or product.', 'Tap the status of a document to change it.', 'Deleted documents can be restored from "Deleted".']],
   ['Templates', ['Settings → Documents: the default template (Professional, Standard, Modern, Simple).', 'Settings → Document Types: a different template for one type.', 'On a document, the Template switch changes only that document.']],
@@ -362,7 +362,7 @@ const GUIDES = [
 const FAQ = [
   ['Does DocGen Mobile need the internet?', 'No. It works offline. The internet is used only to activate and to check your license once a day when available.'],
   ['Is my business data uploaded?', 'Never. Documents, customers, products and files stay on this phone.'],
-  ['How do I get a PDF?', 'Open the document → Print / PDF → choose "Save as PDF" as the printer.'],
+  ['How do I get a PDF?', 'Open the document and tap Download: the PDF is saved on your phone (Downloads on Android, Files on iPhone). Share sends the PDF straight to WhatsApp, email or any other app.'],
   ['Can I edit an issued invoice?', 'Yes, DocGen warns you first. For correct accounts, prefer cancelling and re-issuing, or a credit / debit note.'],
 ];
 

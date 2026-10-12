@@ -240,6 +240,34 @@ try {
   check((await page1().locator('.doc-tp').count()) === 1, 'Professional template (desktop renderer)');
   await a.page.waitForTimeout(300);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-invoice.png') });
+  // Download and Share as PDF, made on the phone.
+  await a.page.evaluate(() => window.scrollTo(0, 0));
+  await shot(a.page, '04a-view-actions');
+  const order = await a.page.locator('.view-actions .btn').allTextContents();
+  check(/Print/.test(order[0]) && /Download/.test(order[1]) && /Share/.test(order[2]) && (await a.page.getByTestId('edit-doc').boundingBox()).y > (await a.page.getByTestId('share-doc').boundingBox()).y,
+    `document actions: Print · Download · Share, Edit in the row below (${order.join(' | ')})`);
+  const [pdfDownload] = await Promise.all([a.page.waitForEvent('download', { timeout: 30000 }), a.page.getByTestId('download-pdf').click()]);
+  const pdfBytes = fs.readFileSync(await pdfDownload.path());
+  if (process.env.PDF_OUT) fs.writeFileSync(path.join(process.env.PDF_OUT, 'invoice.pdf'), pdfBytes);
+  const pdfText = pdfBytes.toString('latin1');
+  const mediaBox = (pdfText.match(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/) || []).slice(1).map(Number);
+  check(pdfText.startsWith('%PDF-1.4') && pdfText.trimEnd().endsWith('%%EOF') && (pdfText.match(/\/Type \/Page /g) || []).length === 1 && Math.round(mediaBox[0]) === 595 && Math.round(mediaBox[1]) === 842,
+    `Download: an A4 PDF of the invoice is saved (${pdfDownload.suggestedFilename()}, ${Math.round(pdfBytes.length / 1024)} KB)`);
+  check(pdfDownload.suggestedFilename() === 'INV-00001 - ABC Construction Pvt Ltd.pdf' && pdfBytes.length > 40000, 'the PDF is named after the document and holds the page picture');
+  await a.page.evaluate(() => {
+    window.__shared = null;
+    navigator.canShare = (data) => !!data?.files?.length;
+    navigator.share = async (data) => {
+      const f = data.files[0];
+      const head = new TextDecoder().decode((await f.arrayBuffer()).slice(0, 8));
+      window.__shared = { name: f.name, type: f.type, size: f.size, head, text: data.text };
+    };
+  });
+  await a.page.getByTestId('share-doc').click();
+  await a.page.waitForFunction(() => window.__shared, null, { timeout: 30000 });
+  const shared = await a.page.evaluate(() => window.__shared);
+  check(shared.type === 'application/pdf' && shared.head.startsWith('%PDF') && shared.name.endsWith('.pdf') && shared.text.includes('INV-00001'),
+    `Share sends the PDF itself (WhatsApp, email …) with a short message (${shared.name}, ${Math.round(shared.size / 1024)} KB)`);
   for (const [id, cls] of [
     ['modern', '.doc-modern'],
     ['simple', '.doc-simple'],
@@ -340,6 +368,11 @@ try {
   check(!(await page1().textContent()).includes('HDFC0001234'), 'quotation printed without bank details');
   check((await page1().textContent()).includes('Freight') && (await page1().textContent()).includes('Packing'), 'printed quotation lists the charges');
   check((await page1().locator('.doc-a5w').count()) >= 1 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, 'quotation on A5 paper (chosen per document)');
+  const [a5Download] = await Promise.all([a.page.waitForEvent('download', { timeout: 30000 }), a.page.getByTestId('download-pdf').click()]);
+  const a5Pdf = fs.readFileSync(await a5Download.path());
+  if (process.env.PDF_OUT) fs.writeFileSync(path.join(process.env.PDF_OUT, 'quotation-a5.pdf'), a5Pdf);
+  const a5Box = (a5Pdf.toString('latin1').match(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/) || []).slice(1).map(Number);
+  check(Math.round(a5Box[0]) === 420 && Math.round(a5Box[1]) === 595, 'Download: the A5 quotation is an A5 PDF');
 
   console.log('Documents');
   await a.page.getByTestId('back').click();
@@ -509,6 +542,7 @@ try {
   await a.page.getByTestId('dashboard').waitFor();
   await a.page.reload();
   await a.page.getByTestId('dashboard').waitFor();
+  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(5).waitFor({ timeout: 10000 }).catch(() => {});
   check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 6, 'reopened without logging in; recent documents');
   await a.page.waitForTimeout(400);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-dashboard.png') });

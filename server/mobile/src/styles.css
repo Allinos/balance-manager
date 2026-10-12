@@ -1424,11 +1424,18 @@ button.license-chip {
 }
 .view-actions {
   display: grid;
-  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 .view-actions .btn {
-  padding: 0 8px;
+  padding: 0 6px;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 14.5px;
+}
+.view-actions .btn .icon {
+  flex: none;
 }
 .lineage {
   display: flex;
@@ -1779,4 +1786,12 @@ button.license-chip {
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Download / Share as PDF: the document is drawn off screen with its print-only extra copies shown. */
+.pdf-stage .print-only {
+  display: block !important;
+}
+.pdf-stage .doc-extra-copy {
+  margin-top: 8mm;
 }

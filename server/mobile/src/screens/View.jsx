@@ -16,6 +16,7 @@ import Icon from '../components/Icon.jsx';
 import { ActionSheet, Header, Picker, Sheet, Spinner, StatusBadge, go, useUi } from '../components/ui.jsx';
 import { StatusSheet } from '../components/docs.jsx';
 import { isCancelled, useApp, useDocumentActions } from '../data.jsx';
+import { canShareFiles, documentPdf, saveFile } from '../lib/pdf.js';
 
 const parseMeta = (meta) => {
   try {
@@ -152,7 +153,51 @@ export default function View({ id, query = {} }) {
     return undefined;
   }, [payload, query.print, print, id]);
 
+  // Download / Share as PDF: made on the phone from the same drawing as the preview.
+  const [making, setMaking] = useState('');
+  const makePdf = (copies) => documentPdf(payload, { copies, fileName: fileTitle });
+  const download = async () => {
+    if (making) return;
+    setMaking('download');
+    try {
+      saveFile(await makePdf(clampCopies(settings.documentCopies)));
+      toast('PDF saved to your phone (Downloads)');
+    } catch (e) {
+      toast(e.message || 'The PDF could not be made. Use Print → Save as PDF instead.', 'bad');
+    } finally {
+      setMaking('');
+    }
+  };
+  /** Share the PDF (one copy) to WhatsApp, email or any app; without file sharing, the PDF is saved instead. */
   const share = async () => {
+    if (making) return;
+    setMaking('share');
+    let file;
+    try {
+      file = await makePdf(1);
+    } catch (e) {
+      setMaking('');
+      return toast(e.message || 'The PDF could not be made.', 'bad');
+    }
+    setMaking('');
+    try {
+      if (canShareFiles(file)) {
+        await navigator.share({ files: [file], title: fileTitle, text: shareText() });
+      } else {
+        saveFile(file);
+        toast('This browser cannot share files — the PDF was saved instead. Attach it in WhatsApp or email.');
+      }
+    } catch (e) {
+      if (e?.name !== 'AbortError') {
+        saveFile(file);
+        toast('Sharing did not work. The PDF was saved instead.', 'bad');
+      }
+    }
+    return undefined;
+  };
+
+  /** A short message sent with the PDF. */
+  const shareText = () => {
     const type = getType(doc.document_type);
     const text = [
       `${ds.title || type.title} ${doc.document_number}`,
@@ -163,15 +208,7 @@ export default function View({ id, query = {} }) {
     ]
       .filter(Boolean)
       .join('\n');
-    try {
-      if (navigator.share) await navigator.share({ title: fileTitle, text });
-      else {
-        await navigator.clipboard.writeText(text);
-        toast('Details copied — paste them in WhatsApp or email. Use Print → Save as PDF to send the document itself.');
-      }
-    } catch {
-      /* share cancelled */
-    }
+    return text;
   };
 
   const changeTemplate = async (tid) => {
@@ -276,19 +313,24 @@ export default function View({ id, query = {} }) {
             <Icon name="undo" size={18} /> Restore
           </button>
         ) : (
-          <div className="view-actions no-print">
+          <>
+            <div className="view-actions no-print">
+              <button className="btn" onClick={print} data-testid="print-doc">
+                <Icon name="printer" size={18} /> Print
+              </button>
+              <button className="btn" onClick={download} disabled={!!making} data-testid="download-pdf">
+                <Icon name="download" size={18} /> {making === 'download' ? 'Making…' : 'Download'}
+              </button>
+              <button className="btn btn-primary" onClick={share} disabled={!!making} data-testid="share-doc">
+                <Icon name="share" size={18} /> {making === 'share' ? 'Making…' : 'Share'}
+              </button>
+            </div>
             {!cancelled && (
-              <button className="btn" onClick={() => actions.edit(doc)} data-testid="edit-doc">
+              <button className="btn btn-block no-print" onClick={() => actions.edit(doc)} data-testid="edit-doc">
                 <Icon name="edit" size={18} /> Edit
               </button>
             )}
-            <button className="btn btn-primary" onClick={print} data-testid="print-doc">
-              <Icon name="printer" size={18} /> Print / PDF
-            </button>
-            <button className="btn" onClick={share} data-testid="share-doc">
-              <Icon name="share" size={18} /> Share
-            </button>
-          </div>
+          </>
         )}
         {!deleted && (
           <div className="row no-print">
@@ -307,7 +349,7 @@ export default function View({ id, query = {} }) {
             <PagePreview payload={payload} copies={clampCopies(settings.documentCopies)} />
           </div>
         </div>
-        <p className="small muted center no-print">Print → choose “Save as PDF” to get a PDF you can send on WhatsApp or email.</p>
+        <p className="small muted center no-print">Share sends this document as a PDF to WhatsApp, email or any app. Download saves the PDF on your phone.</p>
       </div>
 
       {sheet === 'more' && <ActionSheet title={`${doc.document_number} · ${type.short}`} items={more} onClose={() => setSheet('')} />}

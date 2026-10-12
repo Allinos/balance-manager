@@ -345,7 +345,9 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
   sales CSV download); editor (saved customers and products, GSTIN → state, CGST/SGST or IGST from the place of supply,
   discounts, any number of additional charges each with its own GST rate, round off, additional details per type, default
   terms and declaration per type (editable per document), A4 or A5 per document, receipts and payment vouchers, live
-  preview); document view (template per document, Print / Save as PDF with 1–4 copies, share, history, contact the
+  preview); document view (template per document; Print, Download PDF and Share as PDF — the PDF is made on the phone
+  from the same drawing as the preview, A4 or A5, Download with the 1–4 copies from settings, Share with one copy through
+  the phone's share menu to WhatsApp, email or any app; history, contact the
   customer by call / WhatsApp / email); Products & Services with categories, and under it the optional Customers and
   Vendors screens (off by default; a small + switches them on; deleting archives a party that is on documents, so
   documents never change); Settings (Company with logo, signature and stamp, Documents, Document Types with paper size,

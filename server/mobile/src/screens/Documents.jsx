@@ -137,7 +137,7 @@ export default function Documents({ query }) {
     return [
       { label: 'View', icon: 'eye', onClick: () => actions.view(d) },
       { label: 'Edit', icon: 'edit', onClick: () => actions.edit(d), testId: 'action-edit' },
-      { label: 'Print / PDF', icon: 'printer', onClick: () => actions.print(d) },
+      { label: 'Print', icon: 'printer', onClick: () => actions.print(d) },
       { label: 'Duplicate', icon: 'copy', onClick: () => actions.duplicate(d), testId: 'action-duplicate' },
       ...t.conversions.map((c) => ({ label: `Convert to ${TYPE_MAP[c]?.short || c}`, icon: 'convert', onClick: () => actions.convert(d, c), testId: `action-convert-${c}` })),
       { divider: true, key: 'd' },
