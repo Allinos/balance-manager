@@ -3003,6 +3003,12 @@ a.stat:hover {
   border-radius: 999px;
   padding: 1px 8px;
 }
+.offer-plan-name em.pick {
+  background: var(--accent);
+}
+.offer-plan.featured:not(.on) {
+  border-color: var(--accent-line);
+}
 .offer-plan-name small {
   flex-basis: 100%;
   color: var(--muted);

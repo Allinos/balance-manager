@@ -116,32 +116,63 @@ function PriceDrop({ price, regular, currency, revealed, big = false }) {
   );
 }
 
-function Plans({ product, priceId, onPick, percent, revealed }) {
+/** Plan length in months: 3 months → 3, 1 year → 12, 5 years → 60. */
+const months = (days) => (days % 365 === 0 ? (days / 365) * 12 : Math.round(days / 30));
+
+/** The plan the page puts first: 1 year (a small step for a new buyer, and cheaper per month than short plans). */
+export const recommendedPlan = (cards) => (cards.length > 1 ? cards.find((c) => c.durationDays === 365) || null : null);
+
+/**
+ * Price per month and what a longer plan saves against buying the shortest plan again and again
+ * (3 months ₹650 ×4 = ₹2,600 vs 1 year ₹1,930 → "Save ₹670 (26%)").
+ */
+export function planMath(cards) {
+  const timed = cards.filter((c) => c.durationDays > 0);
+  const shortest = timed.reduce((a, b) => (b.durationDays < a.durationDays ? b : a), timed[0]);
+  return (p) => {
+    if (!p.durationDays) return { perMonth: 0, save: 0, savePercent: 0 };
+    const m = months(p.durationDays);
+    const repeat = shortest && p !== shortest ? (shortest.price / months(shortest.durationDays)) * m : 0;
+    const save = repeat > p.price ? Math.round(repeat - p.price) : 0;
+    return { perMonth: Math.round(p.price / m), save, savePercent: save ? Math.round((save / repeat) * 100) : 0, shortest };
+  };
+}
+
+function Plans({ product, priceId, onPick, percent, revealed, popularDays }) {
   const cards = planCards(product);
+  const featured = recommendedPlan(cards);
+  const math = planMath(cards);
   return (
     <div className="offer-plans" role="radiogroup" aria-label="Choose your plan">
       {cards.map((p) => {
         const regular = regularPrice(p.price, percent);
         const on = p.id === priceId;
+        const { perMonth, save, savePercent, shortest } = math(p);
+        // "Most popular" only when real orders say so; otherwise the 1-year plan is simply "Recommended".
+        const badge = p === featured ? (popularDays === p.durationDays ? 'Most popular' : 'Recommended') : p.isBest ? 'Best value' : '';
         return (
           <button
             key={p.id ?? p.durationDays}
             type="button"
             role="radio"
             aria-checked={on}
-            className={`offer-plan ${on ? 'on' : ''}`}
+            className={`offer-plan ${on ? 'on' : ''} ${p === featured ? 'featured' : ''}`}
             onClick={() => onPick(p.id)}
             data-testid={`offer-plan-${p.durationDays}`}
           >
             <span className="offer-radio" aria-hidden="true" />
             <span className="offer-plan-name">
               <strong>{period(p.durationDays).replace(/^./, (c) => c.toUpperCase())}</strong>
-              {p.isBest && <em>Best value</em>}
-              <small>{p.durationDays > 365 ? `${money(Math.round(p.price / (p.durationDays / 365)), product.currency)} / year` : 'One-time payment'}</small>
+              {badge && <em className={p === featured ? 'pick' : ''}>{badge}</em>}
+              <small data-testid="plan-per-month">{perMonth ? `${money(perMonth, product.currency)}/month` : 'Pay once, use it for life'}</small>
             </span>
             <span className="offer-plan-price">
               <PriceDrop price={p.price} regular={regular} currency={product.currency} revealed={revealed} />
-              {revealed && regular > p.price && <span className="offer-save">Save {money(regular - p.price, product.currency)}</span>}
+              {save > 0 && (
+                <span className="offer-save" data-testid="plan-save" title={`Compared with buying the ${period(shortest.durationDays)} plan again and again`}>
+                  Save {money(save, product.currency)} ({savePercent}%)
+                </span>
+              )}
             </span>
           </button>
         );
@@ -484,7 +515,7 @@ function Proof({ offer, recentSales }) {
   ].filter(Boolean);
   const promises = [
     ['shield', '7-day refund policy', 'Not for you? Full refund within 7 days — see the FAQ below.'],
-    ['rupee', 'One-time payment', 'No monthly fee and no auto-renewal.'],
+    ['rupee', 'Pay once, no auto-debit', 'Pay for the period you choose. Nothing is charged later — renew only if you like it.'],
     ['lock', 'Your data stays with you', 'Documents, customers and products stay on your computer or phone.'],
     ['mail', 'Real help', 'Email us with any question — a person answers.'],
   ];
@@ -594,6 +625,9 @@ function Faq({ items }) {
   );
 }
 
+/** "Pay once for 3 months" — accurate for a license that ends, and still says there is no subscription. */
+const payOnce = (days) => (days ? `Pay once for ${period(days)}` : 'Pay once');
+
 const HERO_POINTS = ['GST & Non-GST', `${DOC_COUNT} document types`, 'Saved customers & products', 'Easy document management'];
 
 export default function OfferPage() {
@@ -643,11 +677,15 @@ export default function OfferPage() {
   const products = data.products || [];
   const product = products.find((p) => p.id === Number(params.get('product'))) || products[0];
   if (!product) return <Navigate to="/buy" replace />;
-  const price = product.prices.find((p) => p.id === (priceId ?? Number(params.get('price')))) || product.prices[0];
+  const cards = planCards(product);
+  // The 1-year plan is chosen until the visitor picks another one (or the ad link names a price).
+  const price =
+    product.prices.find((p) => p.id === (priceId ?? Number(params.get('price')))) ||
+    product.prices.find((p) => p.id === recommendedPlan(cards)?.id) ||
+    product.prices[0];
   const percent = Number(offer.regularPricePercent) || 0;
   const regular = regularPrice(price.price, percent);
   const off = regular > price.price ? Math.round(((regular - price.price) / regular) * 100) : 0;
-  const cards = planCards(product);
   const cheapest = cards.reduce((a, b) => (b.price < a.price ? b : a), cards[0]);
   const rating = Number(offer.rating) || 0;
   const recentSales = Number(data.recentSales) || 0;
@@ -718,7 +756,7 @@ export default function OfferPage() {
                 Start with {cheapest.durationDays ? period(cheapest.durationDays) : 'a lifetime license'} —{' '}
                 <PriceDrop price={cheapest.price} regular={regularPrice(cheapest.price, percent)} currency={product.currency} revealed={revealed} />
               </span>
-              <small>One-time payment · No auto-renewal · 7-day refund policy</small>
+              <small>{payOnce(cheapest.durationDays)} · No auto-debit · Renew only if you like it · 7-day refund policy</small>
             </div>
             <div className="hero-ctas">
               <button type="button" className="btn btn-primary btn-lg" onClick={goPay} data-testid="offer-buy">
@@ -806,11 +844,11 @@ export default function OfferPage() {
 
         <section className="offer-section offer-pay" id="pay" ref={payRef} data-testid="offer-pay">
           <h2>Download DocGen</h2>
-          <p className="offer-sub center">Choose how long you want it. One-time payment — it does not renew by itself.</p>
+          <p className="offer-sub center">Choose how long you want it. You pay once for that period — no auto-debit, renew only if you like it.</p>
           <RecentSales n={recentSales} testid="offer-buyers" />
           <div className="offer-pay-grid">
             <div data-testid="offer-plans">
-              <Plans product={product} priceId={price.id} onPick={setPriceId} percent={percent} revealed={revealed} />
+              <Plans product={product} priceId={price.id} onPick={setPriceId} percent={percent} revealed={revealed} popularDays={data.popularDays} />
               <div className="guarantee">
                 <Icon name="shield" size={20} />
                 <span>
@@ -850,7 +888,7 @@ export default function OfferPage() {
       <div className={`offer-sticky ${payVisible ? 'hidden' : ''}`} data-testid="offer-sticky" aria-hidden={payVisible}>
         <div className="offer-sticky-price">
           <PriceDrop price={price.price} regular={regular} currency={product.currency} revealed={revealed} />
-          <small>{licenseLength(price.durationDays)} · one-time</small>
+          <small>{licenseLength(price.durationDays)} · no auto-debit</small>
         </div>
         <button type="button" className="btn btn-primary btn-lg" onClick={goPay} tabIndex={payVisible ? -1 : 0} data-testid="offer-paynow">
           Download →

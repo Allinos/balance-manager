@@ -51,7 +51,7 @@ ${off > 0 ? `<div class="offer-bar"><span><b>Special price: save ${off}%</b></sp
 <h1>Create invoices, quotations &amp; business documents in under a minute</h1>
 <p class="lp-lead">Save your customers, vendors and products once. Next time, simply search, select and create your document.</p>
 <ul class="hero-points">${points.map((t) => `<li>${CHECK} ${t}</li>`).join('')}</ul>
-<div class="hero-offer"><span>Start with ${cheapest.durationDays ? esc(period(cheapest.durationDays)) : 'a lifetime license'} — ${priceTag(cheapest.price, regularPrice(cheapest.price, percent), product.currency)}</span><small>One-time payment · No auto-renewal · 7-day refund policy</small></div>
+<div class="hero-offer"><span>Start with ${cheapest.durationDays ? esc(period(cheapest.durationDays)) : 'a lifetime license'} — ${priceTag(cheapest.price, regularPrice(cheapest.price, percent), product.currency)}</span><small>${cheapest.durationDays ? `Pay once for ${esc(period(cheapest.durationDays))}` : 'Pay once'} · No auto-debit · Renew only if you like it · 7-day refund policy</small></div>
 <div class="hero-ctas"><a class="btn btn-primary btn-lg" href="/buy?price=${esc(cheapest.id ?? '')}">Download – ${esc(money(cheapest.price, product.currency))}</a></div>
 </div>
 <figure class="demo"><div class="app-frame demo-frame"><div class="app-frame-bar"><i></i><i></i><i></i><span class="demo-label">DocGen · making a quotation</span></div><div class="demo-video"><img src="/img/offer/demo-poster.webp" alt="DocGen: a finished quotation" width="1280" height="720" fetchpriority="high" style="display:block;width:100%;height:auto" /></div></div></figure>

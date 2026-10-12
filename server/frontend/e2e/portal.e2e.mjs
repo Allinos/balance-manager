@@ -148,7 +148,7 @@ try {
   const cards = page.getByTestId('price-card');
   check((await cards.count()) === 3 && (await page.getByTestId('price').first().textContent()).includes('1,250'), 'product page: one pricing card per duration, from ₹1,250');
   const pricing = (await page.getByTestId('pricing-cards').textContent()).replace(/\s+/g, ' ');
-  check(/1-year license.*1,250.*2-year license.*2,250.*5-year license.*4,999/.test(pricing) && pricing.includes('one-time payment'), 'pricing cards: 1, 2 and 5 years with their prices, one-time payment');
+  check(/1-year license.*1,250.*2-year license.*2,250.*5-year license.*4,999/.test(pricing) && pricing.includes('pay once, no auto-debit'), 'pricing cards: 1, 2 and 5 years with their prices, pay once, no auto-debit');
   check(pricing.includes('Best value') && (await cards.nth(2).textContent()).includes('Best value'), 'pricing cards: lowest price per year marked "Best value"');
   const names = await page.getByTestId('plan-name').allTextContents();
   const periods = await page.getByTestId('plan-period').allTextContents();
@@ -405,8 +405,8 @@ try {
   const start = ad.getByTestId('offer-start');
   await adShot('03a-offer-open');
   const startText = (await start.textContent()).replace(/\s+/g, ' ');
-  check(startText.includes('Start with 1 year') && startText.includes('₹1,250') && ['One-time payment', 'No auto-renewal', '7-day refund policy'].every((t) => startText.includes(t)),
-    'then: "Start with 1 year — ₹1,250 · One-time payment · No auto-renewal · 7-day refund policy"');
+  check(startText.includes('Start with 1 year') && startText.includes('₹1,250') && ['Pay once for 1 year', 'No auto-debit', 'Renew only if you like it', '7-day refund policy'].every((t) => startText.includes(t)),
+    'then: "Start with 1 year — ₹1,250 · Pay once for 1 year · No auto-debit · Renew only if you like it · 7-day refund policy"');
   const buyBtn = await ad.getByTestId('offer-buy').boundingBox();
   const watchBtn = await ad.getByTestId('offer-watch').boundingBox();
   check(buyBtn.y + buyBtn.height < 844 && watchBtn.y + watchBtn.height < 844 && (await ad.getByTestId('offer-buy').textContent()).includes('Download – ₹1,250') && (await ad.getByTestId('offer-watch').textContent()).includes('Watch demo video'),
@@ -443,7 +443,7 @@ try {
   check(pics.length >= 9, `${pics.length} product pictures on the offer page, all loaded (${pics.map((p) => p.slice(11, -5)).join(', ')})`);
   await ad.evaluate(() => window.scrollTo(0, 0));
   const proof = await ad.getByTestId('offer-proof').textContent();
-  check(!proof.includes('500+') && !proof.includes('4.8') && (await ad.getByTestId('offer-reviews').count()) === 0 && proof.includes('7-day refund policy') && proof.includes('No monthly fee'),
+  check(!proof.includes('500+') && !proof.includes('4.8') && (await ad.getByTestId('offer-reviews').count()) === 0 && proof.includes('7-day refund policy') && proof.includes('no auto-debit'),
     'no made-up numbers or reviews: until the admin adds real ones, the page shows the guarantees');
   const faq = ad.getByTestId('offer-faq');
   check((await faq.locator('summary').count()) === 10 && (await faq.locator('details[open] summary').textContent()) === 'What happens after I pay?' && (await faq.locator('details[open] p').textContent()).includes('license key appears on screen'),
@@ -465,6 +465,12 @@ try {
   await ad.waitForTimeout(400);
   check(!(await ad.getByTestId('offer-sticky').evaluate((el) => el.getBoundingClientRect().top < window.innerHeight)), 'the sticky bar hides while the payment form is on screen');
   await adShot('03d-offer-pay');
+  const planText = async (days) => (await ad.getByTestId(`offer-plan-${days}`).textContent()).replace(/\s+/g, ' ');
+  check((await ad.getByTestId('offer-plan-365').getAttribute('aria-checked')) === 'true' && (await planText(365)).includes('Recommended') && !(await planText(365)).includes('Most popular'),
+    'plans: 1 year is chosen first and marked "Recommended" ("Most popular" only when real orders say so)');
+  check((await planText(365)).includes('₹104/month') && (await planText(730)).includes('₹94/month') && (await planText(1825)).includes('₹83/month'), 'plans: price per month on every plan');
+  check((await planText(730)).includes('Save ₹250 (10%)') && (await planText(1825)).includes('Save ₹1,251 (20%)') && (await planText(1825)).includes('Best value') && !(await planText(365)).includes('Save'),
+    'plans: longer plans show what they save against the shortest one; 5 years "Best value"');
   await ad.getByTestId('offer-pay').getByTestId('offer-plan-730').click();
   check((await ad.getByTestId('offer-total').textContent()).replace(/\s+/g, ' ').includes('₹2,250') && (await ad.getByTestId('co-pay').textContent()).includes('Pay now · ₹2,250'),
     'choosing 2 years: total ₹2,250 and "Pay now · ₹2,250"');

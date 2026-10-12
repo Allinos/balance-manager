@@ -176,6 +176,18 @@ async function recentSales(knex) {
 }
 
 /**
+ * The plan length people buy most (paid orders, all time), so the offer page says "Most popular" only when it is
+ * true. null below 5 paid orders, or when no length clearly leads.
+ */
+async function popularDays(knex) {
+  const rows = await knex('payments').where({ status: 'paid' }).whereNotNull('duration_days').groupBy('duration_days').select('duration_days').count({ n: '*' });
+  const counts = rows.map((r) => ({ days: Number(r.duration_days), n: Number(r.n) })).sort((a, b) => b.n - a.n);
+  const total = counts.reduce((sum, r) => sum + r.n, 0);
+  if (total < 5 || (counts[1] && counts[1].n === counts[0].n)) return null;
+  return counts[0].days;
+}
+
+/**
  * Everything the product page, the offer page and checkout show (GET /api/portal/site). The server also puts it
  * into the HTML of / and /offer, so those pages show at once without waiting for this request.
  */
@@ -185,6 +197,7 @@ export async function sitePayload(knex) {
   return {
     site,
     recentSales: site.offer?.showBuyers ? await recentSales(knex) : 0,
+    popularDays: await popularDays(knex),
     products: await productsOnSale(knex),
     mobileAvailable: downloads.mobile.enabled,
     providers: listProviders(),

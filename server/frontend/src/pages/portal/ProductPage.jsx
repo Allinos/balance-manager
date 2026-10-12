@@ -257,7 +257,7 @@ export function PricingCards({ product }) {
             {money(p.price, product.currency)}
           </strong>
           <span className="plan-sub">
-            {perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · ` : ''}one-time payment, no auto-renewal
+            {perYear(p) !== null && p.durationDays > 365 ? `${money(Math.round(perYear(p)), product.currency)} / year · ` : ''}pay once, no auto-debit — renew only if you like it
           </span>
           <ul className="ticks small">
             <li>
@@ -390,7 +390,7 @@ export default function ProductPage() {
             <div className="lp-head">
               <span className="lp-eyebrow">Pricing</span>
               <h2 className="lp-title">
-                {products.length && products[0].prices.length > 1 ? 'One-time payment. Choose your plan.' : 'One-time payment. No subscription.'}
+                {products.length && products[0].prices.length > 1 ? 'Pay once for the period you choose. No auto-debit.' : 'Pay once. No auto-debit.'}
               </h2>
               <p className="lp-lead">
                 {products.length && products[0].prices.length > 1

@@ -49,7 +49,7 @@ function OrderSummary({ product, price }) {
         <span>Total</span>
         <span data-testid="order-total">{money(price.price, product.currency)}</span>
       </div>
-      <span className="muted small">One-time payment. No subscription, nothing charged later.</span>
+      <span className="muted small">You pay once for this period. No auto-debit — renew only if you like it.</span>
       <ul className="ticks small">
         <li>
           <Icon name="check" size={15} strokeWidth={2.4} /> License code shown instantly and emailed to you
