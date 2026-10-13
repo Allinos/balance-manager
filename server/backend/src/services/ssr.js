@@ -39,7 +39,7 @@ export function withHead(html, { title, description, canonical, noindex }) {
 
 /** robots.txt: everything public may be read; panels and the API are not for search engines. */
 export const robotsTxt = (baseUrl) =>
-  ['User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /account', 'Disallow: /api/', 'Disallow: /app/', '', `Sitemap: ${baseUrl}/sitemap.xml`, ''].join('\n');
+  ['User-agent: *', 'Allow: /', 'Disallow: /admin', 'Disallow: /account', 'Disallow: /api/', 'Disallow: /app/', 'Disallow: /r/', '', `Sitemap: ${baseUrl}/sitemap.xml`, ''].join('\n');
 
 /** sitemap.xml of the public pages. */
 export function sitemapXml(baseUrl, paths, lastmod) {

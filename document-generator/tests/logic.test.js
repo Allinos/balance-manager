@@ -299,3 +299,56 @@ test('Customers & Vendors modules are off by default', async () => {
   assert.deepEqual(enabledModules({ ...DEFAULT_SETTINGS, vendorsModule: true }).map((m) => m.kind), ['vendor']);
   assert.equal(PARTY_MODULES.length, 2);
 });
+
+test('shipping address: Settings default, per-invoice switch, same-as-billing and a different consignee', async () => {
+  const { DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  const { shipToOf, shippingOn, shippingMetaFor, offersShipping } = await import('../src/config/shipping.js');
+  assert.equal(DEFAULT_SETTINGS.showShippingAddress, false, 'off by default');
+  assert.deepEqual(shippingMetaFor('TAX_INVOICE', DEFAULT_SETTINGS), { showShipping: false });
+  assert.deepEqual(shippingMetaFor('TAX_INVOICE', { showShippingAddress: true }), { showShipping: true });
+  assert.deepEqual(shippingMetaFor('PAYMENT_RECEIPT', { showShippingAddress: true }), {}, 'not on receipts');
+  const bill = {
+    document_type: 'TAX_INVOICE', party_name: 'ABC Traders', party_company: '', party_address: 'MG Road, Pune', party_gstin: '27AAPFU0939F1ZV',
+    party_state: 'Maharashtra', party_phone: '9800000000', shipping_address: '', meta: { showShipping: false },
+  };
+  assert.equal(offersShipping(bill), true);
+  assert.equal(shipToOf(bill), null, 'off: only the billing address');
+  const same = shipToOf({ ...bill, meta: { showShipping: true } });
+  assert.equal(same.same, true);
+  assert.equal(same.address, 'MG Road, Pune', 'on without a different address: the billing address is the shipping address');
+  assert.equal(same.gstin, '27AAPFU0939F1ZV');
+  const other = shipToOf({
+    ...bill,
+    shipping_address: 'Plot 4, MIDC, Nashik',
+    meta: { showShipping: true, ship_name: 'ABC Site Office', ship_gstin: '27AAPFU0939F1ZV', ship_state: 'Maharashtra', ship_phone: '9811111111' },
+  });
+  assert.deepEqual(other, { same: false, name: 'ABC Site Office', company: '', address: 'Plot 4, MIDC, Nashik', gstin: '27AAPFU0939F1ZV', state: 'Maharashtra', phone: '9811111111' });
+  assert.equal(shipToOf({ ...bill, shipping_address: 'Plot 4', meta: { showShipping: false, ship_name: 'X' } }), null, 'the switch wins over a saved address');
+  // Documents from before the switch: a saved shipping address is still printed.
+  const old = { ...bill, shipping_address: 'Old godown', meta: {} };
+  assert.equal(shippingOn(old), true);
+  assert.equal(shipToOf(old).name, 'ABC Traders');
+  assert.equal(shippingOn({ ...bill, meta: {} }), false);
+});
+
+test('new and duplicated documents carry the shipping switch and consignee', async () => {
+  const { DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  const { newDocument, modelFromSource, validate } = await import('../src/services/documentService.js');
+  const settings = { ...DEFAULT_SETTINGS, showShippingAddress: true };
+  const fresh = newDocument('TAX_INVOICE', { settings, docSettings: {} });
+  assert.equal(fresh.document.meta.showShipping, true);
+  assert.equal(newDocument('TAX_INVOICE', { settings: DEFAULT_SETTINGS, docSettings: {} }).document.meta.showShipping, false);
+  const bundle = {
+    document: { ...fresh.document, id: 7, document_number: 'INV-7', party_name: 'ABC', shipping_address: 'Site 2', meta: JSON.stringify({ showShipping: true, ship_name: 'Site office', ship_phone: '98' }) },
+    items: [],
+    parent: null,
+  };
+  const dup = modelFromSource(bundle, 'TAX_INVOICE', 'duplicate', { settings: DEFAULT_SETTINGS, docSettings: {} });
+  assert.equal(dup.document.meta.showShipping, true);
+  assert.equal(dup.document.meta.ship_name, 'Site office');
+  assert.equal(dup.document.shipping_address, 'Site 2');
+  if (validate) {
+    const bad = { document: { ...dup.document, party_name: 'ABC', meta: { ...dup.document.meta, ship_gstin: 'BAD' } }, items: [{ name: 'x', unit_price: '1', description: '', quantity: '1' }] };
+    assert.match(validate(bad) || '', /shipping address GST/);
+  }
+});

@@ -136,7 +136,7 @@ const ACCENTS = ['#1f4fd8', '#0f766e', '#7c3aed', '#b91c1c', '#c2410c', '#111827
 
 export function DocumentsSection() {
   const { draft, set, dirty, save } = useSettingsDraft([
-    'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showAmountInWords', 'showSignature', 'showStamp', 'autoRoundOff',
+    'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showShippingAddress', 'showAmountInWords', 'showSignature', 'showStamp', 'autoRoundOff',
     'defaultPaymentTerms', 'qrContent', 'qrCustomText', 'footerText', 'declaration', 'jurisdiction', 'documentCopies',
   ]);
   const overrides = useMemo(() => ({ ...draft }), [draft]);
@@ -182,6 +182,13 @@ export function DocumentsSection() {
           <Toggle checked={draft.showBank} onChange={(v) => set({ showBank: v })} label="Show bank details" />
           <Toggle checked={draft.showHsn} onChange={(v) => set({ showHsn: v })} label="Show HSN/SAC column" />
           <Toggle checked={draft.showCustomerTaxId} onChange={(v) => set({ showCustomerTaxId: v })} label="Show customer GSTIN / Tax ID" />
+          <Toggle
+            checked={!!draft.showShippingAddress}
+            onChange={(v) => set({ showShippingAddress: v })}
+            label="Show shipping address in bill"
+            hint="New invoices start with Shipping address on; each invoice can switch it on or off"
+            data-testid="setting-show-shipping"
+          />
           <Toggle checked={draft.showAmountInWords} onChange={(v) => set({ showAmountInWords: v })} label="Show amount in words" />
           <Toggle checked={draft.showSignature} onChange={(v) => set({ showSignature: v })} label="Show signature block" />
           <Toggle checked={draft.showStamp} onChange={(v) => set({ showStamp: v })} label="Show company stamp" />

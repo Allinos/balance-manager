@@ -5,7 +5,7 @@ import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, Segmented, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
-import { PARTY_FEATURE, PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
+import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '../../services/catalogService.js';
 import { formatDate } from '../../utils/dates.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
@@ -144,16 +144,9 @@ export function PartyModuleSwitches() {
           <strong>{PARTY_FEATURE.label}</strong>
           <span className="muted small">{PARTY_FEATURE.description}</span>
           {on && (
-            <span className="small">
-              {PARTY_MODULES.map((m, i) => (
-                <span key={m.kind}>
-                  {i > 0 && ' · '}
-                  <Link to={`/parties/${m.kind}`} className="link" data-testid={`open-${m.kind}`}>
-                    Open {m.label} →
-                  </Link>
-                </span>
-              ))}
-            </span>
+            <Link to="/parties/all" className="link small" data-testid="open-parties">
+              Open Customers &amp; Vendors →
+            </Link>
           )}
         </div>
         <Toggle checked={on} onChange={toggle} label="" aria-label="Customers & Vendors feature" data-testid="module-parties-toggle" />
@@ -195,14 +188,20 @@ export function PartyModulesPage() {
   );
 }
 
-/** /parties/customer and /parties/vendor: list, search, add, edit, archive / restore. */
+/** Customers and vendors together on one screen: All, Customers or Vendors. */
+const ALL = { kind: 'all', label: 'Customers & Vendors', singular: 'customer or vendor', icon: 'users' };
+
+/** /parties/all, /parties/customer and /parties/vendor: one screen to list, search, add, edit, archive / restore. */
 export default function PartiesPage({ params }) {
   const { settings } = useAppData();
   const { navigate } = useRouter();
   const toast = useToast();
   const confirm = useConfirm();
-  const mod = moduleFor(params.kind);
-  const enabled = !!settings[mod.setting];
+  const tabs = enabledModules(settings);
+  const mod = tabs.find((m) => m.kind === params.kind) || (tabs.length === 1 ? tabs[0] : ALL);
+  const enabled = tabs.length > 0;
+  // A new record starts as the kind being looked at (a customer on All).
+  const newKind = mod.kind === 'all' ? 'customer' : mod.kind;
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
@@ -211,7 +210,7 @@ export default function PartiesPage({ params }) {
 
   const load = useCallback(async () => {
     try {
-      setRows(await queryParties({ kind: mod.kind, archived, search: debounced }));
+      setRows(await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search: debounced }));
     } catch (e) {
       toast.error(e.message);
     }
@@ -251,22 +250,25 @@ export default function PartiesPage({ params }) {
       toast.error(e.message);
     }
   };
-  const tabs = enabledModules(settings);
-
   return (
     <div className="page" data-testid={`parties-${mod.kind}`}>
       <PageHeader
-        title={mod.label}
-        subtitle={`Saved ${mod.label.toLowerCase()} for your documents. Documents always keep the details printed on them.`}
+        title="Customers & Vendors"
+        subtitle="Everyone you sell to and buy from, in one place. Documents always keep the details printed on them."
         actions={
-          <button className="btn btn-primary" onClick={() => setEditing(emptyParty(mod.kind))} data-testid="add-party">
+          <button className="btn btn-primary" onClick={() => setEditing(emptyParty(newKind))} data-testid="add-party">
             <Icon name="plus" /> Add {mod.singular}
           </button>
         }
       />
       <div className="toolbar card">
         {tabs.length > 1 && (
-          <Segmented value={mod.kind} onChange={(k) => navigate(`/parties/${k}`)} options={tabs.map((m) => ({ value: m.kind, label: m.label }))} testId="party-tabs" />
+          <Segmented
+            value={mod.kind}
+            onChange={(k) => navigate(`/parties/${k}`)}
+            options={[{ value: 'all', label: 'All' }, ...tabs.map((m) => ({ value: m.kind, label: m.label }))]}
+            testId="party-tabs"
+          />
         )}
         <div className="search">
           <Icon name="search" />
@@ -302,7 +304,7 @@ export default function PartiesPage({ params }) {
             }
             action={
               !archived && (
-                <button className="btn btn-primary" onClick={() => setEditing(emptyParty(mod.kind))}>
+                <button className="btn btn-primary" onClick={() => setEditing(emptyParty(newKind))}>
                   <Icon name="plus" /> Add {mod.singular}
                 </button>
               )
@@ -323,10 +325,12 @@ export default function PartiesPage({ params }) {
             </thead>
             <tbody>
               {rows.map((p) => (
-                <tr key={p.id} onDoubleClick={() => !archived && setEditing({ ...emptyParty(mod.kind), ...p })} data-testid="party-row">
+                <tr key={p.id} onDoubleClick={() => !archived && setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-row">
                   <td>
                     <strong>{p.name}</strong>
-                    {p.kind === 'both' && <span className="badge">Customer &amp; vendor</span>}
+                    <span className={`badge party-kind-${p.kind}`} data-testid="party-kind-badge">
+                      {p.kind === 'both' ? 'Customer & vendor' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}
+                    </span>
                     {p.is_demo ? <span className="badge badge-demo">Sample</span> : null}
                     {p.company_name && p.company_name !== p.name && <div className="muted small">{p.company_name}</div>}
                   </td>
@@ -346,7 +350,7 @@ export default function PartiesPage({ params }) {
                         </button>
                       ) : (
                         <>
-                          <button className="icon-btn" title="Edit" onClick={() => setEditing({ ...emptyParty(mod.kind), ...p })} data-testid="party-edit">
+                          <button className="icon-btn" title="Edit" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-edit">
                             <Icon name="edit" size={17} />
                           </button>
                           <button className="icon-btn danger" title="Delete" onClick={() => remove(p)} data-testid="party-delete">

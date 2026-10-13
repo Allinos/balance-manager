@@ -128,7 +128,8 @@ export default function AppLayout({ children }) {
         <nav className="nav">
           {NAV.map(navItem)}
           {/* Customers / Vendors appear here once switched on; + Add More leads to Settings-style feature switches. */}
-          {enabledModules(settings).map((m) => navItem({ to: `/parties/${m.kind}`, label: m.label, icon: m.icon, match: [`/parties/${m.kind}`] }))}
+          {enabledModules(settings).length > 0 &&
+            navItem({ to: '/parties/all', label: 'Customers & Vendors', icon: 'users', match: ['/parties/all', '/parties/customer', '/parties/vendor'] })}
           {(
             <Link
               to="/parties"

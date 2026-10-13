@@ -15,6 +15,7 @@ import { audit, getAppConfig, getSiteConfig, saveAppConfig, saveSiteConfig } fro
 import { createLicense, effectiveStatus, extendLicense, getLicenseWithPlan, publicLicense } from '../services/licenses.js';
 import { pricesByPlan, saveProductPrices } from '../services/products.js';
 import { SUPPORT_STATUSES, SUPPORT_TOPICS, addMessage, publicRequest, requestMessages, setStatus } from '../services/support.js';
+import { assignReferralCode, newClientReferral } from '../services/referrals.js';
 import { businessSchema, clearSiteCache, markPaid, publicClient, publicPayment, publicPlan } from './portal.js';
 import { DOWNLOAD_LABELS, PLATFORMS, getDownloadSettings, listInstallers, removeInstaller, saveDownloadSettings, storeInstaller } from '../services/downloads.js';
 
@@ -231,6 +232,41 @@ export function adminRoutes(knex) {
   const log = (req, action, entity, entityId, details = {}) =>
     audit(knex, { actorType: 'admin', actorId: req.admin.id, action, entity, entityId, details, ip: clientIp(req) });
 
+  /** { [clientId]: { id, name, email, referralCode } } for the referrers of a set of clients. */
+  const referrerNames = async (ids) => {
+    const wanted = [...new Set(ids.filter(Boolean))];
+    if (!wanted.length) return {};
+    const rows = await knex('clients').whereIn('id', wanted).select('id', 'name', 'email', 'referral_code');
+    return Object.fromEntries(rows.map((r) => [r.id, { id: r.id, name: r.name, email: r.email, referralCode: r.referral_code || '' }]));
+  };
+  /** Referred clients with their referrer and what they have paid. */
+  const referredClients = async (filter, limit) => {
+    const qb = knex('clients as c')
+      .leftJoin('clients as r', 'r.id', 'c.referred_by_id')
+      .select('c.id', 'c.name', 'c.email', 'c.phone', 'c.created_at', 'c.referred_at', 'c.referred_code', 'c.referred_by_id', 'r.name as referrer_name', 'r.email as referrer_email', 'r.referral_code as referrer_code')
+      .orderBy('c.referred_at', 'desc')
+      .orderBy('c.id', 'desc')
+      .limit(limit);
+    filter(qb);
+    const rows = await qb;
+    const ids = rows.map((r) => r.id);
+    const paid = ids.length
+      ? await knex('payments').whereIn('client_id', ids).where({ status: 'paid' }).select('client_id').sum({ total: 'amount_paise' }).groupBy('client_id')
+      : [];
+    const paidBy = Object.fromEntries(paid.map((p) => [p.client_id, Number(p.total) / 100]));
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      createdAt: r.created_at,
+      referredAt: r.referred_at,
+      referralCode: r.referred_code || r.referrer_code || '',
+      referrer: r.referred_by_id ? { id: r.referred_by_id, name: r.referrer_name, email: r.referrer_email, referralCode: r.referrer_code || '' } : null,
+      paidTotal: paidBy[r.id] || 0,
+    }));
+  };
+
   // ------------------------------------------------------------------ auth
   r.post('/auth/login', limits.auth, async (req, res) => {
     const body = parse(z.object({ email: z.string().trim().toLowerCase().email(), password: z.string().min(1).max(200) }), req.body);
@@ -319,10 +355,11 @@ export function adminRoutes(knex) {
 
   // -------------------------------------------------------------- clients
   r.get('/clients', auth, async (req, res) => {
-    const q = parse(pageQuery.extend({ status: z.enum(['', 'active', 'suspended']).default('') }), req.query);
+    const q = parse(pageQuery.extend({ status: z.enum(['', 'active', 'suspended']).default(''), referred: z.enum(['', '1']).default('') }), req.query);
     const result = await paginate(knex, 'clients', q, (qb) => {
-      if (q.q) whereContains(qb, ['email', 'name', 'business_name', 'phone', 'gstin'], q.q);
+      if (q.q) whereContains(qb, ['email', 'name', 'business_name', 'phone', 'gstin', 'referral_code'], q.q);
       if (q.status) qb.where({ status: q.status });
+      if (q.referred) qb.whereNotNull('referred_by_id');
     });
     const ids = result.rows.map((c) => c.id);
     const licenses = ids.length ? await knex('licenses').whereIn('client_id', ids).orderBy('id', 'desc') : [];
@@ -330,6 +367,9 @@ export function adminRoutes(knex) {
       ? await knex('payments').whereIn('client_id', ids).where({ status: 'paid' }).select('client_id').sum({ total: 'amount_paise' }).groupBy('client_id')
       : [];
     const paidBy = Object.fromEntries(paid.map((p) => [p.client_id, Number(p.total) / 100]));
+    const referrers = await referrerNames(result.rows.map((c) => c.referred_by_id));
+    const referred = ids.length ? await knex('clients').whereIn('referred_by_id', ids).select('referred_by_id').count({ n: 'id' }).groupBy('referred_by_id') : [];
+    const referredBy = Object.fromEntries(referred.map((r) => [r.referred_by_id, Number(r.n)]));
     res.json({
       ...result,
       rows: result.rows.map((c) => {
@@ -339,6 +379,8 @@ export function adminRoutes(knex) {
         return {
           ...publicClient(c),
           paidTotal: paidBy[c.id] || 0,
+          referredBy: referrers[c.referred_by_id] || null,
+          referralCount: referredBy[c.id] || 0,
           license: main ? { id: main.id, code: main.code, status: effectiveStatus(main), expiresAt: main.expires_at, lifetime: !main.expires_at && main.duration_days === 0 } : null,
         };
       }),
@@ -359,7 +401,7 @@ export function adminRoutes(knex) {
     const tempPassword = body.password || crypto.randomBytes(6).toString('base64url');
     const ts = nowIso();
     const { password: _omit, ...fields } = body;
-    const client = await insertOne(knex, 'clients', { ...fields, password_hash: await hashPassword(tempPassword), source: 'admin', created_at: ts, updated_at: ts });
+    const client = await insertOne(knex, 'clients', { ...fields, ...(await newClientReferral(knex, '')), password_hash: await hashPassword(tempPassword), source: 'admin', created_at: ts, updated_at: ts });
     await log(req, 'client.create', 'client', client.id);
     res.status(201).json({ client: publicClient(client), temporaryPassword: body.password ? undefined : tempPassword });
   });
@@ -375,8 +417,11 @@ export function adminRoutes(knex) {
       .limit(100);
     const devices = licenses.length ? await knex('devices').whereIn('license_id', licenses.map((l) => l.id)).orderBy('id', 'desc').limit(300) : [];
     const payments = await knex('payments').where({ client_id: client.id }).orderBy('id', 'desc').limit(50);
+    const referrals = await referredClients((qb) => qb.where('c.referred_by_id', client.id), 500);
+    const referrer = (await referrerNames([client.referred_by_id]))[client.referred_by_id] || null;
     res.json({
-      client: publicClient(client),
+      client: { ...publicClient(client), referredBy: referrer },
+      referrals,
       licenses: licenses.map((l) => ({ ...publicLicense(l), devices: devices.filter((d) => d.license_id === l.id) })),
       payments: payments.map(publicPayment),
     });
@@ -388,6 +433,48 @@ export function adminRoutes(knex) {
     if (!client) throw notFound('Client');
     await log(req, 'client.update', 'client', client.id, body);
     res.json({ client: publicClient(client) });
+  });
+
+  /** Set a client's referral code: { code } to assign one by hand, or no code for a new generated one. */
+  r.put('/clients/:id/referral-code', auth, async (req, res) => {
+    const body = parse(z.object({ code: z.string().trim().max(40).optional().default('') }), req.body);
+    const client = await knex('clients').where({ id: Number(req.params.id) }).first('id', 'referral_code');
+    if (!client) throw notFound('Client');
+    const code = await assignReferralCode(knex, client.id, body.code);
+    await log(req, 'client.referral_code', 'client', client.id, { from: client.referral_code, to: code });
+    res.json({ client: publicClient(await knex('clients').where({ id: client.id }).first()) });
+  });
+
+  /** Codes for every client that has none (clients from before referrals; normally none). */
+  r.post('/referrals/generate', auth, async (req, res) => {
+    const missing = await knex('clients').whereNull('referral_code').select('id');
+    for (const c of missing) await assignReferralCode(knex, c.id, '');
+    await log(req, 'referral.generate', 'client', null, { count: missing.length });
+    res.json({ generated: missing.length });
+  });
+
+  /** Customers acquired through referrals (newest first) and the customers who referred the most. */
+  r.get('/referrals', auth, async (req, res) => {
+    const q = parse(z.object({ q: z.string().trim().max(100).optional().default('') }), req.query);
+    const rows = await referredClients((qb) => {
+      qb.whereNotNull('c.referred_by_id');
+      if (q.q) {
+        whereContains(qb, ['c.name', 'c.email', 'r.name', 'r.email', 'c.referred_code'], q.q);
+      }
+    }, 500);
+    const top = await knex('clients as c')
+      .join('clients as r', 'r.id', 'c.referred_by_id')
+      .select('r.id', 'r.name', 'r.email', 'r.referral_code')
+      .count({ referred: 'c.id' })
+      .groupBy('r.id', 'r.name', 'r.email', 'r.referral_code')
+      .orderBy('referred', 'desc')
+      .limit(20);
+    const missing = await knex('clients').whereNull('referral_code').count({ n: 'id' }).first();
+    res.json({
+      rows,
+      top: top.map((t) => ({ id: t.id, name: t.name, email: t.email, referralCode: t.referral_code, referred: Number(t.referred) })),
+      totals: { referred: rows.length, customers: rows.filter((r) => r.paidTotal > 0).length, withoutCode: Number(missing?.n || 0) },
+    });
   });
 
   r.post('/clients/:id/reset-password', auth, async (req, res) => {

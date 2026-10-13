@@ -4129,3 +4129,35 @@ a.stat:hover {
 .price-tile-tag.pick {
   color: var(--accent);
 }
+
+/* Share with your friends (components/ShareReferral.jsx) */
+.btn-green {
+  background: #16a34a;
+  border-color: #16a34a;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.25);
+}
+.btn-green:hover:not(:disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+.referral-link {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+.referral-link .input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.page-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.wrap-row {
+  flex-wrap: wrap;
+  gap: 8px;
+}

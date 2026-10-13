@@ -18,6 +18,7 @@
  * same frame with only the fields that apply.
  */
 
+import { shipToOf } from '../config/shipping.js';
 import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
@@ -41,9 +42,9 @@ function Cell({ label, value, wide = false }) {
   );
 }
 
-function PartyBox({ title, name, company, address, gstin, state, phone, email, showTaxId, placeOfSupply }) {
+function PartyBox({ title, name, company, address, gstin, state, phone, email, showTaxId, placeOfSupply, testId }) {
   return (
-    <div className="tp-box tp-party">
+    <div className="tp-box tp-party" data-testid={testId}>
       <div className="tp-caption">{title}</div>
       <div className="tp-strong">{name || '—'}</div>
       {company && company !== name && <div>{company}</div>}
@@ -72,6 +73,7 @@ function PartyBox({ title, name, company, address, gstin, state, phone, email, s
 export default function TallyProDocument({ payload, type, qr, compact = false, copy = '', paging }) {
   const { company = {}, document: doc, items = [], settings, parent } = payload;
   const ds = settings.doc;
+  const shipTo = shipToOf(doc);
   const meta = doc.meta || {};
   const fmtDate = (v) => (v ? formatDate(v, settings.dateFormat) : '');
   const plain = (v) => formatMoney(v, { ...doc, currency_symbol: '' });
@@ -179,9 +181,6 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   {company.website && <div>{company.website}</div>}
                 </div>
               </div>
-              {doc.shipping_address?.trim() && (
-                <PartyBox title="Consignee (Ship to)" name={doc.party_name} company={doc.party_company} address={doc.shipping_address} state={doc.party_state} showTaxId={false} />
-              )}
               <PartyBox
                 title={type.group === 'sales' || type.group === 'service' ? `Buyer (${type.partyLabel})` : type.partyLabel}
                 name={doc.party_name}
@@ -194,6 +193,19 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                 showTaxId={ds.showCustomerTaxId !== false}
                 placeOfSupply={doc.place_of_supply && doc.place_of_supply !== doc.party_state ? doc.place_of_supply : ''}
               />
+              {shipTo && (
+                <PartyBox
+                  title="Consignee (Ship to)"
+                  name={shipTo.name}
+                  company={shipTo.company}
+                  address={shipTo.address}
+                  gstin={shipTo.gstin}
+                  state={shipTo.state}
+                  phone={shipTo.phone}
+                  showTaxId={ds.showCustomerTaxId !== false}
+                  testId="doc-ship-to"
+                />
+              )}
             </div>
             <div className="tp-right">
               <div className="tp-grid">

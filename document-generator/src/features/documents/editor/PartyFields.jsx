@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import Autocomplete from '../../../components/Autocomplete.jsx';
-import { Field, TextArea, TextInput } from '../../../components/Form.jsx';
+import { Field, TextArea, TextInput, Toggle } from '../../../components/Form.jsx';
 import { listParties } from '../../../services/catalogService.js';
 import SearchSelect from '../../../components/SearchSelect.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../../config/states.js';
+import { SHIP_FIELDS, hasDifferentShipTo, offersShipping, shippingOn } from '../../../config/shipping.js';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
@@ -12,7 +13,6 @@ const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCo
  * fills everything in. Parties are optional — details can simply be typed.
  */
 export default function PartyFields({ doc, type, onChange: change, saveParty, onSaveParty, taxSystem }) {
-  const [shipOpen, setShipOpen] = useState(!!doc.shipping_address);
   // A picked saved customer needs no "save" prompt until its details are edited.
   const [edited, setEdited] = useState(false);
   const onChange = (patch) => {
@@ -42,6 +42,7 @@ export default function PartyFields({ doc, type, onChange: change, saveParty, on
       party_tax_id: p.tax_id,
       party_state: p.state,
       shipping_address: p.shipping_address || '',
+      meta: { ...doc.meta, ...Object.fromEntries(SHIP_FIELDS.map((f) => [f, ''])) },
       place_of_supply: p.state || doc.place_of_supply,
     });
   };
@@ -107,17 +108,7 @@ export default function PartyFields({ doc, type, onChange: change, saveParty, on
         </Field>
       </div>
 
-      {shipOpen ? (
-        <Field label="Shipping address" className="mt">
-          <TextArea placeholder="Delivery address, if different from billing" rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
-        </Field>
-      ) : (
-        <div>
-          <button type="button" className="btn btn-ghost btn-sm mt" onClick={() => setShipOpen(true)}>
-            + Different shipping address
-          </button>
-        </div>
-      )}
+      {offersShipping(doc) && <ShippingFields doc={doc} onChange={onChange} taxSystem={taxSystem} />}
 
       {(!doc.party_id || edited) && (
         <label className="check mt">
@@ -126,5 +117,90 @@ export default function PartyFields({ doc, type, onChange: change, saveParty, on
         </label>
       )}
     </section>
+  );
+}
+
+/**
+ * Shipping address switch (config/shipping.js). On: the billing address is printed again as Ship To, unless a
+ * different shipping address (consignee) is added. Off: only the billing address.
+ */
+function ShippingFields({ doc, onChange, taxSystem }) {
+  const on = shippingOn(doc);
+  const different = hasDifferentShipTo(doc);
+  const [open, setOpen] = useState(different);
+  const meta = doc.meta || {};
+  const setMeta = (patch) => onChange({ meta: { ...doc.meta, ...patch } });
+  const gst = taxSystem === 'GST';
+  const removeDifferent = () => {
+    setOpen(false);
+    onChange({ shipping_address: '', meta: { ...doc.meta, ...Object.fromEntries(SHIP_FIELDS.map((f) => [f, ''])) } });
+  };
+  return (
+    <div className="ship-section mt" data-testid="ship-section">
+      <div className="ship-head">
+        <Toggle
+          checked={on}
+          onChange={(v) => setMeta({ showShipping: v })}
+          label="Shipping address"
+          hint={on ? (different ? 'The consignee below is printed under the billing address' : 'Same as billing address — printed under it as Ship To') : 'Only the billing address is printed'}
+          data-testid="ship-toggle"
+        />
+        {on && !open && (
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(true)} data-testid="ship-add">
+            + Add a Different Shipping Address
+          </button>
+        )}
+      </div>
+      {on && open && (
+        <div className="ship-panel" data-testid="ship-panel">
+          <div className="ship-panel-head">
+            <strong>Ship to (Consignee)</strong>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={removeDifferent} data-testid="ship-same">
+              Use the billing address
+            </button>
+          </div>
+          <div className="grid-2">
+            <Field label="Consignee name">
+              <TextInput placeholder="e.g. ABC Construction – Site Office" value={meta.ship_name || ''} onChange={(v) => setMeta({ ship_name: v })} data-testid="ship-name" />
+            </Field>
+            <Field label="Contact number">
+              <TextInput placeholder="e.g. +91 98450 12345" value={meta.ship_phone || ''} onChange={(v) => setMeta({ ship_phone: v })} data-testid="ship-phone" />
+            </Field>
+            <Field label="Shipping address" className="span-2">
+              <TextArea placeholder={"Delivery address\nCity – PIN code"} rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} data-testid="ship-address" />
+            </Field>
+            <Field
+              label={gst ? 'GST number' : 'Tax / VAT number'}
+              hint={gst && meta.ship_gstin && !isValidGstin(meta.ship_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : ''}
+            >
+              <TextInput
+                placeholder={gst ? 'e.g. 29ABCDE1234F1Z5 (optional)' : 'Optional'}
+                value={(gst ? meta.ship_gstin : meta.ship_tax_id) || ''}
+                maxLength={gst ? 15 : 40}
+                onChange={(v) => {
+                  if (!gst) return setMeta({ ship_tax_id: v });
+                const g = v.toUpperCase().replace(/\s/g, '');
+                  const st = stateFromGstin(g);
+                  setMeta(st && !meta.ship_state ? { ship_gstin: g, ship_state: st } : { ship_gstin: g });
+                }}
+                data-testid="ship-gstin"
+              />
+            </Field>
+            <Field label="State">
+              <SearchSelect
+                value={meta.ship_state || ''}
+                onChange={(v) => setMeta({ ship_state: v || '' })}
+                options={stateOptions}
+                placeholder="Choose state"
+                creatable
+                clearable
+                recentKey="states"
+                testId="ship-state"
+              />
+            </Field>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

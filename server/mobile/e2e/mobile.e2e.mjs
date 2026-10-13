@@ -212,8 +212,19 @@ try {
   check((await a.page.getByTestId('total-igst').textContent()).includes('9,180.00'), 'inter-state → IGST 18% (9,180.00)');
   check((await a.page.getByTestId('grand-total').textContent()).includes('60,180.00'), 'grand total 60,180.00');
   check((await a.page.getByTestId('amount-words').textContent()).includes('Sixty Thousand One Hundred Eighty Rupees Only'), 'amount in words');
+  // Shipping address: off by default (Settings), switched on per invoice, with a different consignee.
+  check(!(await a.page.getByTestId('ship-toggle').isChecked()), 'tax invoice: Shipping address switch starts off');
+  await a.page.getByTestId('ship-toggle').check();
+  await a.page.getByTestId('ship-add').click();
+  await a.page.getByTestId('ship-name').fill('ABC Site Office');
+  await a.page.getByTestId('ship-address').fill('Survey 21, Hosur Road, Bengaluru');
+  await a.page.getByTestId('ship-gstin').fill('29ABCDE1234F1Z5');
+  await a.page.getByTestId('ship-phone').fill('98450 11111');
+  check((await a.page.getByTestId('ship-state').textContent()).includes('Karnataka'), 'consignee GST number fills its state');
   await a.page.getByTestId('preview').click();
   await a.page.getByTestId('preview-sheet').locator('.doc-tp').waitFor();
+  const shipTo = await a.page.getByTestId('preview-sheet').locator('[data-testid=doc-ship-to]').first().textContent();
+  check(shipTo.includes('ABC Site Office') && shipTo.includes('Survey 21, Hosur Road'), 'different shipping address printed as Consignee (Ship to)');
   check((await a.page.getByTestId('preview-sheet').textContent()).includes('INV-00001'), 'live preview in the template before saving');
   await a.page.getByTestId('sheet-close').click();
   await shot(a.page, '03-editor');
@@ -237,6 +248,7 @@ try {
     check(docText.includes(needle), `invoice shows ${label}`);
   }
   check((await page1().locator('img[src^="data:image/svg"]').count()) >= 1, 'invoice shows the UPI QR code');
+  check((await page1().locator('[data-testid=doc-ship-to]').textContent()).includes('98450 11111'), 'saved invoice keeps the consignee');
   check((await page1().locator('.doc-tp').count()) === 1, 'Professional template (desktop renderer)');
   await a.page.waitForTimeout(300);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-invoice.png') });
@@ -351,6 +363,8 @@ try {
   const quoteTotal = await a.page.getByTestId('grand-total').textContent();
   check(quoteTotal.includes('26,550.00'), `discount 10% → 22,500 + GST 18% = 26,550.00 (${quoteTotal})`);
   check(!(await a.page.getByTestId('show-bank').isChecked()), 'quotation: "Show bank details" off by default');
+  await a.page.getByTestId('ship-toggle').check();
+  check(!(await a.page.getByTestId('ship-panel').count()), 'shipping on without a different address: billing address used as Ship To');
   // Additional charges: as many as needed, each with its own GST rate, added before tax.
   await a.page.getByTestId('add-charge').click();
   await a.page.getByTestId('charge-label-0').fill('Freight');
@@ -367,6 +381,7 @@ try {
   await a.page.getByTestId('view').waitFor();
   check(!(await page1().textContent()).includes('HDFC0001234'), 'quotation printed without bank details');
   check((await page1().textContent()).includes('Freight') && (await page1().textContent()).includes('Packing'), 'printed quotation lists the charges');
+  check((await page1().locator('[data-testid=doc-ship-to]').textContent()).includes('ABC Construction Pvt Ltd'), 'quotation: billing address repeated as Ship To');
   check((await page1().locator('.doc-a5w').count()) >= 1 && (await a.page.locator('style[data-paper="A5"]').count()) === 1, 'quotation on A5 paper (chosen per document)');
   const [a5Download] = await Promise.all([a.page.waitForEvent('download', { timeout: 30000 }), a.page.getByTestId('download-pdf').click()]);
   const a5Pdf = fs.readFileSync(await a5Download.path());
@@ -443,11 +458,12 @@ try {
   await shot(a.page, '05-products');
 
   console.log('Customers & Vendors (optional modules)');
-  check((await a.page.getByTestId('party-links').textContent()).includes('Add More') && !(await a.page.getByTestId('link-customer').count()), 'Customers & Vendors off by default: only + Add More under Products');
+  check((await a.page.getByTestId('party-links').textContent()).includes('Add More') && !(await a.page.getByTestId('link-parties').count()), 'Customers & Vendors off by default: only + Add More under Products');
   await a.page.getByTestId('nav-parties-add').click();
   await a.page.getByTestId('module-parties-toggle').check();
-  await a.page.getByTestId('open-customer').click();
-  await a.page.getByTestId('parties-customer').waitFor();
+  await a.page.getByTestId('open-parties').click();
+  await a.page.getByTestId('parties-all').waitFor();
+  check((await a.page.getByTestId('party-tabs-customer').count()) === 1 && (await a.page.getByTestId('party-tabs-vendor').count()) === 1, 'one Customers & Vendors screen: All / Customers / Vendors');
   await a.page.getByTestId('party-row').first().waitFor();
   check((await a.page.getByTestId('party-list').textContent()).includes('ABC Construction Pvt Ltd'), 'Customers: customers saved from documents are listed, with their document count');
   await a.page.getByTestId('party-search').fill('zzz');
@@ -471,9 +487,13 @@ try {
   await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').waitFor();
   check(true, 'archived customer restored; documents never changed');
   await a.page.goto(`${base}/app/#/products`);
-  await a.page.getByTestId('link-customer').waitFor();
-  await a.page.getByTestId('link-vendor').waitFor();
-  check(true, 'one Features switch turns on both Customers and Vendors under Products');
+  await a.page.getByTestId('link-parties').waitFor();
+  check(true, 'one Features switch: Customers & Vendors under Products');
+  await a.page.getByTestId('tab-dashboard').click();
+  await a.page.getByTestId('referral-share').click();
+  const refLink = await a.page.getByTestId('referral-link-input').inputValue();
+  check(/\/r\/\d{5}$/.test(refLink) && (await a.page.getByTestId('referral-whatsapp').count()) === 1, `Dashboard Share: the customer's own referral link to copy or share (${refLink})`);
+  await a.page.keyboard.press('Escape');
 
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();

@@ -907,3 +907,98 @@ describe('Meta Pixel and Conversions API', () => {
     await api('PUT', '/api/admin/site', { token: adminToken, body: site });
   });
 });
+
+describe('referrals', () => {
+  let referrer;
+  let referrerToken;
+  test('every customer gets a unique 5-digit referral code and link', async () => {
+    referrerToken = await register('referrer@example.com');
+    const me = await api('GET', '/api/portal/me', { token: referrerToken });
+    referrer = me.body.client;
+    assert.match(referrer.referralCode, /^\d{5}$/);
+    assert.match(referrer.referralLink, new RegExp(`/r/${referrer.referralCode}$`));
+    const codes = (await knex('clients').select('referral_code')).map((c) => c.referral_code);
+    assert.equal(new Set(codes).size, codes.length, 'no duplicate codes');
+    assert.ok(codes.every(Boolean), 'every client has a code');
+  });
+
+  test('/r/<code> sends the visitor to the website with the code', async () => {
+    const r = await api('GET', `/r/${referrer.referralCode}`);
+    assert.equal(r.status, 302);
+    assert.equal(r.headers.get('location'), `/?ref=${referrer.referralCode}`);
+  });
+
+  test('a checkout with the referral code credits the new customer and the order to the referrer', async () => {
+    const start = await api('POST', '/api/portal/checkout/start', {
+      body: { acceptTerms: true, name: 'Asha Patel', email: 'referred@example.com', phone: '9876500000', attribution: { ref_code: referrer.referralCode.toLowerCase() } },
+    });
+    assert.equal(start.status, 201, JSON.stringify(start.body));
+    const client = await knex('clients').where({ email: 'referred@example.com' }).first();
+    assert.equal(client.referred_by_id, referrer.id);
+    assert.equal(client.referred_code, referrer.referralCode);
+    assert.equal(client.ref_source, 'referral');
+    const payment = await knex('payments').where({ client_id: client.id }).first();
+    assert.equal(payment.referral_code, referrer.referralCode);
+    assert.equal(payment.referrer_id, referrer.id);
+    const paid = await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...checkoutResponse(start.body.checkout.orderId) } });
+    assert.equal(paid.status, 200, JSON.stringify(paid.body));
+  });
+
+  test('nobody can refer themselves, unknown codes are ignored, and a first referrer is never replaced', async () => {
+    const self = await api('POST', '/api/portal/checkout', { token: referrerToken, body: { acceptTerms: true, provider: 'razorpay', refCode: referrer.referralCode } });
+    assert.equal(self.status, 201);
+    const selfPayment = await knex('payments').where({ id: self.body.payment.id }).first();
+    assert.equal(selfPayment.referrer_id, null);
+    const unknown = await register('unknown-ref@example.com', { ref_code: '00000' });
+    assert.ok(unknown);
+    assert.equal((await knex('clients').where({ email: 'unknown-ref@example.com' }).first()).referred_by_id, null);
+    const other = await register('other-referrer@example.com');
+    const otherCode = (await api('GET', '/api/portal/me', { token: other })).body.client.referralCode;
+    await register('second-ref@example.com', { ref_code: otherCode });
+    const second = await knex('clients').where({ email: 'second-ref@example.com' }).first();
+    assert.ok(second.referred_by_id);
+    const { recordReferral } = await import('../src/services/referrals.js');
+    assert.equal(await recordReferral(knex, second, referrer.referralCode), null, 'already referred');
+  });
+
+  test('the desktop and mobile apps receive the referral link with the license', async () => {
+    const login = await api('POST', '/api/app/login', { body: { email: 'referred@example.com', password: 'x', deviceId: 'ref-device-123456' } });
+    assert.equal(login.status, 401, 'no password yet');
+    const client = await knex('clients').where({ email: 'referred@example.com' }).first();
+    await knex('clients').where({ id: client.id }).update({ password_hash: await hashPassword('asha-pass-123') });
+    const ok = await api('POST', '/api/app/login', { body: { email: 'referred@example.com', password: 'asha-pass-123', deviceId: 'ref-device-123456' } });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.equal(ok.body.referral.code, client.referral_code);
+    assert.match(ok.body.referral.link, new RegExp(`/r/${client.referral_code}$`));
+  });
+
+  test('admin sees referral codes and referred customers, and can assign or generate a code', async () => {
+    const list = await api('GET', '/api/admin/referrals', { token: adminToken });
+    assert.equal(list.status, 200);
+    const row = list.body.rows.find((r) => r.email === 'referred@example.com');
+    assert.equal(row.referrer.id, referrer.id);
+    assert.equal(row.referralCode, referrer.referralCode);
+    const paidPayment = await knex('payments').where({ client_id: row.id, status: 'paid' }).first();
+    assert.equal(row.paidTotal, paidPayment.amount_paise / 100);
+    assert.ok(row.paidTotal > 0);
+    assert.equal(list.body.top.find((t) => t.id === referrer.id).referred, 1);
+
+    const detail = await api('GET', `/api/admin/clients/${row.id}`, { token: adminToken });
+    assert.equal(detail.body.client.referredBy.id, referrer.id);
+    const referrerDetail = await api('GET', `/api/admin/clients/${referrer.id}`, { token: adminToken });
+    assert.equal(referrerDetail.body.referrals.length, 1);
+    const filtered = await api('GET', '/api/admin/clients?referred=1&pageSize=100', { token: adminToken });
+    assert.ok(filtered.body.rows.every((c) => c.referredBy));
+    assert.equal(filtered.body.rows.find((c) => c.id === row.id).referredBy.name, referrer.name);
+
+    const taken = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: referrer.referralCode } });
+    assert.equal(taken.status, 409);
+    const bad = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: 'ab' } });
+    assert.equal(bad.status, 400);
+    const set = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: 'asha-25' } });
+    assert.equal(set.status, 200);
+    assert.equal(set.body.client.referralCode, 'ASHA25');
+    const generated = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: {} });
+    assert.match(generated.body.client.referralCode, /^\d{5}$/);
+  });
+});

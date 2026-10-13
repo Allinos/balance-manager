@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
-import { PARTY_FEATURE, PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
+import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '@desktop/services/catalogService.js';
 import { formatDate } from '@desktop/utils/dates.js';
 import Icon from '../components/Icon.jsx';
@@ -115,12 +115,11 @@ export function PartyModuleSwitches() {
         <span className="list-main">
           <strong>{PARTY_FEATURE.label}</strong>
           <span className="small muted">{PARTY_FEATURE.description}</span>
-          {on &&
-            PARTY_MODULES.map((m) => (
-              <button key={m.kind} type="button" className="link-btn small" onClick={() => go(`/parties/${m.kind}`)} data-testid={`open-${m.kind}`}>
-                Open {m.label} →
-              </button>
-            ))}
+          {on && (
+            <button type="button" className="link-btn small" onClick={() => go('/parties/all')} data-testid="open-parties">
+              Open Customers &amp; Vendors →
+            </button>
+          )}
         </span>
         <Toggle
           checked={on}
@@ -156,17 +155,17 @@ export function PartyModulesSection() {
   );
 }
 
-/** Quick links under Products: the switched-on modules, plus + Add More. */
+/** Quick links under Products: Customers & Vendors once switched on, plus + Add More. */
 export function PartyLinks() {
   const { settings } = useApp();
   const on = enabledModules(settings);
   return (
     <div className="chip-row party-links" data-testid="party-links">
-      {on.map((m) => (
-        <button key={m.kind} type="button" className="chip" onClick={() => go(`/parties/${m.kind}`)} data-testid={`link-${m.kind}`}>
-          <Icon name={m.icon} size={16} /> {m.label}
+      {on.length > 0 && (
+        <button type="button" className="chip" onClick={() => go('/parties/all')} data-testid="link-parties">
+          <Icon name="users" size={16} /> Customers &amp; Vendors
         </button>
-      ))}
+      )}
       {(
         <button type="button" className="chip chip-ghost" onClick={() => go('/parties')} data-testid="nav-parties-add" aria-label="Add more features">
           <Icon name="plus" size={16} /> Add More
@@ -176,11 +175,16 @@ export function PartyLinks() {
   );
 }
 
+/** Customers and vendors together on one screen: All, Customers or Vendors. */
+const ALL = { kind: 'all', label: 'Customers & Vendors', singular: 'customer or vendor', icon: 'users' };
+
 export default function Parties({ kind }) {
   const { settings } = useApp();
   const { toast, confirm } = useUi();
-  const mod = moduleFor(kind);
-  const enabled = !!kind && !!settings[mod.setting];
+  const tabs = enabledModules(settings);
+  const mod = tabs.find((m) => m.kind === kind) || (tabs.length === 1 ? tabs[0] : ALL);
+  const enabled = !!kind && tabs.length > 0;
+  const newKind = mod.kind === 'all' ? 'customer' : mod.kind;
   const [rows, setRows] = useState(null);
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
@@ -188,7 +192,7 @@ export default function Parties({ kind }) {
 
   const load = useCallback(async () => {
     try {
-      setRows(await queryParties({ kind: mod.kind, archived, search }));
+      setRows(await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search }));
     } catch (e) {
       toast(e.message, 'bad');
     }
@@ -240,8 +244,16 @@ export default function Parties({ kind }) {
 
   return (
     <>
-      <Header title={mod.label} onBack={() => back('/products')} />
+      <Header title="Customers & Vendors" onBack={() => back('/products')} />
       <div className="page" data-testid={`parties-${mod.kind}`}>
+        {tabs.length > 1 && (
+          <Segmented
+            value={mod.kind}
+            onChange={(k) => go(`/parties/${k}`)}
+            options={[{ value: 'all', label: 'All' }, ...tabs.map((m) => ({ value: m.kind, label: m.label }))]}
+            testId="party-tabs"
+          />
+        )}
         <div className="search">
           <Icon name="search" size={18} />
           <input className="input" placeholder="Name, phone, email or GSTIN" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="party-search" />
@@ -268,10 +280,10 @@ export default function Parties({ kind }) {
             {rows.map((p) => (
               <div key={p.id} className="list-item" data-testid="party-row">
                 <span className="avatar">{(p.name || '?').slice(0, 1).toUpperCase()}</span>
-                <button type="button" className="list-main plain" onClick={() => !archived && setEditing({ ...emptyParty(mod.kind), ...p })}>
+                <button type="button" className="list-main plain" onClick={() => !archived && setEditing({ ...emptyParty(newKind), ...p })}>
                   <strong>
                     {p.name}
-                    {p.kind === 'both' ? <span className="pill">Both</span> : null}
+                    <span className="pill" data-testid="party-kind-badge">{p.kind === 'both' ? 'Both' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}</span>
                   </strong>
                   <span className="small muted">{[p.phone, p.gstin || p.tax_id, p.state].filter(Boolean).join(' · ') || '—'}</span>
                   <span className="small muted">
@@ -289,7 +301,7 @@ export default function Parties({ kind }) {
         )}
       </div>
       {!archived && (
-        <button className="fab no-print" onClick={() => setEditing(emptyParty(mod.kind))} aria-label={`Add ${mod.singular}`} data-testid="add-party">
+        <button className="fab no-print" onClick={() => setEditing(emptyParty(newKind))} aria-label={`Add ${mod.singular}`} data-testid="add-party">
           <Icon name="plus" size={26} />
         </button>
       )}

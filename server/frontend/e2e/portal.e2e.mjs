@@ -223,6 +223,15 @@ try {
   await page.getByTestId('go-account').click();
   await page.getByTestId('license-card').waitFor();
   check((await page.getByTestId('license-code').textContent()).trim() === code, 'client panel: license code');
+  // Referral: a green "Share with your friends" button beside Downloads, with the customer's own link.
+  const shareBtn = page.getByTestId('share-referral');
+  check((await shareBtn.isVisible()) && (await shareBtn.evaluate((b) => getComputedStyle(b).backgroundColor)) === 'rgb(22, 163, 74)', 'client panel: green "Share with your friends" button');
+  await shareBtn.click();
+  const meeraLink = await page.getByTestId('referral-link').locator('input').inputValue();
+  const meeraCode = (await page.getByTestId('referral-code').textContent()).trim();
+  check(/^\d{5}$/.test(meeraCode) && meeraLink === `${base}/r/${meeraCode}` && (await page.getByTestId('referral-whatsapp').getAttribute('href')).includes(encodeURIComponent(meeraLink)),
+    `Share with your friends: unique referral link ${meeraLink} to copy or send on WhatsApp`);
+  await page.keyboard.press('Escape');
   check((await page.getByTestId('days-left').textContent()).includes('365 days left'), 'client panel: remaining validity');
   const today = new Date();
   const inAYear = new Date(today.getTime() + 365 * 86400000);
@@ -433,6 +442,11 @@ try {
     'sitemap.xml lists the public pages (not the ad page or the panels)');
   const offerHead = await fetch(`${base}/offer`);
   check(offerHead.headers.get('x-robots-tag') === 'noindex, nofollow' && (await offerHead.text()).includes('<meta name="robots" content="noindex, nofollow"'), 'the ad page stays out of search results');
+  // The ad visitor first opened a friend's referral link: the code is kept in this browser for 30 days.
+  await ad.goto(`${base}/r/${meeraCode}`);
+  await ad.waitForLoadState('domcontentloaded');
+  const kept = await ad.evaluate(() => JSON.parse(localStorage.getItem('docgen.referral') || 'null'));
+  check(kept?.code === meeraCode && !new URL(ad.url()).search.includes('ref='), `referral link /r/${meeraCode}: code kept in Local Storage, address bar tidied`);
   await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
   await ad.getByTestId('offer-page').waitFor();
   await waitFb(ad, 'ViewContent');
@@ -592,6 +606,22 @@ try {
   check(/google.*gst-oct.*2.*1.*50%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-ups and sale attributed to the Google ad campaign');
   check((await page.getByTestId('support-alert').textContent()).includes('2 support requests are waiting'), 'dashboard: support requests waiting for an answer');
   await shot('05-admin-dashboard');
+
+  await page.getByTestId('nav-referrals').click();
+  await page.getByTestId('referred-table').waitFor();
+  const referredRow = page.getByTestId('referred-table').locator('tr', { hasText: 'farhan@example.com' });
+  check((await referredRow.textContent()).includes('Meera Sharma') && (await referredRow.textContent()).includes(meeraCode) && (await referredRow.textContent()).includes('2,250'),
+    'Admin → Referrals: the offer-page buyer was referred by Meera (code, referrer, amount paid)');
+  check((await page.getByTestId('top-referrers').textContent()).includes('Meera Sharma'), 'Admin → Referrals: top referrers');
+  await referredRow.getByRole('link', { name: 'Meera Sharma' }).click();
+  await page.getByTestId('client-referral-code').waitFor();
+  check((await page.getByTestId('client-referral-code').textContent()).includes(meeraCode) && (await page.getByTestId('referred-table').textContent()).includes('farhan@example.com'),
+    'customer page: referral code and the customers they referred');
+  await page.getByTestId('client-referral-edit').click();
+  await page.getByTestId('referral-code-input').fill('MEERA1');
+  await page.getByTestId('referral-code-save').click();
+  await page.getByText('Referral code is now MEERA1').waitFor();
+  check((await page.getByTestId('client-referral-code').textContent()).includes('MEERA1'), 'admin assigns a referral code by hand');
 
   await page.getByTestId('nav-support-requests').click();
   await page.getByTestId('support-requests').waitFor();

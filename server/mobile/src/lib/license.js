@@ -111,7 +111,8 @@ async function store(response, existing = {}) {
   const key = await publicKey();
   const payload = await verifyToken(response.token, key, dev);
   if (!payload) throw new LicenseError('INVALID_TOKEN', 'The license could not be verified. Please contact support.');
-  const record = { ...existing, token: response.token, info: response.license, lastCheckAt: Date.now() };
+  // referral: the customer's own link for Dashboard → Share (null for a key without an account).
+  const record = { ...existing, token: response.token, info: response.license, referral: response.referral || null, lastCheckAt: Date.now() };
   await kvSet('license', await sealed(record));
   try {
     localStorage.setItem(
@@ -198,6 +199,7 @@ export async function status() {
     deviceName: deviceName(),
     lastCheckAt: record.lastCheckAt,
     status: payload.status,
+    referral: record.referral || null,
   };
   const needsCheck = now - (record.lastCheckAt || 0) > REFRESH_EVERY;
   if (payload.status === 'suspended' || payload.status === 'revoked') return { state: 'blocked', license, daysLeft, needsCheck: true };

@@ -10,6 +10,7 @@ import { formatDate } from '../../utils/dates.js';
 import { useRouter } from '../../router/router.jsx';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { useToast } from '../../hooks/useUi.jsx';
+import ReferralShare from '../../components/ReferralShare.jsx';
 
 /** Card titles (plural). */
 const PLURAL = {
@@ -144,9 +145,12 @@ export default function DashboardPage() {
       <PageHeader
         title="Dashboard"
         actions={
-          <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
-            <Icon name="sliders" size={15} /> Customize
-          </button>
+          <div className="row-actions">
+            <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
+              <Icon name="sliders" size={15} /> Customize
+            </button>
+            <ReferralShare />
+          </div>
         }
       />
       <div className="type-cards" style={{ '--cols': cardColumns(types.length) }} data-testid="type-cards">

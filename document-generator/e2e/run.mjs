@@ -913,6 +913,24 @@ async function main() {
       'invoice starts with its default terms and declaration (editable here)');
     check((await exec('return [...document.querySelectorAll(".editor-form input:not([type=checkbox]):not([type=radio]):not([type=date]), .editor-form textarea")].filter(e=>!e.placeholder).length')) === 0,
       'every field in the document editor shows a placeholder');
+    check((await exists('[data-testid="ship-toggle"]')) && !(await exec('return document.querySelector("[data-testid=ship-toggle]").checked')),
+      'tax invoice: Shipping address switch is offered and starts off (Settings default)');
+    check(!(await exists('.editor-preview [data-testid="doc-ship-to"]')), 'shipping off: only the billing address on the invoice');
+    await exec('document.querySelector("[data-testid=ship-section]").scrollIntoView({ block: "center" })');
+    await clickCss('[data-testid="ship-section"] .toggle');
+    await find('.editor-preview [data-testid="doc-ship-to"]');
+    check(!(await exists('[data-testid="ship-panel"]')), 'shipping on with no different address: the billing address is printed as Ship To');
+    await clickCss('[data-testid="ship-add"]');
+    await type('[data-testid="ship-name"]', 'Charges Test Site Office');
+    await type('[data-testid="ship-address"]', 'Plot 12, MIDC, Nashik');
+    await type('[data-testid="ship-gstin"]', '27AAPFU0939F1ZV');
+    await type('[data-testid="ship-phone"]', '9811122233');
+    check(await hasText('[data-testid="ship-state"]', 'Maharashtra'), 'consignee GST number fills its state');
+    await sleep(400);
+    const shipText = await textOf('.editor-preview [data-testid="doc-ship-to"]');
+    check(shipText.includes('Charges Test Site Office') && shipText.includes('Plot 12, MIDC, Nashik') && shipText.includes('9811122233'), `different shipping address printed below the billing address (${shipText.replace(/\s+/g, ' ')})`);
+    check(await exec('const b=document.querySelector(".editor-preview .doc-party, .editor-preview .tp-party"), s=document.querySelector(".editor-preview [data-testid=doc-ship-to]"); return b.getBoundingClientRect().top < s.getBoundingClientRect().top'),
+      'Ship To sits below the billing address');
     await exec('document.querySelector("[data-testid=paper-size-A5]").scrollIntoView({ block: "center" })');
     await clickCss('[data-testid="paper-size-A5"]');
     await clickCss('[data-testid="save-doc"]');
@@ -932,14 +950,38 @@ async function main() {
     await go(`#/doc/${chargedId}/edit`);
     await find('[data-testid="charge-row-1"]');
     check((await exec('return document.querySelector("[data-testid=charge-label-1]").value')) === 'Packing', 'editing keeps both charges');
+    const savedMeta = JSON.parse(stored.document.meta);
+    check(savedMeta.showShipping === true && savedMeta.ship_name === 'Charges Test Site Office' && stored.document.shipping_address === 'Plot 12, MIDC, Nashik', 'saved: shipping switch and consignee');
+    check((await exec('return document.querySelector("[data-testid=ship-name]").value')) === 'Charges Test Site Office', 'editing keeps the consignee');
+    await exec('document.querySelector("[data-testid=ship-section]").scrollIntoView({ block: "center" })');
+    await clickCss('[data-testid="ship-section"] .toggle');
+    await sleep(400);
+    check(!(await exists('.editor-preview [data-testid="doc-ship-to"]')), 'switching Shipping address off on this invoice hides it');
+    await go('#/settings/documents');
+    check((await exists('[data-testid="setting-show-shipping"]')) && !(await exec('return document.querySelector("[data-testid=setting-show-shipping]").checked')), 'Settings → Documents: "Show shipping address in bill" is off by default');
+    await exec('document.querySelector("[data-testid=setting-show-shipping]").closest("label").click()');
+    await clickText('Save changes');
+    await sleep(500);
+    await go('#/doc/new/TAX_INVOICE');
+    await waitForText('New Tax Invoice');
+    check(await exec('return document.querySelector("[data-testid=ship-toggle]").checked'), 'with the setting on, a new invoice starts with Shipping address on');
+    check(!!(await exists('.editor-preview [data-testid="doc-ship-to"]')), '…and shows the billing address as Ship To');
+    await go('#/settings/documents');
+    await exec('document.querySelector("[data-testid=setting-show-shipping]").closest("label").click()');
+    await clickText('Save changes');
+    await sleep(500);
     await go('#/dashboard');
     await clickCss('[data-testid="nav-parties-add"]');
     await find('[data-testid="module-parties"]');
     check(await hasText('.nav-add', 'Add More'), 'sidebar link reads + Add More');
     await clickCss('[data-testid="module-parties"] .toggle');
-    await clickCss('[data-testid="open-customer"]');
+    await clickCss('[data-testid="open-parties"]');
     await find('[data-testid="party-table"]');
-    check(await exists('.nav-item[href="#/parties/customer"]') && await exists('.nav-item[href="#/parties/vendor"]'), 'Customers & Vendors feature on: both appear in the sidebar under Products & Services');
+    check((await exists('.nav-item[href="#/parties/all"]')) && !(await exists('.nav-item[href="#/parties/customer"]')) && !(await exists('.nav-item[href="#/parties/vendor"]')),
+      'Customers & Vendors feature on: one sidebar item for both');
+    check((await exists('[data-testid="parties-all"]')) && (await exists('[data-testid="party-tabs-customer"]')) && (await exists('[data-testid="party-tabs-vendor"]')),
+      'one screen with All / Customers / Vendors');
+    check((await exec('return document.querySelectorAll("[data-testid=party-kind-badge]").length')) > 0, 'each row shows whether it is a customer or a vendor');
     const abcRow = await exec('return [...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction"))?.innerText || ""');
     check(/ABC Construction[\s\S]*\b[1-9]\d*\b/.test(abcRow), `saved customers listed with their documents (${abcRow.replace(/\s+/g, ' ')})`);
     await clickCss('[data-testid="add-party"]');
@@ -951,7 +993,7 @@ async function main() {
     await waitForText('Walk-in Retail saved');
     const before = await invoke('document_get', { id: 1 });
     await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-delete]").click()`);
-    await find('.dialog-message'); const dm = await textOf('.dialog-message'); check(dm.includes('archived'), 'deleting a customer that is on documents offers to archive it');
+    check(await hasText('.dialog-message', 'archived'), 'deleting a customer that is on documents offers to archive it');
     await clickCss('[data-testid="confirm-ok"]');
     await waitForText('archived — documents unchanged');
     const after = await invoke('document_get', { id: 1 });
@@ -964,6 +1006,15 @@ async function main() {
     await waitForText('restored');
     check((await invoke('parties_list', { search: 'ABC' })).some((pt) => pt.id === archivedAbc.id), 'archived customer restored');
     await shot('20-customers');
+    await clickCss('[data-testid="party-tabs-vendor"]');
+    await find('[data-testid="parties-vendor"]');
+    check(await exec('return [...document.querySelectorAll("[data-testid=party-kind-badge]")].every(b => /Vendor/.test(b.textContent))'), 'Vendors tab lists only vendors');
+    await go('#/dashboard');
+    await clickCss('[data-testid="referral-share"]');
+    await find('[data-testid="referral-link-input"]');
+    check((await exec('return document.querySelector("[data-testid=referral-link-input]").value')).startsWith('http') && (await exists('[data-testid="referral-whatsapp"]')),
+      'Dashboard Share (beside Customize): link to copy or share (website link until signed in)');
+    await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
 
     // ------------------------------------------------------------------ 9
     section('9. Sign in with account');
@@ -978,6 +1029,8 @@ async function main() {
     await clickCss('[data-testid="license-login"]');
     await waitForText('DocGen is activated', 15000);
     check(!(await exists('[data-testid="trial-line"]')) && (await textOf('[data-testid="license-status"]')).includes('DocGen'), 'licensed: plan shown, day line hidden');
+    const refStatus = await invoke('license_status');
+    check(/\/r\/\d{5}$/.test(refStatus.referral?.link || ''), `signed in: the customer's own referral link for Dashboard → Share (${refStatus.referral?.link})`);
     await shot('15-licensed');
     const devices = (await api('GET', `/api/admin/clients/${seed.client.id}`)).licenses.flatMap((l) => l.devices);
     check(devices.length === 1 && !devices[0].released_at, 'server registered this computer');

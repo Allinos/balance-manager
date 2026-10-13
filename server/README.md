@@ -409,13 +409,30 @@ anonymous shown/clicked/closed counts.
 again, caches it, and checks again when the interval has passed (immediately after coming
 back online if a check was missed).
 
+## Referrals
+
+Every customer has a unique referral code (5 random digits, made when the account is created; existing
+customers got one with migration 006) and a link `<PORTAL_URL>/r/<code>`. Customers share it from the
+client panel (green **Share with your friends** beside *Downloads*) and from the Dashboard of the desktop and
+mobile apps (the link comes with the license).
+
+- `/r/<code>` redirects to `/?ref=<code>`; the website keeps the code in Local Storage for **30 days** and sends
+  it with sign-up and checkout (`attribution.ref_code`, or `refCode` for signed-in purchases).
+- The server saves it: on the new account (`clients.referred_by_id`, `referred_code`, `referred_at`) and on the
+  order (`payments.referral_code`, `referrer_id`). A customer is credited to the first referrer only, and only
+  before their first purchase; self-referrals and unknown codes are ignored. Nothing depends on the browser later.
+- Admin → **Referrals**: referred customers with the referrer (name, ID), code, date and amount paid, and the top
+  referrers. Admin → Customers: each customer's code (change it by hand — 4–10 letters or digits, unique — or
+  generate a new one), *Referred by*, the customers they referred, and a *Came through a referral* filter.
+- No rewards or commissions yet: attribution only.
+
 ## API overview
 
 | Area | Base | Auth |
 |------|------|------|
 | Apps | `/api/app` — `public-key`, `config`, `events`, `login`, `activate`, `license/refresh`, `license/release` (body `deviceKind`: `desktop` default, or `mobile`) | device token for refresh/release |
 | Portal | `/api/portal` — `site`, `checkout/start`, `checkout/confirm`, `support` (POST, public); `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `licenses`, `payments`, `checkout`, `downloads`, `support` (GET), `support/:id` (+ `messages`, `close`) | client JWT |
-| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients`, `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `support` (+ `:id`, `:id/messages`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
+| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients` (+ `:id/referral-code`), `referrals` (+ `generate`), `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `support` (+ `:id`, `:id/messages`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
 
 `checkout` and `checkout/start` require `acceptTerms: true` (the Terms & Conditions checkbox); the time is stored
 with the payment (`terms_accepted_at`).

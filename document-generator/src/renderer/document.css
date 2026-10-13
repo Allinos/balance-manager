@@ -115,6 +115,16 @@
   flex: 1;
   min-width: 0;
 }
+.doc-party-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+.doc-party-col > .doc-party {
+  flex: none;
+}
 .doc-party-name {
   font-weight: 700;
   font-size: 10.5pt;
@@ -628,7 +638,12 @@
 .doc-tally-std .doc-meta {
   padding: 2.5mm 3mm;
 }
-.doc-tally-std .doc-party + .doc-party,
+.doc-tally-std .doc-party-col {
+  gap: 0;
+}
+.doc-tally-std .doc-party + .doc-party {
+  border-top: 1px solid var(--doc-line);
+}
 .doc-tally-std .doc-meta {
   border-left: 1px solid var(--doc-line);
 }

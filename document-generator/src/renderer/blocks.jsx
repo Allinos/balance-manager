@@ -6,6 +6,7 @@
  * All text is rendered through React (escaped); no raw HTML is ever injected.
  */
 
+import { shipToOf } from '../config/shipping.js';
 import { formatMoney, formatQty, formatRate } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
 import { amountInWords } from '../utils/numberToWords.js';
@@ -95,12 +96,19 @@ export function PartyBlock({ doc, label, showTaxId }) {
   );
 }
 
-export function ShippingBlock({ doc }) {
-  if (!doc.shipping_address?.trim()) return null;
+/** Ship To (config/shipping.js): printed below the billing address when the document's switch is on. */
+export function ShippingBlock({ doc, showTaxId }) {
+  const ship = shipToOf(doc);
+  if (!ship) return null;
   return (
-    <div className="doc-party">
-      <div className="doc-label">Ship To</div>
-      <div className="doc-pre">{doc.shipping_address}</div>
+    <div className="doc-party doc-ship" data-testid="doc-ship-to">
+      <div className="doc-label">Ship To{ship.same ? '' : ' (Consignee)'}</div>
+      <div className="doc-party-name">{ship.name || '—'}</div>
+      {ship.company && ship.company !== ship.name && <div>{ship.company}</div>}
+      {ship.address && <div className="doc-pre">{ship.address}</div>}
+      {ship.phone && <div>Ph: {ship.phone}</div>}
+      {showTaxId && ship.gstin && <div className="doc-ids">GSTIN: {ship.gstin}</div>}
+      {ship.state && <div>State: {stateLine(ship.state)}</div>}
     </div>
   );
 }

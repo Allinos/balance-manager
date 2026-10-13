@@ -48,7 +48,7 @@ export function StylePreview({ overrides, company }) {
 /** Settings → Documents: global defaults that apply to all document types. */
 export default function DocumentSettings() {
   const { draft, set, dirty, save } = useSettingsDraft([
-    'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showAmountInWords',
+    'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showShippingAddress', 'showAmountInWords',
     'showSignature', 'showStamp', 'autoRoundOff', 'defaultPaymentTerms', 'qrContent', 'qrCustomText',
     'footerText', 'dateFormat', 'declaration', 'jurisdiction', 'documentCopies',
   ]);
@@ -111,6 +111,13 @@ export default function DocumentSettings() {
           <Toggle checked={draft.showBank} onChange={(v) => set({ showBank: v })} label="Show bank details" />
           <Toggle checked={draft.showHsn} onChange={(v) => set({ showHsn: v })} label="Show HSN/SAC column" />
           <Toggle checked={draft.showCustomerTaxId} onChange={(v) => set({ showCustomerTaxId: v })} label="Show customer GSTIN / Tax ID" />
+          <Toggle
+            checked={!!draft.showShippingAddress}
+            onChange={(v) => set({ showShippingAddress: v })}
+            label="Show shipping address in bill"
+            hint="New invoices start with Shipping address on; each invoice can switch it on or off"
+            data-testid="setting-show-shipping"
+          />
           <Toggle checked={draft.showAmountInWords} onChange={(v) => set({ showAmountInWords: v })} label="Show amount in words" />
           <Toggle checked={draft.showSignature} onChange={(v) => set({ showSignature: v })} label="Show signature block" />
           <Toggle checked={draft.showStamp} onChange={(v) => set({ showStamp: v })} label="Show company stamp" />

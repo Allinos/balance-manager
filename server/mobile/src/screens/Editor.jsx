@@ -7,6 +7,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { EXTRA_FIELDS, PAYMENT_MODES, TYPE_MAP, getType, statusLabel, statusesFor } from '@desktop/config/documentTypes.js';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
+import { SHIP_FIELDS, hasDifferentShipTo, offersShipping, shippingOn } from '@desktop/config/shipping.js';
 import { isServiceUnit, unitOptions } from '@desktop/config/units.js';
 import { isValidRate, rateValue, taxRateOptions } from '@desktop/config/taxRates.js';
 import { blankCharge, blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, renderPayload, saveDocument, withCharges } from '@desktop/services/documentService.js';
@@ -27,7 +28,6 @@ import { useApp, useDocContext, useDocumentActions } from '../data.jsx';
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
 function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, taxSystem }) {
-  const [shipOpen, setShipOpen] = useState(!!doc.shipping_address);
   const [edited, setEdited] = useState(false);
   const onChange = (patch) => {
     if (doc.party_id) setEdited(true);
@@ -45,6 +45,7 @@ function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, tax
     change({
       party_id: p.id, party_name: p.name, party_company: p.company_name, party_address: p.address, party_phone: p.phone, party_email: p.email,
       party_gstin: p.gstin, party_tax_id: p.tax_id, party_state: p.state, shipping_address: p.shipping_address || '', place_of_supply: p.state || doc.place_of_supply,
+      meta: { ...doc.meta, ...Object.fromEntries(SHIP_FIELDS.map((f) => [f, ''])) },
     });
   };
   const fetchParties = useCallback((q) => listParties(q), []);
@@ -99,15 +100,7 @@ function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, tax
       <Field label="State">
         <Picker value={doc.party_state} onChange={(v) => onChange({ party_state: v || '', place_of_supply: v || '' })} options={stateOptions} placeholder="Choose state" title="State" creatable clearable testId="party-state" />
       </Field>
-      {shipOpen ? (
-        <Field label="Shipping address">
-          <TextArea placeholder="Delivery address, if different" rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} />
-        </Field>
-      ) : (
-        <button type="button" className="btn btn-sm btn-ghost align-start" onClick={() => setShipOpen(true)}>
-          + Different shipping address
-        </button>
-      )}
+      {offersShipping(doc) && <ShippingFields doc={doc} onChange={onChange} taxSystem={taxSystem} />}
       {(!doc.party_id || edited) && (
         <label className="check-row">
           <input type="checkbox" checked={saveParty} onChange={(e) => onSaveParty(e.target.checked)} data-testid="save-party" />
@@ -115,6 +108,77 @@ function PartySection({ doc, type, onChange: change, saveParty, onSaveParty, tax
         </label>
       )}
     </section>
+  );
+}
+
+/** Shipping address switch and a different consignee (config/shipping.js), as on the desktop. */
+function ShippingFields({ doc, onChange, taxSystem }) {
+  const on = shippingOn(doc);
+  const different = hasDifferentShipTo(doc);
+  const [open, setOpen] = useState(different);
+  const meta = doc.meta || {};
+  const setMeta = (patch) => onChange({ meta: { ...doc.meta, ...patch } });
+  const gst = taxSystem === 'GST';
+  return (
+    <div className="ship-section" data-testid="ship-section">
+      <Toggle
+        checked={on}
+        onChange={(v) => setMeta({ showShipping: v })}
+        label="Shipping address"
+        hint={on ? (different ? 'The consignee below is printed under the billing address' : 'Same as billing address — printed under it as Ship To') : 'Only the billing address is printed'}
+        data-testid="ship-toggle"
+      />
+      {on && !open && (
+        <button type="button" className="btn btn-sm btn-ghost align-start" onClick={() => setOpen(true)} data-testid="ship-add">
+          + Add a Different Shipping Address
+        </button>
+      )}
+      {on && open && (
+        <div className="ship-panel form" data-testid="ship-panel">
+          <div className="card-title">
+            <strong>Ship to (Consignee)</strong>
+            <button
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => {
+                setOpen(false);
+                onChange({ shipping_address: '', meta: { ...doc.meta, ...Object.fromEntries(SHIP_FIELDS.map((f) => [f, ''])) } });
+              }}
+              data-testid="ship-same"
+            >
+              Use billing address
+            </button>
+          </div>
+          <Field label="Consignee name">
+            <Input placeholder="e.g. ABC Construction – Site Office" value={meta.ship_name || ''} onChange={(v) => setMeta({ ship_name: v })} data-testid="ship-name" />
+          </Field>
+          <Field label="Shipping address">
+            <TextArea placeholder={"Delivery address\nCity – PIN code"} rows={2} value={doc.shipping_address} onChange={(v) => onChange({ shipping_address: v })} data-testid="ship-address" />
+          </Field>
+          <Field label={gst ? 'GST number' : 'Tax / VAT number'} hint={gst && meta.ship_gstin && !isValidGstin(meta.ship_gstin) ? 'Check the GSTIN — 15 characters, e.g. 27AAPFU0939F1ZV' : ''}>
+            <Input
+              placeholder={gst ? 'e.g. 29ABCDE1234F1Z5 (optional)' : 'Optional'}
+              value={(gst ? meta.ship_gstin : meta.ship_tax_id) || ''}
+              maxLength={gst ? 15 : 40}
+              autoCapitalize="characters"
+              onChange={(v) => {
+                if (!gst) return setMeta({ ship_tax_id: v });
+                const g = v.toUpperCase().replace(/\s/g, '');
+                const st = stateFromGstin(g);
+                setMeta(st && !meta.ship_state ? { ship_gstin: g, ship_state: st } : { ship_gstin: g });
+              }}
+              data-testid="ship-gstin"
+            />
+          </Field>
+          <Field label="State">
+            <Picker value={meta.ship_state || ''} onChange={(v) => setMeta({ ship_state: v || '' })} options={stateOptions} placeholder="Choose state" title="State" creatable clearable testId="ship-state" />
+          </Field>
+          <Field label="Contact number">
+            <Input placeholder="e.g. 98450 12345" type="tel" value={meta.ship_phone || ''} onChange={(v) => setMeta({ ship_phone: v })} data-testid="ship-phone" />
+          </Field>
+        </div>
+      )}
+    </div>
   );
 }
 

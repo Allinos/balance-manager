@@ -32,13 +32,20 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   amount (Settings → Company → bank details and UPI ID). Each quotation has its own **Show bank
   details** switch (off by default).
 - **Saved customers**: typing a name offers saved customers/vendors; one click fills the details.
-- **Customers & Vendors (optional)**: both screens are off by default. A small, transparent **+** under
-  *Products & Services* (or Settings → Customers & Vendors) switches each on independently; once on, it
-  takes the place of the + in the sidebar. Each lists, searches, adds, edits and deletes records (contact,
-  GSTIN → state, billing/shipping address, notes, number of documents, last document). **Deleting never
-  touches documents**: a customer or vendor that appears on any document is *archived* instead (hidden from
-  lists and suggestions, restorable under *Archived*); every document keeps the details printed on it.
+- **Customers & Vendors (optional)**: off by default. **+ Add More** in the sidebar (or Settings → Features)
+  switches the *Customers & Vendors* feature on; it then appears as one sidebar item: one screen with
+  **All / Customers / Vendors**, each row marked customer, vendor or both. It lists, searches, adds, edits and
+  deletes records (contact, GSTIN → state, billing/shipping address, notes, number of documents, last document).
+  **Deleting never touches documents**: a customer or vendor that appears on any document is *archived* instead
+  (hidden from lists and suggestions, restorable under *Archived*); every document keeps the details printed on it.
   A party saved from a sales document is a customer, from a purchase document a vendor, from both: *both*.
+- **Shipping address**: Settings → Documents → *Show shipping address in bill* (off by default) sets how new
+  invoices start; every invoice (and quotation, proforma, sales order, challan, estimate, credit/debit note) has
+  its own **Shipping address** switch. On without a different address: the billing details are printed again
+  as Ship To (as in Tally). **+ Add a Different Shipping Address** opens consignee name, shipping address, GST
+  number, state and contact number; it is printed below the billing address. Off: only the billing address.
+- **Share (referrals)**: the share icon beside *Customize* on the Dashboard copies or sends the customer's own
+  referral link (from their account, received with the license); before signing in it shares the website.
 - **Additional charges**: as many as needed per document (Freight, Packing, Loading, Installation … or
   any name; a minus amount is a deduction), each with its own GST / tax rate. Charges are added before
   tax, so subtotal, taxable value, CGST/SGST/IGST, the GST / HSN summary and the grand total are worked out

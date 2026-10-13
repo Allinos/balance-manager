@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { bootSite, clientApi, date, money } from '../../api.js';
-import { getAttribution } from '../../attribution.js';
+import { getAttribution, getReferralCode } from '../../attribution.js';
 import { pixelCookies, saleParams, track } from '../../pixel.js';
 import { CopyButton, ErrorText, Field, Input, Spinner, useLoad } from '../../components/ui.jsx';
 import { TERMS_REQUIRED, TermsCheck, usePayment } from '../../components/Payment.jsx';
@@ -154,7 +154,7 @@ export function CheckoutForm({ product, price, onPrice, priceTiles = true, onSte
       let started;
       let confirm;
       if (signedIn) {
-        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, tracking: pixelCookies() });
+        started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, tracking: pixelCookies(), refCode: getReferralCode() });
         confirm = (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body);
       } else {
         started = await clientApi.post('/checkout/start', { ...form, planId: product.id, priceId: price.id ?? undefined, acceptTerms: true, attribution: getAttribution(), tracking: pixelCookies() });

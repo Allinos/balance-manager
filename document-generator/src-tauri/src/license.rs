@@ -198,6 +198,7 @@ pub fn status(conn: &Connection, data_dir: &Path) -> AppResult<Value> {
         "registerUrl": register_url,
         "websiteUrl": settings.website_url,
         "lastRefreshAt": state_get(conn, "last_refresh_at"),
+        "referral": if licensed { state_get(conn, "referral_link").map(|link| json!({ "link": link, "code": state_get(conn, "referral_code").unwrap_or_default() })) } else { None },
         "nowMs": now,
     }))
 }
@@ -224,6 +225,16 @@ fn accept_token(conn: &Connection, response: &Value) -> AppResult<()> {
     }
     state_set(conn, "license_token", token)?;
     state_set(conn, "last_refresh_at", &chrono::Utc::now().to_rfc3339())?;
+    // The customer's referral link (Dashboard → Share). Only http(s) links from the server are kept.
+    let link = response["referral"]["link"].as_str().unwrap_or("");
+    let code = response["referral"]["code"].as_str().unwrap_or("");
+    if (link.starts_with("https://") || link.starts_with("http://")) && link.len() <= 300 && code.len() <= 12 {
+        state_set(conn, "referral_link", link)?;
+        state_set(conn, "referral_code", code)?;
+    } else {
+        state_del(conn, "referral_link")?;
+        state_del(conn, "referral_code")?;
+    }
     Ok(())
 }
 
@@ -340,6 +351,8 @@ pub async fn license_logout(app: tauri::AppHandle) -> AppResult<Value> {
     }
     db.with(|c| {
         state_del(c, "license_token")?;
+        state_del(c, "referral_link")?;
+        state_del(c, "referral_code")?;
         status(c, &dir)
     })
 }

@@ -10,6 +10,7 @@
 import { call } from './api.js';
 import { EXTRA_FIELDS, getType } from '../config/documentTypes.js';
 import { isValidGstin } from '../config/states.js';
+import { SHIP_FIELDS, shippingMetaFor, shippingOn } from '../config/shipping.js';
 import { resolveDocSettings, withDocumentOptions, CURRENCY_PRESETS } from '../config/defaults.js';
 import { calcDocument, chargesOf } from '../utils/calc.js';
 import { dec, toFixed, round } from '../utils/decimal.js';
@@ -144,6 +145,8 @@ export function newDocument(typeId, { settings, docSettings }) {
         charges: [],
         // The declaration printed on this document (editable per document; Settings → Document Types sets the default).
         declaration: ds.declaration || '',
+        // Shipping address switch: starts as set in Settings → Documents (config/shipping.js).
+        ...shippingMetaFor(type.id, settings),
       },
     },
     items: type.layout === 'receipt' ? [] : [blankItem(settings, type.id)],
@@ -214,6 +217,9 @@ export function modelFromSource(bundle, targetType, mode, ctx) {
       ...fresh.document.meta,
       roundOffMode: s.meta.roundOffMode || fresh.document.meta.roundOffMode,
       charges: s.meta.charges.map((c) => ({ ...c, _key: newKey() })),
+      // The shipping address goes with the customer's details.
+      ...(typeof s.meta.showShipping === 'boolean' ? { showShipping: s.meta.showShipping } : {}),
+      ...Object.fromEntries(SHIP_FIELDS.filter((f) => s.meta[f]).map((f) => [f, s.meta[f]])),
       // A duplicate keeps this document's own "show bank details" choice, paper size and declaration.
       ...(mode === 'duplicate' && typeof s.meta.showBank === 'boolean' ? { showBank: s.meta.showBank } : {}),
       ...(mode === 'duplicate' && ['A4', 'A5'].includes(s.meta.paperSize) ? { paperSize: s.meta.paperSize } : {}),
@@ -274,6 +280,7 @@ export function validate(model) {
   if (!doc.party_name.trim()) return `Please enter the ${type.partyKind === 'vendor' ? 'vendor' : 'customer'} name.`;
   if (!doc.issue_date) return 'Please choose the document date.';
   if (doc.party_gstin && !isValidGstin(doc.party_gstin)) return `The ${type.partyKind === 'vendor' ? 'vendor' : 'customer'} GSTIN "${doc.party_gstin}" is not valid. It has 15 characters, e.g. 27AAPFU0939F1ZV.`;
+  if (shippingOn(doc) && doc.meta?.ship_gstin && !isValidGstin(doc.meta.ship_gstin)) return `The shipping address GST number "${doc.meta.ship_gstin}" is not valid. It has 15 characters, e.g. 27AAPFU0939F1ZV.`;
   for (const field of type.required) {
     if (!field.startsWith('meta.') || field === 'meta.amount_received') continue;
     const key = field.slice(5);

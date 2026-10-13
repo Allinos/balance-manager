@@ -5,6 +5,7 @@
  * the server verifies the payment signature and then creates or extends the license.
  */
 
+import { getReferralCode } from '../../attribution.js';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { clientApi, date, money } from '../../api.js';
@@ -99,7 +100,7 @@ export default function Services() {
     if (!accepted) return setTermsError(TERMS_REQUIRED);
     setBusy(true);
     try {
-      const started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, renewLicenseId: license?.id, acceptTerms: true });
+      const started = await clientApi.post('/checkout', { planId: product.id, priceId: price.id ?? undefined, renewLicenseId: license?.id, acceptTerms: true, refCode: getReferralCode() });
       const r = await pay(started, (body) => clientApi.post(`/payments/${started.payment.id}/confirm`, body));
       if (r?.license) {
         setDone({ license: r.license, extended: !!license });

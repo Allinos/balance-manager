@@ -14,6 +14,7 @@ import { fulfillPayment, publicLicense } from '../services/licenses.js';
 import { sendPurchase } from '../services/meta.js';
 import { durationLabel, pricesByPlan, publicPrice, resolvePrice } from '../services/products.js';
 import { getProvider, listProviders } from '../payments/index.js';
+import { ensureReferralCode, newClientReferral, paymentReferral, recordReferral, referralLink } from '../services/referrals.js';
 import { SUPPORT_TOPICS, addMessage, createRequest, publicRequest, requestMessages, setStatus } from '../services/support.js';
 
 const password = z.string().min(8, 'must be at least 8 characters').max(200);
@@ -62,6 +63,8 @@ const attributionSchema = z
     fbclid: shortText(300),
     landing: shortText(300),
     referrer: shortText(300),
+    /** Referral code from a /r/<code> link (kept by the website for 30 days). */
+    ref_code: shortText(10),
   })
   .partial()
   .optional()
@@ -92,7 +95,8 @@ export function signupSource(a = {}) {
       /* not a URL */
     }
   }
-  const details = Object.fromEntries(['utm_term', 'utm_content', 'gclid', 'fbclid', 'landing', 'referrer'].filter((k) => a[k]).map((k) => [k, a[k]]));
+  if (!source && a.ref_code) [source, medium] = ['referral', 'customer-referral'];
+  const details = Object.fromEntries(['utm_term', 'utm_content', 'gclid', 'fbclid', 'landing', 'referrer', 'ref_code'].filter((k) => a[k]).map((k) => [k, a[k]]));
   return {
     ref_source: (source || 'direct').slice(0, 60),
     ref_medium: medium.slice(0, 60),
@@ -120,6 +124,11 @@ export const publicClient = (c) => ({
   hasPassword: !!c.password_hash,
   source: c.source,
   signup: { source: c.ref_source || '', medium: c.ref_medium || '', campaign: c.ref_campaign || '', details: parseJson(c.ref_details, {}) },
+  referralCode: c.referral_code || '',
+  referralLink: referralLink(c.referral_code),
+  referredById: c.referred_by_id ?? null,
+  referredCode: c.referred_code || '',
+  referredAt: c.referred_at || null,
 });
 
 export const publicPayment = (p) => ({
@@ -139,6 +148,8 @@ export const publicPayment = (p) => ({
   status: p.status,
   paidAt: p.paid_at,
   createdAt: p.created_at,
+  referralCode: p.referral_code || '',
+  referrerId: p.referrer_id ?? null,
 });
 
 /** A product with its price options (`prices`: from `pricesByPlan`). */
@@ -270,10 +281,14 @@ export function portalRoutes(knex) {
       }
       if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Please contact support.');
       client = await updateOne(knex, 'clients', { id: client.id }, { name: body.name, phone: body.phone, updated_at: nowIso() });
+      await ensureReferralCode(knex, client);
+      await recordReferral(knex, client, body.attribution?.ref_code);
+      client = await knex('clients').where({ id: client.id }).first();
     } else {
       const ts = nowIso();
       client = await insertOne(knex, 'clients', {
         ...signupSource(body.attribution),
+        ...(await newClientReferral(knex, body.attribution?.ref_code)),
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -285,7 +300,7 @@ export function portalRoutes(knex) {
       await audit(knex, { actorType: 'client', actorId: client.id, action: 'client.checkout_signup', entity: 'client', entityId: client.id, ip: clientIp(req) });
     }
     const price = await resolvePrice(knex, plan, body.priceId);
-    const started = await startPayment(knex, { client, plan, price, provider, req, tracking: body.tracking });
+    const started = await startPayment(knex, { client, plan, price, provider, req, tracking: body.tracking, refCode: body.attribution?.ref_code });
     res.status(201).json({ ...started, checkoutToken: signPurposeToken('checkout', { sub: String(client.id), pid: started.payment.id }, '6h') });
   });
 
@@ -319,6 +334,7 @@ export function portalRoutes(knex) {
     const ts = nowIso();
     const client = await insertOne(knex, 'clients', {
         ...signupSource(body.attribution),
+        ...(await newClientReferral(knex, body.attribution?.ref_code)),
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -381,7 +397,10 @@ export function portalRoutes(knex) {
     res.json({ token: signSession('client', updated), client: publicClient(updated) });
   });
 
-  r.get('/me', auth, (req, res) => res.json({ client: publicClient(req.client) }));
+  r.get('/me', auth, async (req, res) => {
+    await ensureReferralCode(knex, req.client);
+    res.json({ client: publicClient(req.client) });
+  });
 
   r.put('/me', auth, async (req, res) => {
     const body = parse(businessSchema, req.body);
@@ -469,6 +488,8 @@ export function portalRoutes(knex) {
         renewLicenseId: z.coerce.number().int().positive().optional(),
         acceptTerms,
         tracking: trackingSchema,
+        /** Referral code kept by the website (30 days), if any. */
+        refCode: z.string().trim().max(40).optional().default('').catch(''),
       }),
       req.body,
     );
@@ -483,7 +504,7 @@ export function portalRoutes(knex) {
       }
       if (!owned.expires_at && owned.duration_days === 0) throw new ApiError(409, 'LICENSE_LIFETIME', 'This license is already valid for life.');
     }
-    res.status(201).json(await startPayment(knex, { client: req.client, plan, price, provider, renewLicenseId: body.renewLicenseId, req, tracking: body.tracking }));
+    res.status(201).json(await startPayment(knex, { client: req.client, plan, price, provider, renewLicenseId: body.renewLicenseId, req, tracking: body.tracking, refCode: body.refCode }));
   });
 
   /** Confirmation posted by the portal after the provider's checkout completes. */
@@ -573,7 +594,7 @@ async function saleProduct(knex, planId) {
  * Create a payment for one price option and the provider's order. The amount and duration come from the
  * server's price list — never from the browser.
  */
-async function startPayment(knex, { client, plan, price, provider, renewLicenseId = null, req, tracking = {} }) {
+async function startPayment(knex, { client, plan, price, provider, renewLicenseId = null, req, tracking = {}, refCode = '' }) {
   // Kept with the payment for the Meta Conversions API (sent when it is paid, see services/meta.js).
   const track = Object.fromEntries(
     Object.entries({ ...tracking, ip: clientIp(req), ua: String(req.get('user-agent') || '').slice(0, 400) }).filter(([, v]) => v),
@@ -589,6 +610,7 @@ async function startPayment(knex, { client, plan, price, provider, renewLicenseI
     amount_paise: price.price_paise,
     currency: plan.currency,
     status: 'created',
+    ...(await paymentReferral(knex, client, refCode)),
     meta: JSON.stringify(Object.keys(track).length ? { track } : {}),
     terms_accepted_at: ts,
     created_at: ts,
@@ -640,6 +662,11 @@ export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
         });
     }
     const license = await fulfillPayment(trx, paid);
+    // A first purchase made with a referral credits the customer to the referrer (if not credited already).
+    if (newlyPaid && paid.referral_code) {
+      const buyer = await trx('clients').where({ id: paid.client_id }).first();
+      await recordReferral(trx, buyer, paid.referral_code, { exceptPaymentId: paid.id });
+    }
     return { paid: { ...paid, license_id: license.id }, license, newlyPaid };
   });
   if (result.newlyPaid) sendPaymentReceipt(knex, result.paid, result.license).catch((e) => console.error('Receipt email failed:', e.message));

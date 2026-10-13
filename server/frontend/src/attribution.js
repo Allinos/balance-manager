@@ -28,9 +28,46 @@ function write(value) {
   }
 }
 
+/**
+ * Referral links: /r/<code> on the server redirects to /?ref=<code>. The code is kept in Local Storage for
+ * 30 days (a newer referral link replaces it) and sent with sign-up and checkout; the server saves it with the
+ * new account and the order, so the admin panel never depends on this browser.
+ */
+const REF_KEY = 'docgen.referral';
+const REF_DAYS = 30;
+
+export function getReferralCode() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(REF_KEY) || 'null');
+    if (stored?.code && Date.now() - Date.parse(stored.at) < REF_DAYS * 86400000) return stored.code;
+    if (stored) localStorage.removeItem(REF_KEY);
+  } catch {
+    /* storage unavailable */
+  }
+  return '';
+}
+
+function captureReferral(url) {
+  const code = (url.searchParams.get('ref') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+  if (code.length < 4) return;
+  try {
+    localStorage.setItem(REF_KEY, JSON.stringify({ code, at: new Date().toISOString() }));
+  } catch {
+    /* storage unavailable */
+  }
+  // Tidy the address bar (the code is stored).
+  url.searchParams.delete('ref');
+  try {
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Call once when the page loads. */
 export function captureAttribution() {
   const url = new URL(window.location.href);
+  captureReferral(url);
   const tags = Object.fromEntries(PARAMS.map((p) => [p, url.searchParams.get(p) || '']).filter(([, v]) => v));
   let referrer = '';
   try {
@@ -46,5 +83,6 @@ export function captureAttribution() {
 /** What to send with the registration (empty object when unknown). */
 export function getAttribution() {
   const { at: _at, ...rest } = read() || {};
-  return rest;
+  const ref = getReferralCode();
+  return ref ? { ...rest, ref_code: ref } : rest;
 }

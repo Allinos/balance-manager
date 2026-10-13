@@ -8,6 +8,7 @@ import InstallBanner from '../components/InstallBanner.jsx';
 import { Empty, Header, Sheet, Spinner, go, useUi } from '../components/ui.jsx';
 import { DocRow, NewDocumentSheet, PLURAL } from '../components/docs.jsx';
 import { useApp } from '../data.jsx';
+import { copyText, emailShareUrl, referralFor, referralMessage, whatsappShareUrl } from '@desktop/config/referral.js';
 
 const MAX_CARDS = 12;
 const DEFAULT_CARDS = 8;
@@ -46,6 +47,52 @@ function CustomizeSheet({ selected, onClose, onSave }) {
   );
 }
 
+/** Dashboard → Share: copy or share the customer's referral link (same as the desktop, config/referral.js). */
+function ReferralSheet({ onClose }) {
+  const { lic } = useApp();
+  const { toast } = useUi();
+  const ref = referralFor(lic?.license, `${window.location.origin}/`);
+  const text = referralMessage(ref.link);
+  const canShare = !!navigator.share;
+  return (
+    <Sheet title="Share DocGen with your friends" onClose={onClose} testId="referral-sheet">
+      <p className="small muted">
+        {ref.personal
+          ? 'Your personal link. When friends buy DocGen through it, we know they came from you.'
+          : 'Activate with your DocGen account (Settings → License) to get your own referral link. Until then you can share our website.'}
+      </p>
+      <div className="referral-link" data-testid="referral-link">
+        <input className="input" readOnly value={ref.link} onFocus={(e) => e.target.select()} aria-label="Referral link" data-testid="referral-link-input" />
+      </div>
+      {ref.code && (
+        <p className="small muted">
+          Your referral code: <strong data-testid="referral-code">{ref.code}</strong>
+        </p>
+      )}
+      <div className="referral-buttons">
+        {canShare && (
+          <button className="btn btn-primary btn-block" onClick={() => navigator.share({ title: 'DocGen', text }).catch(() => {})} data-testid="referral-native">
+            <Icon name="share" size={18} /> Share…
+          </button>
+        )}
+        <a className="btn btn-green btn-block" href={whatsappShareUrl(text)} target="_blank" rel="noopener noreferrer" data-testid="referral-whatsapp">
+          Share on WhatsApp
+        </a>
+        <button
+          className="btn btn-block"
+          onClick={async () => toast((await copyText(ref.link)) ? 'Link copied' : 'Could not copy — press and hold the link to copy it', 'info')}
+          data-testid="referral-copy"
+        >
+          Copy link
+        </button>
+        <a className="btn btn-block" href={emailShareUrl(text)}>
+          Email
+        </a>
+      </div>
+    </Sheet>
+  );
+}
+
 export function LicenseChip() {
   const { lic } = useApp();
   if (!lic?.license) return null;
@@ -64,6 +111,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null);
   const [customize, setCustomize] = useState(false);
   const [chooser, setChooser] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     dashboardStats()
@@ -79,9 +127,14 @@ export default function Dashboard() {
       <Header
         title={company?.name || 'DocGen'}
         actions={
-          <button className="icon-btn" onClick={() => setCustomize(true)} aria-label="Customize dashboard" data-testid="customize-dashboard">
-            <Icon name="sliders" size={20} />
-          </button>
+          <>
+            <button className="icon-btn" onClick={() => setSharing(true)} aria-label="Share DocGen with your friends" data-testid="referral-share">
+              <Icon name="share" size={20} />
+            </button>
+            <button className="icon-btn" onClick={() => setCustomize(true)} aria-label="Customize dashboard" data-testid="customize-dashboard">
+              <Icon name="sliders" size={20} />
+            </button>
+          </>
         }
       />
       <div className="page" data-testid="dashboard">
@@ -133,6 +186,7 @@ export default function Dashboard() {
         <Icon name="plus" size={26} />
       </button>
       {chooser && <NewDocumentSheet onClose={() => setChooser(false)} />}
+      {sharing && <ReferralSheet onClose={() => setSharing(false)} />}
       {customize && (
         <CustomizeSheet
           selected={types.map((t) => t.id)}

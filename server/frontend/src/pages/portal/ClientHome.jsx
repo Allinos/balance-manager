@@ -9,6 +9,7 @@ import { clientApi, date, money, session } from '../../api.js';
 import { Badge, CopyButton, Empty, ErrorText, Field, Input, Spinner, useDialog, useLoad, useToast } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { useAuth } from '../../App.jsx';
+import ShareReferral from '../../components/ShareReferral.jsx';
 
 export const STATUS_TEXT = { active: 'Active', expired: 'Expired', suspended: 'Suspended', revoked: 'Cancelled', unused: 'Ready to activate' };
 
@@ -256,11 +257,14 @@ export default function ClientHome() {
           <h1>Hello, {client.user.name.split(' ')[0]}</h1>
           <p className="muted">{params.get('welcome') ? 'Welcome to DocGen! Your license key and downloads are ready.' : 'Your DocGen license, devices and payments.'}</p>
         </div>
-        {licenses.length > 0 && (
-          <Link className="btn" to="/account/downloads">
-            <Icon name="download" size={16} /> Downloads
-          </Link>
-        )}
+        <div className="page-head-actions">
+          {licenses.length > 0 && (
+            <Link className="btn" to="/account/downloads">
+              <Icon name="download" size={16} /> Downloads
+            </Link>
+          )}
+          <ShareReferral link={client.user.referralLink} code={client.user.referralCode} />
+        </div>
       </div>
 
       {!client.user.hasPassword && <SetPassword />}

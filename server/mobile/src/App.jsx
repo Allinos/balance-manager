@@ -50,7 +50,7 @@ function Screen({ path, query }) {
   if ((m = /^\/settings\/([a-z]+)$/.exec(path))) return <SettingsSection key={path} id={m[1]} />;
   if (path.startsWith('/documents')) return <Documents key={JSON.stringify(query)} query={query} />;
   if (path.startsWith('/products')) return <Products />;
-  if ((m = /^\/parties(?:\/(customer|vendor))?$/.exec(path))) return <Parties key={path} kind={m[1]} />;
+  if ((m = /^\/parties(?:\/(all|customer|vendor))?$/.exec(path))) return <Parties key={path} kind={m[1]} />;
   if (path.startsWith('/settings')) return <Settings />;
   return <Dashboard />;
 }

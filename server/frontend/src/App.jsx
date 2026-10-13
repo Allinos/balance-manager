@@ -33,6 +33,7 @@ const AdminPayments = lazy(() => import('./pages/admin/AdminPayments.jsx'));
 const AdminAds = lazy(() => import('./pages/admin/AdminAds.jsx'));
 const AdminConfig = lazy(() => import('./pages/admin/AdminConfig.jsx'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
+const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals.jsx'));
 const AdminSupport = lazy(() => import('./pages/admin/AdminSupport.jsx'));
 const AdminSupportRequest = lazy(() => import('./pages/admin/AdminSupport.jsx').then((m) => ({ default: m.AdminSupportRequest })));
 
@@ -245,6 +246,7 @@ const ADMIN_NAV = [
     items: [
       { to: '/admin', label: 'Dashboard', icon: 'chart', end: true },
       { to: '/admin/clients', label: 'Customers', icon: 'users' },
+      { to: '/admin/referrals', label: 'Referrals', icon: 'share' },
       { to: '/admin/support', label: 'Support requests', icon: 'help' },
       { to: '/admin/payments', label: 'Payments', icon: 'card' },
       { to: '/admin/licenses', label: 'Licenses', icon: 'key' },
@@ -354,6 +356,7 @@ export default function App() {
                   <Route index element={<AdminDashboard />} />
                   <Route path="clients" element={<AdminClients />} />
                   <Route path="clients/:id" element={<AdminClientDetail />} />
+                  <Route path="referrals" element={<AdminReferrals />} />
                   <Route path="support" element={<AdminSupport />} />
                   <Route path="support/:id" element={<AdminSupportRequest />} />
                   <Route path="licenses" element={<AdminLicenses />} />

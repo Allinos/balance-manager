@@ -88,6 +88,7 @@ export const DEFAULT_SETTINGS = {
   fiscalYearStartMonth: 4,
   visibleDocTypes: DEFAULT_VISIBLE_TYPES,
   dashboardTypes: [], // empty = the business type's first 8 document types
+  showShippingAddress: false, // new invoices start with the Shipping address switch off (config/shipping.js)
   documentCopies: 1, // 1–4 copies when printing / downloading
   customersModule: false, // Customers screen (config/partyModules.js); off until switched on
   vendorsModule: false, // Vendors screen

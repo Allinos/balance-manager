@@ -127,8 +127,10 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
           <DocumentHeader company={company} title={title} doc={doc} />
 
           <section className="doc-parties">
-            <PartyBlock doc={doc} label={type.partyLabel} showTaxId={ds.showCustomerTaxId !== false} />
-            <ShippingBlock doc={doc} />
+            <div className="doc-party-col">
+              <PartyBlock doc={doc} label={type.partyLabel} showTaxId={ds.showCustomerTaxId !== false} />
+              <ShippingBlock doc={doc} showTaxId={ds.showCustomerTaxId !== false} />
+            </div>
             <DocumentMeta
               doc={doc}
               type={type}

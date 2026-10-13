@@ -1795,3 +1795,12 @@ button.license-chip {
 .pdf-stage .doc-extra-copy {
   margin-top: 8mm;
 }
+
+/* Shipping address (Editor.jsx ShippingFields) */
+.ship-section { display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--border); padding-top:12px }
+.ship-panel { padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--bg) }
+
+/* Dashboard → Share (Dashboard.jsx ReferralSheet) */
+.referral-link .input { width:100%; font-family:ui-monospace,Menlo,monospace; font-size:14px }
+.referral-buttons { display:flex; flex-direction:column; gap:8px; margin-top:8px }
+.btn-green { background:#16a34a; border-color:#16a34a; color:#fff }
