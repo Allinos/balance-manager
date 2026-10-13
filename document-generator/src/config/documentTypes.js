@@ -14,6 +14,10 @@
  *  - Delivery Challan: goods moved without sale (job work, approval, stock
  *    transfer) — quantities only.
  *  - Credit / Debit Note: reference the original invoice.
+ *  - Proof of Delivery (POD): the receiver's acknowledgement that the goods arrived — who received them, when,
+ *    the quantities, the condition ("received in good condition except as noted") with space for exceptions,
+ *    the invoice / challan / LR reference, and the receiver's signature and stamp. Exceptions must be written
+ *    before signing: a clean signature is usually taken as "arrived in good condition".
  *  - Payment Voucher: money paid out; also the voucher required for payments
  *    under reverse charge (CGST Rule 52).
  *  - Quotation, Reverse Quotation (a price offer to a supplier), Estimate,
@@ -69,6 +73,16 @@ export const EXTRA_FIELDS = {
   startDate: { label: 'Start date', type: 'date' },
   completedOn: { label: 'Completed on', type: 'date' },
   technician: { label: 'Completed by (technician)', placeholder: 'e.g. Ravi Kumar' },
+  // Proof of Delivery: filled in at the door (or by hand on the printed copy).
+  invoiceRef: { label: 'Invoice no.', placeholder: 'e.g. INV-00012', help: 'The invoice these goods were billed on, if any.' },
+  deliveredAt: { label: 'Delivery time', placeholder: 'e.g. 4:30 pm' },
+  receivedBy: { label: 'Received by (name)', placeholder: 'e.g. Suresh Patil' },
+  receiverContact: { label: 'Receiver mobile / designation', placeholder: 'e.g. 98450 12345, Store keeper' },
+  deliveryCondition: {
+    label: 'Condition on delivery', type: 'select',
+    options: ['', 'Received in good condition', 'Received with exceptions (see remarks)', 'Partly received (see remarks)', 'Refused'],
+    help: 'Leave empty to let the receiver tick it on the printed copy. Note any damage or shortage in Remarks before it is signed.',
+  },
   purpose: { label: 'Purpose of movement', placeholder: 'e.g. Job work', help: 'Why goods move without a sale, e.g. Job work, Sent on approval, Stock transfer.' },
 };
 
@@ -100,7 +114,7 @@ export const DOCUMENT_TYPES = [
     dateLabel: 'Invoice Date', dueLabel: 'Due Date', dueSetting: 'dueDays', financial: true, icon: 'invoice',
     statuses: INVOICE_STATUSES,
     optional: ['paymentTerms', 'reverseCharge', ...DISPATCH],
-    conversions: ['DELIVERY_CHALLAN', 'CREDIT_NOTE', 'DEBIT_NOTE', 'PAYMENT_RECEIPT'],
+    conversions: ['DELIVERY_CHALLAN', 'CREDIT_NOTE', 'DEBIT_NOTE', 'PAYMENT_RECEIPT', 'PROOF_OF_DELIVERY'],
     // Bank details + UPI QR code (Settings → Company → UPI ID) so the customer can pay at once.
     defaults: { dueDays: 15, showBank: true, showQr: true, showTaxBreakup: true },
   }),
@@ -158,7 +172,7 @@ export const DOCUMENT_TYPES = [
     partyLabel: 'Customer', dateLabel: 'Order Date', dueLabel: 'Delivery Date', dueSetting: 'deliveryDays', icon: 'cart',
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'Confirmed', COMPLETED: 'Fulfilled' },
     optional: ['buyerOrderNo', 'buyerOrderDate', 'paymentTerms', 'termsOfDelivery', 'destination'],
-    conversions: ['TAX_INVOICE', 'DELIVERY_CHALLAN', 'PROFORMA_INVOICE'],
+    conversions: ['TAX_INVOICE', 'DELIVERY_CHALLAN', 'PROFORMA_INVOICE', 'PROOF_OF_DELIVERY'],
     defaults: { deliveryDays: 7, showBank: false },
   }),
   def({
@@ -166,6 +180,14 @@ export const DOCUMENT_TYPES = [
     group: 'stock', partyLabel: 'Deliver To', dateLabel: 'Challan Date', icon: 'truck',
     statuses: ORDER_STATUSES, statusLabels: { ISSUED: 'Dispatched', COMPLETED: 'Delivered' },
     optional: ['purpose', 'dispatchedThrough', 'vehicleNo', 'ewayBillNo', 'destination', 'buyerOrderNo'],
+    conversions: ['TAX_INVOICE', 'PROOF_OF_DELIVERY'],
+    defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false, showQr: false },
+  }),
+  def({
+    id: 'PROOF_OF_DELIVERY', label: 'Proof of Delivery', short: 'Proof of Delivery', prefix: 'POD', title: 'PROOF OF DELIVERY',
+    group: 'stock', partyLabel: 'Delivered To', dateLabel: 'Delivery Date', icon: 'delivered',
+    statuses: ['DRAFT', 'ISSUED', 'COMPLETED', 'CANCELLED'], statusLabels: { ISSUED: 'Out for delivery', COMPLETED: 'Delivered' },
+    optional: ['deliveredAt', 'receivedBy', 'receiverContact', 'deliveryCondition', 'invoiceRef', 'deliveryNote', 'dispatchDocNo', 'dispatchedThrough', 'vehicleNo', 'buyerOrderNo'],
     conversions: ['TAX_INVOICE'],
     defaults: { showPrices: false, showTax: false, showPackage: true, showBank: false, showAmountInWords: false, showQr: false },
   }),
@@ -290,11 +312,11 @@ export function statusesFor(typeId, current) {
 export const BUSINESS_TYPES = [
   {
     id: 'trading', label: 'Trading / Retail / Wholesale', icon: 'cart',
-    types: ['TAX_INVOICE', 'QUOTATION', 'PROFORMA_INVOICE', 'SALES_ORDER', 'DELIVERY_CHALLAN', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'CREDIT_NOTE', 'PAYMENT_RECEIPT'],
+    types: ['TAX_INVOICE', 'QUOTATION', 'PROFORMA_INVOICE', 'SALES_ORDER', 'DELIVERY_CHALLAN', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PROOF_OF_DELIVERY'],
   },
   {
     id: 'manufacturing', label: 'Manufacturing', icon: 'building',
-    types: ['TAX_INVOICE', 'QUOTATION', 'SALES_ORDER', 'DELIVERY_CHALLAN', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'WORK_ORDER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT'],
+    types: ['TAX_INVOICE', 'QUOTATION', 'SALES_ORDER', 'DELIVERY_CHALLAN', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'WORK_ORDER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PROOF_OF_DELIVERY'],
   },
   {
     id: 'services', label: 'Services / Repair / Maintenance', icon: 'tool',

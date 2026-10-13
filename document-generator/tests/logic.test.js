@@ -352,3 +352,29 @@ test('new and duplicated documents carry the shipping switch and consignee', asy
     assert.match(validate(bad) || '', /shipping address GST/);
   }
 });
+
+test('Proof of Delivery: a stock document without prices, made from an invoice or challan with its references', async () => {
+  const { DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  const { getType, EXTRA_FIELDS: F } = await import('../src/config/documentTypes.js');
+  const { newDocument, modelFromSource } = await import('../src/services/documentService.js');
+  const { resolveDocSettings } = await import('../src/config/defaults.js');
+  const { defaultTermsFor, defaultDeclarationFor } = await import('../src/config/documentTerms.js');
+  const pod = getType('PROOF_OF_DELIVERY');
+  assert.equal(pod.prefix, 'POD');
+  assert.equal(pod.title, 'PROOF OF DELIVERY');
+  assert.ok(['receivedBy', 'deliveredAt', 'deliveryCondition', 'invoiceRef'].every((k) => pod.optional.includes(k) && F[k]));
+  assert.ok(getType('TAX_INVOICE').conversions.includes('PROOF_OF_DELIVERY') && getType('DELIVERY_CHALLAN').conversions.includes('PROOF_OF_DELIVERY'));
+  const ds = resolveDocSettings('PROOF_OF_DELIVERY', DEFAULT_SETTINGS, {});
+  assert.equal(ds.showPrices, false);
+  assert.match(defaultTermsFor('PROOF_OF_DELIVERY', DEFAULT_SETTINGS), /before signing/);
+  assert.match(defaultDeclarationFor('PROOF_OF_DELIVERY', DEFAULT_SETTINGS), /good condition, except as noted/);
+  const ctx = { settings: DEFAULT_SETTINGS, docSettings: {} };
+  const inv = newDocument('TAX_INVOICE', ctx).document;
+  const bundle = { document: { ...inv, id: 3, document_number: 'INV-00003', party_name: 'ABC', meta: JSON.stringify({ vehicleNo: 'MH12AB1234' }) }, items: [], parent: null };
+  const made = modelFromSource(bundle, 'PROOF_OF_DELIVERY', 'convert', ctx).document;
+  assert.equal(made.meta.invoiceRef, 'INV-00003');
+  assert.equal(made.meta.vehicleNo, 'MH12AB1234');
+  assert.equal(made.party_name, 'ABC');
+  const dc = { document: { ...newDocument('DELIVERY_CHALLAN', ctx).document, id: 4, document_number: 'DC-00004', meta: '{}' }, items: [], parent: null };
+  assert.equal(modelFromSource(dc, 'PROOF_OF_DELIVERY', 'convert', ctx).document.meta.deliveryNote, 'DC-00004');
+});

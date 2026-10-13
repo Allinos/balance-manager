@@ -226,6 +226,13 @@ export function modelFromSource(bundle, targetType, mode, ctx) {
       ...(mode === 'duplicate' && typeof s.meta.declaration === 'string' ? { declaration: s.meta.declaration } : {}),
     },
   };
+  if (targetType === 'PROOF_OF_DELIVERY' && mode === 'convert') {
+    // The delivery's references: the invoice or challan it comes from, and the transport details already entered.
+    const m = s.meta || {};
+    for (const k of ['vehicleNo', 'dispatchDocNo', 'dispatchedThrough', 'buyerOrderNo', 'deliveryNote', 'invoiceRef']) if (m[k]) document.meta[k] = m[k];
+    if (getType(s.document_type).group === 'sales' && s.document_number) document.meta.invoiceRef = s.document_number;
+    if (s.document_type === 'DELIVERY_CHALLAN' && s.document_number) document.meta.deliveryNote = s.document_number;
+  }
   if (getType(targetType).layout === 'receipt') {
     document.meta.amount_received = mode === 'duplicate' ? s.meta.amount_received || s.grand_total : s.grand_total;
     document.meta.against = mode === 'convert' ? s.document_number : s.meta.against || '';

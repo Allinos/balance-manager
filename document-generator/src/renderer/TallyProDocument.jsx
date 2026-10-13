@@ -27,7 +27,7 @@ import { chargeLines } from '../utils/calc.js';
 import { hsnSummary } from '../utils/hsn.js';
 import { EXTRA_FIELDS } from '../config/documentTypes.js';
 import { a5Class, sheetClass } from './paging.js';
-import { CancelledMark, ContinuationHead, ContinuedNote, PageFooter, QrBlock, stateLine } from './blocks.jsx';
+import { CancelledMark, ContinuationHead, ContinuedNote, DeliveryAcknowledgement, PageFooter, POD_FIELDS, QrBlock, stateLine } from './blocks.jsx';
 
 /** Goods documents show the full Tally dispatch grid even when cells are empty. */
 const GOODS_TYPES = new Set(['TAX_INVOICE', 'BILL_OF_SUPPLY', 'DELIVERY_CHALLAN', 'SALES_ORDER', 'PROFORMA_INVOICE']);
@@ -90,7 +90,8 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
   const totalQty = items.reduce((a, it) => a + dec(it.quantity), 0n);
   const hasBank = ['bank_name', 'account_number', 'ifsc', 'upi_id'].some((k) => company[k]);
   const title = ds.title || type.title;
-  const receiverSign = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT', 'JOB_COMPLETION'].includes(type.id);
+  const receiverSign = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT', 'JOB_COMPLETION', 'PROOF_OF_DELIVERY'].includes(type.id);
+  const pod = type.id === 'PROOF_OF_DELIVERY';
 
   // Header grid (right-hand side).
   const cells = [
@@ -100,7 +101,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
   if (type.dueLabel) cells.push([type.dueLabel, fmtDate(doc.due_date)]);
   if (doc.reference || GOODS_TYPES.has(type.id)) cells.push(['Reference No.', doc.reference]);
   if (parent?.document_number) cells.push(['Created From', parent.document_number]);
-  const extra = type.optional.filter((k) => k !== 'reverseCharge' && k !== 'termsOfDelivery');
+  const extra = type.optional.filter((k) => k !== 'reverseCharge' && k !== 'termsOfDelivery' && !POD_FIELDS.includes(k));
   for (const k of extra) {
     const value = EXTRA_FIELDS[k]?.type === 'date' ? fmtDate(meta[k]) : meta[k];
     if (value || (GOODS_TYPES.has(type.id) && !compact)) cells.push([EXTRA_FIELDS[k]?.label || k, value]);
@@ -181,18 +182,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   {company.website && <div>{company.website}</div>}
                 </div>
               </div>
-              <PartyBox
-                title={type.group === 'sales' || type.group === 'service' ? `Buyer (${type.partyLabel})` : type.partyLabel}
-                name={doc.party_name}
-                company={doc.party_company}
-                address={doc.party_address}
-                gstin={doc.party_gstin || doc.party_tax_id}
-                state={doc.party_state}
-                phone={doc.party_phone}
-                email={doc.party_email}
-                showTaxId={ds.showCustomerTaxId !== false}
-                placeOfSupply={doc.place_of_supply && doc.place_of_supply !== doc.party_state ? doc.place_of_supply : ''}
-              />
+              {/* Consignee (Ship to) above Buyer (Bill to), as in Tally. */}
               {shipTo && (
                 <PartyBox
                   title="Consignee (Ship to)"
@@ -206,6 +196,18 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                   testId="doc-ship-to"
                 />
               )}
+              <PartyBox
+                title={type.group === 'sales' || type.group === 'service' ? `Buyer (${type.partyLabel})` : type.partyLabel}
+                name={doc.party_name}
+                company={doc.party_company}
+                address={doc.party_address}
+                gstin={doc.party_gstin || doc.party_tax_id}
+                state={doc.party_state}
+                phone={doc.party_phone}
+                email={doc.party_email}
+                showTaxId={ds.showCustomerTaxId !== false}
+                placeOfSupply={doc.place_of_supply && doc.place_of_supply !== doc.party_state ? doc.place_of_supply : ''}
+              />
             </div>
             <div className="tp-right">
               <div className="tp-grid">
@@ -473,6 +475,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
               </div>
             )}
 
+            {pod && tail && <DeliveryAcknowledgement doc={doc} dateFormat={settings.dateFormat} />}
             {/* Bottom: PAN, remarks, terms, declaration (left) / bank + signature (right) */}
             <div className="tp-bottom">
               <div className="tp-bottom-left">
@@ -503,7 +506,7 @@ export default function TallyProDocument({ payload, type, qr, compact = false, c
                 {receiverSign && (
                   <div className="tp-receiver">
                     <div className="tp-sign-space" />
-                    <div>Receiver&apos;s Signature</div>
+                    <div>{pod ? 'Receiver\'s Signature & Stamp' : 'Receiver\'s Signature'}</div>
                   </div>
                 )}
               </div>

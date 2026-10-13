@@ -43,7 +43,13 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   invoices start; every invoice (and quotation, proforma, sales order, challan, estimate, credit/debit note) has
   its own **Shipping address** switch. On without a different address: the billing details are printed again
   as Ship To (as in Tally). **+ Add a Different Shipping Address** opens consignee name, shipping address, GST
-  number, state and contact number; it is printed below the billing address. Off: only the billing address.
+  number, state and contact number. Ship To (Consignee) is printed **above** the billing address (Buyer / Bill To),
+  as Tally prints it. Off: only the billing address.
+- **Proof of Delivery (POD)**: the receiver's acknowledgement of goods — made new or converted from an invoice,
+  sales order or delivery challan (the invoice / challan number and transport details are filled in). Quantities
+  without prices; a *Delivery acknowledgement* box with the condition (received in good condition / with
+  exceptions / partly received / refused — tick on screen or by hand), received by, mobile / designation, date
+  and time, and space for exceptions to be written before signing; *Receiver's Signature & Stamp*. Numbered POD-00001.
 - **Share (referrals)**: the share icon beside *Customize* on the Dashboard copies or sends the customer's own
   referral link (from their account, received with the license); before signing in it shares the website.
 - **Additional charges**: as many as needed per document (Freight, Packing, Loading, Installation … or

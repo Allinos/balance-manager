@@ -471,6 +471,8 @@ export default function DocumentEditorPage({ params, query }) {
                           <input className="input" type="date" value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
                         ) : f.type === 'yesno' ? (
                           <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
+                        ) : f.type === 'select' ? (
+                          <Select value={value} onChange={(v) => setMeta({ [k]: v })} options={f.options.map((o) => ({ value: o, label: o || '— Receiver ticks on paper —' }))} data-testid={`meta-${k}`} />
                         ) : (
                           <TextInput placeholder={f.placeholder || ""} value={value} onChange={(v) => setMeta({ [k]: v })} maxLength={120} data-testid={`meta-${k}`} />
                         )}

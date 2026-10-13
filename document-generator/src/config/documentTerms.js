@@ -70,6 +70,12 @@ export const DEFAULT_TERMS = {
       'This challan is not an invoice; an invoice will follow where applicable.',
       'Please report any shortage or damage at the time of delivery.',
     ]),
+  PROOF_OF_DELIVERY: () =>
+    numbered([
+      'Please check the goods before signing. Note any damage, shortage or wrong item in Remarks.',
+      'A signature without remarks confirms the goods were received complete and in good condition.',
+      'Please sign, write your name, date and time, and stamp below.',
+    ]),
   PURCHASE_ORDER: () =>
     numbered([
       'Please mention our PO number on your invoice, delivery challan and all correspondence.',
@@ -118,6 +124,7 @@ export const DEFAULT_DECLARATIONS = {
   QUOTATION: () => 'We declare that the prices quoted above are true and correct to the best of our knowledge.',
   ESTIMATE: () => 'This estimate is prepared on the information available today and may change with the actual scope of work.',
   DELIVERY_CHALLAN: () => 'Goods sent as per the purpose mentioned above, not for sale unless stated.',
+  PROOF_OF_DELIVERY: () => 'Received the goods listed above in good condition, except as noted in the remarks.',
   PAYMENT_RECEIPT: () => 'Received the above amount with thanks.',
   PAYMENT_VOUCHER: () => 'Paid the above amount for the purpose mentioned.',
   JOB_COMPLETION: () => 'I / We confirm that the above work has been completed satisfactorily.',

@@ -1397,3 +1397,61 @@
 .rc-simple .rc-amount {
   background: #fff;
 }
+
+/* Proof of Delivery: receiver's acknowledgement (blocks.jsx DeliveryAcknowledgement) */
+.doc-pod {
+  margin-top: 4mm;
+  border: 1px solid var(--doc-line, #999);
+  padding: 2.5mm 3mm;
+  break-inside: avoid;
+}
+.doc-pod-conditions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5mm 6mm;
+  margin: 1.5mm 0 2.5mm;
+}
+.doc-pod-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+}
+.doc-pod-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.6mm;
+  height: 3.6mm;
+  border: 1px solid #333;
+  font-size: 8pt;
+  line-height: 1;
+}
+.doc-pod-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4mm;
+}
+.doc-pod-grid > div,
+.doc-pod-remarks {
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+.doc-pod-key {
+  font-size: 7.5pt;
+  color: var(--doc-muted, #555);
+}
+.doc-pod-val {
+  min-height: 5mm;
+  border-bottom: 1px dotted #777;
+  font-weight: 600;
+}
+.doc-pod-remarks {
+  margin-top: 3mm;
+  min-height: 12mm;
+  border-bottom: 1px dotted #777;
+}
+.doc-tp .doc-pod {
+  margin: 0;
+  border-width: 0 0 1px;
+}

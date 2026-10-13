@@ -929,8 +929,8 @@ async function main() {
     await sleep(400);
     const shipText = await textOf('.editor-preview [data-testid="doc-ship-to"]');
     check(shipText.includes('Charges Test Site Office') && shipText.includes('Plot 12, MIDC, Nashik') && shipText.includes('9811122233'), `different shipping address printed below the billing address (${shipText.replace(/\s+/g, ' ')})`);
-    check(await exec('const b=document.querySelector(".editor-preview .doc-party, .editor-preview .tp-party"), s=document.querySelector(".editor-preview [data-testid=doc-ship-to]"); return b.getBoundingClientRect().top < s.getBoundingClientRect().top'),
-      'Ship To sits below the billing address');
+    check(await exec('const s=document.querySelector(".editor-preview [data-testid=doc-ship-to]"), b=[...document.querySelectorAll(".editor-preview .doc-party, .editor-preview .tp-party")].find(e=>e!==s); return s.getBoundingClientRect().top < b.getBoundingClientRect().top'),
+      'Ship To (Consignee) sits above the billing address, as in Tally');
     await exec('document.querySelector("[data-testid=paper-size-A5]").scrollIntoView({ block: "center" })');
     await clickCss('[data-testid="paper-size-A5"]');
     await clickCss('[data-testid="save-doc"]');
@@ -970,6 +970,32 @@ async function main() {
     await exec('document.querySelector("[data-testid=setting-show-shipping]").closest("label").click()');
     await clickText('Save changes');
     await sleep(500);
+    // Proof of Delivery from the invoice: references filled in, receiver's acknowledgement printed.
+    const podSource = (await invoke('document_get', { id: chargedId })).document.document_number;
+    await go(`#/doc/${chargedId}`);
+    await find('.page-preview');
+    await exec('document.querySelector(".page-header details.menu summary, details.menu summary").click()');
+    check(await hasText('details.menu[open]', 'Convert to Proof of Delivery'), 'invoice menu offers "Convert to Proof of Delivery"');
+    await go(`#/doc/new/PROOF_OF_DELIVERY?from=${chargedId}&mode=convert`);
+    await waitForText('New Proof of Delivery');
+    await sleep(500);
+    if (!(await exists('[data-testid="meta-invoiceRef"]'))) await clickCss('[data-testid="more-details"]');
+    await find('[data-testid="meta-invoiceRef"]');
+    check((await exec('return document.querySelector("[data-testid=meta-invoiceRef]").value')) === podSource, `POD made from invoice ${podSource}: invoice number filled in`);
+    await type('[data-testid="meta-receivedBy"]', 'Suresh Patil');
+    await type('[data-testid="meta-deliveredAt"]', '4:30 pm');
+    await exec('const s=document.querySelector("[data-testid=meta-deliveryCondition]"); const set=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,"value").set; set.call(s,"Received in good condition"); s.dispatchEvent(new Event("change",{bubbles:true}))');
+    await sleep(400);
+    const pod = await textOf('.editor-preview [data-testid="doc-pod"]');
+    check(pod.includes('Suresh Patil') && pod.includes('4:30 pm') && pod.includes('Remarks / exceptions') && (await exec('return [...document.querySelectorAll(".editor-preview .doc-pod-box")].some(b=>b.textContent==="✓")')),
+      'Proof of Delivery: receiver, date & time, condition ticked, space for exceptions');
+    const podDoc = await textOf('.editor-preview');
+    check(podDoc.includes('PROOF OF DELIVERY') && podDoc.includes("Receiver's Signature & Stamp") && !podDoc.includes('1,870.00'), 'POD printed without prices, with the receiver\'s signature & stamp');
+    await clickCss('[data-testid="save-doc"]');
+    await waitForText('saved', 10000);
+    const podId = Number((await exec('return location.hash')).match(/doc\/(\d+)/)[1]);
+    const podSaved = (await invoke('document_get', { id: podId })).document;
+    check(podSaved.document_number === 'POD-00001' && JSON.parse(podSaved.meta).receivedBy === 'Suresh Patil', `Proof of Delivery saved as ${podSaved.document_number}`);
     await go('#/dashboard');
     await clickCss('[data-testid="nav-parties-add"]');
     await find('[data-testid="module-parties"]');

@@ -14,7 +14,7 @@
 /** Document types that can show a shipping address (the ones that go with goods to a customer). */
 export const SHIPPING_TYPES = [
   'TAX_INVOICE', 'BILL_OF_SUPPLY', 'PROFORMA_INVOICE', 'SALES_ORDER', 'DELIVERY_CHALLAN', 'QUOTATION', 'ESTIMATE',
-  'CREDIT_NOTE', 'DEBIT_NOTE',
+  'CREDIT_NOTE', 'DEBIT_NOTE', 'PROOF_OF_DELIVERY',
 ];
 
 export const SHIP_FIELDS = ['ship_name', 'ship_gstin', 'ship_tax_id', 'ship_state', 'ship_phone'];

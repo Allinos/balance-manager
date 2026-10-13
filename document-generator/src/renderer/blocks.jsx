@@ -25,10 +25,13 @@ export const stateLine = (state) => {
 };
 
 /** Filled "additional details" of a document as [label, value] pairs. */
+/** Proof of Delivery fields printed in the acknowledgement box, not among the document details. */
+export const POD_FIELDS = ['deliveredAt', 'receivedBy', 'receiverContact', 'deliveryCondition'];
+
 export function extraDetails(doc, type, dateFormat) {
   const meta = doc.meta || {};
   return type.optional
-    .filter((k) => k !== 'reverseCharge' && meta[k] && String(meta[k]).trim())
+    .filter((k) => k !== 'reverseCharge' && !POD_FIELDS.includes(k) && meta[k] && String(meta[k]).trim())
     .map((k) => [EXTRA_FIELDS[k]?.label || k, EXTRA_FIELDS[k]?.type === 'date' ? formatDate(meta[k], dateFormat) : meta[k]]);
 }
 
@@ -375,13 +378,13 @@ export function TermsAndConditions({ notes, terms }) {
   );
 }
 
-export function SignatureBlock({ company, ds, receiverSignature }) {
+export function SignatureBlock({ company, ds, receiverSignature, receiverLabel = "Receiver's Signature" }) {
   return (
     <div className="doc-signatures">
       {receiverSignature ? (
         <div className="doc-sign doc-sign-left">
           <div className="doc-sign-space" />
-          <div className="doc-sign-line">Receiver&apos;s Signature</div>
+          <div className="doc-sign-line">{receiverLabel}</div>
         </div>
       ) : (
         <div />
@@ -397,6 +400,47 @@ export function SignatureBlock({ company, ds, receiverSignature }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Proof of Delivery: the receiver's acknowledgement — condition (ticked when known, or ticked by hand on the
+ * printed copy), who received the goods, contact, date & time, and space for exceptions (damage, shortage),
+ * which must be written before signing.
+ */
+export function DeliveryAcknowledgement({ doc, dateFormat }) {
+  const m = doc.meta || {};
+  const conditions = EXTRA_FIELDS.deliveryCondition.options.filter(Boolean);
+  const when = [m.deliveredAt ? formatDate(doc.issue_date, dateFormat) : '', m.deliveredAt].filter(Boolean).join(', ');
+  return (
+    <section className="doc-pod" data-testid="doc-pod">
+      <div className="doc-label">Delivery acknowledgement</div>
+      <div className="doc-pod-conditions">
+        {conditions.map((c) => (
+          <span key={c} className="doc-pod-check">
+            <span className="doc-pod-box">{m.deliveryCondition === c ? '✓' : ''}</span>
+            {c}
+          </span>
+        ))}
+      </div>
+      <div className="doc-pod-grid">
+        <div>
+          <span className="doc-pod-key">Received by (name)</span>
+          <span className="doc-pod-val">{m.receivedBy || ''}</span>
+        </div>
+        <div>
+          <span className="doc-pod-key">Mobile / designation</span>
+          <span className="doc-pod-val">{m.receiverContact || ''}</span>
+        </div>
+        <div>
+          <span className="doc-pod-key">Date &amp; time of receipt</span>
+          <span className="doc-pod-val">{when}</span>
+        </div>
+      </div>
+      <div className="doc-pod-remarks">
+        <span className="doc-pod-key">Remarks / exceptions (damage, shortage, wrong item) — write before signing</span>
+      </div>
+    </section>
   );
 }
 

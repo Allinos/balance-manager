@@ -15,7 +15,7 @@ import { useApp } from '../data.jsx';
 /** Card titles (plural), as on the desktop dashboard. */
 export const PLURAL = {
   TAX_INVOICE: 'Invoices', SERVICE_INVOICE: 'Service Invoices', QUOTATION: 'Quotations', REVERSE_QUOTATION: 'Reverse Quotations',
-  ESTIMATE: 'Estimates', PROFORMA_INVOICE: 'Proforma Invoices', SALES_ORDER: 'Sales Orders', DELIVERY_CHALLAN: 'Delivery Challans',
+  ESTIMATE: 'Estimates', PROFORMA_INVOICE: 'Proforma Invoices', SALES_ORDER: 'Sales Orders', DELIVERY_CHALLAN: 'Delivery Challans', PROOF_OF_DELIVERY: 'Proofs of Delivery',
   PURCHASE_ORDER: 'Purchase Orders', GOODS_RECEIPT: 'Goods Receipts', PURCHASE_INVOICE: 'Purchase Bills', CREDIT_NOTE: 'Credit Notes',
   DEBIT_NOTE: 'Debit Notes', BILL_OF_SUPPLY: 'Bills of Supply', PAYMENT_RECEIPT: 'Receipts', PAYMENT_VOUCHER: 'Payment Vouchers',
   WORK_ORDER: 'Work Orders', JOB_COMPLETION: 'Job Completions',

@@ -22,6 +22,7 @@ const PLURAL = {
   PROFORMA_INVOICE: 'Proforma Invoices',
   SALES_ORDER: 'Sales Orders',
   DELIVERY_CHALLAN: 'Delivery Challans',
+  PROOF_OF_DELIVERY: 'Proofs of Delivery',
   PURCHASE_ORDER: 'Purchase Orders',
   GOODS_RECEIPT: 'Goods Receipts',
   PURCHASE_INVOICE: 'Purchase Bills',

@@ -495,6 +495,25 @@ try {
   check(/\/r\/\d{5}$/.test(refLink) && (await a.page.getByTestId('referral-whatsapp').count()) === 1, `Dashboard Share: the customer's own referral link to copy or share (${refLink})`);
   await a.page.keyboard.press('Escape');
 
+  console.log('Proof of Delivery');
+  await a.page.goto(`${base}/app/#/doc/new/PROOF_OF_DELIVERY`);
+  await a.page.getByTestId('editor').waitFor();
+  await a.page.getByTestId('party-name').fill('ABC Construction Pvt Ltd');
+  await a.page.getByTestId('item-name-0').fill('Teak Dining Table');
+  await a.page.getByTestId('item-qty-0').fill('2');
+  await a.page.getByTestId('more-details').click();
+  await a.page.getByTestId('meta-receivedBy').fill('Suresh Patil');
+  await a.page.getByTestId('meta-deliveredAt').fill('4:30 pm');
+  await a.page.getByTestId('meta-deliveryCondition').selectOption('Received in good condition');
+  await a.page.getByTestId('save-doc').click();
+  await a.page.getByTestId('view').waitFor();
+  const podText = await page1().textContent();
+  check(podText.includes('PROOF OF DELIVERY') && podText.includes('POD-00001') && podText.includes('Suresh Patil') && podText.includes("Receiver's Signature & Stamp"),
+    'Proof of Delivery: numbered POD-00001, receiver and acknowledgement printed');
+  check((await page1().locator('.doc-pod-box', { hasText: '✓' }).count()) === 1, 'Proof of Delivery: condition ticked');
+  await a.page.goto(`${base}/app/#/products`);
+  await a.page.getByTestId('tab-settings').waitFor();
+
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();
   await shot(a.page, '07a-settings');
@@ -512,6 +531,7 @@ try {
   await a.page.getByTestId('seq-format-TAX_INVOICE').selectOption('{PREFIX}/{FY}/{NUM}');
   await a.page.getByTestId('seq-save-TAX_INVOICE').click();
   await a.page.getByText('Invoice numbering saved').waitFor();
+  await a.page.waitForFunction(() => /^INV\/\d{4}-\d{2}\/0003$/.test(document.querySelector('[data-testid=seq-preview-TAX_INVOICE]')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
   check(/^INV\/\d{4}-\d{2}\/0003$/.test(await a.page.getByTestId('seq-preview-TAX_INVOICE').textContent()), 'numbering format INV/2026-27/0003');
   await a.page.getByTestId('back').click();
   await a.page.getByTestId('settings-types').click();
@@ -539,7 +559,7 @@ try {
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 6 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
+  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 7 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('add-product').click();
   await a.page.getByTestId('product-name').fill('Added after the backup');
@@ -555,16 +575,16 @@ try {
   await a.page.getByTestId('product-list').getByText('Office Chair').waitFor();
   check(!(await a.page.getByTestId('product-list').textContent()).includes('Added after the backup'), 'backup restored (product added later is gone)');
   await a.page.goto(`${base}/app/#/documents`);
-  await rows().nth(4).waitFor();
-  check((await rows().count()) === 6, 'all 6 documents back after the restore');
+  await rows().nth(6).waitFor();
+  check((await rows().count()) === 7, 'all 7 documents back after the restore');
 
   console.log('Works offline, no repeated login');
   await a.page.goto(`${base}/app/`);
   await a.page.getByTestId('dashboard').waitFor();
   await a.page.reload();
   await a.page.getByTestId('dashboard').waitFor();
-  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(5).waitFor({ timeout: 10000 }).catch(() => {});
-  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 6, 'reopened without logging in; recent documents');
+  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(6).waitFor({ timeout: 10000 }).catch(() => {});
+  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 7, 'reopened without logging in; recent documents');
   await a.page.waitForTimeout(400);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-dashboard.png') });
   await a.context.setOffline(true);

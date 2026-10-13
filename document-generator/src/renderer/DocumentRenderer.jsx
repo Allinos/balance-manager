@@ -30,6 +30,7 @@ import {
   PartyBlock,
   QrBlock,
   ShippingBlock,
+  DeliveryAcknowledgement,
   SignatureBlock,
   TaxSummary,
   TermsAndConditions,
@@ -93,7 +94,9 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
   const showPrices = ds.showPrices !== false;
   const showTax = ds.showTax !== false && doc.tax_mode !== 'NONE';
   const isReceipt = type.layout === 'receipt';
-  const receiverSignature = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT', 'JOB_COMPLETION'].includes(type.id);
+  const receiverSignature = ['DELIVERY_CHALLAN', 'GOODS_RECEIPT', 'JOB_COMPLETION', 'PROOF_OF_DELIVERY'].includes(type.id);
+  const pod = type.id === 'PROOF_OF_DELIVERY';
+  const receiverLabel = pod ? "Receiver's Signature & Stamp" : "Receiver's Signature";
 
   const qr = useMemo(
     () => (ds.showQr ? qrFor(payload) : { src: '', caption: '' }),
@@ -128,8 +131,9 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
 
           <section className="doc-parties">
             <div className="doc-party-col">
-              <PartyBlock doc={doc} label={type.partyLabel} showTaxId={ds.showCustomerTaxId !== false} />
+              {/* Ship To above Bill To (as printed by Tally): where the goods go, then who is billed. */}
               <ShippingBlock doc={doc} showTaxId={ds.showCustomerTaxId !== false} />
+              <PartyBlock doc={doc} label={type.partyLabel} showTaxId={ds.showCustomerTaxId !== false} />
             </div>
             <DocumentMeta
               doc={doc}
@@ -171,12 +175,13 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
           {/* Modern: notes and terms side by side, then bank · QR · signature in one row, so a normal bill fits one A4 page. */}
           <TermsAndConditions notes={doc.notes} terms={doc.terms} />
           {ds.showDeclaration !== false && <Declaration text={ds.declaration} />}
+          {pod && <DeliveryAcknowledgement doc={doc} dateFormat={settings.dateFormat} />}
           <section className="doc-closing">
             <div className="doc-closing-pay">
               {bank && <BankDetails company={company} />}
               <QrBlock src={qr.src} caption={qr.caption} />
             </div>
-            <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
+            <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} receiverLabel={receiverLabel} />
           </section>
         </>
       ) : (
@@ -190,7 +195,8 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
 
           <TermsAndConditions notes={doc.notes} terms={doc.terms} />
           {ds.showDeclaration !== false && <Declaration text={ds.declaration} />}
-          <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} />
+          {pod && <DeliveryAcknowledgement doc={doc} dateFormat={settings.dateFormat} />}
+          <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} receiverLabel={receiverLabel} />
         </>
       )}
       {tail && <DocumentFooter text={settings.footerText} jurisdiction={settings.jurisdiction} />}
