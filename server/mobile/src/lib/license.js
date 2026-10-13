@@ -16,7 +16,7 @@ import { sha512 } from '@noble/hashes/sha2.js';
 import { kvDel, kvGet, kvSet } from './db.js';
 import { opened, sealed } from './vault.js';
 
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '2.3.1';
 const DAY = 86400000;
 const REFRESH_EVERY = DAY;
 export const OFFLINE_GRACE_DAYS = 30;

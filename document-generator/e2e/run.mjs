@@ -727,7 +727,7 @@ async function main() {
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
     await go('#/manager');
     check(!(await exists('.nav-item[href="#/parties/customer"]')) && !(await exists('.nav-item[href="#/parties/vendor"]')) && (await exists('[data-testid="nav-parties-add"]')),
-      'Customers & Vendors are off by default: only a small + under Products & Services');
+      'Customers & Vendors are off by default: only + Add More under Products & Services');
     const parties = await invoke('parties_list', { search: 'ABC' });
     check(parties.some((pt) => pt.gstin === '29ABCDE1234F1Z5'), 'saved customer data kept (used when typing a name on documents)');
     await go('#/products');
@@ -934,11 +934,12 @@ async function main() {
     check((await exec('return document.querySelector("[data-testid=charge-label-1]").value')) === 'Packing', 'editing keeps both charges');
     await go('#/dashboard');
     await clickCss('[data-testid="nav-parties-add"]');
-    await find('[data-testid="module-customer"]');
-    await clickCss('[data-testid="module-customer"] .toggle');
+    await find('[data-testid="module-parties"]');
+    check(await hasText('.nav-add', 'Add More'), 'sidebar link reads + Add More');
+    await clickCss('[data-testid="module-parties"] .toggle');
     await clickCss('[data-testid="open-customer"]');
     await find('[data-testid="party-table"]');
-    check(await exists('.nav-item[href="#/parties/customer"]'), 'Customers switched on: it appears in the sidebar under Products & Services');
+    check(await exists('.nav-item[href="#/parties/customer"]') && await exists('.nav-item[href="#/parties/vendor"]'), 'Customers & Vendors feature on: both appear in the sidebar under Products & Services');
     const abcRow = await exec('return [...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction"))?.innerText || ""');
     check(/ABC Construction[\s\S]*\b[1-9]\d*\b/.test(abcRow), `saved customers listed with their documents (${abcRow.replace(/\s+/g, ' ')})`);
     await clickCss('[data-testid="add-party"]');
@@ -950,7 +951,7 @@ async function main() {
     await waitForText('Walk-in Retail saved');
     const before = await invoke('document_get', { id: 1 });
     await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-delete]").click()`);
-    check((await textOf('.dialog-message')).includes('archived'), 'deleting a customer that is on documents offers to archive it');
+    await find('.dialog-message'); const dm = await textOf('.dialog-message'); check(dm.includes('archived'), 'deleting a customer that is on documents offers to archive it');
     await clickCss('[data-testid="confirm-ok"]');
     await waitForText('archived — documents unchanged');
     const after = await invoke('document_get', { id: 1 });

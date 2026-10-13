@@ -5,7 +5,7 @@ import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, Segmented, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
-import { PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor } from '../../config/partyModules.js';
+import { PARTY_FEATURE, PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '../../services/catalogService.js';
 import { formatDate } from '../../utils/dates.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
@@ -117,53 +117,58 @@ export function PartyForm({ initial, taxSystem, onClose, onSaved }) {
   );
 }
 
-/** On/off switches for the two modules (Settings → Customers & Vendors, and the page behind the sidebar +). */
+/** The Customers & Vendors feature switch (Settings → Features, and the page behind + Add More). */
 export function PartyModuleSwitches() {
   const { settings, updateSettings } = useAppData();
   const toast = useToast();
   // Shown switched at once; saved in the background.
-  const [shown, setShown] = useState({});
-  const isOn = (m) => shown[m.setting] ?? !!settings[m.setting];
-  const toggle = async (m, on) => {
-    setShown((x) => ({ ...x, [m.setting]: on }));
+  const [shown, setShown] = useState(null);
+  const on = shown ?? partyFeatureOn(settings);
+  const toggle = async (next) => {
+    setShown(next);
     try {
-      await updateSettings({ [m.setting]: on });
-      toast.success(`${m.label} ${on ? 'switched on — find it in the sidebar' : 'switched off. Your saved records are kept.'}`);
+      await updateSettings(partyFeatureValue(next));
+      toast.success(`Customers & Vendors ${next ? 'switched on — find them in the sidebar' : 'switched off. Your saved records are kept.'}`);
     } catch (e) {
-      setShown((x) => ({ ...x, [m.setting]: !on }));
+      setShown(!next);
       toast.error(e.message);
     }
   };
   return (
     <div className="module-cards">
-      {PARTY_MODULES.map((m) => (
-        <div key={m.kind} className={`module-card ${isOn(m) ? 'on' : ''}`} data-testid={`module-${m.kind}`}>
-          <span className="module-icon">
-            <Icon name={m.icon} size={22} />
-          </span>
-          <div className="module-text">
-            <strong>{m.label}</strong>
-            <span className="muted small">{m.description}</span>
-            {isOn(m) && (
-              <Link to={`/parties/${m.kind}`} className="link small" data-testid={`open-${m.kind}`}>
-                Open {m.label} →
-              </Link>
-            )}
-          </div>
-          <Toggle checked={isOn(m)} onChange={(on) => toggle(m, on)} label="" aria-label={`${m.label} module`} data-testid={`module-${m.kind}-toggle`} />
+      <div className={`module-card ${on ? 'on' : ''}`} data-testid="module-parties">
+        <span className="module-icon">
+          <Icon name={PARTY_FEATURE.icon} size={22} />
+        </span>
+        <div className="module-text">
+          <strong>{PARTY_FEATURE.label}</strong>
+          <span className="muted small">{PARTY_FEATURE.description}</span>
+          {on && (
+            <span className="small">
+              {PARTY_MODULES.map((m, i) => (
+                <span key={m.kind}>
+                  {i > 0 && ' · '}
+                  <Link to={`/parties/${m.kind}`} className="link" data-testid={`open-${m.kind}`}>
+                    Open {m.label} →
+                  </Link>
+                </span>
+              ))}
+            </span>
+          )}
         </div>
-      ))}
+        <Toggle checked={on} onChange={toggle} label="" aria-label="Customers & Vendors feature" data-testid="module-parties-toggle" />
+      </div>
     </div>
   );
 }
 
-/** Settings → Customers & Vendors. */
+/** Settings → Features. */
 export function PartyModuleSettings() {
   return (
     <div className="settings-section">
-      <h2>Customers &amp; Vendors</h2>
+      <h2>Features</h2>
       <p className="muted">
-        Optional screens to list, search, add, edit and archive your saved customers and vendors. Switch each on only if you need it. Typing a name in a
+        Optional features, off until you switch them on. Typing a name in a
         document still offers saved customers and vendors either way.
       </p>
       <PartyModuleSwitches />
@@ -175,17 +180,17 @@ export function PartyModuleSettings() {
   );
 }
 
-/** /parties: where the sidebar + leads — switch the modules on and open them. */
+/** /parties: where + Add More leads — switch the modules on and open them. */
 export function PartyModulesPage() {
   const { settings } = useAppData();
   const on = enabledModules(settings);
   return (
     <div className="page narrow">
-      <PageHeader title="Customers & Vendors" subtitle="Switch on the screens you need. They appear in the sidebar under Products & Services." />
+      <PageHeader title="Features" subtitle="Switch on the features you need. They appear in the sidebar under Products & Services." />
       <div className="card card-pad">
         <PartyModuleSwitches />
       </div>
-      {on.length === 0 && <p className="muted small center">Both are off. Documents still remember the customers and vendors you type in.</p>}
+      {on.length === 0 && <p className="muted small center">Customers & Vendors is off. Documents still remember the customers and vendors you type in.</p>}
     </div>
   );
 }

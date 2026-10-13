@@ -10,7 +10,7 @@ import { APP_CONFIG } from '../config/appConfig.js';
 import { openExternal } from '../services/systemService.js';
 import TrialLine from '../features/license/TrialLine.jsx';
 import BrandName from '../components/BrandName.jsx';
-import { PARTY_MODULES, enabledModules } from '../config/partyModules.js';
+import { enabledModules } from '../config/partyModules.js';
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', match: ['/dashboard'] },
@@ -127,18 +127,18 @@ export default function AppLayout({ children }) {
         </button>
         <nav className="nav">
           {NAV.map(navItem)}
-          {/* Customers / Vendors appear here once switched on; until both are on, a small + leads to the switches. */}
+          {/* Customers / Vendors appear here once switched on; + Add More leads to Settings-style feature switches. */}
           {enabledModules(settings).map((m) => navItem({ to: `/parties/${m.kind}`, label: m.label, icon: m.icon, match: [`/parties/${m.kind}`] }))}
-          {enabledModules(settings).length < PARTY_MODULES.length && (
+          {(
             <Link
               to="/parties"
               className={`nav-add ${path === '/parties' ? 'active' : ''}`}
-              title="Customers & Vendors: switch on the screens you need"
-              aria-label="Add Customers or Vendors to the sidebar"
+              title="Add more features to the sidebar"
+              aria-label="Add more features"
               data-testid="nav-parties-add"
             >
               <Icon name="plus" size={15} />
-              <span className="nav-text">{enabledModules(settings).length ? 'Add Vendors / Customers' : 'Customers & Vendors'}</span>
+              <span className="nav-text">Add More</span>
             </Link>
           )}
         </nav>

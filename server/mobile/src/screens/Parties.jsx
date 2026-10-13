@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
-import { PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor } from '@desktop/config/partyModules.js';
+import { PARTY_FEATURE, PARTY_KIND_OPTIONS, PARTY_MODULES, enabledModules, moduleFor, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '@desktop/services/catalogService.js';
 import { formatDate } from '@desktop/utils/dates.js';
 import Icon from '../components/Icon.jsx';
@@ -99,47 +99,46 @@ function PartySheet({ initial, taxSystem, onClose, onSaved, onDelete }) {
   );
 }
 
-/** The two module switches (Settings → Customers & Vendors, and /parties). */
+/** The Customers & Vendors feature switch (Settings → Features, and /parties). */
 export function PartyModuleSwitches() {
   const { settings, updateSettings } = useApp();
   const { toast } = useUi();
   // Shown switched at once; saved in the background.
-  const [shown, setShown] = useState({});
-  const isOn = (m) => shown[m.setting] ?? !!settings[m.setting];
+  const [shown, setShown] = useState(null);
+  const on = shown ?? partyFeatureOn(settings);
   return (
     <div className="list">
-      {PARTY_MODULES.map((m) => (
-        <div key={m.kind} className="list-item module-row" data-testid={`module-${m.kind}`}>
-          <span className="avatar">
-            <Icon name={m.icon} size={19} />
-          </span>
-          <span className="list-main">
-            <strong>{m.label}</strong>
-            <span className="small muted">{m.description}</span>
-            {isOn(m) && (
-              <button type="button" className="link-btn small" onClick={() => go(`/parties/${m.kind}`)} data-testid={`open-${m.kind}`}>
+      <div className="list-item module-row" data-testid="module-parties">
+        <span className="avatar">
+          <Icon name={PARTY_FEATURE.icon} size={19} />
+        </span>
+        <span className="list-main">
+          <strong>{PARTY_FEATURE.label}</strong>
+          <span className="small muted">{PARTY_FEATURE.description}</span>
+          {on &&
+            PARTY_MODULES.map((m) => (
+              <button key={m.kind} type="button" className="link-btn small" onClick={() => go(`/parties/${m.kind}`)} data-testid={`open-${m.kind}`}>
                 Open {m.label} →
               </button>
-            )}
-          </span>
-          <Toggle
-            checked={isOn(m)}
-            onChange={async (on) => {
-              setShown((x) => ({ ...x, [m.setting]: on }));
-              try {
-                await updateSettings({ [m.setting]: on });
-                toast(on ? `${m.label} switched on` : `${m.label} switched off. Saved records are kept.`);
-              } catch (e) {
-                setShown((x) => ({ ...x, [m.setting]: !on }));
-                toast(e.message, 'bad');
-              }
-            }}
-            label=""
-            aria-label={`${m.label} module`}
-            data-testid={`module-${m.kind}-toggle`}
-          />
-        </div>
-      ))}
+            ))}
+        </span>
+        <Toggle
+          checked={on}
+          onChange={async (next) => {
+            setShown(next);
+            try {
+              await updateSettings(partyFeatureValue(next));
+              toast(next ? 'Customers & Vendors switched on' : 'Customers & Vendors switched off. Saved records are kept.');
+            } catch (e) {
+              setShown(!next);
+              toast(e.message, 'bad');
+            }
+          }}
+          label=""
+          aria-label="Customers & Vendors feature"
+          data-testid="module-parties-toggle"
+        />
+      </div>
     </div>
   );
 }
@@ -147,7 +146,7 @@ export function PartyModuleSwitches() {
 export function PartyModulesSection() {
   return (
     <div className="page" data-testid="settings-parties">
-      <p className="small muted">Optional screens to list, search, add, edit and archive saved customers and vendors. Documents still remember the names you type either way.</p>
+      <p className="small muted">Optional features, off until you switch them on. Documents still remember the names you type either way.</p>
       <PartyModuleSwitches />
       <p className="small muted">
         Deleting never changes your documents: a customer or vendor that appears on any document is archived (hidden, restorable) and every document keeps
@@ -157,7 +156,7 @@ export function PartyModulesSection() {
   );
 }
 
-/** Quick links under Products: the switched-on modules, plus a small + while one is still off. */
+/** Quick links under Products: the switched-on modules, plus + Add More. */
 export function PartyLinks() {
   const { settings } = useApp();
   const on = enabledModules(settings);
@@ -168,9 +167,9 @@ export function PartyLinks() {
           <Icon name={m.icon} size={16} /> {m.label}
         </button>
       ))}
-      {on.length < PARTY_MODULES.length && (
-        <button type="button" className="chip chip-ghost" onClick={() => go('/parties')} data-testid="nav-parties-add" aria-label="Customers and vendors">
-          <Icon name="plus" size={16} /> {on.length ? 'More' : 'Customers & Vendors'}
+      {(
+        <button type="button" className="chip chip-ghost" onClick={() => go('/parties')} data-testid="nav-parties-add" aria-label="Add more features">
+          <Icon name="plus" size={16} /> Add More
         </button>
       )}
     </div>
@@ -203,7 +202,7 @@ export default function Parties({ kind }) {
   if (!enabled) {
     return (
       <>
-        <Header title="Customers & Vendors" onBack={() => back('/products')} />
+        <Header title="Features" onBack={() => back('/products')} />
         <PartyModulesSection />
       </>
     );

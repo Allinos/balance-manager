@@ -21,7 +21,7 @@ const SECTIONS = [
   { id: 'currency', label: 'Currency', icon: 'coins', Component: CurrencySettings },
   { id: 'numbering', label: 'Numbering', icon: 'hash', Component: NumberingSettings },
   { id: 'units', label: 'Units', icon: 'box', Component: UnitsSettings },
-  { id: 'parties', label: 'Customers & Vendors', icon: 'users', Component: PartyModuleSettings },
+  { id: 'parties', label: 'Features', icon: 'grid', Component: PartyModuleSettings },
   { id: 'general', label: 'General', icon: 'sliders', Component: GeneralSettings },
   { id: 'appearance', label: 'Appearance', icon: 'palette', Component: AppearanceSettings },
   { id: 'license', label: 'License & Account', icon: 'key', Component: LicenseSettings },

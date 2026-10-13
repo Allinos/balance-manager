@@ -443,9 +443,9 @@ try {
   await shot(a.page, '05-products');
 
   console.log('Customers & Vendors (optional modules)');
-  check((await a.page.getByTestId('party-links').textContent()).includes('Customers & Vendors') && !(await a.page.getByTestId('link-customer').count()), 'modules off by default: only a small + under Products');
+  check((await a.page.getByTestId('party-links').textContent()).includes('Add More') && !(await a.page.getByTestId('link-customer').count()), 'Customers & Vendors off by default: only + Add More under Products');
   await a.page.getByTestId('nav-parties-add').click();
-  await a.page.getByTestId('module-customer-toggle').check();
+  await a.page.getByTestId('module-parties-toggle').check();
   await a.page.getByTestId('open-customer').click();
   await a.page.getByTestId('parties-customer').waitFor();
   await a.page.getByTestId('party-row').first().waitFor();
@@ -472,7 +472,8 @@ try {
   check(true, 'archived customer restored; documents never changed');
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('link-customer').waitFor();
-  check(true, 'Customers appears under Products once switched on');
+  await a.page.getByTestId('link-vendor').waitFor();
+  check(true, 'one Features switch turns on both Customers and Vendors under Products');
 
   console.log('Settings: documents, numbering, units, document types');
   await a.page.getByTestId('tab-settings').click();
