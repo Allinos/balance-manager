@@ -69,8 +69,8 @@ const bytesOf = (dataUrl) => {
   return out;
 };
 
-/** A minimal PDF: one JPEG picture per page, filling the page width. */
-function buildPdf(pages, [pw, ph]) {
+/** A minimal PDF: one JPEG picture per page, filling the page width. A page may carry its own size ([w, h] points). */
+function buildPdf(pages, paperPt) {
   const enc = new TextEncoder();
   const parts = [];
   const offsets = [];
@@ -93,6 +93,7 @@ function buildPdf(pages, [pw, ph]) {
   obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
   obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
   pages.forEach((p, i) => {
+    const [pw, ph] = p.size || paperPt;
     const pageNo = 3 + i * 3;
     const h = Math.min(ph, (pw * p.height) / p.width);
     const draw = `q ${pw.toFixed(2)} 0 0 ${h.toFixed(2)} 0 ${(ph - h).toFixed(2)} cm /Im0 Do Q`;
@@ -119,8 +120,32 @@ function buildPdf(pages, [pw, ph]) {
  * @returns {Promise<File>}
  */
 export async function documentPdf(payload, { copies = 1, fileName }) {
-  const paper = paperSizeOf(payload);
-  const [pw, ph] = PAGE_PT[paper];
+  const size = PAGE_PT[paperSizeOf(payload)];
+  const pages = await pagesOf(payload, copies);
+  const name = /\.pdf$/i.test(fileName) ? fileName : `${fileName}.pdf`;
+  return new File([buildPdf(pages, size)], name, { type: 'application/pdf' });
+}
+
+/**
+ * Many documents in one PDF (Documents → Download → PDF), each starting on a new page in its own paper size.
+ * @param {object[]} payloads
+ * @param {string} fileName
+ * @param {(done: number) => void} [onProgress]
+ */
+export async function documentsPdf(payloads, fileName, onProgress) {
+  const pages = [];
+  for (let i = 0; i < payloads.length; i++) {
+    const size = PAGE_PT[paperSizeOf(payloads[i])];
+    for (const p of await pagesOf(payloads[i], 1)) pages.push({ ...p, size });
+    onProgress?.(i + 1);
+  }
+  const name = /\.pdf$/i.test(fileName) ? fileName : `${fileName}.pdf`;
+  return new File([buildPdf(pages, PAGE_PT.A4)], name, { type: 'application/pdf' });
+}
+
+/** The printed pages of one document as JPEG pictures. */
+async function pagesOf(payload, copies) {
+  const [pw, ph] = PAGE_PT[paperSizeOf(payload)];
   const { paper: el, done } = await stage(payload, copies);
   try {
     if (!el) throw new Error('The document could not be drawn.');
@@ -136,8 +161,7 @@ export async function documentPdf(payload, { copies = 1, fileName }) {
       return { width: c.width, height: c.height, jpeg: bytesOf(c.toDataURL('image/jpeg', 0.9)) };
     });
     if (!pages.length) throw new Error('The document could not be drawn.');
-    const name = /\.pdf$/i.test(fileName) ? fileName : `${fileName}.pdf`;
-    return new File([buildPdf(pages, [pw, ph])], name, { type: 'application/pdf' });
+    return pages;
   } finally {
     done();
   }

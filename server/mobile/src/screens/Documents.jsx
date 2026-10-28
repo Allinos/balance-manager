@@ -2,13 +2,16 @@
  * Documents (the desktop's Document Manager, without uploaded files on the phone):
  *   summary · search · type filter · Deleted
  *   documents: status quick change, view / edit / print / duplicate / convert / delete · restore
- *   Download: sales data (CSV with party GST details) for a period.
+ *   Download: documents by type and month as PDF or CSV, or the GST sales register (licensed).
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { DOCUMENT_TYPES, SALES_REGISTER_TYPES, STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '@desktop/config/documentTypes.js';
-import { dashboardStats, exportSales, listDocuments } from '@desktop/services/documentService.js';
-import { rangeFor, toISODate } from '@desktop/utils/dates.js';
+import { DOCUMENT_TYPES, STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '@desktop/config/documentTypes.js';
+import { dashboardStats, listDocuments } from '@desktop/services/documentService.js';
+import { EXPORT_FORMATS, EXPORT_PERIODS, FORMAT_HELP, LICENSE_NEEDED, exportDocuments, periodRange, periodReady } from '@desktop/services/exportService.js';
+import { rangeFor, todayISO } from '@desktop/utils/dates.js';
+import { documentsPdf, saveFile } from '../lib/pdf.js';
+import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import Icon from '../components/Icon.jsx';
 import { ActionSheet, Empty, Field, Header, Picker, Select, Sheet, useUi } from '../components/ui.jsx';
 import { DocRow, NewDocumentSheet, StatusSheet } from '../components/docs.jsx';
@@ -26,34 +29,31 @@ function useDebounced(value, ms) {
   return v;
 }
 
-const PERIODS = [
-  { value: 'month', label: 'This month' },
-  { value: 'lastMonth', label: 'Last month' },
-  { value: 'fy', label: 'This financial year' },
-  { value: 'lastFy', label: 'Last financial year' },
-  { value: 'custom', label: 'Custom dates' },
-];
-function financialYear(startMonth = 4, back = 0) {
-  const t = new Date();
-  const first = startMonth - 1;
-  const year = (t.getMonth() >= first ? t.getFullYear() : t.getFullYear() - 1) - back;
-  return { from: toISODate(new Date(year, first, 1)), to: toISODate(new Date(year + 1, first, 0)) };
+const TYPE_OPTIONS = [{ value: '', label: 'All document types' }, ...DOCUMENT_TYPES.map((t) => ({ value: t.id, label: t.label }))];
+
+/** Many documents in one PDF, made on the phone and saved to Downloads. */
+async function phonePdf(payloads, fileName) {
+  const file = await documentsPdf(payloads, fileName);
+  saveFile(file);
+  return `Downloads/${file.name}`;
 }
 
-/** Download sales data: one row per invoice / note with the party's GSTIN and state (CSV, opens in Excel). */
-function SalesDownloadSheet({ onClose }) {
-  const { settings } = useApp();
+/** Download documents by type and month (or any period): PDF, CSV list, CSV items or the GST sales register. Licensed only. */
+function DownloadSheet({ onClose }) {
+  const { settings, company, docSettings, lic } = useApp();
   const { toast } = useUi();
+  const [format, setFormat] = useState('pdf');
+  const [typeId, setTypeId] = useState('');
   const [period, setPeriod] = useState('month');
+  const [month, setMonth] = useState(todayISO().slice(0, 7));
   const [custom, setCustom] = useState(() => rangeFor('month'));
   const [busy, setBusy] = useState(false);
-  const fyStart = Number(settings.fiscalYearStartMonth) || 4;
-  const range = period === 'fy' ? financialYear(fyStart) : period === 'lastFy' ? financialYear(fyStart, 1) : period === 'custom' ? custom : rangeFor(period);
+  const licensed = lic?.state === 'active';
+  const range = periodRange(period, { month, custom, fyStartMonth: Number(settings.fiscalYearStartMonth) || 4 });
   const run = async () => {
     setBusy(true);
     try {
-      const labels = Object.fromEntries(SALES_REGISTER_TYPES.map((id) => [id, TYPE_MAP[id].label]));
-      const saved = await exportSales({ types: SALES_REGISTER_TYPES, labels, from: range.from, to: range.to });
+      const saved = await exportDocuments({ format, typeId: format === 'sales' ? '' : typeId, range, licensed, settings, company, docSettings, makePdf: phonePdf });
       if (saved) {
         toast(`Downloaded ${saved.count} ${saved.count === 1 ? 'document' : 'documents'}`);
         onClose();
@@ -65,11 +65,29 @@ function SalesDownloadSheet({ onClose }) {
     }
   };
   return (
-    <Sheet title="Download sales data" onClose={onClose} testId="sales-download-sheet">
+    <Sheet title="Download documents" onClose={onClose} testId="sales-download-sheet">
       <div className="form">
-        <Field label="Period">
-          <Select value={period} onChange={setPeriod} options={PERIODS} data-testid="sales-period" />
+        {!licensed && (
+          <div className="alert alert-warn" data-testid="download-license">
+            {LICENSE_NEEDED}
+          </div>
+        )}
+        <Field label="Format">
+          <Select value={format} onChange={setFormat} options={EXPORT_FORMATS} data-testid="download-format" />
         </Field>
+        {format !== 'sales' && (
+          <Field label="Document type">
+            <Select value={typeId} onChange={setTypeId} options={TYPE_OPTIONS} data-testid="download-type" />
+          </Field>
+        )}
+        <Field label="Period">
+          <Select value={period} onChange={setPeriod} options={EXPORT_PERIODS} data-testid="sales-period" />
+        </Field>
+        {period === 'pickMonth' && (
+          <Field label="Month">
+            <input className="input" type="month" value={month} onChange={(e) => setMonth(e.target.value)} data-testid="download-month" />
+          </Field>
+        )}
         {period === 'custom' && (
           <div className="grid-2">
             <Field label="From">
@@ -81,10 +99,9 @@ function SalesDownloadSheet({ onClose }) {
           </div>
         )}
         <p className="small muted" style={{ margin: 0 }}>
-          A CSV file (opens in Excel or Google Sheets) with every invoice, bill of supply, credit note and debit note in this period: date, number, party
-          name, party GSTIN and state, place of supply, taxable value, CGST, SGST, IGST, total and status.
+          {FORMAT_HELP[format]}
         </p>
-        <button className="btn btn-primary btn-block" onClick={run} disabled={busy || !range.from || !range.to} data-testid="sales-download-go">
+        <button className="btn btn-primary btn-block" onClick={run} disabled={busy || !periodReady(period, range)} data-testid="sales-download-go">
           <Icon name="download" size={18} /> {busy ? 'Preparing…' : 'Download'}
         </button>
       </div>
@@ -153,9 +170,12 @@ export default function Documents({ query }) {
       <Header
         title="Documents"
         actions={
-          <button className="icon-btn" onClick={() => setSheet({ kind: 'sales' })} aria-label="Download sales data" data-testid="sales-download">
-            <Icon name="download" size={20} />
-          </button>
+          <>
+            <PrivacyToggle className="icon-btn" size={20} />
+            <button className="icon-btn" onClick={() => setSheet({ kind: 'sales' })} aria-label="Download documents" data-testid="sales-download">
+              <Icon name="download" size={20} />
+            </button>
+          </>
         }
       />
       <div className="page" data-testid="documents">
@@ -192,7 +212,7 @@ export default function Documents({ query }) {
         <Picker
           value={typeFilter}
           onChange={(v) => setTypeFilter(v || '')}
-          options={[{ value: '', label: 'All document types' }, ...DOCUMENT_TYPES.map((t) => ({ value: t.id, label: t.label }))]}
+          options={TYPE_OPTIONS}
           placeholder="All document types"
           title="Document type"
           testId="type-filter"
@@ -222,7 +242,7 @@ export default function Documents({ query }) {
       </button>
 
       {sheet?.kind === 'new' && <NewDocumentSheet onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'sales' && <SalesDownloadSheet onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'sales' && <DownloadSheet onClose={() => setSheet(null)} />}
       {sheet?.kind === 'status' && <StatusSheet doc={sheet.d} onClose={() => setSheet(null)} onChanged={load} />}
       {sheet?.kind === 'menu' && <ActionSheet title={`${sheet.d.document_number} · ${getType(sheet.d.document_type).short}`} items={docMenu(sheet.d)} onClose={() => setSheet(null)} />}
     </>

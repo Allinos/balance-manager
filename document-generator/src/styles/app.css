@@ -3946,3 +3946,25 @@ div.folder-item {
 .referral-actions {
   justify-content: flex-start;
 }
+
+/* Privacy eye: highlighted while amounts are hidden. */
+.privacy-toggle.on {
+  color: var(--accent);
+}
+
+/* Due date: "Due in" terms beside the date. */
+.due-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 6px;
+}
+
+/* Download → PDF: the documents are drawn here, off screen, and only they are printed. */
+.batch-print {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 240mm;
+  background: #fff;
+  pointer-events: none;
+}

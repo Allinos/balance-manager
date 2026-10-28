@@ -3,7 +3,7 @@
   "short_name": "DocGen",
   "description": "GST invoices, quotations, challans and all your business documents on your phone — the same templates as DocGen on your computer. Works offline.",
   "id": "/app/",
-  "start_url": "/app/",
+  "start_url": "/app/?source=pwa",
   "scope": "/app/",
   "display": "standalone",
   "orientation": "portrait",

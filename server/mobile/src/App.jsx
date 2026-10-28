@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { saveSettings as persistSettings } from '@desktop/services/settingsService.js';
+import { enabledModules } from '@desktop/config/partyModules.js';
 import Icon from './components/Icon.jsx';
 import { UiProvider, go, useRoute } from './components/ui.jsx';
 import { refresh, status } from './lib/license.js';
@@ -25,12 +26,18 @@ const TABS = [
   ['/products', 'Products', 'box'],
   ['/settings', 'Settings', 'settings'],
 ];
+/** Customers & Vendors: a tab of its own once the feature is switched on (Settings → Features). */
+const PARTIES_TAB = ['/parties/all', 'Parties', 'users', '/parties'];
 
-function TabBar({ path }) {
-  const current = TABS.find(([p]) => (p === '/' ? path === '/' : path.startsWith(p)))?.[0];
+/** The bottom tabs for these settings: [path, label, icon, matching path prefix?]. */
+export const tabsFor = (settings) => (enabledModules(settings || {}).length ? [...TABS.slice(0, 3), PARTIES_TAB, TABS[3]] : TABS);
+const tabMatches = ([p, , , prefix], path) => (p === '/' ? path === '/' : path === p || path.startsWith(prefix ? `${prefix}/` : p));
+
+function TabBar({ path, tabs }) {
+  const current = tabs.find((t) => tabMatches(t, path))?.[0];
   return (
-    <nav className="tabbar no-print" aria-label="Main">
-      {TABS.map(([p, label, icon]) => (
+    <nav className="tabbar no-print" aria-label="Main" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+      {tabs.map(([p, label, icon]) => (
         <button key={p} className={current === p ? 'active' : ''} onClick={() => go(p)} aria-current={current === p ? 'page' : undefined} data-testid={`tab-${label.toLowerCase()}`}>
           <span className="tab-icon">
             <Icon name={icon} size={21} />
@@ -127,7 +134,8 @@ function Shell() {
       </div>
     );
   }
-  const main = TABS.some(([p]) => p === path);
+  const tabs = tabsFor(data.settings);
+  const main = tabs.some(([p, , , prefix]) => p === path || (prefix && path.startsWith(`${prefix}/`)));
   let body;
   if (lic.state === 'none') body = <Activation onDone={reload} message={lic.message} />;
   else if (lic.state !== 'active') body = <Locked />;
@@ -136,7 +144,7 @@ function Shell() {
     body = (
       <div className={`app ${main ? '' : 'no-tabs'}`}>
         <Screen path={path} query={query} />
-        {main && <TabBar path={path} />}
+        {main && <TabBar path={path} tabs={tabs} />}
       </div>
     );
   return <AppCtx.Provider value={ctx}>{body}</AppCtx.Provider>;

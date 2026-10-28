@@ -23,10 +23,12 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
 - **Dashboard**: document-type cards in two rows with the number of documents and a round **+**
   to create one; the last 10 documents below; **Customize** chooses which cards appear (up to 12).
 - **Document Manager**: one compact summary card (total, this month, files, count per status),
-  Documents / Files, search with a document-type filter, **+ New Document**, **Download** (sales data
-  for a month / financial year / custom dates as a CSV that opens in Excel: invoices, bills of supply,
-  credit and debit notes with party GSTIN and state, place of supply, taxable value, CGST, SGST, IGST,
-  total and status), and **Add External Document** (PDF, images, Word/Excel/CSV, text, up to 25 MB,
+  Documents / Files, search with a document-type filter, **+ New Document**, **Download** (licensed
+  copies only — a trial gets a message and the backend refuses too): documents of one type or all types for
+  this / last month, a chosen month, a financial year, custom dates or all dates, as **PDF** (the documents
+  one after another, each on new pages), **CSV list** (one row per document), **CSV items** (one row per item)
+  or the **GST sales register** (invoices, bills of supply, credit and debit notes with party GSTIN and state,
+  place of supply, taxable value, CGST, SGST, IGST, total and status), and **Add External Document** (PDF, images, Word/Excel/CSV, text, up to 25 MB,
   stored inside the database so backups include them). Deleted items can be restored.
 - **Bank details and UPI QR**: invoices print your bank details and a UPI QR code for the exact
   amount (Settings → Company → bank details and UPI ID). Each quotation has its own **Show bank
@@ -45,6 +47,10 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   as Ship To (as in Tally). **+ Add a Different Shipping Address** opens consignee name, shipping address, GST
   number, state and contact number. Ship To (Consignee) is printed **above** the billing address (Buyer / Bill To),
   as Tally prints it. Off: only the billing address.
+- **Privacy eye** (Dashboard and Document Manager, top right): hides document amounts on screen (`₹••••`) for
+  working with someone looking over your shoulder; remembered on this computer. Print and PDF are unchanged.
+- **Due date**: invoices start with the default "due in" days (Settings → Document Types); the editor offers
+  *On receipt / 7 / 15 / 30 / 45 / 60 / 90 days* next to the date, and the due date moves with the invoice date.
 - **Proof of Delivery (POD)**: the receiver's acknowledgement of goods — made new or converted from an invoice,
   sales order or delivery challan (the invoice / challan number and transport details are filled in). Quantities
   without prices; a *Delivery acknowledgement* box with the condition (received in good condition / with

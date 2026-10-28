@@ -87,3 +87,22 @@ export function formatDateTime(value) {
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 }
+
+/** "Due in" choices for a due date: days after the document date (0 = on receipt). */
+export const DUE_TERMS = [0, 7, 15, 30, 45, 60, 90];
+
+/** Days from the document date to the due date, or null when either is missing. */
+export function dueTermOf(issue, due) {
+  const a = parseISODate(issue);
+  const b = parseISODate(due);
+  return a && b ? Math.round(daysBetween(a.getTime(), b.getTime())) : null;
+}
+
+/**
+ * Patch for a new document date: the due date moves with it, keeping the same terms
+ * (an invoice due in 15 days stays due in 15 days).
+ */
+export function issueDatePatch(doc, issue) {
+  const term = dueTermOf(doc.issue_date, doc.due_date);
+  return term === null || !parseISODate(issue) ? { issue_date: issue } : { issue_date: issue, due_date: addDays(issue, term) };
+}

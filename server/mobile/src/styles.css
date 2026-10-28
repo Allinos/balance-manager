@@ -1804,3 +1804,15 @@ button.license-chip {
 .referral-link .input { width:100%; font-family:ui-monospace,Menlo,monospace; font-size:14px }
 .referral-buttons { display:flex; flex-direction:column; gap:8px; margin-top:8px }
 .btn-green { background:#16a34a; border-color:#16a34a; color:#fff }
+
+/* Privacy eye: highlighted while amounts are hidden. */
+.privacy-toggle.on {
+  color: var(--brand);
+}
+
+/* Due date: "Due in" terms beside the date. */
+.due-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+  gap: 6px;
+}

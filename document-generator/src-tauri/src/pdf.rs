@@ -9,7 +9,7 @@
 
 use crate::db::{log_error, AppError, AppResult};
 use std::path::PathBuf;
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 /// Paper width, height and margin in mm. A5 is offered for receipts and vouchers.
@@ -36,7 +36,11 @@ fn safe_file_name(name: &str) -> String {
 /// Ask where to save and write the PDF. Returns the saved path, or None if cancelled.
 /// Errors starting with "UNSUPPORTED|" tell the UI to fall back to the print dialog.
 #[tauri::command]
-pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name: String, paper: Option<String>) -> AppResult<Option<String>> {
+pub async fn document_save_pdf(app: AppHandle, window: WebviewWindow, file_name: String, paper: Option<String>, bulk: Option<bool>) -> AppResult<Option<String>> {
+    // Many documents in one PDF (Document Manager → Download) is for licensed copies.
+    if bulk == Some(true) {
+        crate::license::require_license(&app.state::<crate::db::Db>())?;
+    }
     if !cfg!(any(windows, target_os = "linux")) {
         return Err(AppError::new("UNSUPPORTED|Direct PDF download is not available on this system."));
     }

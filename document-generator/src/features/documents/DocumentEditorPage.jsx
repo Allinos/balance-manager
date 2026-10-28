@@ -1,5 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
+import DueDateInput from '../../components/DueDateInput.jsx';
+import { issueDatePatch } from '../../utils/dates.js';
 import { Field, NumberInput, Segmented, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
@@ -327,11 +329,11 @@ export default function DocumentEditorPage({ params, query }) {
                 <TextInput value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} />
               </Field>
               <Field label={type.dateLabel} required>
-                <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc({ issue_date: e.target.value })} />
+                <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} />
               </Field>
               {type.dueLabel && (
                 <Field label={type.dueLabel}>
-                  <input className="input" type="date" value={doc.due_date} onChange={(e) => setDoc({ due_date: e.target.value })} />
+                  <DueDateInput issue={doc.issue_date} value={doc.due_date} onChange={(v) => setDoc({ due_date: v })} />
                 </Field>
               )}
               <Field label="Status">

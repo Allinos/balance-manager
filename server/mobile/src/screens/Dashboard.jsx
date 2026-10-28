@@ -5,6 +5,7 @@ import { BUSINESS_TYPES, DOCUMENT_TYPES } from '@desktop/config/documentTypes.js
 import { dashboardStats } from '@desktop/services/documentService.js';
 import Icon from '../components/Icon.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
+import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import { Empty, Header, Sheet, Spinner, go, useUi } from '../components/ui.jsx';
 import { DocRow, NewDocumentSheet, PLURAL } from '../components/docs.jsx';
 import { useApp } from '../data.jsx';
@@ -128,6 +129,7 @@ export default function Dashboard() {
         title={company?.name || 'DocGen'}
         actions={
           <>
+            <PrivacyToggle className="icon-btn" size={20} />
             <button className="icon-btn" onClick={() => setSharing(true)} aria-label="Share DocGen with your friends" data-testid="referral-share">
               <Icon name="share" size={20} />
             </button>

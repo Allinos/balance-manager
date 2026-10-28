@@ -6,6 +6,8 @@ import { BUSINESS_TYPES, DOCUMENT_TYPES, getType } from '../../config/documentTy
 import { pricesVisible } from '../../config/defaults.js';
 import { dashboardStats } from '../../services/documentService.js';
 import { formatMoney } from '../../utils/format.js';
+import PrivacyToggle from '../../components/PrivacyToggle.jsx';
+import { maskAmount, useAmountsHidden } from '../../hooks/usePrivacy.js';
 import { formatDate } from '../../utils/dates.js';
 import { useRouter } from '../../router/router.jsx';
 import { useAppData } from '../../hooks/useAppData.jsx';
@@ -97,6 +99,7 @@ function CustomizeModal({ selected, onClose, onSave }) {
 function RecentDocuments({ rows }) {
   const { navigate } = useRouter();
   const { settings, docSettings } = useAppData();
+  const [hidden] = useAmountsHidden();
   if (!rows.length) {
     return <EmptyState title="No documents yet" message="Use the + on a card above to create your first document." />;
   }
@@ -114,7 +117,7 @@ function RecentDocuments({ rows }) {
               <small>{type.short}</small>
             </span>
             <span className="recent-party">{d.party_name || '—'}</span>
-            <span className="recent-amount">{pricesVisible(d.document_type, settings, docSettings) ? formatMoney(d.grand_total, d) : '—'}</span>
+            <span className="recent-amount">{pricesVisible(d.document_type, settings, docSettings) ? maskAmount(formatMoney(d.grand_total, d), hidden, d.currency_symbol) : '—'}</span>
             <span className="recent-date">{formatDate(d.issue_date, settings.dateFormat)}</span>
             <StatusBadge status={d.status} type={d.document_type} />
           </li>
@@ -147,6 +150,7 @@ export default function DashboardPage() {
         title="Dashboard"
         actions={
           <div className="row-actions">
+            <PrivacyToggle />
             <button className="btn btn-sm" onClick={() => setCustomize(true)} data-testid="customize-dashboard">
               <Icon name="sliders" size={15} /> Customize
             </button>

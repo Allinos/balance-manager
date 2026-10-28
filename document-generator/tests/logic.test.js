@@ -378,3 +378,25 @@ test('Proof of Delivery: a stock document without prices, made from an invoice o
   const dc = { document: { ...newDocument('DELIVERY_CHALLAN', ctx).document, id: 4, document_number: 'DC-00004', meta: '{}' }, items: [], parent: null };
   assert.equal(modelFromSource(dc, 'PROOF_OF_DELIVERY', 'convert', ctx).document.meta.deliveryNote, 'DC-00004');
 });
+
+test('due date: "Due in" terms, and the due date follows the document date', async () => {
+  const { DUE_TERMS, dueTermOf, issueDatePatch } = await import('../src/utils/dates.js');
+  assert.deepEqual(DUE_TERMS, [0, 7, 15, 30, 45, 60, 90]);
+  assert.equal(dueTermOf('2026-10-01', '2026-10-16'), 15);
+  assert.equal(dueTermOf('2026-10-01', ''), null);
+  // Moving the invoice date keeps "due in 15 days" (across a month end too).
+  assert.deepEqual(issueDatePatch({ issue_date: '2026-10-01', due_date: '2026-10-16' }, '2026-10-20'), { issue_date: '2026-10-20', due_date: '2026-11-04' });
+  // No due date: only the document date changes.
+  assert.deepEqual(issueDatePatch({ issue_date: '2026-10-01', due_date: '' }, '2026-10-20'), { issue_date: '2026-10-20' });
+});
+
+test('download: periods, file names, and a license is required', async () => {
+  const { periodRange, periodReady, periodName, financialYear, exportDocuments, LICENSE_NEEDED } = await import('../src/services/exportService.js');
+  assert.deepEqual(periodRange('pickMonth', { month: '2026-02' }), { from: '2026-02-01', to: '2026-02-28' });
+  assert.equal(periodName(periodRange('pickMonth', { month: '2026-02' })), '2026-02');
+  assert.deepEqual(financialYear(4, 0, new Date(2026, 1, 10)), { from: '2025-04-01', to: '2026-03-31' });
+  assert.equal(periodName({ from: '2025-04-01', to: '2026-03-31' }), '2025-04-01-to-2026-03-31');
+  assert.equal(periodName({ from: '', to: '' }), 'All');
+  assert.ok(periodReady('all', { from: '', to: '' }) && !periodReady('custom', { from: '2026-05-02', to: '2026-05-01' }));
+  await assert.rejects(exportDocuments({ format: 'csv', typeId: '', range: { from: '', to: '' }, licensed: false }), new RegExp(LICENSE_NEEDED.slice(0, 30)));
+});

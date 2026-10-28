@@ -9,9 +9,9 @@ export const openExternal = (url) => call('open_external', { url });
  * Resolves to the saved path, null if cancelled, or throws { unsupported: true }
  * on systems without direct PDF export (the caller then opens the print dialog).
  */
-export async function savePdf(fileName, paper = 'A4') {
+export async function savePdf(fileName, paper = 'A4', { bulk = false } = {}) {
   try {
-    return await call('document_save_pdf', { fileName, paper });
+    return await call('document_save_pdf', { fileName, paper, bulk });
   } catch (e) {
     if (String(e.message).startsWith('UNSUPPORTED|')) {
       const err = new Error(e.message.split('|')[1]);

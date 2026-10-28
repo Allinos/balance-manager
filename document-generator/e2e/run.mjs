@@ -479,6 +479,16 @@ async function main() {
     await go('#/dashboard');
     await clickCss('[data-testid="create-TAX_INVOICE"]');
     await waitForText('New Tax Invoice');
+    {
+      const due = () => exec('return [document.querySelector("[data-testid=doc-due-term]").value, document.querySelector("[data-testid=doc-due]").value]');
+      const [term] = await due();
+      check(term === '15', `Due date chosen automatically: due in 15 days (${term})`);
+      await setSelect('[data-testid="doc-due-term"]', '30');
+      const issue = await exec('return document.querySelector("[data-testid=doc-due]").closest(".grid-4").querySelector("input[type=date]").value');
+      const [, due30] = await due();
+      check(Math.round((new Date(due30) - new Date(issue)) / 86400000) === 30, `Due in 30 days sets the due date (${issue} → ${due30})`);
+      await setSelect('[data-testid="doc-due-term"]', '15');
+    }
     await type('[data-testid="party-name"]', 'ABC Construction Pvt Ltd');
     await type('[data-testid="party-gstin"]', '29ABCDE1234F1Z5');
     check(await hasText('[data-testid="party-state"]', 'Karnataka'), 'customer GSTIN fills state Karnataka');
@@ -624,15 +634,37 @@ async function main() {
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
     await sleep(300);
     check(await exec('const b=document.querySelector("[data-testid=new-document]"); return b.nextElementSibling === document.querySelector("[data-testid=sales-download]")'), 'Download button next to New Document');
+    {
+      const tableText = () => exec('return document.querySelector("[data-testid=documents-table]").innerText');
+      check((await tableText()).includes('59,000'), 'amounts shown');
+      await clickCss('[data-testid="privacy-toggle"]');
+      await sleep(300);
+      check(!(await tableText()).includes('59,000') && (await tableText()).includes('••••'), 'eye at the top: amounts hidden');
+      await go('#/dashboard');
+      check(!(await textOf('[data-testid="recent-documents"]')).includes('59,000'), 'amounts stay hidden on the Dashboard');
+      await clickCss('[data-testid="privacy-toggle"]');
+      await sleep(300);
+      check((await textOf('[data-testid="recent-documents"]')).includes('59,000'), 'eye again: amounts shown');
+      await go('#/manager');
+    }
     await clickCss('[data-testid="sales-download"]');
+    await find('[data-testid="download-license"]');
+    check((await textOf('[data-testid="download-license"]')).includes('needs a DocGen license'), 'trial: Download explains that a license is needed');
     await clickCss('[data-testid="sales-download-go"]');
-    await waitForText('Downloaded 1 document', 15000);
-    const csvFile = readdirSync(pdfDir).find((f) => f.startsWith('DocGen-Sales-') && f.endsWith('.csv'));
-    const csv = csvFile ? readFileSync(path.join(pdfDir, csvFile), 'utf8') : '';
+    await waitForText('Please activate your license', 10000);
+    check(!readdirSync(pdfDir).some((f) => f.startsWith('DocGen-') && f.endsWith('.csv')), 'trial: nothing is downloaded');
     check(
-      csv.includes('Party GSTIN') && /INV-00001,Tax Invoice,DRAFT,ABC Construction Pvt Ltd,[^,]*,29ABCDE1234F1Z5,Karnataka,Karnataka,Inter-state,50000(\.00)?,0(\.00)?,0(\.00)?,9000(\.00)?,9000(\.00)?,59000(\.00)?,INR/.test(csv),
-      `sales data CSV with party GST details (${csvFile})`,
+      String(
+        await wd('POST', s('/execute/async'), {
+          script: `const done = arguments[arguments.length - 1];
+            window.__TAURI_INTERNALS__.invoke('export_save', { fileName: 'x.csv', content: 'a' }).then(() => done('saved'), (e) => done(e?.message || String(e)));`,
+          args: [],
+        }),
+      ).includes('needs a DocGen license'),
+      'trial: the app itself refuses to save a download (not only the screen)',
     );
+    await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
+    await sleep(300);
     let table;
     await type('[data-testid="manager-search"]', 'Teak');
     await sleep(700);
@@ -1058,6 +1090,39 @@ async function main() {
     const refStatus = await invoke('license_status');
     check(/\/r\/\d{5}$/.test(refStatus.referral?.link || ''), `signed in: the customer's own referral link for Dashboard → Share (${refStatus.referral?.link})`);
     await shot('15-licensed');
+    {
+      const month = new Date().toISOString().slice(0, 7);
+      const fresh = (prefix, ext) => readdirSync(pdfDir).find((f) => f.startsWith(prefix) && f.endsWith(ext));
+      const download = async (format, typeId = '') => {
+        await go('#/manager');
+        await clickCss('[data-testid="sales-download"]');
+        await find('[data-testid="download-modal"]');
+        check(!(await exists('[data-testid="download-license"]')), `licensed: no license message (${format})`);
+        await setSelect('[data-testid="download-format"]', format);
+        if (format !== 'sales') await setSelect('[data-testid="download-type"]', typeId);
+        await setSelect('[data-testid="sales-period"]', 'pickMonth');
+        await clickCss('[data-testid="sales-download-go"]');
+        await waitForText('Downloaded ', 60000);
+        await sleep(500);
+      };
+      await download('sales');
+      const salesFile = fresh('DocGen-Sales-', '.csv');
+      const sales = salesFile ? readFileSync(path.join(pdfDir, salesFile), 'utf8') : '';
+      check(sales.includes('Party GSTIN') && /INV-00001,Tax Invoice,[A-Z]+,ABC Construction Pvt Ltd,[^,]*,29ABCDE1234F1Z5,Karnataka,Karnataka,Inter-state,50000/.test(sales), `GST sales register CSV with party GST details (${salesFile})`);
+      await download('csv');
+      const list = readFileSync(path.join(pdfDir, fresh(`DocGen-Documents-${month}`, '.csv') || 'missing'), 'utf8');
+      check(list.startsWith('\uFEFFDate,Document No.') && list.includes('INV-00001') && list.includes('QTN-00001') && list.includes('29ABCDE1234F1Z5'), 'CSV list: every document of the month, one row each');
+      await download('items', 'TAX_INVOICE');
+      const items = readFileSync(path.join(pdfDir, fresh(`DocGen-Invoice-${month}-Items`, '.csv') || 'missing'), 'utf8');
+      check(items.includes('Teak Dining Table') && items.includes('9403') && !items.includes('QTN-'), 'CSV items: by document type (Tax Invoice), one row per item');
+      await download('pdf');
+      const pdfFile = fresh(`DocGen-Documents-${month}`, '.pdf');
+      const pdf = pdfFile ? readFileSync(path.join(pdfDir, pdfFile)) : Buffer.alloc(0);
+      const pages = (pdf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+      check(pdf.subarray(0, 5).toString() === '%PDF-' && pages >= 2, `PDF of the month: the documents one after another (${pages} pages)`);
+      check(!(await exists('[data-testid="batch-print"]')), 'the off-screen pages are removed afterwards');
+    }
+    await go('#/settings/license');
     const devices = (await api('GET', `/api/admin/clients/${seed.client.id}`)).licenses.flatMap((l) => l.devices);
     check(devices.length === 1 && !devices[0].released_at, 'server registered this computer');
     await clickText('Sign out on this computer');

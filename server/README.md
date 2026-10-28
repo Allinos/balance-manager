@@ -368,6 +368,13 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
   offline, locks when the license expired (or the clock was turned back) and unlocks after *Check again* once the
   license is extended. A phone removed in the client/admin panel must activate again.
 - **Phone limit**: from the product (default 2) or set per license — enforced by the server.
+- **Installed app opens from the phone**: started from the home-screen icon (`start_url` `/app/?source=pwa`; older
+  installs are recognised on first start), the service worker answers from its saved copy — no request to the server
+  to load the app. *Settings → About → Update app* fetches the newest version, drops old files and restarts. In a
+  browser tab the app still loads the newest version when online. The daily license check is unchanged.
+- **Bottom tabs**: Dashboard · Documents · Products · (Parties, once Customers & Vendors is switched on) · Settings.
+- **Documents → Download** (active license): by type and month or period as one PDF (made on the phone), CSV list,
+  CSV items or the GST sales register. The **eye** on Dashboard and Documents hides amounts on screen.
 
 ### Testing DocGen Mobile on a phone
 

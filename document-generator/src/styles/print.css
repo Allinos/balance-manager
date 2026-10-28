@@ -141,3 +141,18 @@
     height: auto !important;
   }
 }
+
+/* Download → PDF of many documents: print only them, each starting on a new page. */
+@media print {
+  body.batch-printing #root {
+    display: none !important;
+  }
+  body.batch-printing .batch-print {
+    position: static !important;
+    left: auto !important;
+    width: auto !important;
+  }
+  .batch-doc + .batch-doc {
+    break-before: page;
+  }
+}

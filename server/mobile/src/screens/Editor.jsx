@@ -21,6 +21,8 @@ import { amountInWords } from '@desktop/utils/numberToWords.js';
 import { dec, isZero } from '@desktop/utils/decimal.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
+import DueDateInput from '@desktop/components/DueDateInput.jsx';
+import { issueDatePatch } from '@desktop/utils/dates.js';
 import Icon from '../components/Icon.jsx';
 import { ActionSheet, Field, Header, Input, NumberInput, Picker, Segmented, Select, Sheet, Spinner, StatusBadge, Suggest, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
 import { useApp, useDocContext, useDocumentActions } from '../data.jsx';
@@ -602,11 +604,11 @@ export default function Editor({ typeId, id, query = {} }) {
               <Input value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} data-testid="doc-number" />
             </Field>
             <Field label={type.dateLabel} required>
-              <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc({ issue_date: e.target.value })} data-testid="doc-date" />
+              <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} data-testid="doc-date" />
             </Field>
             {type.dueLabel && (
               <Field label={type.dueLabel}>
-                <input className="input" type="date" value={doc.due_date} onChange={(e) => setDoc({ due_date: e.target.value })} data-testid="doc-due" />
+                <DueDateInput issue={doc.issue_date} value={doc.due_date} onChange={(v) => setDoc({ due_date: v })} />
               </Field>
             )}
             <Field label="Status">

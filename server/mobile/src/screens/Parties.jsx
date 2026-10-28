@@ -244,7 +244,7 @@ export default function Parties({ kind }) {
 
   return (
     <>
-      <Header title="Customers & Vendors" onBack={() => back('/products')} />
+      <Header title="Customers & Vendors" />
       <div className="page" data-testid={`parties-${mod.kind}`}>
         {tabs.length > 1 && (
           <Segmented

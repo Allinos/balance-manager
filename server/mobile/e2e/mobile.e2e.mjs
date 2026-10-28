@@ -104,7 +104,7 @@ try {
   await a.page.getByTestId('activation').waitFor();
   check(a.page.url().startsWith(`${base}/app/`), 'Install opens the app (/app/)');
   const manifest = await (await fetch(`${base}/app/manifest.webmanifest`)).json();
-  check(manifest.display === 'standalone' && manifest.start_url === '/app/' && manifest.icons.some((i) => i.purpose === 'maskable'), 'web app manifest: standalone, /app/, maskable icon (installable on Android)');
+  check(manifest.display === 'standalone' && manifest.start_url === '/app/?source=pwa' && manifest.icons.some((i) => i.purpose === 'maskable'), 'web app manifest: standalone, /app/ (opened as the installed app), maskable icon (installable on Android)');
   check(await a.page.evaluate(async () => !!(await navigator.serviceWorker.ready).active), 'service worker active (offline support)');
   check(await a.page.getByTestId('install-banner').isVisible(), 'Install banner while running in the browser');
 
@@ -191,6 +191,15 @@ try {
   await a.page.waitForFunction(() => document.querySelector('[data-testid=doc-number]')?.placeholder === 'INV-00001');
   await shot(a.page, '03a-editor-top');
   check(true, 'next number shown before saving (INV-00001)');
+  check((await a.page.getByTestId('doc-due-term').inputValue()) === '15', 'due date chosen automatically: due in 15 days');
+  {
+    const date = await a.page.getByTestId('doc-date').inputValue();
+    const moved = new Date(new Date(date).getTime() + 86400000 * 3).toISOString().slice(0, 10);
+    await a.page.getByTestId('doc-date').fill(moved);
+    const due = await a.page.getByTestId('doc-due').inputValue();
+    check(Math.round((new Date(due) - new Date(moved)) / 86400000) === 15, `due date follows the invoice date (${moved} → ${due})`);
+    await a.page.getByTestId('doc-date').fill(date);
+  }
   await a.page.getByTestId('party-name').fill('ABC Construction Pvt Ltd');
   await a.page.getByTestId('party-gstin').fill('29ABCDE1234F1Z5');
   await a.page.getByTestId('party-phone').fill('98765 43210');
@@ -426,9 +435,37 @@ try {
 
   check(!(await a.page.getByText('Files', { exact: true }).count()) && !(await a.page.getByTestId('add-external').count()), 'no uploaded-files section on the phone');
 
-  console.log('Sales data download');
-  await a.page.getByTestId('sales-download').click();
-  const [csvDownload] = await Promise.all([a.page.waitForEvent('download'), a.page.getByTestId('sales-download-go').click()]);
+  console.log('Privacy: hide amounts');
+  await pick(a.page, 'type-filter', 'All document types');
+  await rows().nth(4).waitFor();
+  const listText = () => a.page.getByTestId('documents').textContent();
+  check(/[\d,]+\.\d\d/.test(await listText()), 'amounts shown in the list');
+  await a.page.getByTestId('privacy-toggle').click();
+  check(!/[\d,]+\.\d\d/.test(await listText()) && (await listText()).includes('••••'), 'eye at the top: amounts hidden');
+  await a.page.getByTestId('privacy-toggle').click();
+  check(/[\d,]+\.\d\d/.test(await listText()), 'eye again: amounts shown');
+
+  console.log('Download documents');
+  const downloadAs = async (format, typeId = '') => {
+    await a.page.getByTestId('sales-download').click();
+    await a.page.getByTestId('download-format').selectOption(format);
+    if (format !== 'sales') await a.page.getByTestId('download-type').selectOption(typeId);
+    const [file] = await Promise.all([a.page.waitForEvent('download', { timeout: 60000 }), a.page.getByTestId('sales-download-go').click()]);
+    await a.page.getByTestId('sales-download-sheet').waitFor({ state: 'detached' });
+    return file;
+  };
+  const month = new Date().toISOString().slice(0, 7);
+  const listFile = await downloadAs('csv');
+  const list = fs.readFileSync(await listFile.path(), 'utf8');
+  check(listFile.suggestedFilename() === `DocGen-Documents-${month}.csv` && list.includes('INV-00001') && list.includes('29ABCDE1234F1Z5'), `CSV list of this month's documents (${listFile.suggestedFilename()})`);
+  const itemsFile = await downloadAs('items', 'TAX_INVOICE');
+  const items = fs.readFileSync(await itemsFile.path(), 'utf8');
+  check(items.includes('Teak Dining Table') && !items.includes('QTN-'), 'CSV items: invoices only, one row per item');
+  const pdfFile = await downloadAs('pdf');
+  const pdf = fs.readFileSync(await pdfFile.path());
+  const pdfPages = (pdf.toString('latin1').match(/\/Type \/Page /g) || []).length;
+  check(pdf.subarray(0, 5).toString() === '%PDF-' && pdfPages >= 2, `PDF: this month's documents one after another (${pdfPages} pages)`);
+  const csvDownload = await downloadAs('sales');
   const csv = fs.readFileSync(await csvDownload.path(), 'utf8');
   check(/^DocGen-Sales-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.csv$/.test(csvDownload.suggestedFilename()) && csv.includes('INV-00001,Tax Invoice,PAID,ABC Construction Pvt Ltd') && csv.includes('29ABCDE1234F1Z5'), 'sales CSV with the party GSTIN');
 
@@ -463,6 +500,10 @@ try {
   await a.page.getByTestId('module-parties-toggle').check();
   await a.page.getByTestId('open-parties').click();
   await a.page.getByTestId('parties-all').waitFor();
+  check(
+    (await a.page.locator('.tabbar button').count()) === 5 && (await a.page.getByTestId('tab-parties').getAttribute('aria-current')) === 'page',
+    'Customers & Vendors switched on: its own "Parties" tab in the bottom bar (5 tabs)',
+  );
   check((await a.page.getByTestId('party-tabs-customer').count()) === 1 && (await a.page.getByTestId('party-tabs-vendor').count()) === 1, 'one Customers & Vendors screen: All / Customers / Vendors');
   await a.page.getByTestId('party-row').first().waitFor();
   check((await a.page.getByTestId('party-list').textContent()).includes('ABC Construction Pvt Ltd'), 'Customers: customers saved from documents are listed, with their document count');
@@ -594,6 +635,28 @@ try {
   await rows().nth(4).waitFor();
   check(true, 'offline: the app opens and the documents are there');
   await a.context.setOffline(false);
+
+  console.log('Installed app: opens from the phone; update from Settings → About');
+  let shellHits = 0;
+  const shellRoute = /\/app\/(\?[^#]*)?$/;
+  await a.context.route(shellRoute, (route) => {
+    shellHits += 1;
+    route.continue();
+  });
+  await a.page.goto(`${base}/app/?source=pwa`);
+  await a.page.getByTestId('dashboard').waitFor();
+  shellHits = 0;
+  await a.page.reload();
+  await a.page.getByTestId('dashboard').waitFor();
+  await a.page.goto(`${base}/app/?source=pwa#/documents`);
+  await rows().first().waitFor();
+  check(shellHits === 0, `installed app opened twice with no request to the server for the app (${shellHits})`);
+  await a.page.goto(`${base}/app/?source=pwa#/settings/about`);
+  await a.page.getByTestId('app-update').waitFor();
+  await Promise.all([a.page.waitForEvent('load'), a.page.getByTestId('app-update').click()]);
+  await a.page.getByTestId('settings-about').waitFor();
+  check(shellHits >= 1, `Settings → About → Update app fetches the newest version from the server (${shellHits})`);
+  await a.context.unroute(shellRoute);
 
   console.log('Phone limit enforced by the server; data from the first mobile version');
   const b = await phone();

@@ -12,7 +12,7 @@ import { AppError, STORES, byName, contains, dataDb, now, pick } from './db.js';
 import * as numbering from './numbering.js';
 import { clean, download, openBlob, pickFiles, readAsDataUrl } from './io.js';
 import { exportData, importData } from './backup.js';
-import { APP_VERSION } from '../lib/license.js';
+import { APP_VERSION, status as licenseStatus } from '../lib/license.js';
 
 // ------------------------------------------------------------------ schema (allow-lists and defaults)
 
@@ -169,6 +169,11 @@ async function shrinkImage(file, mime) {
   canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   const type = mime === 'image/jpeg' ? 'image/jpeg' : 'image/png';
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b || file), type, 0.85));
+}
+
+/** Downloading documents (Documents → Download) is for an active license, as on the computer. */
+async function requireLicense() {
+  if ((await licenseStatus()).state !== 'active') fail('Downloading documents needs a DocGen license. Please activate your license in Settings → License.');
 }
 
 function csvField(value, text) {
@@ -602,6 +607,7 @@ const commands = {
 
   /** Sales register (CSV for Excel / your accountant), the desktop's sales_csv. */
   sales_export: async ({ types, labels, from, to }) => {
+    await requireLicense();
     if (!validDate(from) || !validDate(to) || from > to) fail('Please choose a valid period.');
     const docs = await read(['documents'], ({ documents }) => documents.getAll());
     const rows = docs
@@ -624,6 +630,14 @@ const commands = {
     const name = `DocGen-Sales-${from}-to-${to}.csv`;
     download(new Blob([csv], { type: 'text/csv;charset=utf-8' }), name);
     return { path: `Downloads/${name}`, count: rows.length };
+  },
+
+  /** A CSV made by the app (Documents → Download: document list, item details), saved to Downloads. */
+  export_save: async ({ fileName, content }) => {
+    await requireLicense();
+    const name = `${String(fileName || 'DocGen-Export').replace(/[\\/:*?"<>|]/g, '-').replace(/\.csv$/i, '')}.csv`;
+    download(new Blob([content], { type: 'text/csv;charset=utf-8' }), name);
+    return `Downloads/${name}`;
   },
 
   /** No direct PDF writer in a browser: the caller opens the print dialog ("Save as PDF"). */

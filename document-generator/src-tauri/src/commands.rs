@@ -985,6 +985,7 @@ pub async fn sales_export(app: AppHandle, types: Vec<String>, labels: Map<String
         return Err(AppError::new("Please choose a valid period."));
     }
     let db = app.state::<Db>();
+    crate::license::require_license(&db)?;
     let (csv, count) = db.with(|c| sales_csv(c, &types, &labels, &from, &to))?;
     if count == 0 {
         return Err(AppError::new("There are no invoices or notes in this period."));
@@ -1007,6 +1008,44 @@ pub async fn sales_export(app: AppHandle, types: Vec<String>, labels: Map<String
     let path = if path.extension().is_none() { path.with_extension("csv") } else { path };
     std::fs::write(&path, csv)?;
     Ok(Some(json!({ "path": path.to_string_lossy(), "count": count })))
+}
+
+/// Save a CSV made by the app (Document Manager → Download: document list, item details). Licensed copies only.
+#[tauri::command]
+pub async fn export_save(app: AppHandle, file_name: String, content: String) -> AppResult<Option<String>> {
+    let db = app.state::<Db>();
+    crate::license::require_license(&db)?;
+    let mut name: String = file_name
+        .chars()
+        .map(|c| if c.is_control() || r#"\/:*?"<>|"#.contains(c) { '-' } else { c })
+        .collect::<String>()
+        .trim()
+        .chars()
+        .take(120)
+        .collect();
+    if name.is_empty() {
+        name = "DocGen-Export".into();
+    }
+    if !name.to_ascii_lowercase().ends_with(".csv") {
+        name.push_str(".csv");
+    }
+    let path = match crate::files::e2e_save(&name) {
+        Some(p) => p,
+        None => {
+            let picked = app
+                .dialog()
+                .file()
+                .set_title("Save documents")
+                .set_file_name(&name)
+                .add_filter("CSV (opens in Excel)", &["csv"])
+                .blocking_save_file();
+            let Some(file) = picked else { return Ok(None) };
+            file.into_path().map_err(|_| AppError::new("This location cannot be used."))?
+        }
+    };
+    let path = if path.extension().is_none() { path.with_extension("csv") } else { path };
+    std::fs::write(&path, content)?;
+    Ok(Some(path.to_string_lossy().to_string()))
 }
 
 #[tauri::command]

@@ -266,6 +266,20 @@ fn data_dir(db: &Db) -> PathBuf {
     db.path.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// Shown when a trial (or expired) copy tries a licensed-only action, such as downloading documents in bulk.
+pub const LICENSE_NEEDED: &str = "Downloading documents needs a DocGen license. Please activate your license in Settings → License.";
+
+/// Licensed-only actions check this here as well as in the UI.
+pub fn require_license(db: &Db) -> AppResult<()> {
+    let dir = data_dir(db);
+    let st = db.with(|c| status(c, &dir))?;
+    if st["licensed"].as_bool() == Some(true) {
+        Ok(())
+    } else {
+        Err(AppError::new(LICENSE_NEEDED))
+    }
+}
+
 #[tauri::command]
 pub fn license_status(db: tauri::State<'_, Db>) -> AppResult<Value> {
     let dir = data_dir(&db);

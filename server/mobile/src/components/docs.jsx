@@ -7,6 +7,7 @@ import { newDocument, renderPayload, setDocumentStatus } from '@desktop/services
 import { pickImage } from '@desktop/services/settingsService.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
 import { formatMoney } from '@desktop/utils/format.js';
+import { maskAmount, useAmountsHidden } from '@desktop/hooks/usePrivacy.js';
 import { formatDate } from '@desktop/utils/dates.js';
 import Icon from './Icon.jsx';
 import { Sheet, StatusBadge, go, useUi } from './ui.jsx';
@@ -24,6 +25,7 @@ export const PLURAL = {
 /** One document in a list: number, type, party, amount, date and status. */
 export function DocRow({ d, onOpen, onStatus, onMore }) {
   const { settings, docSettings } = useApp();
+  const [hidden] = useAmountsHidden();
   const t = getType(d.document_type);
   const cancelled = d.status === 'CANCELLED' || d.status === 'VOID';
   return (
@@ -42,7 +44,7 @@ export function DocRow({ d, onOpen, onStatus, onMore }) {
           </span>
         </span>
         <span className="list-end">
-          <strong className="amount">{pricesVisible(d.document_type, settings, docSettings) ? formatMoney(d.grand_total, d) : '—'}</strong>
+          <strong className="amount">{pricesVisible(d.document_type, settings, docSettings) ? maskAmount(formatMoney(d.grand_total, d), hidden, d.currency_symbol) : '—'}</strong>
           <span className="small muted">{formatDate(d.issue_date, settings.dateFormat)}</span>
         </span>
       </button>

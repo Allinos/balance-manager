@@ -10,13 +10,15 @@ import Icon from '../../components/Icon.jsx';
 import StatusEditor from '../../components/StatusEditor.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { NewDocumentModal } from '../../layouts/AppLayout.jsx';
-import SalesDownloadModal from './SalesDownloadModal.jsx';
+import DownloadModal from './DownloadModal.jsx';
 import { EmptyState, Menu, StatusBadge } from '../../components/Common.jsx';
 import { DOCUMENT_TYPES, STATUS_LABELS, TYPE_MAP, getType, typesMatching } from '../../config/documentTypes.js';
 import { pricesVisible } from '../../config/defaults.js';
 import { dashboardStats, listDocuments } from '../../services/documentService.js';
 import { FILE_ICONS, deleteFiles, exportFile, formatSize, importFiles, listFiles, openFile, purgeFiles, restoreFiles, updateFile } from '../../services/filesService.js';
 import { formatMoney } from '../../utils/format.js';
+import PrivacyToggle from '../../components/PrivacyToggle.jsx';
+import { maskAmount, useAmountsHidden } from '../../hooks/usePrivacy.js';
 import { formatDate } from '../../utils/dates.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { useConfirm, useToast } from '../../hooks/useUi.jsx';
@@ -29,6 +31,7 @@ const SUMMARY_STATUSES = ['DRAFT', 'ISSUED', 'ACCEPTED', 'PARTIAL', 'PAID', 'COM
 
 export default function DocumentManagerPage({ query }) {
   const { settings, docSettings } = useAppData();
+  const [hidden] = useAmountsHidden();
   const toast = useToast();
   const confirm = useConfirm();
   const actions = useDocumentActions();
@@ -149,13 +152,14 @@ export default function DocumentManagerPage({ query }) {
           <h1>Document Manager</h1>
         </div>
         <div className="page-actions">
+          <PrivacyToggle className="btn" size={16} />
           <button className="btn" onClick={upload} data-testid="add-external">
             <Icon name="upload" size={16} /> Add External Document
           </button>
           <button className="btn btn-primary" onClick={() => setChooser(true)} data-testid="new-document">
             <Icon name="plus" size={16} /> New Document
           </button>
-          <button className="btn" onClick={() => setSalesDownload(true)} title="Download sales / invoice data with party GST details" data-testid="sales-download">
+          <button className="btn" onClick={() => setSalesDownload(true)} title="Download documents by type and month — PDF or CSV" data-testid="sales-download">
             <Icon name="download" size={16} /> Download
           </button>
         </div>
@@ -284,7 +288,7 @@ export default function DocumentManagerPage({ query }) {
                       </td>
                       <td className="truncate">{d.party_name || '—'}</td>
                       <td className="nowrap">{formatDate(d.issue_date, settings.dateFormat)}</td>
-                      <td className="num">{pricesVisible(d.document_type, settings, docSettings) ? formatMoney(d.grand_total, d) : '—'}</td>
+                      <td className="num">{pricesVisible(d.document_type, settings, docSettings) ? maskAmount(formatMoney(d.grand_total, d), hidden, d.currency_symbol) : '—'}</td>
                       <td>{isDeleted ? <StatusBadge deleted /> : <StatusEditor doc={d} onChanged={load} />}</td>
                       <td className="actions-col">
                         {isDeleted ? (
@@ -419,7 +423,7 @@ export default function DocumentManagerPage({ query }) {
         )}
       </div>
       {chooser && <NewDocumentModal onClose={() => setChooser(false)} />}
-      {salesDownload && <SalesDownloadModal onClose={() => setSalesDownload(false)} />}
+      {salesDownload && <DownloadModal onClose={() => setSalesDownload(false)} />}
     </div>
   );
 }

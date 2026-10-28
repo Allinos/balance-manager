@@ -10,6 +10,7 @@ import { dec } from '@desktop/utils/decimal.js';
 import Icon from '../../components/Icon.jsx';
 import { Field, Input, NumberInput, Picker, Segmented, Select, Toggle, useUi } from '../../components/ui.jsx';
 import { APP_VERSION, signOut } from '../../lib/license.js';
+import { isInstalled, updateApp } from '../../lib/install.js';
 import { shortDate, useApp } from '../../data.jsx';
 import { SaveBar, useSettingsDraft } from './parts.jsx';
 
@@ -413,17 +414,40 @@ export function HelpSection() {
 
 export function AboutSection() {
   const { info } = useApp();
+  const { toast } = useUi();
+  const [updating, setUpdating] = useState(false);
+  const update = async () => {
+    setUpdating(true);
+    try {
+      await updateApp();
+    } catch (e) {
+      toast(e.message, 'bad');
+      setUpdating(false);
+    }
+  };
   return (
     <div className="page" data-testid="settings-about">
       <div className="card">
         <dl className="kv">
           <dt>Version</dt>
-          <dd>DocGen Mobile {APP_VERSION}</dd>
+          <dd data-testid="app-version">DocGen Mobile {APP_VERSION}</dd>
           <dt>Platform</dt>
           <dd>{info?.platform}</dd>
           <dt>Data</dt>
           <dd>{info?.dataFile}</dd>
         </dl>
+      </div>
+      <div className="card" data-testid="app-update-card">
+        <strong>Updates</strong>
+        <p className="small muted">
+          {isInstalled()
+            ? 'The app opens straight from your phone, without loading from the internet. Tap Update app to get the newest version.'
+            : 'Tap Update app to load the newest version.'}{' '}
+          Your documents and settings stay as they are.
+        </p>
+        <button className="btn btn-block" onClick={update} disabled={updating} data-testid="app-update">
+          <Icon name="refresh" size={18} /> {updating ? 'Updating…' : 'Update app'}
+        </button>
       </div>
       <div className="card">
         <strong>Privacy</strong>
