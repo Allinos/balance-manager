@@ -168,7 +168,15 @@ test('GST rate options and units by kind', async () => {
 
 test('templates are named without "Tally"; stored ids are unchanged', async () => {
   const { TEMPLATES } = await import('../src/config/documentTypes.js');
-  assert.deepEqual(TEMPLATES.map((t) => [t.id, t.label]), [['tally-pro', 'Professional'], ['tally-std', 'Standard'], ['modern', 'Modern'], ['simple', 'Simple']]);
+  const { FEATURED_TEMPLATES, MORE_TEMPLATES, TEMPLATE_MAP, normaliseTemplate } = await import('../src/config/documentTypes.js');
+  // The four existing templates stay the featured ones, with the same ids.
+  assert.deepEqual(FEATURED_TEMPLATES.map((t) => [t.id, t.label]), [['tally-pro', 'Professional'], ['tally-std', 'Standard'], ['modern', 'Modern'], ['simple', 'Simple']]);
+  // Six more: GST, B2B, retail and standard invoices.
+  assert.deepEqual(MORE_TEMPLATES.map((t) => t.id), ['gst-classic', 'b2b', 'retail', 'bold', 'elegant', 'compact']);
+  assert.deepEqual([...new Set(TEMPLATES.map((t) => t.kind))].sort(), ['B2B', 'GST', 'Retail', 'Standard']);
+  assert.equal(TEMPLATE_MAP['gst-classic'].base, 'tally-std');
+  assert.equal(normaliseTemplate('retail'), 'retail');
+  assert.equal(normaliseTemplate('zoho'), 'modern');
   assert.ok(TEMPLATES.every((t) => !/tally/i.test(t.label + t.description)));
 });
 
@@ -399,4 +407,40 @@ test('download: periods, file names, and a license is required', async () => {
   assert.equal(periodName({ from: '', to: '' }), 'All');
   assert.ok(periodReady('all', { from: '', to: '' }) && !periodReady('custom', { from: '2026-05-02', to: '2026-05-01' }));
   await assert.rejects(exportDocuments({ format: 'csv', typeId: '', range: { from: '', to: '' }, licensed: false }), new RegExp(LICENSE_NEEDED.slice(0, 30)));
+});
+
+test('ledger: full, partial and advance payments, credit notes, vendor bills, running balance', async () => {
+  const { buildLedger, positionOf, ledgerTotals, balancesFromSums } = await import('../src/services/ledgerService.js');
+  const doc = (id, type, total, extra = {}) => ({ id, document_type: type, document_number: `${type.slice(0, 3)}-${id}`, status: 'ISSUED', issue_date: `2026-10-${String(id).padStart(2, '0')}`, grand_total: total, parent_document_id: null, ...extra });
+  const customer = buildLedger([
+    doc(1, 'TAX_INVOICE', '1180.00'),
+    doc(2, 'TAX_INVOICE', '500.00'),
+    doc(3, 'PAYMENT_RECEIPT', '1180.00', { parent_document_id: 1 }), // full
+    doc(4, 'PAYMENT_RECEIPT', '200.00', { parent_document_id: 2 }), // partial
+    doc(5, 'CREDIT_NOTE', '50.00'),
+    doc(6, 'TAX_INVOICE', '999.00', { status: 'CANCELLED' }), // left out
+    doc(7, 'PAYMENT_RECEIPT', '100.00'), // advance (on account)
+  ], 'customer');
+  assert.equal(customer.rows.length, 6);
+  assert.deepEqual(customer.rows.map((r) => r.balance), ['1180.00', '1680.00', '500.00', '300.00', '250.00', '150.00']);
+  assert.equal(customer.balance, '150.00');
+  assert.equal(customer.receivable, '150.00');
+  assert.deepEqual(customer.open.map((b) => [b.number, b.paid, b.due, b.state]), [['TAX-2', '200.00', '300.00', 'partial']]);
+  assert.equal(customer.unallocated, '100.00');
+  assert.ok(customer.rows.find((r) => r.id === 7).advance && customer.rows.find((r) => r.id === 3).against === 'TAX-1');
+
+  // A customer who paid in advance: negative balance = advance received.
+  const adv = buildLedger([doc(1, 'PAYMENT_RECEIPT', '5000')], 'customer');
+  assert.deepEqual([adv.balance, adv.receivable, adv.advance, adv.advanceKind], ['-5000.00', '0.00', '5000.00', 'received']);
+
+  // Vendor: a bill to pay, part paid by voucher.
+  const vendor = buildLedger([doc(1, 'PURCHASE_INVOICE', '2500'), doc(2, 'PAYMENT_VOUCHER', '1000', { parent_document_id: 1 })], 'vendor');
+  assert.deepEqual([vendor.balance, vendor.payable, vendor.open[0].due], ['-1500.00', '1500.00', '1500.00']);
+  assert.deepEqual(positionOf('700', 'vendor'), { receivable: '0.00', payable: '0.00', advance: '700.00', advanceKind: 'paid' });
+
+  const totals = ledgerTotals([{ ...positionOf('150') }, { ...positionOf('-1500', 'vendor') }, { ...positionOf('-5000') }]);
+  assert.deepEqual(totals, { receivable: '150.00', payable: '1500.00', advanceReceived: '5000.00', advancePaid: '0.00' });
+  // Backend sums (exact text) → balances.
+  const b = balancesFromSums([{ party_id: 1, document_type: 'TAX_INVOICE', total: '1000.300' }, { party_id: 1, document_type: 'PAYMENT_RECEIPT', total: '400.050' }, { party_id: 1, document_type: 'QUOTATION', total: '9' }]);
+  assert.equal(b.get(1), 600250000n);
 });

@@ -358,6 +358,79 @@ pub fn parties_list(db: State<'_, Db>, search: Option<String>) -> AppResult<Vec<
     })
 }
 
+/// Document types that make up a customer's / vendor's ledger (services/ledgerService.js LEDGER_SIGN).
+const LEDGER_TYPES: [&str; 8] = [
+    "TAX_INVOICE", "SERVICE_INVOICE", "BILL_OF_SUPPLY", "DEBIT_NOTE", "PAYMENT_VOUCHER", "CREDIT_NOTE", "PAYMENT_RECEIPT", "PURCHASE_INVOICE",
+];
+
+/// One party and the documents of its ledger (the UI computes the running balance and open bills).
+#[tauri::command]
+pub fn party_ledger(db: State<'_, Db>, id: i64) -> AppResult<Value> {
+    db.with(|c| {
+        let party = query_json(c, "SELECT * FROM parties WHERE id = ?", &[SqlValue::Integer(id)])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError::new("This customer or vendor no longer exists."))?;
+        let marks = vec!["?"; LEDGER_TYPES.len()].join(",");
+        let mut args = vec![SqlValue::Integer(id)];
+        args.extend(LEDGER_TYPES.iter().map(|t| text(t)));
+        let documents = query_json(
+            c,
+            &format!(
+                "SELECT id, document_type, document_number, status, issue_date, due_date, grand_total, currency, currency_symbol,
+                        currency_decimals, parent_document_id, deleted_at
+                   FROM documents WHERE party_id = ? AND deleted_at IS NULL AND document_type IN ({marks})
+                  ORDER BY issue_date, id"
+            ),
+            &args,
+        )?;
+        Ok(json!({ "party": party, "documents": documents }))
+    })
+}
+
+/// Exact decimal text of an amount held in thousandths (SQLite sums integers exactly).
+fn milli_text(m: i64) -> String {
+    let sign = if m < 0 { "-" } else { "" };
+    let a = m.unsigned_abs();
+    format!("{sign}{}.{:03}", a / 1000, a % 1000)
+}
+
+/// Totals per party and document type for every saved party (balances on the Customers & Vendors screen).
+#[tauri::command]
+pub fn ledger_sums(db: State<'_, Db>, types: Option<Vec<String>>) -> AppResult<Vec<Value>> {
+    let types: Vec<String> = types
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| LEDGER_TYPES.contains(&t.as_str()))
+        .collect();
+    let types = if types.is_empty() { LEDGER_TYPES.iter().map(|t| t.to_string()).collect() } else { types };
+    db.with(|c| ledger_sums_in(c, &types))
+}
+
+fn ledger_sums_in(c: &rusqlite::Connection, types: &[String]) -> AppResult<Vec<Value>> {
+    {
+        let marks = vec!["?"; types.len()].join(",");
+        let args: Vec<SqlValue> = types.iter().map(|t| text(t)).collect();
+        let mut stmt = c.prepare(&format!(
+            "SELECT party_id, document_type, SUM(CAST(ROUND(CAST(grand_total AS REAL) * 1000) AS INTEGER)), COUNT(*)
+               FROM documents
+              WHERE party_id IS NOT NULL AND deleted_at IS NULL AND status NOT IN ('CANCELLED', 'VOID') AND document_type IN ({marks})
+              GROUP BY party_id, document_type"
+        ))?;
+        let rows = stmt
+            .query_map(rusqlite::params_from_iter(args.iter()), |r| {
+                Ok(json!({
+                    "party_id": r.get::<_, i64>(0)?,
+                    "document_type": r.get::<_, String>(1)?,
+                    "total": milli_text(r.get::<_, Option<i64>>(2)?.unwrap_or(0)),
+                    "count": r.get::<_, i64>(3)?,
+                }))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }
+}
+
 /// Customers & Vendors screen: parties of one kind ("both" counts as either), active or archived,
 /// with how many documents each has and the date of the latest one.
 #[tauri::command]
@@ -1174,6 +1247,33 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Db::open(dir.path().join("docgen.sqlite")).unwrap();
         (dir, db)
+    }
+
+    #[test]
+    fn ledger_sums_are_exact_per_party_and_type_and_skip_cancelled() {
+        let (_dir, db) = temp_db();
+        db.with(|c| {
+            c.execute_batch(
+                "INSERT INTO parties (id, name) VALUES (1, 'ABC'), (2, 'XYZ');
+                 INSERT INTO documents (document_type, document_number, party_id, grand_total, status, issue_date) VALUES
+                   ('TAX_INVOICE', 'INV-1', 1, '1000.10', 'DRAFT', '2026-10-01'),
+                   ('TAX_INVOICE', 'INV-2', 1, '0.20', 'ISSUED', '2026-10-02'),
+                   ('TAX_INVOICE', 'INV-3', 1, '500', 'CANCELLED', '2026-10-03'),
+                   ('PAYMENT_RECEIPT', 'RCT-1', 1, '400.05', 'ISSUED', '2026-10-04'),
+                   ('PURCHASE_INVOICE', 'PB-1', 2, '2500', 'ISSUED', '2026-10-04'),
+                   ('QUOTATION', 'QTN-1', 1, '99', 'DRAFT', '2026-10-04');",
+            )?;
+            let types: Vec<String> = LEDGER_TYPES.iter().map(|t| t.to_string()).collect();
+            let rows = ledger_sums_in(c, &types)?;
+            let find = |p: i64, t: &str| rows.iter().find(|r| r["party_id"] == p && r["document_type"] == t).map(|r| r["total"].as_str().unwrap().to_string());
+            assert_eq!(find(1, "TAX_INVOICE").as_deref(), Some("1000.300"));
+            assert_eq!(find(1, "PAYMENT_RECEIPT").as_deref(), Some("400.050"));
+            assert_eq!(find(2, "PURCHASE_INVOICE").as_deref(), Some("2500.000"));
+            assert!(find(1, "QUOTATION").is_none());
+            assert_eq!(milli_text(-1500), "-1.500");
+            Ok(())
+        })
+        .unwrap();
     }
 
     #[test]

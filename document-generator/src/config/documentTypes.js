@@ -357,11 +357,24 @@ export const PAYMENT_MODES = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card', 
  * The ids (tally-pro, tally-std) are stored in settings and documents, so they stay as they are.
  */
 export const TEMPLATES = [
-  { id: 'tally-pro', label: 'Professional', description: 'Complete boxed GST invoice: dispatch details, HSN summary, declaration.' },
-  { id: 'tally-std', label: 'Standard', description: 'Compact boxed layout, traditional and information dense.' },
-  { id: 'modern', label: 'Modern', description: 'Clean, spacious design with your brand colour.' },
-  { id: 'simple', label: 'Simple', description: 'Plain black & white, minimal lines. Prints well anywhere.' },
+  // The four featured templates (shown first everywhere).
+  { id: 'tally-pro', label: 'Professional', kind: 'GST', featured: true, boxed: true, description: 'Complete boxed GST invoice: dispatch details, HSN summary, declaration.' },
+  { id: 'tally-std', label: 'Standard', kind: 'Standard', featured: true, boxed: true, description: 'Compact boxed layout, traditional and information dense.' },
+  { id: 'modern', label: 'Modern', kind: 'Standard', featured: true, description: 'Clean, spacious design with your brand colour.' },
+  { id: 'simple', label: 'Simple', kind: 'Standard', featured: true, description: 'Plain black & white, minimal lines. Prints well anywhere.' },
+  // More templates, in the style of Indian GST billing software. `base`: the layout they build on.
+  { id: 'gst-classic', label: 'GST Classic', kind: 'GST', base: 'tally-std', boxed: true, description: 'Boxed GST tax invoice with a coloured title bar, state codes and the HSN/SAC tax summary.' },
+  { id: 'b2b', label: 'Corporate B2B', kind: 'B2B', description: 'Brand-colour header band, buyer and consignee in cards, order references up front.' },
+  { id: 'retail', label: 'Retail', kind: 'Retail', description: 'Counter bill for shops: centred store header, clear item list, large total, thank-you note.' },
+  { id: 'bold', label: 'Bold', kind: 'Standard', description: 'Strong dark header and highlighted total — stands out in an inbox.' },
+  { id: 'elegant', label: 'Elegant', kind: 'Standard', description: 'Serif lettering and fine lines for services, consultants and studios.' },
+  { id: 'compact', label: 'Compact', kind: 'B2B', base: 'tally-std', boxed: true, description: 'Small type and tight rows: long wholesale bills on fewer pages.' },
 ];
+export const TEMPLATE_MAP = Object.fromEntries(TEMPLATES.map((t) => [t.id, t]));
+export const FEATURED_TEMPLATES = TEMPLATES.filter((t) => t.featured);
+export const MORE_TEMPLATES = TEMPLATES.filter((t) => !t.featured);
+/** Options for a template select: featured first, then the others with their kind. */
+export const templateOptions = () => TEMPLATES.map((t) => ({ value: t.id, label: t.featured ? t.label : `${t.label} · ${t.kind}`, hint: t.description }));
 
 /** Map older setting values to current template ids. */
 export const normaliseTemplate = (id) => ({ tally: 'tally-std', zoho: 'modern' })[id] || (TEMPLATES.some((t) => t.id === id) ? id : 'tally-pro');

@@ -908,97 +908,195 @@ describe('Meta Pixel and Conversions API', () => {
   });
 });
 
-describe('referrals', () => {
-  let referrer;
-  let referrerToken;
-  test('every customer gets a unique 5-digit referral code and link', async () => {
-    referrerToken = await register('referrer@example.com');
-    const me = await api('GET', '/api/portal/me', { token: referrerToken });
-    referrer = me.body.client;
-    assert.match(referrer.referralCode, /^\d{5}$/);
-    assert.match(referrer.referralLink, new RegExp(`/r/${referrer.referralCode}$`));
-    const codes = (await knex('clients').select('referral_code')).map((c) => c.referral_code);
-    assert.equal(new Set(codes).size, codes.length, 'no duplicate codes');
-    assert.ok(codes.every(Boolean), 'every client has a code');
+describe('partner programme', () => {
+  const TERMS = '2026-10';
+  let partner;
+  let partnerToken;
+  let customerToken;
+  const apply = (extra = {}) =>
+    api('POST', '/api/partner/register', {
+      body: { name: 'Ravi Kumar', email: 'ravi.partner@example.com', phone: '9812345678', company: 'Ravi Computers', city: 'Pune', channel: 'My computer shop', password: 'ravi-pass-123', acceptTerms: true, termsVersion: TERMS, ...extra },
+    });
+  const paidPayments = async (clientId) => knex('payments').where({ client_id: clientId, status: 'paid' }).orderBy('id');
+  const commissionOf = async (paymentId) => knex('partner_commissions').where({ payment_id: paymentId }).first();
+
+  test('a partner applies: the terms must be accepted, and the version, time and IP are recorded', async () => {
+    assert.equal((await apply({ acceptTerms: false })).status, 400, 'terms not ticked');
+    assert.equal((await apply({ termsVersion: '2020-01' })).status, 409, 'old terms version');
+    const r = await apply();
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    partnerToken = r.body.token;
+    partner = r.body.partner;
+    assert.equal(partner.status, 'pending');
+    assert.equal(partner.code, '', 'no code before approval');
+    assert.equal(partner.link, '');
+    assert.equal(r.body.stats, undefined, 'no dashboard before approval');
+    const accepted = await knex('partner_terms_acceptances').where({ partner_id: partner.id });
+    assert.equal(accepted.length, 1);
+    assert.equal(accepted[0].terms_version, TERMS);
+    assert.ok(accepted[0].accepted_at && accepted[0].ip);
+    assert.equal(partner.termsVersion, TERMS);
+    assert.equal((await apply()).status, 409, 'one account per email');
   });
 
-  test('/r/<code> sends the visitor to the website with the code', async () => {
-    const r = await api('GET', `/r/${referrer.referralCode}`);
+  test('the admin approves the partner: a unique code and link; a pending partner earns nothing', async () => {
+    const list = await api('GET', '/api/admin/partners?status=pending', { token: adminToken });
+    assert.equal(list.body.counts.pending, 1);
+    assert.equal(list.body.rows[0].email, 'ravi.partner@example.com');
+    const approved = await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { status: 'approved' } });
+    assert.equal(approved.status, 200, JSON.stringify(approved.body));
+    partner = approved.body.partner;
+    assert.match(partner.code, /^RAVI\d{4}$/);
+    assert.match(partner.link, new RegExp(`/r/${partner.code}$`));
+    const me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.partner.status, 'approved');
+    assert.ok(me.body.stats.totals && me.body.stats.daily.length === 30, 'dashboard with the last 30 days');
+  });
+
+  test('/r/<code> counts a click and sends the visitor to the website with the code; other codes are ignored', async () => {
+    const r = await api('GET', `/r/${partner.code.toLowerCase()}`);
     assert.equal(r.status, 302);
-    assert.equal(r.headers.get('location'), `/?ref=${referrer.referralCode}`);
+    assert.equal(r.headers.get('location'), `/?ref=${partner.code}`);
+    const clicks = await knex('partner_clicks').where({ partner_id: partner.id }).sum({ n: 'clicks' }).first();
+    assert.equal(Number(clicks.n), 1);
+    const unknown = await api('GET', '/r/NOPE1234');
+    assert.equal(unknown.headers.get('location'), '/');
   });
 
-  test('a checkout with the referral code credits the new customer and the order to the referrer', async () => {
+  test('a customer buying through the link is credited to the partner and earns one commission at the partner rate', async () => {
     const start = await api('POST', '/api/portal/checkout/start', {
-      body: { acceptTerms: true, name: 'Asha Patel', email: 'referred@example.com', phone: '9876500000', attribution: { ref_code: referrer.referralCode.toLowerCase() } },
+      body: { acceptTerms: true, name: 'Asha Patel', email: 'asha.ref@example.com', phone: '9876500000', attribution: { ref_code: partner.code.toLowerCase() } },
     });
     assert.equal(start.status, 201, JSON.stringify(start.body));
-    const client = await knex('clients').where({ email: 'referred@example.com' }).first();
-    assert.equal(client.referred_by_id, referrer.id);
-    assert.equal(client.referred_code, referrer.referralCode);
-    assert.equal(client.ref_source, 'referral');
-    const payment = await knex('payments').where({ client_id: client.id }).first();
-    assert.equal(payment.referral_code, referrer.referralCode);
-    assert.equal(payment.referrer_id, referrer.id);
-    const paid = await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...checkoutResponse(start.body.checkout.orderId) } });
+    const client = await knex('clients').where({ email: 'asha.ref@example.com' }).first();
+    assert.equal(client.partner_id, partner.id);
+    assert.equal(client.partner_code, partner.code);
+    assert.equal(client.ref_source, 'partner');
+    const confirm = checkoutResponse(start.body.checkout.orderId);
+    const paid = await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...confirm } });
     assert.equal(paid.status, 200, JSON.stringify(paid.body));
+    customerToken = paid.body.token;
+    const [payment] = await paidPayments(client.id);
+    assert.equal(payment.partner_id, partner.id);
+    const c = await commissionOf(payment.id);
+    assert.equal(c.partner_id, partner.id);
+    assert.equal(c.rate, '10');
+    assert.equal(c.amount_paise, Math.round(payment.amount_paise / 10));
+    assert.equal(c.status, 'pending');
+    // The provider's webhook and a second confirmation for the same payment: still one commission.
+    await webhook('payment.captured', { id: confirm.razorpay_payment_id, order_id: start.body.checkout.orderId, amount: payment.amount_paise, currency: 'INR', status: 'captured' });
+    await api('POST', '/api/portal/checkout/confirm', { body: { checkoutToken: start.body.checkoutToken, ...confirm } });
+    assert.equal((await knex('partner_commissions').where({ payment_id: payment.id })).length, 1, 'no duplicate commission');
   });
 
-  test('nobody can refer themselves, unknown codes are ignored, and a first referrer is never replaced', async () => {
-    const self = await api('POST', '/api/portal/checkout', { token: referrerToken, body: { acceptTerms: true, provider: 'razorpay', refCode: referrer.referralCode } });
-    assert.equal(self.status, 201);
-    const selfPayment = await knex('payments').where({ id: self.body.payment.id }).first();
-    assert.equal(selfPayment.referrer_id, null);
-    const unknown = await register('unknown-ref@example.com', { ref_code: '00000' });
-    assert.ok(unknown);
-    assert.equal((await knex('clients').where({ email: 'unknown-ref@example.com' }).first()).referred_by_id, null);
-    const other = await register('other-referrer@example.com');
-    const otherCode = (await api('GET', '/api/portal/me', { token: other })).body.client.referralCode;
-    await register('second-ref@example.com', { ref_code: otherCode });
-    const second = await knex('clients').where({ email: 'second-ref@example.com' }).first();
-    assert.ok(second.referred_by_id);
-    const { recordReferral } = await import('../src/services/referrals.js');
-    assert.equal(await recordReferral(knex, second, referrer.referralCode), null, 'already referred');
-  });
-
-  test('the desktop and mobile apps receive the referral link with the license', async () => {
-    const login = await api('POST', '/api/app/login', { body: { email: 'referred@example.com', password: 'x', deviceId: 'ref-device-123456' } });
-    assert.equal(login.status, 401, 'no password yet');
-    const client = await knex('clients').where({ email: 'referred@example.com' }).first();
-    await knex('clients').where({ id: client.id }).update({ password_hash: await hashPassword('asha-pass-123') });
-    const ok = await api('POST', '/api/app/login', { body: { email: 'referred@example.com', password: 'asha-pass-123', deviceId: 'ref-device-123456' } });
+  test('renewals of a referred customer also earn commission, at the partner’s current rate', async () => {
+    const bad = await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { commissionRate: '60' } });
+    assert.equal(bad.status, 400, 'rate above 50 %');
+    const rate = await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { commissionRate: '12.5' } });
+    assert.equal(rate.status, 200);
+    const order = await api('POST', '/api/portal/checkout', { token: customerToken, body: { acceptTerms: true, provider: 'razorpay' } });
+    assert.equal(order.status, 201, JSON.stringify(order.body));
+    const ok = await api('POST', `/api/portal/payments/${order.body.payment.id}/confirm`, { token: customerToken, body: checkoutResponse(order.body.checkout.orderId) });
     assert.equal(ok.status, 200, JSON.stringify(ok.body));
-    assert.equal(ok.body.referral.code, client.referral_code);
-    assert.match(ok.body.referral.link, new RegExp(`/r/${client.referral_code}$`));
+    const p = await knex('payments').where({ id: order.body.payment.id }).first();
+    const c = await commissionOf(p.id);
+    assert.equal(c.rate, '12.5');
+    assert.equal(c.amount_paise, Math.round((p.amount_paise * 1250) / 10000));
   });
 
-  test('admin sees referral codes and referred customers, and can assign or generate a code', async () => {
-    const list = await api('GET', '/api/admin/referrals', { token: adminToken });
-    assert.equal(list.status, 200);
-    const row = list.body.rows.find((r) => r.email === 'referred@example.com');
-    assert.equal(row.referrer.id, referrer.id);
-    assert.equal(row.referralCode, referrer.referralCode);
-    const paidPayment = await knex('payments').where({ client_id: row.id, status: 'paid' }).first();
-    assert.equal(row.paidTotal, paidPayment.amount_paise / 100);
-    assert.ok(row.paidTotal > 0);
-    assert.equal(list.body.top.find((t) => t.id === referrer.id).referred, 1);
+  test('no commission on the partner’s own purchase, and a first partner is never replaced', async () => {
+    const start = await api('POST', '/api/portal/checkout/start', {
+      body: { acceptTerms: true, name: 'Ravi Kumar', email: 'ravi.partner@example.com', phone: '9812345678', attribution: { ref_code: partner.code } },
+    });
+    assert.equal(start.status, 201);
+    const self = await knex('clients').where({ email: 'ravi.partner@example.com' }).first();
+    assert.equal(self.partner_id, null, 'cannot refer yourself');
+    const { recordPartner } = await import('../src/services/partners.js');
+    const asha = await knex('clients').where({ email: 'asha.ref@example.com' }).first();
+    assert.equal(await recordPartner(knex, asha, 'OTHER123'), null, 'already credited');
+  });
 
-    const detail = await api('GET', `/api/admin/clients/${row.id}`, { token: adminToken });
-    assert.equal(detail.body.client.referredBy.id, referrer.id);
-    const referrerDetail = await api('GET', `/api/admin/clients/${referrer.id}`, { token: adminToken });
-    assert.equal(referrerDetail.body.referrals.length, 1);
-    const filtered = await api('GET', '/api/admin/clients?referred=1&pageSize=100', { token: adminToken });
-    assert.ok(filtered.body.rows.every((c) => c.referredBy));
-    assert.equal(filtered.body.rows.find((c) => c.id === row.id).referredBy.name, referrer.name);
+  test('a refund reverses the commission; one already paid out is deducted from the next payout', async () => {
+    const asha = await knex('clients').where({ email: 'asha.ref@example.com' }).first();
+    const [first, second] = await paidPayments(asha.id);
+    const c1 = await commissionOf(first.id);
+    const c2 = await commissionOf(second.id);
+    assert.equal((await api('POST', `/api/admin/partners/commissions/${c1.id}/pay`, { token: adminToken, body: {} })).status, 400, 'payout reference needed');
+    assert.equal((await api('POST', `/api/admin/partners/commissions/${c1.id}/approve`, { token: adminToken })).status, 200);
+    const pay = await api('POST', `/api/admin/partners/commissions/${c1.id}/pay`, { token: adminToken, body: { payoutRef: 'UTR123456' } });
+    assert.equal(pay.status, 200, JSON.stringify(pay.body));
+    assert.equal(pay.body.commission.status, 'paid');
+    let me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.stats.totals.paid, c1.amount_paise / 100);
+    assert.equal(me.body.stats.totals.pending, c2.amount_paise / 100);
 
-    const taken = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: referrer.referralCode } });
-    assert.equal(taken.status, 409);
-    const bad = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: 'ab' } });
-    assert.equal(bad.status, 400);
-    const set = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: { code: 'asha-25' } });
-    assert.equal(set.status, 200);
-    assert.equal(set.body.client.referralCode, 'ASHA25');
-    const generated = await api('PUT', `/api/admin/clients/${row.id}/referral-code`, { token: adminToken, body: {} });
-    assert.match(generated.body.client.referralCode, /^\d{5}$/);
+    // Refund the paid-out sale and the pending one.
+    for (const p of [first, second]) assert.equal((await api('POST', `/api/admin/payments/${p.id}/refund`, { token: adminToken, body: { revokeLicense: false } })).status, 200);
+    const r1 = await commissionOf(first.id);
+    const r2 = await commissionOf(second.id);
+    assert.deepEqual([r1.status, !!r1.reversed_after_payout, r2.status, !!r2.reversed_after_payout], ['reversed', true, 'reversed', false]);
+    assert.equal((await api('POST', `/api/admin/partners/commissions/${c2.id}/pay`, { token: adminToken, body: { payoutRef: 'X' } })).status, 409, 'a reversed commission cannot be paid');
+    me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.stats.totals.pending, -c1.amount_paise / 100, 'the paid-out commission is deducted from the next payout');
+    assert.equal(me.body.stats.totals.refunds, 2);
+  });
+
+  test('the admin controls what the dashboard shows', async () => {
+    let me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.match(me.body.referred[0].name, /^A\*+a P\.$/, 'customer names masked by default');
+    await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { permissions: { customerNames: true, salesAmounts: false } } });
+    me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.referred[0].name, 'Asha Patel');
+    assert.equal(me.body.stats.totals.salesAmount, null);
+    await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { permissions: { dashboard: false } } });
+    me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.stats, undefined);
+    assert.ok(me.body.partner.link, 'the link is still shown');
+    await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { permissions: { dashboard: true } } });
+  });
+
+  test('new terms must be accepted again; each acceptance is recorded', async () => {
+    await knex('partners').where({ id: partner.id }).update({ terms_version: '2026-01' });
+    let me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.terms.accepted, false);
+    const ok = await api('POST', '/api/partner/accept-terms', { token: partnerToken, body: { version: TERMS } });
+    assert.equal(ok.status, 200);
+    me = await api('GET', '/api/partner/me', { token: partnerToken });
+    assert.equal(me.body.terms.accepted, true);
+    assert.equal((await knex('partner_terms_acceptances').where({ partner_id: partner.id })).length, 2);
+  });
+
+  test('suspending a partner signs them out and stops crediting new customers', async () => {
+    await api('PUT', `/api/admin/partners/${partner.id}`, { token: adminToken, body: { status: 'suspended' } });
+    assert.equal((await api('GET', '/api/partner/me', { token: partnerToken })).status, 401, 'old session ended');
+    const login = await api('POST', '/api/partner/login', { body: { email: 'ravi.partner@example.com', password: 'ravi-pass-123' } });
+    assert.equal(login.status, 403);
+    assert.equal((await api('GET', `/r/${partner.code}`)).headers.get('location'), '/');
+    await register('after-suspend@example.com', { ref_code: partner.code });
+    assert.equal((await knex('clients').where({ email: 'after-suspend@example.com' }).first()).partner_id, null);
+    const detail = await api('GET', `/api/admin/partners/${partner.id}`, { token: adminToken });
+    assert.equal(detail.body.partner.status, 'suspended');
+    assert.equal(detail.body.clients.length, 1);
+    assert.equal(detail.body.terms.length, 2);
+  });
+
+  test('admin: partner column on customers, partners added directly; apps share a plain website link', async () => {
+    const list = await api('GET', '/api/admin/clients?partner=1&pageSize=100', { token: adminToken });
+    assert.ok(list.body.rows.length >= 1 && list.body.rows.every((c) => c.partner?.code === partner.code));
+    const added = await api('POST', '/api/admin/partners', { token: adminToken, body: { name: 'Delhi Distributors', email: 'dist@example.com' } });
+    assert.equal(added.status, 201);
+    assert.equal(added.body.partner.status, 'approved');
+    assert.match(added.body.partner.code, /^DELH\d{4}$/);
+    const login = await api('POST', '/api/partner/login', { body: { email: 'dist@example.com', password: added.body.temporaryPassword } });
+    assert.equal(login.status, 200);
+    assert.equal(login.body.terms.accepted, false, 'asked to accept the terms on first sign-in');
+
+    const asha = await knex('clients').where({ email: 'asha.ref@example.com' }).first();
+    await knex('clients').where({ id: asha.id }).update({ password_hash: await hashPassword('asha-pass-123') });
+    const app = await api('POST', '/api/app/login', { body: { email: 'asha.ref@example.com', password: 'asha-pass-123', deviceId: 'share-device-123456' } });
+    assert.equal(app.status, 200, JSON.stringify(app.body));
+    assert.equal(app.body.referral, undefined, 'customers have no referral code');
+    assert.match(app.body.share.link, /^http/);
+    assert.match(app.body.share.mobileLink, /\/mobile$/);
   });
 });

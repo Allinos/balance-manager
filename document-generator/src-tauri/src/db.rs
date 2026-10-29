@@ -28,6 +28,7 @@ pub const MIGRATIONS: &[(i64, &str, &str)] = &[
         include_str!("../migrations/004_document_manager.sql"),
     ),
     (5, "migration_005_parties", include_str!("../migrations/005_parties.sql")),
+    (6, "migration_006_ledger", include_str!("../migrations/006_ledger.sql")),
 ];
 
 /// User-facing error. `message` is always friendly; technical detail goes to the log file.

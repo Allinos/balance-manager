@@ -5,7 +5,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { TEMPLATES, TYPE_MAP, getType, normaliseTemplate, statusLabel } from '@desktop/config/documentTypes.js';
+import { TEMPLATES, TYPE_MAP, getType, normaliseTemplate, statusLabel, templateOptions } from '@desktop/config/documentTypes.js';
 import { resolveDocSettings, withDocumentOptions } from '@desktop/config/defaults.js';
 import { getDocument, setDocumentTemplate } from '@desktop/services/documentService.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
@@ -336,7 +336,7 @@ export default function View({ id, query = {} }) {
           <div className="row no-print">
             <span className="small muted">Template</span>
             <div className="spacer">
-              <Picker value={template} onChange={changeTemplate} options={TEMPLATES.map((t) => ({ value: t.id, label: t.label, hint: t.description }))} title="Template for this document" testId="template-switch" />
+              <Picker value={template} onChange={changeTemplate} options={templateOptions()} title="Template for this document" testId="template-switch" />
             </div>
             <button className="icon-btn" onClick={() => setZoom((z) => !z)} aria-label={zoom ? 'Fit to screen' : 'Zoom in'} data-testid="zoom">
               <Icon name={zoom ? 'zoomOut' : 'zoomIn'} size={21} />

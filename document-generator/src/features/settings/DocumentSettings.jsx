@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Field, Segmented, Select, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { DOCUMENT_TYPES, TEMPLATES, getType } from '../../config/documentTypes.js';
+import TemplateCards from '../../components/TemplateCards.jsx';
 import { docSettingFieldsFor, resolveDocSettings } from '../../config/defaults.js';
 import { saveDocSettings } from '../../services/settingsService.js';
 import { newDocument, renderPayload } from '../../services/documentService.js';
@@ -61,20 +62,7 @@ export default function DocumentSettings() {
         <p className="muted">Defaults for every document. Individual types can override these under Document Types.</p>
 
         <Field label="Template" hint="Only changes the look — your documents and data are never modified">
-          <div className="template-options compact">
-            {TEMPLATES.map((t) => (
-              <button
-                type="button"
-                key={t.id}
-                className={`style-option ${draft.documentStyle === t.id ? 'active' : ''}`}
-                onClick={() => set({ documentStyle: t.id })}
-                data-testid={`settings-template-${t.id}`}
-              >
-                <strong>{t.label}</strong>
-                <span className="muted small">{t.description}</span>
-              </button>
-            ))}
-          </div>
+          <TemplateCards value={draft.documentStyle} onChange={(id) => set({ documentStyle: id })} compact />
         </Field>
         <Field
           label="Number of copies"

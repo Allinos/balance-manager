@@ -13,6 +13,7 @@ import ProductsPage from './features/products/ProductsPage.jsx';
 import SettingsPage from './features/settings/SettingsPage.jsx';
 import HelpPage from './features/help/HelpPage.jsx';
 import PartiesPage, { PartyModulesPage } from './features/parties/PartiesPage.jsx';
+import PartyLedgerPage from './features/parties/PartyLedgerPage.jsx';
 import AdManager from './features/ads/AdManager.jsx';
 import ActivationRequired from './features/license/ActivationRequired.jsx';
 import { useServerSync } from './hooks/useServerSync.js';
@@ -25,6 +26,7 @@ const ROUTES = [
   ['/products', ProductsPage],
   ['/parties', PartyModulesPage],
   ['/parties/:kind', PartiesPage],
+  ['/party/:id', PartyLedgerPage],
   ['/help', HelpPage],
   ['/settings', SettingsPage],
   ['/settings/:section', SettingsPage],

@@ -19,6 +19,7 @@ import MobilePage from './pages/portal/MobilePage.jsx';
 import SupportPage from './pages/portal/Support.jsx';
 import { ForgotPasswordPage, LoginPage } from './pages/portal/Auth.jsx';
 import { ContactPage, PolicyPage, POLICIES } from './pages/portal/InfoPages.jsx';
+import { PartnerApplyPage, PartnerLoginPage, PartnersPage, PartnerTermsPage } from './pages/partner/PartnerPages.jsx';
 
 /** Address → page, title and description (for <title>, <meta name="description"> and the sitemap). */
 export const PAGES = {
@@ -28,6 +29,10 @@ export const PAGES = {
   '/mobile': { element: <MobilePage />, title: 'DocGen Mobile — invoices on your phone', description: 'DocGen on your Android phone or iPhone: all document types and templates, works offline, share as PDF. Included with your license.', index: true },
   '/support': { element: <SupportPage />, title: 'Help & Support · DocGen', description: 'Answers to common questions about DocGen, guides and how to reach us. We reply within one working day.', index: true },
   '/contact': { element: <ContactPage />, title: 'Contact Us · DocGen', description: 'Contact DocGen: email, phone and business hours. Questions before buying, license help or anything else.', index: true },
+  '/partners': { element: <PartnersPage />, title: 'Become a DocGen Partner · Earn by recommending DocGen', description: 'Join the DocGen Partner Programme: your own referral link, a live dashboard and a commission on every sale and renewal. Free to join.', index: true },
+  '/partner-terms': { element: <PartnerTermsPage />, title: 'Partner Terms & Conditions · DocGen', description: 'Terms of the DocGen Partner Programme: eligibility, referral rules, commissions, payouts, refunds, fraud prevention and termination.', index: true },
+  '/partners/apply': { element: <PartnerApplyPage />, title: 'Apply · DocGen Partner Programme', index: false },
+  '/partners/login': { element: <PartnerLoginPage />, title: 'Partner login · DocGen', index: false },
   '/login': { element: <LoginPage />, title: 'Login · DocGen', index: false },
   '/forgot-password': { element: <ForgotPasswordPage />, title: 'Forgot password · DocGen', index: false },
   ...Object.fromEntries(
@@ -52,7 +57,7 @@ export function render(url, payload) {
       <StaticRouter location={url}>
         <ToastProvider>
           <DialogProvider>
-            <AuthCtx.Provider value={{ client: SIGNED_OUT, admin: SIGNED_OUT }}>
+            <AuthCtx.Provider value={{ client: SIGNED_OUT, admin: SIGNED_OUT, partner: SIGNED_OUT }}>
               <Routes>
                 <Route path={path} element={page.element} />
               </Routes>

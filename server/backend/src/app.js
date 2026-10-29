@@ -19,7 +19,8 @@ import { audit, bumpStat, getSiteConfig } from './services/common.js';
 import { pixelScript, validPixelId, withPixel } from './services/meta.js';
 import { landingShell, offerShell, withShell } from './services/prerender.js';
 import { cachedSitePayload } from './routes/portal.js';
-import { normaliseReferralCode } from './services/referrals.js';
+import { findPartner, normaliseCode, recordClick } from './services/partners.js';
+import { partnerAdminRoutes, partnerPortalRoutes } from './routes/partners.js';
 import { DEFAULT_PATHS, loadRenderer, robotsTxt, sitemapXml, withHead } from './services/ssr.js';
 import { PLATFORMS, installerPath, isEntitled } from './services/downloads.js';
 import { verifyPurposeToken } from './lib/security.js';
@@ -73,6 +74,8 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
 
   app.use('/api/app', appRoutes(knex));
   app.use('/api/portal', portalRoutes(knex));
+  app.use('/api/partner', partnerPortalRoutes(knex));
+  app.use('/api/admin/partners', partnerAdminRoutes(knex));
   app.use('/api/admin', adminRoutes(knex));
 
   /** Server-to-server payment notifications from a provider. */
@@ -152,12 +155,15 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
   /** The website's own address: PORTAL_URL, or the address this request came to when that is still localhost. */
   const baseUrl = (req) => (/\/\/(localhost|127\.0\.0\.1)(:|$)/.test(config.portalUrl) ? `${req.protocol}://${req.get('host')}` : config.portalUrl);
   // For search engines and AI assistants: what may be read, and the list of public pages.
-  // Referral links (services/referrals.js): /r/48213 → the home page with ?ref=48213; the website keeps the code
-  // for 30 days and sends it with sign-up and checkout. Unknown codes are simply ignored there.
-  app.get('/r/:code', (req, res) => {
-    const code = normaliseReferralCode(req.params.code);
+  // Partner links (services/partners.js): /r/RAVI4821 → the home page with ?ref=RAVI4821; the website keeps the code
+  // for 30 days and sends it with sign-up and checkout. A click is counted for an approved partner; other codes
+  // (old customer codes, unknown ones) just open the website.
+  app.get('/r/:code', async (req, res) => {
+    const code = normaliseCode(req.params.code);
     res.set('X-Robots-Tag', 'noindex').set('Cache-Control', 'no-store');
-    res.redirect(302, code ? `/?ref=${encodeURIComponent(code)}` : '/');
+    const partner = code ? await findPartner(knex, code).catch(() => null) : null;
+    if (partner) await recordClick(knex, partner).catch(() => {});
+    res.redirect(302, partner ? `/?ref=${encodeURIComponent(partner.code)}` : '/');
   });
   app.get('/robots.txt', (req, res) => res.set('Cache-Control', 'public, max-age=3600').type('text/plain').send(robotsTxt(baseUrl(req))));
   app.get('/sitemap.xml', async (req, res) => {

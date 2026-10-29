@@ -3968,3 +3968,88 @@ div.folder-item {
   background: #fff;
   pointer-events: none;
 }
+
+/* Template choice: featured, then "More templates" with their kind (GST, B2B, Retail…). */
+.template-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.template-more-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+  margin-top: 4px;
+}
+.template-kind {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+  background: rgba(31, 79, 216, 0.1);
+  color: #1f4fd8;
+}
+
+/* Payments & ledger: balance cards, Give & Get table. */
+.ledger-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.ledger-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ledger-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.ledger-card strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.ledger-card.get strong,
+.ledger-table td.get,
+.party-balance.get {
+  color: var(--success);
+}
+.ledger-card.give strong,
+.ledger-table td.give,
+.party-balance.give {
+  color: var(--danger);
+}
+.text-danger {
+  color: var(--danger);
+}
+tr.clickable {
+  cursor: pointer;
+}
+.party-balance {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.party-balance small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Share DocGen: the ready promotional message. */
+.share-message {
+  width: 100%;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}

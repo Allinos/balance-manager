@@ -9,7 +9,7 @@ import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import { Empty, Header, Sheet, Spinner, go, useUi } from '../components/ui.jsx';
 import { DocRow, NewDocumentSheet, PLURAL } from '../components/docs.jsx';
 import { useApp } from '../data.jsx';
-import { copyText, emailShareUrl, referralFor, referralMessage, whatsappShareUrl } from '@desktop/config/referral.js';
+import { copyText, emailShareUrl, promoMessage, shareLinksFor, whatsappShareUrl } from '@desktop/config/referral.js';
 
 const MAX_CARDS = 12;
 const DEFAULT_CARDS = 8;
@@ -50,26 +50,18 @@ function CustomizeSheet({ selected, onClose, onSave }) {
 
 /** Dashboard → Share: copy or share the customer's referral link (same as the desktop, config/referral.js). */
 function ReferralSheet({ onClose }) {
-  const { lic } = useApp();
   const { toast } = useUi();
-  const ref = referralFor(lic?.license, `${window.location.origin}/`);
-  const text = referralMessage(ref.link);
+  // The app is served by the DocGen website itself: its address is the download link.
+  const links = shareLinksFor(null, window.location.origin);
+  const text = promoMessage(links);
   const canShare = !!navigator.share;
   return (
     <Sheet title="Share DocGen with your friends" onClose={onClose} testId="referral-sheet">
-      <p className="small muted">
-        {ref.personal
-          ? 'Your personal link. When friends buy DocGen through it, we know they came from you.'
-          : 'Activate with your DocGen account (Settings → License) to get your own referral link. Until then you can share our website.'}
-      </p>
+      <p className="small muted">Send this message with the download links to friends and other business owners.</p>
+      <textarea className="input share-message" readOnly rows={6} value={text} aria-label="Message to share" data-testid="share-message" />
       <div className="referral-link" data-testid="referral-link">
-        <input className="input" readOnly value={ref.link} onFocus={(e) => e.target.select()} aria-label="Referral link" data-testid="referral-link-input" />
+        <input className="input" readOnly value={links.link} onFocus={(e) => e.target.select()} aria-label="Download link" data-testid="referral-link-input" />
       </div>
-      {ref.code && (
-        <p className="small muted">
-          Your referral code: <strong data-testid="referral-code">{ref.code}</strong>
-        </p>
-      )}
       <div className="referral-buttons">
         {canShare && (
           <button className="btn btn-primary btn-block" onClick={() => navigator.share({ title: 'DocGen', text }).catch(() => {})} data-testid="referral-native">
@@ -81,10 +73,10 @@ function ReferralSheet({ onClose }) {
         </a>
         <button
           className="btn btn-block"
-          onClick={async () => toast((await copyText(ref.link)) ? 'Link copied' : 'Could not copy — press and hold the link to copy it', 'info')}
+          onClick={async () => toast((await copyText(text)) ? 'Message copied' : 'Could not copy — press and hold the message to copy it', 'info')}
           data-testid="referral-copy"
         >
-          Copy link
+          Copy message
         </button>
         <a className="btn btn-block" href={emailShareUrl(text)}>
           Email

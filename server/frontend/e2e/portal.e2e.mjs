@@ -223,14 +223,13 @@ try {
   await page.getByTestId('go-account').click();
   await page.getByTestId('license-card').waitFor();
   check((await page.getByTestId('license-code').textContent()).trim() === code, 'client panel: license code');
-  // Referral: a green "Share with your friends" button beside Downloads, with the customer's own link.
+  // Share: a green "Share with your friends" button beside Downloads — a promotional message with the download links.
   const shareBtn = page.getByTestId('share-referral');
   check((await shareBtn.isVisible()) && (await shareBtn.evaluate((b) => getComputedStyle(b).backgroundColor)) === 'rgb(22, 163, 74)', 'client panel: green "Share with your friends" button');
   await shareBtn.click();
-  const meeraLink = await page.getByTestId('referral-link').locator('input').inputValue();
-  const meeraCode = (await page.getByTestId('referral-code').textContent()).trim();
-  check(/^\d{5}$/.test(meeraCode) && meeraLink === `${base}/r/${meeraCode}` && (await page.getByTestId('referral-whatsapp').getAttribute('href')).includes(encodeURIComponent(meeraLink)),
-    `Share with your friends: unique referral link ${meeraLink} to copy or send on WhatsApp`);
+  const shareMsg = await page.getByTestId('share-message').inputValue();
+  check(shareMsg.includes(`Download for computer: ${base}/`) && shareMsg.includes(`On your phone: ${base}/mobile`) && !(await page.getByTestId('referral-code').count()) && (await page.getByTestId('referral-whatsapp').getAttribute('href')).includes(encodeURIComponent('Download for computer')),
+    'Share with your friends: a promotional message with the download links (no personal code — codes are for partners)');
   await page.keyboard.press('Escape');
   check((await page.getByTestId('days-left').textContent()).includes('365 days left'), 'client panel: remaining validity');
   const today = new Date();
@@ -442,11 +441,50 @@ try {
     'sitemap.xml lists the public pages (not the ad page or the panels)');
   const offerHead = await fetch(`${base}/offer`);
   check(offerHead.headers.get('x-robots-tag') === 'noindex, nofollow' && (await offerHead.text()).includes('<meta name="robots" content="noindex, nofollow"'), 'the ad page stays out of search results');
-  // The ad visitor first opened a friend's referral link: the code is kept in this browser for 30 days.
-  await ad.goto(`${base}/r/${meeraCode}`);
+  check(sitemapXml.includes(`<loc>${base}/partners<`) && sitemapXml.includes(`<loc>${base}/partner-terms<`), 'sitemap lists the Partnership page and the partner terms');
+
+  console.log('Partner programme: Partnership page → apply (terms) → approval → link');
+  const partnerCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const pp = await partnerCtx.newPage();
+  await pp.goto(`${base}/partners`);
+  await pp.getByTestId('partners-page').waitFor();
+  check((await pp.locator('h1').first().textContent()).includes('Earn on every sale') && (await pp.getByTestId('partner-apply-link').isVisible()), 'Partnership page on a phone: what it is and "Apply to become a partner"');
+  await pp.screenshot({ path: path.join(shots, '04p-partners-page.png') });
+  await pp.goto(`${base}/partner-terms`);
+  const termsText = await pp.getByTestId('partner-terms').textContent();
+  check(['Eligibility', 'Referral rules', 'Commission calculation', 'Payment schedule', 'Refunds and payment reversals', 'Fraud prevention', 'Suspension and termination'].every((t) => termsText.includes(t)) && termsText.includes('Version 2026-10'),
+    'Partner Terms: eligibility, referral rules, commission, payouts, refunds, fraud, suspension and termination (version 2026-10)');
+  await pp.goto(`${base}/partners/apply`);
+  await pp.getByTestId('pa-name').fill('Ravi Kumar');
+  await pp.getByTestId('pa-email').fill('ravi@partner.test');
+  await pp.getByTestId('pa-phone').fill('9812345678');
+  await pp.getByTestId('pa-company').fill('Ravi Computers');
+  await pp.getByTestId('pa-city').fill('Pune');
+  await pp.getByTestId('pa-channel').fill('Customers of my computer shop');
+  await pp.getByTestId('pa-password').fill('ravi-pass-123');
+  await pp.getByTestId('pa-submit').click();
+  await pp.getByText('Please read and accept the Partner Terms').waitFor();
+  check(true, 'the application needs the terms accepted');
+  await pp.getByTestId('pa-terms').check();
+  await pp.getByTestId('pa-submit').click();
+  await pp.getByTestId('partner-pending').waitFor();
+  check((await pp.getByTestId('partner-status').textContent()).includes('under review') && (await pp.getByTestId('partner-pending').textContent()).includes('version 2026-10'), 'applied: dashboard says "under review" and shows the accepted terms version');
+  const adminLogin = await (await fetch(`${base}/api/admin/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'owner@docgen.test', password: 'owner-password-1' }) })).json();
+  const adminJson = (url, method = 'GET', body) => fetch(`${base}/api/admin${url}`, { method, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminLogin.token}` }, body: body ? JSON.stringify(body) : undefined }).then((r) => r.json());
+  const pending = await adminJson('/partners?status=pending');
+  await adminJson(`/partners/${pending.rows[0].id}`, 'PUT', { status: 'approved' });
+  await pp.reload();
+  await pp.getByTestId('partner-link-card').waitFor();
+  const partnerCode = (await pp.getByTestId('partner-code').textContent()).trim();
+  const partnerLink = (await pp.getByTestId('partner-link').textContent()).trim();
+  check(/^RAVI\d{4}$/.test(partnerCode) && partnerLink === `${base}/r/${partnerCode}` && (await pp.getByTestId('partner-30-days').isVisible()), `approved: own link ${partnerLink}, code and the last-30-days dashboard on a phone`);
+  await pp.screenshot({ path: path.join(shots, '04q-partner-dashboard.png'), fullPage: true });
+
+  // The ad visitor first opened the partner's link: the code is kept in this browser for 30 days.
+  await ad.goto(`${base}/r/${partnerCode}`);
   await ad.waitForLoadState('domcontentloaded');
   const kept = await ad.evaluate(() => JSON.parse(localStorage.getItem('docgen.referral') || 'null'));
-  check(kept?.code === meeraCode && !new URL(ad.url()).search.includes('ref='), `referral link /r/${meeraCode}: code kept in Local Storage, address bar tidied`);
+  check(kept?.code === partnerCode && !new URL(ad.url()).search.includes('ref='), `partner link /r/${partnerCode}: code kept in Local Storage, address bar tidied`);
   await ad.goto(`${base}/offer?utm_source=facebook&utm_medium=paid_social&utm_campaign=offer-oct&fbclid=e2e-fb`);
   await ad.getByTestId('offer-page').waitFor();
   await waitFb(ad, 'ViewContent');
@@ -514,6 +552,8 @@ try {
   await adShot('03c-offer-saved');
   await ad.getByTestId('offer-paynow').click();
   await ad.waitForTimeout(900);
+  // Smooth scrolling over a long page can take a little over the 900 ms above.
+  await ad.waitForFunction(() => document.querySelector('[data-testid=offer-pay]').getBoundingClientRect().top < 200, null, { timeout: 5000 }).catch(() => {});
   check((await ad.getByTestId('offer-pay').boundingBox()).y < 200, '"Download" jumps to the payment section');
   check((await ad.getByTestId('offer-after-pay').textContent()).includes('license key shows on screen'), 'payment section: what happens after payment, in 3 steps');
   await ad.waitForTimeout(400);
@@ -548,6 +588,11 @@ try {
     `Meta Pixel: Purchase after payment (₹2,250) with the event id the server also sends (${purchase[3]?.eventID})`);
   await adShot('03e-offer-paid');
   await adVisitor.close();
+  await pp.reload();
+  await pp.getByTestId('partner-stats').waitFor();
+  check((await pp.getByTestId('stat-clicks').textContent()) === '1' && (await pp.getByTestId('stat-registrations').textContent()) === '1' && (await pp.getByTestId('stat-sales').textContent()) === '1' && (await pp.getByTestId('stat-pending').textContent()).includes('225'),
+    'partner dashboard: 1 click, 1 registration, 1 sale and ₹225 pending commission (10% of ₹2,250)');
+  check(/F\*+n/.test(await pp.getByTestId('partner-referred').textContent()), 'partner dashboard: referred customer, name masked');
 
   // Website: policies, Contact Us (a visitor's message), Help & Support, Login on a phone.
   for (const [path, title] of [['/terms', 'Terms & Conditions'], ['/privacy', 'Privacy Policy'], ['/shipping', 'Shipping Policy'], ['/refunds', 'Cancellation & Refunds']]) {
@@ -607,21 +652,32 @@ try {
   check((await page.getByTestId('support-alert').textContent()).includes('2 support requests are waiting'), 'dashboard: support requests waiting for an answer');
   await shot('05-admin-dashboard');
 
-  await page.getByTestId('nav-referrals').click();
-  await page.getByTestId('referred-table').waitFor();
-  const referredRow = page.getByTestId('referred-table').locator('tr', { hasText: 'farhan@example.com' });
-  check((await referredRow.textContent()).includes('Meera Sharma') && (await referredRow.textContent()).includes(meeraCode) && (await referredRow.textContent()).includes('2,250'),
-    'Admin → Referrals: the offer-page buyer was referred by Meera (code, referrer, amount paid)');
-  check((await page.getByTestId('top-referrers').textContent()).includes('Meera Sharma'), 'Admin → Referrals: top referrers');
-  await referredRow.getByRole('link', { name: 'Meera Sharma' }).click();
-  await page.getByTestId('client-referral-code').waitFor();
-  check((await page.getByTestId('client-referral-code').textContent()).includes(meeraCode) && (await page.getByTestId('referred-table').textContent()).includes('farhan@example.com'),
-    'customer page: referral code and the customers they referred');
-  await page.getByTestId('client-referral-edit').click();
-  await page.getByTestId('referral-code-input').fill('MEERA1');
-  await page.getByTestId('referral-code-save').click();
-  await page.getByText('Referral code is now MEERA1').waitFor();
-  check((await page.getByTestId('client-referral-code').textContent()).includes('MEERA1'), 'admin assigns a referral code by hand');
+  await page.getByTestId('nav-partners').click();
+  await page.getByTestId('partner-table').waitFor();
+  const partnerRow = page.getByTestId('partner-row').filter({ hasText: 'Ravi Kumar' });
+  check((await partnerRow.textContent()).includes(partnerCode) && (await partnerRow.textContent()).includes('2,250') && (await partnerRow.textContent()).includes('225'),
+    'Admin → Partners: Ravi, code, 1 sale of ₹2,250, ₹225 pending');
+  await partnerRow.getByRole('link', { name: 'Ravi Kumar' }).click();
+  await page.getByTestId('partner-detail-code').waitFor();
+  check((await page.getByTestId('partner-detail-terms').textContent()).includes('Version 2026-10') && (await page.getByTestId('partner-clients').textContent()).includes('farhan@example.com'),
+    'partner page: terms acceptance (version and date) and the customers referred');
+  await page.getByTestId('partner-rate-input').fill('12.5');
+  await page.getByTestId('perm-customerNames').check();
+  await page.getByTestId('partner-save').click();
+  await page.getByText('Saved').first().waitFor();
+  await page.getByTestId('commission-approve').click();
+  await page.getByText('Commission approved').waitFor();
+  await page.getByTestId('commission-pay').click();
+  await page.getByTestId('dialog-input').fill('UTR-E2E-1');
+  await page.getByTestId('dialog-ok').click();
+  await page.getByText('Marked as paid').waitFor();
+  check((await page.getByTestId('partner-detail-paid').textContent()).includes('225'), 'admin sets 12.5%, approves the commission and pays it (payout reference)');
+  await shot('05c-admin-partner');
+  await pp.reload();
+  await pp.getByTestId('partner-commissions').waitFor();
+  check((await pp.getByTestId('partner-commissions').textContent()).includes('Ref UTR-E2E-1') && (await pp.getByTestId('partner-referred').textContent()).includes('Farhan') && (await pp.getByTestId('partner-rate').textContent()) === '12.5%',
+    'partner sees the payout reference, the customer name (now allowed) and the new rate');
+  await partnerCtx.close();
 
   await page.getByTestId('nav-support-requests').click();
   await page.getByTestId('support-requests').waitFor();

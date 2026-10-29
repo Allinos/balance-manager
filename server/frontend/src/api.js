@@ -3,7 +3,7 @@
  * separately in sessionStorage-backed localStorage keys.
  */
 
-const KEYS = { client: 'docgen.portal.token', admin: 'docgen.admin.token' };
+const KEYS = { client: 'docgen.portal.token', admin: 'docgen.admin.token', partner: 'docgen.partner.token' };
 
 export const session = {
   get: (kind) => {
@@ -85,6 +85,13 @@ export const clientApi = {
   get: (url) => request('client', 'GET', `/api/portal${url}`),
   post: (url, body = {}) => request('client', 'POST', `/api/portal${url}`, body),
   put: (url, body = {}) => request('client', 'PUT', `/api/portal${url}`, body),
+};
+
+/** Partner portal (/partners): the partner's own session. */
+export const partnerApi = {
+  get: (url) => request('partner', 'GET', `/api/partner${url}`),
+  post: (url, body = {}) => request('partner', 'POST', `/api/partner${url}`, body),
+  put: (url, body = {}) => request('partner', 'PUT', `/api/partner${url}`, body),
 };
 
 export const adminApi = {

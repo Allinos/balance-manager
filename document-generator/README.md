@@ -56,8 +56,15 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   without prices; a *Delivery acknowledgement* box with the condition (received in good condition / with
   exceptions / partly received / refused — tick on screen or by hand), received by, mobile / designation, date
   and time, and space for exceptions to be written before signing; *Receiver's Signature & Stamp*. Numbered POD-00001.
-- **Share (referrals)**: the share icon beside *Customize* on the Dashboard copies or sends the customer's own
-  referral link (from their account, received with the license); before signing in it shares the website.
+- **Share**: the share icon beside *Customize* on the Dashboard copies or sends a promotional message with the
+  download links (computer and phone). Personal referral codes are for authorised partners only (website → Partners).
+- **Payments & ledger** (Customers & Vendors): totals of what you'll get (receivables), what you'll give (payables)
+  and advances; each party's balance. A party's profile shows the open bills (unpaid / partly paid / overdue, each with
+  Receive / Pay) and the **Give & Get ledger** with a running balance. *Receive payment* / *Make payment* / *Advance*
+  make a payment receipt (customer) or payment voucher (vendor) for that party. The ledger is read from the documents
+  themselves (invoices, bills, credit / debit notes, receipts, vouchers; cancelled and deleted ones left out), so it
+  is always in step and nothing is posted twice; a payment linked to a bill settles it fully or in part, one not
+  linked is an advance. Exact decimals; the desktop sums per party in SQLite (index added by migration 006).
 - **Additional charges**: as many as needed per document (Freight, Packing, Loading, Installation … or
   any name; a minus amount is a deduction), each with its own GST / tax rate. Charges are added before
   tax, so subtotal, taxable value, CGST/SGST/IGST, the GST / HSN summary and the grand total are worked out
@@ -88,9 +95,11 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   Each type has its own statuses (e.g. Quotation: Draft → Sent → Accepted/Rejected).
 - **18 document types** with type-specific fields, required fields, numbering, statuses,
   conversions and print layout (see [Document types](#document-types)).
-- **Four print templates** — *Professional* (full GST invoice, Rule 46), *Standard*,
-  *Modern*, *Simple*. Default per app, per document type, or per single document; switching
-  never changes data.
+- **Ten print templates** — four featured: *Professional* (full GST invoice, Rule 46), *Standard*, *Modern*,
+  *Simple*; and six more in the style of Indian GST billing software: *GST Classic* (boxed tax invoice with a
+  coloured title bar), *Corporate B2B* (brand-colour header band), *Retail* (counter bill with a thank-you line),
+  *Bold*, *Elegant* (serif, for services) and *Compact* (long wholesale bills). Each is previewed live before it
+  is chosen; default per app, per document type, or per single document; switching never changes data.
 - **Full A4 pages** (Professional and Modern): every bill fills the whole A4 page (12 mm margins), even with one
   item: the item table stretches to the foot of the page. A long bill is split into pages: rows are never cut, column
   headings repeat, each page shows "Page 1 of 3" and "Continued on page 2 …", and the totals, bank details and

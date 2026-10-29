@@ -1,6 +1,6 @@
 import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useState } from 'react';
 import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { clientApi, adminApi, session } from './api.js';
+import { clientApi, adminApi, partnerApi, session } from './api.js';
 import { DialogProvider, Spinner, ToastProvider } from './components/ui.jsx';
 import Icon from './components/Icons.jsx';
 import { SUPPORT_EMAIL } from './constants.js';
@@ -12,6 +12,7 @@ import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal
 import MobilePage from './pages/portal/MobilePage.jsx';
 import { ContactPage, PolicyPage } from './pages/portal/InfoPages.jsx';
 import PanelLayout from './components/PanelLayout.jsx';
+import { PartnerApplyPage, PartnerDashboard, PartnerLoginPage, PartnersPage, PartnerTermsPage } from './pages/partner/PartnerPages.jsx';
 
 // The admin panel and the account pages load only when opened, so the website and the ad page stay small.
 const ClientHome = lazy(() => import('./pages/portal/ClientHome.jsx'));
@@ -33,7 +34,8 @@ const AdminPayments = lazy(() => import('./pages/admin/AdminPayments.jsx'));
 const AdminAds = lazy(() => import('./pages/admin/AdminAds.jsx'));
 const AdminConfig = lazy(() => import('./pages/admin/AdminConfig.jsx'));
 const AdminAudit = lazy(() => import('./pages/admin/AdminAudit.jsx'));
-const AdminReferrals = lazy(() => import('./pages/admin/AdminReferrals.jsx'));
+const AdminPartners = lazy(() => import('./pages/admin/AdminPartners.jsx'));
+const AdminPartnerDetail = lazy(() => import('./pages/admin/AdminPartners.jsx').then((m) => ({ default: m.AdminPartnerDetail })));
 const AdminSupport = lazy(() => import('./pages/admin/AdminSupport.jsx'));
 const AdminSupportRequest = lazy(() => import('./pages/admin/AdminSupport.jsx').then((m) => ({ default: m.AdminSupportRequest })));
 
@@ -72,7 +74,9 @@ function useSessionState(kind, loadMe) {
 function AuthProvider({ children }) {
   const client = useSessionState('client', async () => (await clientApi.get('/me')).client);
   const admin = useSessionState('admin', async () => (await adminApi.get('/me')).admin);
-  return <AuthCtx.Provider value={{ client, admin }}>{children}</AuthCtx.Provider>;
+  // The partner's "user" is the whole dashboard (partner, terms, stats) from GET /api/partner/me.
+  const partner = useSessionState('partner', () => partnerApi.get('/me'));
+  return <AuthCtx.Provider value={{ client, admin, partner }}>{children}</AuthCtx.Provider>;
 }
 export const useAuth = () => useContext(AuthCtx);
 
@@ -96,6 +100,7 @@ const SITE_LINKS = [
   { to: '/mobile', label: 'Mobile app' },
   { href: '/#faq', label: 'FAQ' },
   { to: '/support', label: 'Help & Support' },
+  { to: '/partners', label: 'Partners' },
   { to: '/contact', label: 'Contact' },
 ];
 const SiteLink = ({ link, ...rest }) => (link.to ? <Link to={link.to} {...rest}>{link.label}</Link> : <a href={link.href} {...rest}>{link.label}</a>);
@@ -168,6 +173,7 @@ export function SiteHeader({ nav = false }) {
 const FOOTER_COLUMNS = [
   ['Product', [{ href: '/#features', label: 'Features' }, { href: '/#pricing', label: 'Pricing' }, { to: '/mobile', label: 'Mobile app' }, { to: '/login', label: 'Login' }]],
   ['Help', [{ to: '/support', label: 'Help & Support' }, { to: '/contact', label: 'Contact Us' }, { href: '/#faq', label: 'FAQ' }, { to: '/mobile#android', label: 'Android install guide' }]],
+  ['Partners', [{ to: '/partners', label: 'Partner Programme' }, { to: '/partners/apply', label: 'Become a partner' }, { to: '/partners/login', label: 'Partner login' }, { to: '/partner-terms', label: 'Partner Terms' }]],
   [
     'Policies',
     [
@@ -246,7 +252,7 @@ const ADMIN_NAV = [
     items: [
       { to: '/admin', label: 'Dashboard', icon: 'chart', end: true },
       { to: '/admin/clients', label: 'Customers', icon: 'users' },
-      { to: '/admin/referrals', label: 'Referrals', icon: 'share' },
+      { to: '/admin/partners', label: 'Partners', icon: 'share' },
       { to: '/admin/support', label: 'Support requests', icon: 'help' },
       { to: '/admin/payments', label: 'Payments', icon: 'card' },
       { to: '/admin/licenses', label: 'Licenses', icon: 'key' },
@@ -335,6 +341,11 @@ export default function App() {
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/mobile" element={<MobilePage />} />
+                <Route path="/partners" element={<PartnersPage />} />
+                <Route path="/partners/apply" element={<PartnerApplyPage />} />
+                <Route path="/partners/login" element={<PartnerLoginPage />} />
+                <Route path="/partner" element={<PartnerDashboard />} />
+                <Route path="/partner-terms" element={<PartnerTermsPage />} />
                 <Route path="/support" element={<SupportPage />} />
                 <Route path="/contact" element={<ContactPage />} />
                 <Route path="/terms" element={<PolicyPage id="terms" />} />
@@ -356,7 +367,9 @@ export default function App() {
                   <Route index element={<AdminDashboard />} />
                   <Route path="clients" element={<AdminClients />} />
                   <Route path="clients/:id" element={<AdminClientDetail />} />
-                  <Route path="referrals" element={<AdminReferrals />} />
+                  <Route path="partners" element={<AdminPartners />} />
+                  <Route path="partners/:id" element={<AdminPartnerDetail />} />
+                  <Route path="referrals" element={<Navigate to="/admin/partners" replace />} />
                   <Route path="support" element={<AdminSupport />} />
                   <Route path="support/:id" element={<AdminSupportRequest />} />
                   <Route path="licenses" element={<AdminLicenses />} />

@@ -1202,14 +1202,20 @@ textarea.input {
   gap: 4px;
   flex-wrap: wrap;
 }
-.tabs a {
+.tabs a,
+.tabs button {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
   padding: 7px 12px;
   border-radius: 8px;
   color: var(--text-2);
   font-weight: 550;
   text-decoration: none;
 }
-.tabs a.active {
+.tabs a.active,
+.tabs button.active {
   background: var(--accent-soft);
   color: var(--accent);
 }
@@ -4160,4 +4166,171 @@ a.stat:hover {
 .wrap-row {
   flex-wrap: wrap;
   gap: 8px;
+}
+
+/* Share DocGen: the ready promotional message. */
+.share-message {
+  width: 100%;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
+
+/* ------------------------------------------------------------ partner programme */
+.partner-hero {
+  text-align: center;
+  max-width: 820px;
+  margin: 0 auto;
+}
+.partner-hero .hero-cta {
+  justify-content: center;
+}
+.partner-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+.partner-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  color: var(--accent);
+}
+.partner-step strong {
+  color: var(--text);
+  font-size: 17px;
+}
+.partner-step p {
+  margin: 0;
+}
+.partner-step-no {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 28px;
+  font-weight: 800;
+  opacity: 0.15;
+}
+.partner-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 32px;
+}
+.partner-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.partner-list li {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.partner-list .icon,
+.partner-list svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.partner-auth {
+  max-width: 520px;
+}
+.partner-dash {
+  max-width: 1120px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 28px 20px 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.partner-dash h1 {
+  margin: 4px 0;
+}
+.partner-dash-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.partner-dash .card {
+  padding: 18px;
+}
+.partner-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-color: var(--accent);
+}
+.partner-link-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.partner-link-row > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.partner-link-row strong {
+  font-size: 16px;
+  word-break: break-all;
+}
+.partner-terms-card {
+  border-color: var(--warn, #b45309);
+}
+.partner-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.partner-cards .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.partner-cards .stat strong {
+  font-size: 22px;
+}
+.partner-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.partner-bars-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.partner-bars {
+  height: 70px;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+}
+.partner-bar {
+  flex: 1;
+  background: var(--accent);
+  border-radius: 2px 2px 0 0;
+  opacity: 0.85;
+  min-width: 2px;
+}
+.partner-password {
+  max-width: 420px;
+}
+@media (max-width: 640px) {
+  .partner-dash {
+    padding: 18px 14px 40px;
+  }
+  .partner-dash .table {
+    font-size: 13px;
+  }
 }

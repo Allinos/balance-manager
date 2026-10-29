@@ -1,18 +1,22 @@
 /**
- * "Share with your friends": the customer's own referral link (services/referrals.js on the server) to copy or
- * share. Friends who open it and buy within 30 days are credited to this customer in the admin panel.
+ * "Share with your friends": a ready promotional message with DocGen's download links (computer and phone) to send
+ * on WhatsApp, by email or anywhere. Personal referral codes are only for authorised partners (/partners).
  */
 
 import { useState } from 'react';
 import { CopyButton, Modal } from './ui.jsx';
 import Icon from './Icons.jsx';
 
-export const referralMessage = (link) => `I make my GST invoices, quotations and receipts with DocGen — quick and easy. Try it: ${link}`;
+/** The website (download page) and the phone app page on this server. */
+export const shareLinks = (origin = typeof window !== 'undefined' ? window.location.origin : '') => ({ link: `${origin}/`, mobileLink: `${origin}/mobile` });
 
-export default function ShareReferral({ link, code }) {
+export const promoMessage = ({ link, mobileLink }) =>
+  `Make GST invoices, quotations, delivery challans and receipts in seconds with DocGen — professional templates, works offline on your computer and phone.\n\nDownload for computer: ${link}\nOn your phone: ${mobileLink}`;
+
+export default function ShareReferral() {
   const [open, setOpen] = useState(false);
-  if (!link) return null;
-  const text = referralMessage(link);
+  const links = shareLinks();
+  const text = promoMessage(links);
   const nativeShare = typeof navigator !== 'undefined' && !!navigator.share;
   return (
     <>
@@ -21,16 +25,12 @@ export default function ShareReferral({ link, code }) {
       </button>
       {open && (
         <Modal title="Share DocGen with your friends" onClose={() => setOpen(false)}>
-          <p className="muted">Send your personal link to friends and other business owners. When they buy DocGen through it, we know they came from you.</p>
+          <p className="muted">Know a shop or business that still writes bills by hand? Send them this message with the download links.</p>
+          <textarea className="input share-message" readOnly rows={6} value={text} onFocus={(e) => e.target.select()} aria-label="Message to share" data-testid="share-message" />
           <div className="referral-link" data-testid="referral-link">
-            <input className="input" readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Your referral link" />
-            <CopyButton text={link} label="Copy link" />
+            <input className="input" readOnly value={links.link} onFocus={(e) => e.target.select()} aria-label="Download link" />
+            <CopyButton text={text} label="Copy message" />
           </div>
-          {code && (
-            <p className="small muted">
-              Your referral code: <strong data-testid="referral-code">{code}</strong>
-            </p>
-          )}
           <div className="row wrap-row" style={{ marginTop: 12 }}>
             <a className="btn btn-green" href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer" data-testid="referral-whatsapp">
               <Icon name="chat" size={16} /> Share on WhatsApp
@@ -39,15 +39,14 @@ export default function ShareReferral({ link, code }) {
               <Icon name="mail" size={16} /> Email
             </a>
             {nativeShare && (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => navigator.share({ title: 'DocGen', text, url: link }).catch(() => {})}
-              >
+              <button type="button" className="btn" onClick={() => navigator.share({ title: 'DocGen', text, url: links.link }).catch(() => {})}>
                 <Icon name="share" size={16} /> More…
               </button>
             )}
           </div>
+          <p className="small muted" style={{ marginTop: 12 }}>
+            Run a shop, consultancy or IT business and want to earn by recommending DocGen? <a href="/partners">Become a partner</a>.
+          </p>
         </Modal>
       )}
     </>

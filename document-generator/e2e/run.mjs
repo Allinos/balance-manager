@@ -8,7 +8,7 @@
  *   2  remote configuration + HTML ad (sandboxed) + anonymous ad counters
  *   3  UI: sidebar collapse, branding, reynrel.in link, Help & Support (server videos)
  *   4  Professional GST invoice: GSTIN → state code, IGST, units, extra fields
- *   5  preview actions: Download PDF, template switcher (4 templates), history
+ *   5  preview actions: Download PDF, template switcher (4 featured + 6 more templates), history
  *   6  Document Manager: status quick-edit (pencil), filters, cancel invoice (reason, kept)
  *   7  external documents: add, open list, delete/restore; Dashboard counts + recent
  *   8  settings: custom units, customers page, searchable selects
@@ -422,6 +422,12 @@ async function main() {
       if (pos === last) break;
       last = pos;
     }
+    // The card slides in: wait until it has settled in the centre (a slow runner can need more than two readings).
+    await waitFor(
+      async () => exec(`const r=document.querySelector('.ad-popup').getBoundingClientRect(); return Math.abs(r.top + r.height / 2 - innerHeight / 2) < 4`),
+      'ad settled',
+      3000,
+    ).catch(() => {});
     const box = await exec(`const p=document.querySelector('.ad-popup').getBoundingClientRect(); const l=getComputedStyle(document.querySelector('.ad-layer'));
       return { w: p.width, h: p.height, cx: p.left + p.width / 2, cy: p.top + p.height / 2, vw: innerWidth, vh: innerHeight, blur: l.backdropFilter || l.webkitBackdropFilter || l.getPropertyValue('-webkit-backdrop-filter') || '', dim: l.backgroundColor };`);
     check(Math.abs(box.cx - box.vw / 2) < 4 && Math.abs(box.cy - box.vh / 2) < 4 && box.w <= 562 && box.w < box.vw * 0.8 && box.h < box.vh * 0.95 && /rgba/.test(box.dim) && /blur/.test(box.blur),
@@ -554,15 +560,25 @@ async function main() {
     const pdfFile = readdirSync(pdfDir).find((f) => f.endsWith('.pdf'));
     const pdfBytes = readFileSync(path.join(pdfDir, pdfFile));
     check(pdfFile.startsWith('INV-00001') && pdfBytes.subarray(0, 5).toString() === '%PDF-' && pdfBytes.length > 5000, `PDF downloaded without print dialog (${pdfFile}, ${Math.round(pdfBytes.length / 1024)} KB)`);
+    check(
+      (await exec('return [...document.querySelectorAll("[data-testid=template-switch] optgroup")].map(g => g.label + ":" + g.children.length).join()')) === 'Featured:4,More templates:6',
+      'template switch: 4 featured templates and 6 more (GST, B2B, retail, standard)',
+    );
     for (const [id, cls] of [
       ['tally-std', '.doc-tally-std'],
       ['modern', '.doc-modern'],
       ['simple', '.doc-simple'],
+      ['gst-classic', '.doc-tally-std.doc-gst-classic'],
+      ['b2b', '.doc-b2b'],
+      ['retail', '.doc-retail .doc-thanks'],
+      ['bold', '.doc-bold'],
+      ['elegant', '.doc-elegant'],
+      ['compact', '.doc-compact'],
       ['tally-pro', '.doc-tp'],
     ]) {
       await setSelect('[data-testid="template-switch"]', id);
       await find(cls);
-      if (id !== 'tally-pro') await shot(`10-template-${id}`);
+      if (['tally-std', 'modern', 'simple', 'gst-classic', 'b2b', 'retail'].includes(id)) await shot(`10-template-${id}`);
       check(true, `template "${id}" renders the same data`);
     }
     await clickCss('.editor-actions details summary');
@@ -782,7 +798,14 @@ async function main() {
     await waitForText('Site Visit');
     check(true, 'service saved');
     await go('#/settings/documents');
-    check((await exec('return document.querySelectorAll("[data-testid^=settings-template-]").length')) === 4, 'four templates offered in settings');
+    check(
+      (await exec('return document.querySelectorAll("[data-testid^=settings-template-]").length')) === 10 && (await exec('return document.querySelectorAll("[data-testid=more-templates] [data-testid^=settings-template-]").length')) === 6,
+      'Settings: the four featured templates, then six more',
+    );
+    await clickCss('[data-testid="settings-template-b2b"]');
+    await find('.style-preview .doc-b2b');
+    check(true, 'a new template is previewed before it is saved');
+    await clickCss('[data-testid="settings-template-tally-pro"]');
     await clickText('Triple Copy', '.segmented button');
     await clickText('Save changes');
     await sleep(500);
@@ -1064,14 +1087,47 @@ async function main() {
     await waitForText('restored');
     check((await invoke('parties_list', { search: 'ABC' })).some((pt) => pt.id === archivedAbc.id), 'archived customer restored');
     await shot('20-customers');
+
+    // Payments & ledger: balances from the documents, a profile with the Give & Get ledger, an advance.
+    await find('[data-testid="ledger-totals"]');
+    check((await textOf('[data-testid="ledger-totals"]')).includes("You'll get"), "Customers & Vendors: You'll get / You'll give / advances totals");
+    await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-ledger-open]").click()`);
+    await find('[data-testid="party-ledger"]');
+    await find('[data-testid="ledger-row"]');
+    const ledgerRows = await exec('return document.querySelectorAll("[data-testid=ledger-row]").length');
+    check(ledgerRows >= 1 && (await textOf('[data-testid="ledger-table"]')).includes('INV-00001'), `customer profile: Give & Get ledger with running balance (${ledgerRows} entries)`);
+    const balText = async () => [await textOf('[data-testid="party-balance-amount"]'), await textOf('[data-testid="party-balance"]')];
+    const num = (t) => Number(String(t).replace(/[^\d.]/g, ''));
+    const signedBal = ([amt, label]) => (label.includes("You'll give") ? -num(amt) : num(amt));
+    const balBefore = signedBal(await balText());
+    await clickCss('[data-testid="party-profile-edit"]');
+    await find('[data-testid="party-form-name"]');
+    check((await exec('return document.querySelector("[data-testid=party-form-name]").value')) === 'ABC Construction Pvt Ltd', 'profile: Edit opens the customer');
+    await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
+    await sleep(300);
+    await clickCss('[data-testid="party-advance-customer"]');
+    await find('[data-testid="amount-received"]');
+    check((await exec('return document.querySelector("[data-testid=party-name]").value')) === 'ABC Construction Pvt Ltd', 'Advance received: a receipt for this customer, filled in');
+    await type('[data-testid="amount-received"]', '2500');
+    await clickCss('[data-testid="save-doc"]');
+    await waitForText('RCT-', 15000);
+    await go(`#/party/${archivedAbc.id}`);
+    await find('[data-testid="ledger-row"]');
+    await waitFor(async () => (await exec('return document.querySelectorAll("[data-testid=ledger-row]").length')) === ledgerRows + 1, 'advance in the ledger', 8000);
+    const balAfter = signedBal(await balText());
+    check(Math.abs(balAfter - (balBefore - 2500)) < 0.01 && (await textOf('[data-testid="ledger-table"]')).includes('Advance'), `advance of ₹2,500 recorded: ledger entry and balance updated (${balBefore} → ${balAfter})`);
+    await shot('20b-party-ledger');
+    await go('#/parties/all');
+    await find('[data-testid="party-table"]');
     await clickCss('[data-testid="party-tabs-vendor"]');
     await find('[data-testid="parties-vendor"]');
     check(await exec('return [...document.querySelectorAll("[data-testid=party-kind-badge]")].every(b => /Vendor/.test(b.textContent))'), 'Vendors tab lists only vendors');
     await go('#/dashboard');
     await clickCss('[data-testid="referral-share"]');
-    await find('[data-testid="referral-link-input"]');
-    check((await exec('return document.querySelector("[data-testid=referral-link-input]").value')).startsWith('http') && (await exists('[data-testid="referral-whatsapp"]')),
-      'Dashboard Share (beside Customize): link to copy or share (website link until signed in)');
+    await find('[data-testid="share-message"]');
+    const shareMsg = await exec('return document.querySelector("[data-testid=share-message]").value');
+    check(/Download for computer: https?:\/\//.test(shareMsg) && shareMsg.includes('/mobile') && !(await exists('[data-testid="referral-code"]')) && (await exists('[data-testid="referral-whatsapp"]')),
+      'Dashboard Share (beside Customize): a promotional message with the download links (codes are for partners only)');
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
 
     // ------------------------------------------------------------------ 9
@@ -1088,7 +1144,7 @@ async function main() {
     await waitForText('DocGen is activated', 15000);
     check(!(await exists('[data-testid="trial-line"]')) && (await textOf('[data-testid="license-status"]')).includes('DocGen'), 'licensed: plan shown, day line hidden');
     const refStatus = await invoke('license_status');
-    check(/\/r\/\d{5}$/.test(refStatus.referral?.link || ''), `signed in: the customer's own referral link for Dashboard → Share (${refStatus.referral?.link})`);
+    check(!refStatus.referral?.link, 'signed in: no personal referral link for customers (partners only)');
     await shot('15-licensed');
     {
       const month = new Date().toISOString().slice(0, 7);

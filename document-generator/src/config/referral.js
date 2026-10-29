@@ -1,20 +1,20 @@
 /**
- * Referral sharing (Dashboard → Share, desktop and mobile). The link is the customer's own, from the server
- * with their license (<website>/r/<code>); friends who buy through it within 30 days are credited to them.
- * Without a signed-in account (trial, or a code-only license) the website link is shared instead.
+ * Dashboard → Share (desktop and mobile): a promotional message with DocGen's download links for the computer and the
+ * phone, to send on WhatsApp, by email or anywhere. Personal referral codes are only for authorised partners
+ * (website → Partners), so customers share the plain website links.
  */
 
-export const referralMessage = (link) => `I make my GST invoices, quotations and receipts with DocGen — quick and easy. Try it: ${link}`;
+/** The website (computer download) and the phone app page. `base`: the DocGen website address. */
+export function shareLinksFor(license, fallbackUrl) {
+  const base = String(license?.portalUrl || license?.websiteUrl || fallbackUrl || '').replace(/\/+$/, '');
+  return { link: `${base}/`, mobileLink: `${base}/mobile` };
+}
+
+export const promoMessage = ({ link, mobileLink }) =>
+  `Make GST invoices, quotations, delivery challans and receipts in seconds with DocGen — professional templates, works offline on your computer and phone.\n\nDownload for computer: ${link}\nOn your phone: ${mobileLink}`;
 
 export const whatsappShareUrl = (text) => `https://wa.me/?text=${encodeURIComponent(text)}`;
 export const emailShareUrl = (text) => `mailto:?subject=${encodeURIComponent('Try DocGen for your invoices')}&body=${encodeURIComponent(text)}`;
-
-/** { link, code, personal } for the Share dialog. */
-export function referralFor(license, fallbackUrl) {
-  const link = license?.referral?.link;
-  if (link) return { link, code: license.referral.code || '', personal: true };
-  return { link: license?.websiteUrl || license?.portalUrl || fallbackUrl, code: '', personal: false };
-}
 
 /** Copy text; falls back to a hidden text field where the Clipboard API is not allowed. */
 export async function copyText(text) {

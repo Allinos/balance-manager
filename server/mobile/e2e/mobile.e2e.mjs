@@ -495,8 +495,9 @@ try {
   await shot(a.page, '05-products');
 
   console.log('Customers & Vendors (optional modules)');
-  check((await a.page.getByTestId('party-links').textContent()).includes('Add More') && !(await a.page.getByTestId('link-parties').count()), 'Customers & Vendors off by default: only + Add More under Products');
-  await a.page.getByTestId('nav-parties-add').click();
+  check(!(await a.page.getByTestId('party-links').count()) && !(await a.page.getByTestId('link-parties').count()), 'no Customers / Vendors buttons at the top of Products & Services');
+  await a.page.getByTestId('tab-settings').click();
+  await a.page.getByTestId('settings-parties').click();
   await a.page.getByTestId('module-parties-toggle').check();
   await a.page.getByTestId('open-parties').click();
   await a.page.getByTestId('parties-all').waitFor();
@@ -516,7 +517,7 @@ try {
   await a.page.getByTestId('party-form-save').click();
   await a.page.getByTestId('party-list').getByText('Walk-in Retail').waitFor();
   check(true, 'Customers: add a customer');
-  await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').click();
+  await a.page.getByTestId('party-row').filter({ hasText: 'ABC Construction Pvt Ltd' }).getByTestId('party-edit').click();
   await a.page.getByTestId('party-delete').click();
   check((await a.page.getByTestId('confirm-ok').textContent()) === 'Archive', 'a customer on documents is archived, not deleted');
   await a.page.getByTestId('confirm-ok').click();
@@ -527,13 +528,52 @@ try {
   await a.page.getByTestId('party-archived').getByText('Active').click();
   await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').waitFor();
   check(true, 'archived customer restored; documents never changed');
-  await a.page.goto(`${base}/app/#/products`);
-  await a.page.getByTestId('link-parties').waitFor();
-  check(true, 'one Features switch: Customers & Vendors under Products');
+
+  console.log('Payments & ledger');
+  const amountOf = (t) => Number(String(t).replace(/[^\d.]/g, ''));
+  await a.page.getByTestId('tab-parties').click();
+  await a.page.getByTestId('ledger-totals').waitFor();
+  check((await a.page.getByTestId('ledger-totals').textContent()).includes("You'll get"), "Customers & Vendors: totals — You'll get (receivables), You'll give (payables), advances");
+  const abcRow = a.page.getByTestId('party-row').filter({ hasText: 'ABC Construction Pvt Ltd' });
+  await abcRow.getByTestId('party-edit').click();
+  await a.page.getByTestId('party-sheet').waitFor();
+  check((await a.page.getByTestId('party-form-name').inputValue()) === 'ABC Construction Pvt Ltd', 'Edit button on a customer record opens it for editing');
+  await a.page.getByTestId('sheet-close').click();
+  await a.page.getByTestId('party-sheet').waitFor({ state: 'detached' });
+  await abcRow.getByTestId('party-open').click();
+  await a.page.getByTestId('party-ledger').waitFor();
+  await a.page.getByTestId('ledger-row').first().waitFor();
+  const ledgerRows = await a.page.getByTestId('ledger-row').count();
+  const ledgerText = await a.page.getByTestId('ledger-table').textContent();
+  check(ledgerRows >= 3 && ledgerText.includes('INV-00001') && ledgerText.includes('RCT-00001') && ledgerText.includes('against INV-00001'),
+    `customer profile: Give & Get ledger from the invoices and receipts (${ledgerRows} entries, running balance)`);
+  const before = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
+  const beforeLabel = await a.page.getByTestId('party-balance').textContent();
+  await a.page.getByTestId('party-profile-edit').waitFor();
+  await shot(a.page, '05d-party-ledger');
+  await a.page.getByTestId('party-advance-customer').click();
+  await a.page.getByTestId('editor').waitFor();
+  check((await a.page.getByTestId('party-name').inputValue()) === 'ABC Construction Pvt Ltd', 'Advance received: a receipt for this customer, filled in');
+  await a.page.getByTestId('amount-received').fill('5000');
+  await a.page.getByTestId('save-doc').click();
+  await a.page.getByTestId('view').waitFor();
+  await a.page.getByTestId('tab-parties').waitFor({ timeout: 2000 }).catch(() => {});
+  await a.page.goto(`${base}/app/#/parties/all`);
+  await a.page.getByTestId('party-row').filter({ hasText: 'ABC Construction Pvt Ltd' }).getByTestId('party-open').click();
+  await a.page.getByTestId('party-ledger').waitFor();
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 1);
+  const after = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
+  const afterLabel = await a.page.getByTestId('party-balance').textContent();
+  const signed = (v, label) => (label.includes("You'll give") ? -v : v);
+  check(Math.abs(signed(after, afterLabel) - (signed(before, beforeLabel) - 5000)) < 0.01 && (await a.page.getByTestId('ledger-table').textContent()).includes('Advance'),
+    `advance of ₹5,000 recorded: in the ledger and the balance updated (${beforeLabel.trim()} → ${afterLabel.trim()})`);
+
+  await a.page.getByTestId('back').click();
   await a.page.getByTestId('tab-dashboard').click();
   await a.page.getByTestId('referral-share').click();
-  const refLink = await a.page.getByTestId('referral-link-input').inputValue();
-  check(/\/r\/\d{5}$/.test(refLink) && (await a.page.getByTestId('referral-whatsapp').count()) === 1, `Dashboard Share: the customer's own referral link to copy or share (${refLink})`);
+  const shareText = await a.page.getByTestId('share-message').inputValue();
+  check(shareText.includes(`${base}/`) && shareText.includes(`${base}/mobile`) && !(await a.page.getByTestId('referral-code').count()) && (await a.page.getByTestId('referral-whatsapp').count()) === 1,
+    'Dashboard Share: a promotional message with the download links (codes are for partners only)');
   await a.page.keyboard.press('Escape');
 
   console.log('Proof of Delivery');
@@ -560,6 +600,12 @@ try {
   await shot(a.page, '07a-settings');
   for (const removed of ['units', 'general', 'currency']) check(!(await a.page.getByTestId(`settings-${removed}`).count()), `no ${removed} settings on the phone`);
   await a.page.getByTestId('settings-documents').click();
+  check((await a.page.getByTestId('more-templates').locator('button').count()) === 6, 'Settings → Documents: 4 featured templates and 6 more (GST, B2B, retail, standard)');
+  await a.page.getByTestId('settings-template-retail').click();
+  await a.page.getByTestId('sample-preview').locator('.doc-retail .doc-thanks').waitFor();
+  await a.page.getByTestId('settings-template-gst-classic').click();
+  await a.page.getByTestId('sample-preview').locator('.doc-tally-std.doc-gst-classic').waitFor();
+  check(true, 'a template is previewed before it is saved (Retail, GST Classic)');
   await a.page.getByTestId('settings-template-modern').click();
   await a.page.getByTestId('sample-preview').locator('.doc-modern').waitFor();
   await a.page.getByTestId('copies-2').click();
@@ -600,7 +646,7 @@ try {
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 7 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
+  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 8 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('add-product').click();
   await a.page.getByTestId('product-name').fill('Added after the backup');
@@ -616,16 +662,16 @@ try {
   await a.page.getByTestId('product-list').getByText('Office Chair').waitFor();
   check(!(await a.page.getByTestId('product-list').textContent()).includes('Added after the backup'), 'backup restored (product added later is gone)');
   await a.page.goto(`${base}/app/#/documents`);
-  await rows().nth(6).waitFor();
-  check((await rows().count()) === 7, 'all 7 documents back after the restore');
+  await rows().nth(7).waitFor();
+  check((await rows().count()) === 8, 'all 8 documents back after the restore');
 
   console.log('Works offline, no repeated login');
   await a.page.goto(`${base}/app/`);
   await a.page.getByTestId('dashboard').waitFor();
   await a.page.reload();
   await a.page.getByTestId('dashboard').waitFor();
-  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(6).waitFor({ timeout: 10000 }).catch(() => {});
-  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 7, 'reopened without logging in; recent documents');
+  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(7).waitFor({ timeout: 10000 }).catch(() => {});
+  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 8, 'reopened without logging in; recent documents');
   await a.page.waitForTimeout(400);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-dashboard.png') });
   await a.context.setOffline(true);

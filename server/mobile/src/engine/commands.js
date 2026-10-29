@@ -8,7 +8,8 @@
  */
 
 import { sha256 } from '@noble/hashes/sha2.js';
-import { AppError, STORES, byName, contains, dataDb, now, pick } from './db.js';
+import { AppError, STORES, byName, contains, dataDb, getAllBy, now, pick } from './db.js';
+import { dec, toFixed } from '@desktop/utils/decimal.js';
 import * as numbering from './numbering.js';
 import { clean, download, openBlob, pickFiles, readAsDataUrl } from './io.js';
 import { exportData, importData } from './backup.js';
@@ -41,6 +42,9 @@ const PARTY_KINDS = ['customer', 'vendor', 'both'];
 const VENDOR_TYPES = new Set(['REVERSE_QUOTATION', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'PAYMENT_VOUCHER', 'WORK_ORDER']);
 
 /** A party's kind; parties saved before kinds existed are sorted by the documents they appear on. */
+/** The documents of a customer's / vendor's ledger (desktop: LEDGER_TYPES in commands.rs). */
+const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE']);
+
 function partyKind(p, docs) {
   if (PARTY_KINDS.includes(p.kind)) return p.kind;
   const mine = docs.filter((d) => d.party_id === p.id);
@@ -343,6 +347,37 @@ const commands = {
         .sort(byName)
         .slice(0, 2000);
     }),
+  /** One customer / vendor and the documents of its ledger (desktop: party_ledger), through the party_id index. */
+  party_ledger: ({ id }) =>
+    read(['parties', 'documents'], async ({ parties, documents }) => {
+      const p = await parties.get(Number(id));
+      if (!p) fail('This customer or vendor no longer exists.');
+      const docs = (await documents.index('party_id').getAll(Number(id)))
+        .filter((d) => !d.deleted_at && LEDGER_TYPES.has(d.document_type))
+        .map(({ __items, __taxes, ...d }) => d);
+      return { party: { ...p, kind: partyKind(p, docs), notes: p.notes || '' }, documents: docs };
+    }),
+
+  /** Totals per party and type (desktop: ledger_sums), exact decimals as text. */
+  ledger_sums: () =>
+    read(['documents'], async ({ documents }) => {
+      const sums = new Map();
+      // Only documents of saved parties: the index skips the rest.
+      let cursor = await documents.index('party_id').openCursor();
+      while (cursor) {
+        const d = cursor.value;
+        if (!d.deleted_at && d.status !== 'CANCELLED' && d.status !== 'VOID' && LEDGER_TYPES.has(d.document_type)) {
+          const key = `${d.party_id}|${d.document_type}`;
+          const row = sums.get(key) || { party_id: d.party_id, document_type: d.document_type, total: 0n, count: 0 };
+          row.total += dec(d.grand_total);
+          row.count += 1;
+          sums.set(key, row);
+        }
+        cursor = await cursor.continue();
+      }
+      return [...sums.values()].map((r) => ({ ...r, total: toFixed(r.total, 3) }));
+    }),
+
   party_save: ({ party }) => {
     requireName(party, 'customer');
     if (party.kind !== undefined && !PARTY_KINDS.includes(party.kind)) fail('Choose customer, vendor or both.');
@@ -388,7 +423,13 @@ const commands = {
       const types = Array.isArray(f.types) ? f.types.filter(Boolean) : [];
       const searchTypes = Array.isArray(f.searchTypes) ? f.searchTypes : [];
       const status = STATUSES.includes(f.status) ? f.status : null;
-      const rows = (await documents.getAll()).filter((d) => {
+      // Indexes (db.js v2) load only the documents of the chosen types or dates, not every document with its items.
+      const source = types.length
+        ? await getAllBy(documents, 'document_type', types)
+        : f.from || f.to
+          ? await documents.index('issue_date').getAll(IDBKeyRange.bound(f.from || '', f.to || '\uffff'))
+          : await documents.getAll();
+      const rows = source.filter((d) => {
         if (f.deleted ? !d.deleted_at : d.deleted_at) return false;
         if (types.length && !types.includes(d.document_type)) return false;
         if (status && d.status !== status) return false;

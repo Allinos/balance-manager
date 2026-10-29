@@ -29,7 +29,7 @@ Client panel → Services: product → duration → Razorpay payment → server 
   and phones are counted separately and the limits are enforced by the server — plus remote
   configuration (check interval, ads, help videos) and anonymous ad counters for the desktop app.
 - **DocGen Mobile**: installable web app (PWA) for Android and iPhone at `/app/` with the desktop app's features
-  (all document types, the 4 templates, documents, products, settings) — works on the phone (IndexedDB),
+  (all document types, the 10 templates, documents, products, settings) — works on the phone (IndexedDB),
   license key stored on the device, no repeated sign-in while the license is valid. See [DocGen Mobile](#docgen-mobile).
 - **Admin panel** (sidebar; a menu on phones): dashboard (sales this month, revenue, recent sales,
   licenses ending soon, ad campaigns), customers, payments (with the duration bought; mark paid, refund),
@@ -372,7 +372,15 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
   installs are recognised on first start), the service worker answers from its saved copy — no request to the server
   to load the app. *Settings → About → Update app* fetches the newest version, drops old files and restarts. In a
   browser tab the app still loads the newest version when online. The daily license check is unchanged.
-- **Bottom tabs**: Dashboard · Documents · Products · (Parties, once Customers & Vendors is switched on) · Settings.
+- **Bottom tabs**: Dashboard · Documents · Products · (Parties, once Customers & Vendors is switched on in Settings →
+  Features) · Settings. Products & Services no longer shows Customers / Vendors buttons at the top.
+- **Payments & ledger**: Parties shows You'll get / You'll give / advances and each customer's balance; a row has an
+  Edit button, and tapping it opens the profile with the open bills, the Give & Get ledger and Receive payment /
+  Advance (same as the desktop).
+- **IndexedDB (data on the phone)**: schema version 2 adds indexes (documents by party, date, type and parent; parties
+  by name) without touching records; lists by type or date, the ledger and receipts read only what they need. The app
+  asks the browser to keep the data (`navigator.storage.persist`), closes and reopens the database when another tab
+  upgrades or deletes it, and tells the user to close other tabs when an upgrade is waiting.
 - **Documents → Download** (active license): by type and month or period as one PDF (made on the phone), CSV list,
   CSV items or the GST sales register. The **eye** on Dashboard and Documents hides amounts on screen.
 
@@ -416,22 +424,31 @@ anonymous shown/clicked/closed counts.
 again, caches it, and checks again when the interval has passed (immediately after coming
 back online if a check was missed).
 
-## Referrals
+## Partner programme
 
-Every customer has a unique referral code (5 random digits, made when the account is created; existing
-customers got one with migration 006) and a link `<PORTAL_URL>/r/<code>`. Customers share it from the
-client panel (green **Share with your friends** beside *Downloads*) and from the Dashboard of the desktop and
-mobile apps (the link comes with the license).
+Referral codes belong to **authorised partners and distributors** only (services/partners.js, migration 007).
+Customers share a plain promotional message with the download links (client panel → green *Share with your
+friends*; Dashboard → Share in the desktop and mobile apps); customer codes from version 2.3 are kept as history but
+no longer credit anyone.
 
-- `/r/<code>` redirects to `/?ref=<code>`; the website keeps the code in Local Storage for **30 days** and sends
-  it with sign-up and checkout (`attribution.ref_code`, or `refCode` for signed-in purchases).
-- The server saves it: on the new account (`clients.referred_by_id`, `referred_code`, `referred_at`) and on the
-  order (`payments.referral_code`, `referrer_id`). A customer is credited to the first referrer only, and only
-  before their first purchase; self-referrals and unknown codes are ignored. Nothing depends on the browser later.
-- Admin → **Referrals**: referred customers with the referrer (name, ID), code, date and amount paid, and the top
-  referrers. Admin → Customers: each customer's code (change it by hand — 4–10 letters or digits, unique — or
-  generate a new one), *Referred by*, the customers they referred, and a *Came through a referral* filter.
-- No rewards or commissions yet: attribution only.
+- **Website**: `/partners` (Partnership page), `/partners/apply` (application with the terms checkbox),
+  `/partners/login`, `/partner` (dashboard, phone friendly), `/partner-terms` (Partner Terms & Conditions:
+  eligibility, referral rules, commission calculation, payment schedule, refunds, fraud prevention, suspension and
+  termination). The terms version (`PARTNER_TERMS_VERSION`, also in `frontend/src/pages/partner/terms.jsx`) is
+  recorded with the time and IP on every acceptance (`partner_terms_acceptances`); when it changes, partners accept
+  again on their next sign-in.
+- **Approval**: applications wait in Admin → **Partners**; approving creates a unique code (e.g. `RAVI4821`) and the
+  link `<PORTAL_URL>/r/<code>`. Admins can also add a partner directly (temporary password), change the code, issue a
+  new password, suspend (signs the partner out, the link stops crediting), reject or terminate.
+- **Tracking**: `/r/<code>` counts a click and redirects to `/?ref=<code>`; the website keeps the code for 30 days and
+  sends it with sign-up and checkout. The server saves it on the customer (`clients.partner_id`, first partner wins,
+  only before the first purchase, never the partner's own email) and on each payment (`payments.partner_id`).
+- **Commissions**: one per paid payment (`partner_commissions.payment_id` is unique — webhook + confirmation never
+  pay twice), at the partner's own rate (0–50 %, set per partner; renewals included). Pending → approved → paid (with
+  the payout reference). A refund reverses it; a reversal after payout is deducted from the pending balance.
+- **Dashboard**: link and code, share buttons, clicks / registrations / sales / earned / pending / paid, the last 30
+  days day by day, referred customers and commissions. Per partner the admin decides what it shows (statistics at
+  all, customer names or masked names, sales amounts, commissions, share buttons).
 
 ## API overview
 
@@ -439,8 +456,8 @@ mobile apps (the link comes with the license).
 |------|------|------|
 | Apps | `/api/app` — `public-key`, `config`, `events`, `login`, `activate`, `license/refresh`, `license/release` (body `deviceKind`: `desktop` default, or `mobile`) | device token for refresh/release |
 | Portal | `/api/portal` — `site`, `checkout/start`, `checkout/confirm`, `support` (POST, public); `auth/login`, `auth/forgot`, `auth/reset`, `me`, `me/password`, `licenses`, `payments`, `checkout`, `downloads`, `support` (GET), `support/:id` (+ `messages`, `close`) | client JWT |
-| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients` (+ `:id/referral-code`), `referrals` (+ `generate`), `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `support` (+ `:id`, `:id/messages`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
-
+| Partners | `/api/partner` — `terms`, `register`, `login` (public); `me` (GET/PUT), `accept-terms`, `password` | partner JWT |
+| Admin | `/api/admin` — `auth/login`, `stats`, `stats/acquisition`, `clients` (`?partner=1`), `partners` (+ `:id`, `:id/code`, `:id/reset-password`, `commissions`, `commissions/:id/approve·pay·reverse`), `licenses`, `plans` (products with `prices`), `payments` (+ `mark-paid`, `refund`), `support` (+ `:id`, `:id/messages`), `downloads` (+ `downloads/settings`), `site`, `ads`, `config`, `audit`, `admins`, `uploads` | admin JWT + role |
 `checkout` and `checkout/start` require `acceptTerms: true` (the Terms & Conditions checkbox); the time is stored
 with the payment (`terms_accepted_at`).
 | Payments | `/api/payments/webhook/:provider` | provider signature |

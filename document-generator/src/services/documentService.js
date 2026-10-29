@@ -280,6 +280,36 @@ export function calculate(model, ctx) {
   return { ...result, docSettings: ds };
 }
 
+/** A saved customer's / vendor's details on a document (picking it, or "Record payment" from its profile). */
+export function partyPatch(p, doc) {
+  return {
+    party_id: p.id,
+    party_name: p.name,
+    party_company: p.company_name || '',
+    party_address: p.address || '',
+    party_phone: p.phone || '',
+    party_email: p.email || '',
+    party_gstin: p.gstin || '',
+    party_tax_id: p.tax_id || '',
+    party_state: p.state || '',
+    shipping_address: p.shipping_address || '',
+    place_of_supply: p.state || doc.place_of_supply,
+    meta: { ...doc.meta, ...Object.fromEntries(SHIP_FIELDS.map((f) => [f, ''])) },
+  };
+}
+
+/**
+ * New document for a saved party (Customers & Vendors → profile → Record payment / Advance).
+ * `advance`: a payment not against any bill, printed as "Advance (on account)".
+ */
+export async function newDocumentForParty(typeId, ctx, partyId, { advance = false } = {}) {
+  const m = newDocument(typeId, ctx);
+  const { party } = await call('party_ledger', { id: Number(partyId) });
+  m.document = { ...m.document, ...partyPatch(party, m.document) };
+  if (advance && getType(typeId).layout === 'receipt') m.document.meta = { ...m.document.meta, against: 'Advance (on account)' };
+  return m;
+}
+
 /** Validate a model; returns an error message or ''. */
 export function validate(model) {
   const doc = model.document;

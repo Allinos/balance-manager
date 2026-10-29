@@ -15,6 +15,7 @@ import {
   modelFromBundle,
   modelFromSource,
   newDocument,
+  newDocumentForParty,
   renderPayload,
   saveDocument,
   withCharges,
@@ -84,6 +85,8 @@ export default function DocumentEditorPage({ params, query }) {
           }
         } else if (query.from) {
           m = modelFromSource(await getDocument(query.from), params.type, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
+        } else if (query.party) {
+          m = await newDocumentForParty(params.type, ctx, query.party, { advance: query.advance === '1' });
         } else {
           m = newDocument(params.type, ctx);
         }

@@ -7,6 +7,7 @@ import { getType, normaliseTemplate, statusLabel, TEMPLATES, TYPE_MAP } from '..
 import { resolveDocSettings, withDocumentOptions } from '../../config/defaults.js';
 import { getDocument, setDocumentTemplate } from '../../services/documentService.js';
 import { openExternal, printCurrent, savePdf } from '../../services/systemService.js';
+import { TemplateSelect } from '../../components/TemplateCards.jsx';
 import { formatDateTime } from '../../utils/dates.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { useToast } from '../../hooks/useUi.jsx';
@@ -252,13 +253,7 @@ export default function DocumentViewPage({ params, query }) {
             <>
               <label className="template-switch" title="Template for this document only">
                 <Icon name="palette" size={15} />
-                <select className="input input-sm" value={template} onChange={(e) => changeTemplate(e.target.value)} aria-label="Template" data-testid="template-switch">
-                  {TEMPLATES.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                <TemplateSelect value={template} onChange={changeTemplate} aria-label="Template" data-testid="template-switch" />
               </label>
               {!cancelled && (
                 <button className="btn" onClick={() => actions.edit(doc)} data-testid="edit-doc">

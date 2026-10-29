@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '@desktop/config/defaults.js';
-import { BUSINESS_TYPES, TEMPLATES } from '@desktop/config/documentTypes.js';
+import { BUSINESS_TYPES } from '@desktop/config/documentTypes.js';
+import TemplateCards from '@desktop/components/TemplateCards.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { saveCompany, saveSettings } from '@desktop/services/settingsService.js';
 import TutorialButton from '@desktop/components/TutorialButton.jsx';
@@ -156,14 +157,7 @@ export default function Setup() {
             <h1>Pick an invoice template</h1>
             <p className="muted">You can change it any time, even for a single document.</p>
           </div>
-          <div className="template-options">
-            {TEMPLATES.map((t) => (
-              <button key={t.id} className={`template-option ${style === t.id ? 'active' : ''}`} onClick={() => setStylePick(t.id)} data-testid={`template-${t.id}`}>
-                <strong>{t.label}</strong>
-                <span className="small muted">{t.description}</span>
-              </button>
-            ))}
-          </div>
+          <TemplateCards value={style} onChange={setStylePick} testPrefix="template" optionClass="template-option" />
           <SamplePreview overrides={overrides} company={previewCompany} />
         </div>
       )}

@@ -1455,3 +1455,269 @@
   margin: 0;
   border-width: 0 0 1px;
 }
+
+/* ==========================================================================
+   More templates (config/documentTypes.js TEMPLATES, not featured):
+   GST Classic and Compact build on Standard (.doc-tally-std); the others on the base layout.
+   ========================================================================== */
+
+/* ----------------------------- GST Classic ------------------------------ */
+.doc-gst-classic .doc-header {
+  padding-top: 11mm;
+}
+.doc-gst-classic .doc-header-right {
+  top: 0;
+  background: var(--doc-accent);
+  padding: 1.6mm 0;
+}
+.doc-gst-classic .doc-title {
+  color: #fff;
+  font-size: 11.5pt;
+}
+.doc-gst-classic .doc-items thead th,
+.doc-gst-classic .doc-taxes th {
+  background: color-mix(in srgb, var(--doc-accent) 12%, #fff);
+}
+.doc-gst-classic .doc-grand {
+  background: color-mix(in srgb, var(--doc-accent) 10%, #fff);
+}
+.doc-gst-classic .doc-party-name {
+  font-size: 10pt;
+}
+
+/* ---------------------------- Corporate B2B ----------------------------- */
+.doc-b2b {
+  gap: 4.5mm;
+}
+.doc-b2b .doc-header {
+  margin: -12mm -12mm 0;
+  padding: 8mm 12mm 6mm;
+  background: var(--doc-accent);
+  color: #fff;
+  align-items: center;
+}
+.doc-b2b .doc-company,
+.doc-b2b .doc-company-legal {
+  color: rgba(255, 255, 255, 0.86);
+}
+.doc-b2b .doc-title {
+  color: #fff;
+  font-size: 16pt;
+}
+.doc-b2b .doc-logo {
+  background: #fff;
+  border-radius: 2mm;
+  padding: 1.5mm;
+}
+.doc-b2b .doc-party {
+  border: 1px solid var(--doc-line);
+  border-top: 2px solid var(--doc-accent);
+  border-radius: 1.5mm;
+  padding: 3mm;
+}
+.doc-b2b .doc-meta {
+  border: 1px solid var(--doc-line);
+  border-radius: 1.5mm;
+  padding: 2mm 3mm;
+  background: #f7f9fc;
+}
+.doc-b2b .doc-items thead th {
+  background: var(--doc-accent);
+  color: #fff;
+}
+.doc-b2b .doc-items tbody td {
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-b2b .doc-taxes th {
+  border-bottom: 1px solid var(--doc-accent);
+  color: var(--doc-accent);
+}
+.doc-b2b .doc-taxes td {
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-b2b .doc-grand {
+  background: var(--doc-accent);
+  color: #fff;
+  border-radius: 1.5mm;
+}
+
+/* -------------------------------- Retail -------------------------------- */
+.doc-retail {
+  gap: 4mm;
+}
+.doc-retail .doc-header {
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 2mm;
+  padding-bottom: 3mm;
+  border-bottom: 1px dashed #777;
+}
+.doc-retail .doc-header-left {
+  flex-direction: column;
+  align-items: center;
+  gap: 2mm;
+}
+.doc-retail .doc-header-right {
+  text-align: center;
+}
+.doc-retail .doc-company-name {
+  font-size: 16pt;
+}
+.doc-retail .doc-title {
+  font-size: 11pt;
+  color: var(--doc-ink);
+  letter-spacing: 0.2em;
+  border: 1px solid var(--doc-ink);
+  padding: 0.6mm 4mm;
+}
+.doc-retail .doc-parties {
+  padding-bottom: 3mm;
+  border-bottom: 1px dashed #777;
+}
+.doc-retail .doc-items thead th {
+  border-top: 1px dashed #777;
+  border-bottom: 1px dashed #777;
+}
+.doc-retail .doc-items tfoot td {
+  border-top: 1px dashed #777;
+}
+.doc-retail .doc-taxes th {
+  border-bottom: 1px dashed #777;
+}
+.doc-retail .doc-grand {
+  font-size: 14pt;
+  border: 2px solid var(--doc-ink);
+  border-radius: 1.5mm;
+}
+.doc-thanks {
+  text-align: center;
+  font-weight: 700;
+  font-size: 10pt;
+  padding-top: 2mm;
+  border-top: 1px dashed #777;
+}
+
+/* --------------------------------- Bold --------------------------------- */
+.doc-bold .doc-header {
+  margin: -12mm -12mm 0;
+  padding: 9mm 12mm 7mm;
+  background: #15181f;
+  color: #fff;
+  border-bottom: 2.5mm solid var(--doc-accent);
+}
+.doc-bold .doc-company,
+.doc-bold .doc-company-legal {
+  color: #c9ced8;
+}
+.doc-bold .doc-title {
+  color: #fff;
+  font-size: 22pt;
+  font-weight: 800;
+}
+.doc-bold .doc-logo {
+  background: #fff;
+  padding: 1.5mm;
+}
+.doc-bold .doc-label {
+  color: var(--doc-accent);
+}
+.doc-bold .doc-items thead th {
+  background: #15181f;
+  color: #fff;
+}
+.doc-bold .doc-items tbody td {
+  border-bottom: 1px solid var(--doc-line);
+}
+.doc-bold .doc-taxes th {
+  border-bottom: 2px solid #15181f;
+}
+.doc-bold .doc-grand {
+  background: var(--doc-accent);
+  color: #fff;
+  font-size: 12.5pt;
+}
+
+/* ------------------------------- Elegant -------------------------------- */
+.doc-elegant {
+  font-family: Georgia, 'Times New Roman', 'Noto Serif', serif;
+  --doc-line: #cfc8bb;
+}
+.doc-elegant .doc-header {
+  padding-bottom: 5mm;
+  border-bottom: 0.4mm solid var(--doc-ink);
+}
+.doc-elegant .doc-title {
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  color: var(--doc-ink);
+}
+.doc-elegant .doc-company-name {
+  font-weight: 400;
+  font-size: 16pt;
+  letter-spacing: 0.04em;
+}
+.doc-elegant .doc-label {
+  font-variant: small-caps;
+  text-transform: none;
+  font-size: 9pt;
+  letter-spacing: 0.08em;
+}
+.doc-elegant .doc-items th,
+.doc-elegant .doc-taxes th {
+  font-weight: 400;
+  font-variant: small-caps;
+  text-transform: none;
+  font-size: 9pt;
+  border-bottom: 0.3mm solid var(--doc-ink);
+}
+.doc-elegant .doc-items tbody td {
+  border-bottom: 0.2mm solid var(--doc-line);
+}
+.doc-elegant .doc-grand {
+  border-top: 0.3mm solid var(--doc-ink);
+  border-bottom: 0.9mm double var(--doc-ink);
+  font-weight: 400;
+}
+
+/* ------------------------------- Compact -------------------------------- */
+.doc-compact {
+  font-size: 7.8pt;
+  line-height: 1.25;
+}
+.doc-compact .doc-items th,
+.doc-compact .doc-items td,
+.doc-compact .doc-taxes th,
+.doc-compact .doc-taxes td {
+  padding: 0.7mm 1.2mm;
+}
+.doc-compact .doc-items th,
+.doc-compact .doc-taxes th {
+  font-size: 7pt;
+}
+.doc-compact .doc-company-name {
+  font-size: 11pt;
+}
+.doc-compact .doc-title {
+  font-size: 10.5pt;
+}
+.doc-compact .doc-item-desc {
+  font-size: 7pt;
+}
+.doc-compact .doc-sign-space {
+  height: 16mm;
+}
+
+/* A5 versions keep the band edges inside the smaller margins. */
+.doc.doc-a5.doc-b2b .doc-header,
+.doc.doc-a5.doc-bold .doc-header {
+  margin: -8mm -8mm 0;
+  padding: 6mm 8mm 5mm;
+}
+.doc-b2b .doc-company-name,
+.doc-bold .doc-company-name {
+  color: #fff;
+}
+.doc-compact .doc-party-name {
+  font-size: 9pt;
+}

@@ -63,6 +63,8 @@ pub fn run() {
             commands::backup_export,
             commands::sales_export,
             commands::export_save,
+            commands::party_ledger,
+            commands::ledger_sums,
             commands::backup_restore,
             commands::ad_state_get,
             commands::ad_state_set,

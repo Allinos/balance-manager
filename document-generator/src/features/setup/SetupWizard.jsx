@@ -3,7 +3,8 @@ import Icon from '../../components/Icon.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, TextInput } from '../../components/Form.jsx';
 import { CURRENCY_PRESETS, STANDARD_TAX_RATE, TAX_CHOICES, defaultTaxChoice, taxSettingsFor } from '../../config/defaults.js';
-import { BUSINESS_TYPES, TEMPLATES } from '../../config/documentTypes.js';
+import { BUSINESS_TYPES } from '../../config/documentTypes.js';
+import TemplateCards from '../../components/TemplateCards.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
 import { APP_CONFIG } from '../../config/appConfig.js';
 import { saveCompany, saveSettings } from '../../services/settingsService.js';
@@ -208,14 +209,7 @@ export default function SetupWizard() {
           <div className="setup-body">
             <h2>Pick an invoice template</h2>
             <p className="muted">You can change it any time, even for a single document. Your data is never affected.</p>
-            <div className="template-options">
-              {TEMPLATES.map((t) => (
-                <button key={t.id} className={`style-option ${style === t.id ? 'active' : ''}`} onClick={() => setStylePick(t.id)} data-testid={`template-${t.id}`}>
-                  <strong>{t.label}</strong>
-                  <span className="muted small">{t.description}</span>
-                </button>
-              ))}
-            </div>
+            <TemplateCards value={style} onChange={setStylePick} testPrefix="template" />
             <div className="setup-preview">
               <StylePreview overrides={styleOverrides} company={previewCompany} />
             </div>

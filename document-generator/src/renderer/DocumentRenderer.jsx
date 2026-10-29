@@ -7,7 +7,7 @@
  */
 
 import { useMemo } from 'react';
-import { getType, normaliseTemplate } from '../config/documentTypes.js';
+import { TEMPLATE_MAP, getType, normaliseTemplate } from '../config/documentTypes.js';
 import { qrDataUrl, upiLink } from '../utils/qr.js';
 import { formatMoney } from '../utils/format.js';
 import { formatDate } from '../utils/dates.js';
@@ -117,10 +117,13 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
   const head = !page || page.first;
   const tail = !page || page.last;
   const title = ds.title || type.title;
+  // A template built on another layout (GST Classic, Compact → Standard) takes both looks.
+  const base = TEMPLATE_MAP[template]?.base;
+  const retail = template === 'retail';
 
   return (
     <article
-      className={`doc doc-${template}${sheetClass(page)}${a5Class(ds, paging)}`}
+      className={`doc ${base ? `doc-${base} ` : ''}doc-${template}${sheetClass(page)}${a5Class(ds, paging)}`}
       style={{ '--doc-accent': settings.documentAccent || '#1f4fd8' }}
     >
       <CancelledMark doc={doc} />
@@ -199,6 +202,7 @@ export default function DocumentRenderer({ payload, copyIndex = 0, copies = 1, p
           <SignatureBlock company={company} ds={ds} receiverSignature={receiverSignature} receiverLabel={receiverLabel} />
         </>
       )}
+      {tail && retail && <div className="doc-thanks">Thank you for shopping with us — please visit again!</div>}
       {tail && <DocumentFooter text={settings.footerText} jurisdiction={settings.jurisdiction} />}
       {page && page.pageCount > 1 && (
         <PageFooter label={`${title} ${doc.document_number || ''}`} pageNo={page.pageNo} pageCount={page.pageCount} />

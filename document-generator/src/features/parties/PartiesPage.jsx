@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from '../../components/Icon.jsx';
 import Modal from '../../components/Modal.jsx';
 import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
@@ -7,6 +7,9 @@ import { Field, Segmented, TextArea, TextInput, Toggle } from '../../components/
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
 import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '../../services/catalogService.js';
+import { balanceLabel, ledgerSummary } from '../../services/ledgerService.js';
+import { abs } from '../../utils/decimal.js';
+import { useMoney } from '../../hooks/useMoney.js';
 import { formatDate } from '../../utils/dates.js';
 import { useAppData } from '../../hooks/useAppData.jsx';
 import { useConfirm, useToast } from '../../hooks/useUi.jsx';
@@ -203,6 +206,9 @@ export default function PartiesPage({ params }) {
   // A new record starts as the kind being looked at (a customer on All).
   const newKind = mod.kind === 'all' ? 'customer' : mod.kind;
   const [rows, setRows] = useState(null);
+  const [totals, setTotals] = useState(null);
+  const loadTicket = useRef(0);
+  const money = useMoney();
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -210,7 +216,14 @@ export default function PartiesPage({ params }) {
 
   const load = useCallback(async () => {
     try {
-      setRows(await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search: debounced }));
+      const ticket = ++loadTicket.current;
+      const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search: debounced });
+      // Balances from the ledger (invoices, bills and payments of each party).
+      const summary = await ledgerSummary(list);
+      // Only the latest request counts (switching Active / Archived quickly must not show an older list).
+      if (ticket !== loadTicket.current) return;
+      setRows(summary.parties);
+      setTotals(summary.totals);
     } catch (e) {
       toast.error(e.message);
     }
@@ -261,6 +274,26 @@ export default function PartiesPage({ params }) {
           </button>
         }
       />
+      {totals && !archived && (
+        <div className="ledger-cards" data-testid="ledger-totals">
+          <div className="ledger-card get">
+            <small>{"You'll get (receivables)"}</small>
+            <strong data-testid="total-receivable">{money(totals.receivable)}</strong>
+          </div>
+          <div className="ledger-card give">
+            <small>{"You'll give (payables)"}</small>
+            <strong data-testid="total-payable">{money(totals.payable)}</strong>
+          </div>
+          <div className="ledger-card">
+            <small>Advances received</small>
+            <strong data-testid="total-advance-received">{money(totals.advanceReceived)}</strong>
+          </div>
+          <div className="ledger-card">
+            <small>Advances paid</small>
+            <strong data-testid="total-advance-paid">{money(totals.advancePaid)}</strong>
+          </div>
+        </div>
+      )}
       <div className="toolbar card">
         {tabs.length > 1 && (
           <Segmented
@@ -282,7 +315,11 @@ export default function PartiesPage({ params }) {
         </div>
         <Segmented
           value={archived ? 'archived' : 'active'}
-          onChange={(v) => setArchived(v === 'archived')}
+          onChange={(v) => {
+            // Clear the list while the other one loads, so no row of the old list (with its buttons) is shown.
+            setRows(null);
+            setArchived(v === 'archived');
+          }}
           options={[
             { value: 'active', label: 'Active' },
             { value: 'archived', label: 'Archived' },
@@ -320,6 +357,7 @@ export default function PartiesPage({ params }) {
                 <th>State</th>
                 <th className="num">Documents</th>
                 <th>Last document</th>
+                <th className="num">Balance</th>
                 <th className="actions-col">Actions</th>
               </tr>
             </thead>
@@ -327,7 +365,9 @@ export default function PartiesPage({ params }) {
               {rows.map((p) => (
                 <tr key={p.id} onDoubleClick={() => !archived && setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-row">
                   <td>
-                    <strong>{p.name}</strong>
+                    <Link to={`/party/${p.id}`} data-testid="party-open">
+                      <strong>{p.name}</strong>
+                    </Link>
                     <span className={`badge party-kind-${p.kind}`} data-testid="party-kind-badge">
                       {p.kind === 'both' ? 'Customer & vendor' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}
                     </span>
@@ -342,6 +382,12 @@ export default function PartiesPage({ params }) {
                   <td>{p.state || '—'}</td>
                   <td className="num">{p.document_count || 0}</td>
                   <td>{p.last_document_date ? formatDate(p.last_document_date, settings.dateFormat) : '—'}</td>
+                  <td className="num">
+                    <span className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
+                      {money(abs(p.balance))}
+                      <small>{balanceLabel(p.balance)}</small>
+                    </span>
+                  </td>
                   <td className="actions-col">
                     <div className="row-actions">
                       {archived ? (
@@ -350,6 +396,9 @@ export default function PartiesPage({ params }) {
                         </button>
                       ) : (
                         <>
+                          <button className="icon-btn" title="Ledger & payments" onClick={() => navigate(`/party/${p.id}`)} data-testid="party-ledger-open">
+                            <Icon name="book" size={17} />
+                          </button>
                           <button className="icon-btn" title="Edit" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-edit">
                             <Icon name="edit" size={17} />
                           </button>

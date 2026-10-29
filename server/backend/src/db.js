@@ -14,12 +14,14 @@ import * as singleProduct from './migrations/003_single_product.js';
 import * as pricesAndMobile from './migrations/004_prices_and_mobile.js';
 import * as supportAndTerms from './migrations/005_support_and_terms.js';
 import * as referrals from './migrations/006_referrals.js';
+import * as partners from './migrations/007_partners.js';
 
 /** Ordered migrations. Append new ones; never edit an applied migration. */
 const MIGRATIONS = {
   '001_initial': initial, '002_signup_source': signupSource, '003_single_product': singleProduct, '004_prices_and_mobile': pricesAndMobile,
   '005_support_and_terms': supportAndTerms,
   '006_referrals': referrals,
+  '007_partners': partners,
 };
 
 class InlineMigrationSource {

@@ -263,7 +263,7 @@ export default function ClientHome() {
               <Icon name="download" size={16} /> Downloads
             </Link>
           )}
-          <ShareReferral link={client.user.referralLink} code={client.user.referralCode} />
+          <ShareReferral />
         </div>
       </div>
 

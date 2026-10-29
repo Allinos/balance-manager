@@ -156,3 +156,13 @@
     break-before: page;
   }
 }
+
+/* Bold / Corporate B2B: the header band sits inside the printed page margins (the sheet has no padding in print). */
+@media print {
+  .doc-b2b .doc-header,
+  .doc-bold .doc-header {
+    margin: 0 !important;
+    padding-left: 5mm !important;
+    padding-right: 5mm !important;
+  }
+}

@@ -14,7 +14,7 @@ import { fulfillPayment, publicLicense } from '../services/licenses.js';
 import { sendPurchase } from '../services/meta.js';
 import { durationLabel, pricesByPlan, publicPrice, resolvePrice } from '../services/products.js';
 import { getProvider, listProviders } from '../payments/index.js';
-import { ensureReferralCode, newClientReferral, paymentReferral, recordReferral, referralLink } from '../services/referrals.js';
+import { createCommission, newClientPartner, paymentPartner, recordPartner } from '../services/partners.js';
 import { SUPPORT_TOPICS, addMessage, createRequest, publicRequest, requestMessages, setStatus } from '../services/support.js';
 
 const password = z.string().min(8, 'must be at least 8 characters').max(200);
@@ -63,8 +63,8 @@ const attributionSchema = z
     fbclid: shortText(300),
     landing: shortText(300),
     referrer: shortText(300),
-    /** Referral code from a /r/<code> link (kept by the website for 30 days). */
-    ref_code: shortText(10),
+    /** Partner code from a /r/<code> link (kept by the website for 30 days). */
+    ref_code: shortText(12),
   })
   .partial()
   .optional()
@@ -95,7 +95,7 @@ export function signupSource(a = {}) {
       /* not a URL */
     }
   }
-  if (!source && a.ref_code) [source, medium] = ['referral', 'customer-referral'];
+  if (!source && a.ref_code) [source, medium] = ['partner', 'partner-referral'];
   const details = Object.fromEntries(['utm_term', 'utm_content', 'gclid', 'fbclid', 'landing', 'referrer', 'ref_code'].filter((k) => a[k]).map((k) => [k, a[k]]));
   return {
     ref_source: (source || 'direct').slice(0, 60),
@@ -124,11 +124,9 @@ export const publicClient = (c) => ({
   hasPassword: !!c.password_hash,
   source: c.source,
   signup: { source: c.ref_source || '', medium: c.ref_medium || '', campaign: c.ref_campaign || '', details: parseJson(c.ref_details, {}) },
-  referralCode: c.referral_code || '',
-  referralLink: referralLink(c.referral_code),
-  referredById: c.referred_by_id ?? null,
-  referredCode: c.referred_code || '',
-  referredAt: c.referred_at || null,
+  partnerId: c.partner_id ?? null,
+  partnerCode: c.partner_code || '',
+  partnerAt: c.partner_at || null,
 });
 
 export const publicPayment = (p) => ({
@@ -148,8 +146,8 @@ export const publicPayment = (p) => ({
   status: p.status,
   paidAt: p.paid_at,
   createdAt: p.created_at,
-  referralCode: p.referral_code || '',
-  referrerId: p.referrer_id ?? null,
+  partnerId: p.partner_id ?? null,
+  partnerCode: p.partner_code || '',
 });
 
 /** A product with its price options (`prices`: from `pricesByPlan`). */
@@ -281,14 +279,13 @@ export function portalRoutes(knex) {
       }
       if (client.status !== 'active') throw new ApiError(403, 'ACCOUNT_SUSPENDED', 'This account is suspended. Please contact support.');
       client = await updateOne(knex, 'clients', { id: client.id }, { name: body.name, phone: body.phone, updated_at: nowIso() });
-      await ensureReferralCode(knex, client);
-      await recordReferral(knex, client, body.attribution?.ref_code);
+      await recordPartner(knex, client, body.attribution?.ref_code);
       client = await knex('clients').where({ id: client.id }).first();
     } else {
       const ts = nowIso();
       client = await insertOne(knex, 'clients', {
         ...signupSource(body.attribution),
-        ...(await newClientReferral(knex, body.attribution?.ref_code)),
+        ...(await newClientPartner(knex, body.attribution?.ref_code, body.email)),
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -334,7 +331,7 @@ export function portalRoutes(knex) {
     const ts = nowIso();
     const client = await insertOne(knex, 'clients', {
         ...signupSource(body.attribution),
-        ...(await newClientReferral(knex, body.attribution?.ref_code)),
+        ...(await newClientPartner(knex, body.attribution?.ref_code, body.email)),
         name: body.name,
         email: body.email,
         phone: body.phone,
@@ -398,7 +395,6 @@ export function portalRoutes(knex) {
   });
 
   r.get('/me', auth, async (req, res) => {
-    await ensureReferralCode(knex, req.client);
     res.json({ client: publicClient(req.client) });
   });
 
@@ -610,7 +606,7 @@ async function startPayment(knex, { client, plan, price, provider, renewLicenseI
     amount_paise: price.price_paise,
     currency: plan.currency,
     status: 'created',
-    ...(await paymentReferral(knex, client, refCode)),
+    ...(await paymentPartner(knex, client, refCode)),
     meta: JSON.stringify(Object.keys(track).length ? { track } : {}),
     terms_accepted_at: ts,
     created_at: ts,
@@ -662,10 +658,14 @@ export async function markPaid(knex, payment, providerPaymentId, meta = {}) {
         });
     }
     const license = await fulfillPayment(trx, paid);
-    // A first purchase made with a referral credits the customer to the referrer (if not credited already).
-    if (newlyPaid && paid.referral_code) {
-      const buyer = await trx('clients').where({ id: paid.client_id }).first();
-      await recordReferral(trx, buyer, paid.referral_code, { exceptPaymentId: paid.id });
+    // A purchase through a partner credits the customer to the partner (first purchase only) and creates the
+    // partner's commission — once per payment, whoever reports it first.
+    if (paid.partner_id) {
+      if (newlyPaid) {
+        const buyer = await trx('clients').where({ id: paid.client_id }).first();
+        await recordPartner(trx, buyer, paid.partner_code, { exceptPaymentId: paid.id });
+      }
+      await createCommission(trx, paid);
     }
     return { paid: { ...paid, license_id: license.id }, license, newlyPaid };
   });

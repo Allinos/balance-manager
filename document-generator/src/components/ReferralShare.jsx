@@ -4,19 +4,19 @@ import Icon from './Icon.jsx';
 import { useAppData } from '../hooks/useAppData.jsx';
 import { useToast } from '../hooks/useUi.jsx';
 import { APP_CONFIG } from '../config/appConfig.js';
-import { copyText, emailShareUrl, referralFor, referralMessage, whatsappShareUrl } from '../config/referral.js';
+import { copyText, emailShareUrl, promoMessage, shareLinksFor, whatsappShareUrl } from '../config/referral.js';
 import { openExternal } from '../services/systemService.js';
 
-/** Dashboard → Share icon: copy or share the customer's referral link (config/referral.js). */
+/** Dashboard → Share icon: a promotional message with the download links (config/referral.js). */
 export default function ReferralShare() {
   const { license } = useAppData();
   const toast = useToast();
   const [open, setOpen] = useState(false);
-  const ref = referralFor(license, APP_CONFIG.website);
-  const text = referralMessage(ref.link);
+  const links = shareLinksFor(license, APP_CONFIG.website);
+  const text = promoMessage(links);
   const copy = async () => {
-    if (await copyText(ref.link)) toast.success('Link copied — paste it in WhatsApp, email or anywhere');
-    else toast.error('Could not copy. Select the link and press Ctrl+C.');
+    if (await copyText(text)) toast.success('Message copied — paste it in WhatsApp, email or anywhere');
+    else toast.error('Could not copy. Select the message and press Ctrl+C.');
   };
   const external = (url) => openExternal(url).catch((e) => toast.error(e.message));
   return (
@@ -26,22 +26,14 @@ export default function ReferralShare() {
       </button>
       {open && (
         <Modal title="Share DocGen with your friends" onClose={() => setOpen(false)} size="sm">
-          <p className="muted">
-            {ref.personal
-              ? 'This is your personal link. When friends buy DocGen through it, we know they came from you.'
-              : 'Sign in with your DocGen account (Settings → License) to get your own referral link. Until then you can share our website.'}
-          </p>
+          <p className="muted">Send this message with the download links to friends and other business owners.</p>
+          <textarea className="input share-message" readOnly rows={6} value={text} onFocus={(e) => e.target.select()} aria-label="Message to share" data-testid="share-message" />
           <div className="referral-link" data-testid="referral-link">
-            <input className="input" readOnly value={ref.link} onFocus={(e) => e.target.select()} aria-label="Referral link" data-testid="referral-link-input" />
+            <input className="input" readOnly value={links.link} onFocus={(e) => e.target.select()} aria-label="Download link" data-testid="referral-link-input" />
             <button className="btn" onClick={copy} data-testid="referral-copy">
-              <Icon name="copy" size={15} /> Copy
+              <Icon name="copy" size={15} /> Copy message
             </button>
           </div>
-          {ref.code && (
-            <p className="small muted">
-              Your referral code: <strong data-testid="referral-code">{ref.code}</strong>
-            </p>
-          )}
           <div className="modal-actions referral-actions">
             <button className="btn btn-success" onClick={() => external(whatsappShareUrl(text))} data-testid="referral-whatsapp">
               <Icon name="message" size={15} /> Share on WhatsApp

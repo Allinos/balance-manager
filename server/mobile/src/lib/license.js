@@ -16,7 +16,7 @@ import { sha512 } from '@noble/hashes/sha2.js';
 import { kvDel, kvGet, kvSet } from './db.js';
 import { opened, sealed } from './vault.js';
 
-export const APP_VERSION = '2.3.1';
+export const APP_VERSION = '2.5.1';
 const DAY = 86400000;
 const REFRESH_EVERY = DAY;
 export const OFFLINE_GRACE_DAYS = 30;
@@ -111,8 +111,8 @@ async function store(response, existing = {}) {
   const key = await publicKey();
   const payload = await verifyToken(response.token, key, dev);
   if (!payload) throw new LicenseError('INVALID_TOKEN', 'The license could not be verified. Please contact support.');
-  // referral: the customer's own link for Dashboard → Share (null for a key without an account).
-  const record = { ...existing, token: response.token, info: response.license, referral: response.referral || null, lastCheckAt: Date.now() };
+  // share: the website links for Dashboard → Share (referral codes are for partners only).
+  const record = { ...existing, token: response.token, info: response.license, share: response.share || null, lastCheckAt: Date.now() };
   await kvSet('license', await sealed(record));
   try {
     localStorage.setItem(
@@ -199,7 +199,7 @@ export async function status() {
     deviceName: deviceName(),
     lastCheckAt: record.lastCheckAt,
     status: payload.status,
-    referral: record.referral || null,
+    share: record.share || null,
   };
   const needsCheck = now - (record.lastCheckAt || 0) > REFRESH_EVERY;
   if (payload.status === 'suspended' || payload.status === 'revoked') return { state: 'blocked', license, daysLeft, needsCheck: true };

@@ -1,7 +1,7 @@
 {
   "name": "docgen-mobile",
   "private": true,
-  "version": "2.3.1",
+  "version": "2.5.1",
   "description": "DocGen Mobile: installable, offline-first web app (PWA) for phones and tablets. Served by the backend at /app/.",
   "type": "module",
   "scripts": {

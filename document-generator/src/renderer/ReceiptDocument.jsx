@@ -13,7 +13,7 @@
  * A5 is the same layout drawn smaller (paging.js a5Class), like every other document.
  */
 
-import { getType } from '../config/documentTypes.js';
+import { TEMPLATE_MAP, getType } from '../config/documentTypes.js';
 import { formatDate } from '../utils/dates.js';
 import { formatMoney } from '../utils/format.js';
 import { amountInWords } from '../utils/numberToWords.js';
@@ -82,7 +82,7 @@ export default function ReceiptDocument({ payload, template, copy, paging }) {
   const settle = settlement(doc);
   const pay = paymentRows(doc, vendor, dateFormat);
   const title = ds.title || type.title;
-  const boxed = template === 'tally-pro' || template === 'tally-std';
+  const boxed = !!TEMPLATE_MAP[template]?.boxed;
   const invoiceWord = vendor ? 'bill' : 'invoice';
 
   return (

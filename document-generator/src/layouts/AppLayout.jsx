@@ -129,7 +129,7 @@ export default function AppLayout({ children }) {
           {NAV.map(navItem)}
           {/* Customers / Vendors appear here once switched on; + Add More leads to Settings-style feature switches. */}
           {enabledModules(settings).length > 0 &&
-            navItem({ to: '/parties/all', label: 'Customers & Vendors', icon: 'users', match: ['/parties/all', '/parties/customer', '/parties/vendor'] })}
+            navItem({ to: '/parties/all', label: 'Customers & Vendors', icon: 'users', match: ['/parties/all', '/parties/customer', '/parties/vendor', '/party'] })}
           {(
             <Link
               to="/parties"

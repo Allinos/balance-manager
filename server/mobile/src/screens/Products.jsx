@@ -8,7 +8,6 @@ import { formatMoney } from '@desktop/utils/format.js';
 import Icon from '../components/Icon.jsx';
 import { Empty, Field, Header, Input, NumberInput, Picker, Segmented, Select, Sheet, Spinner, TextArea, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
-import { PartyLinks } from './Parties.jsx';
 
 const emptyProduct = (settings) => ({
   type: 'PRODUCT', name: '', sku: '', category_id: '', description: '', hsn_sac: '', unit: settings.units?.[0] || 'Nos', selling_price: '',
@@ -264,7 +263,6 @@ export default function Products() {
         }
       />
       <div className="page" data-testid="products">
-        <PartyLinks />
         <div className="search">
           <Icon name="search" size={18} />
           <input className="input" placeholder="Name, SKU, HSN or category" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="product-search" />

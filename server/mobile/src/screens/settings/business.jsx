@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { DOCUMENT_TYPES, TEMPLATES, getType } from '@desktop/config/documentTypes.js';
+import TemplateCards from '@desktop/components/TemplateCards.jsx';
 import { docSettingFieldsFor, resolveDocSettings } from '@desktop/config/defaults.js';
 import { STATE_NAMES, stateCode } from '@desktop/config/states.js';
 import { saveCompany, saveDocSettings } from '@desktop/services/settingsService.js';
@@ -147,14 +148,7 @@ export function DocumentsSection() {
           Defaults for every document. Document Types can change them for one type.
         </p>
         <Field label="Template" hint="Only changes the look — your documents and data are never modified">
-          <div className="template-options">
-            {TEMPLATES.map((t) => (
-              <button type="button" key={t.id} className={`template-option ${draft.documentStyle === t.id ? 'active' : ''}`} onClick={() => set({ documentStyle: t.id })} data-testid={`settings-template-${t.id}`}>
-                <strong>{t.label}</strong>
-                <span className="small muted">{t.description}</span>
-              </button>
-            ))}
-          </div>
+          <TemplateCards value={draft.documentStyle} onChange={(id) => set({ documentStyle: id })} optionClass="template-option" />
         </Field>
         <SamplePreview overrides={overrides} />
         <Field label="Number of copies" hint="Printed / saved as PDF. GST invoices are labelled Original for Recipient, Duplicate for Transporter, Triplicate for Supplier.">

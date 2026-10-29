@@ -1816,3 +1816,119 @@ button.license-chip {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
   gap: 6px;
 }
+
+/* Template choice: featured, then "More templates" with their kind (GST, B2B, Retail…). */
+.template-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.template-more-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+  margin-top: 4px;
+}
+.template-kind {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  vertical-align: 1px;
+  background: rgba(31, 79, 216, 0.1);
+  color: #1f4fd8;
+}
+
+/* Payments & ledger */
+.ledger-totals {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.ledger-totals > div {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ledger-totals strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ledger-totals .get strong,
+.party-balance.get,
+.balance-card.get strong,
+.ledger-row .get {
+  color: var(--good);
+}
+.ledger-totals .give strong,
+.party-balance.give,
+.balance-card.give strong,
+.ledger-row .give {
+  color: var(--bad);
+}
+.balance-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  text-align: center;
+}
+.balance-card strong {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.balance-split {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+}
+.ledger-head,
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: center;
+  padding: 8px 12px;
+  text-align: right;
+}
+.ledger-head > :first-child,
+.ledger-row > :first-child {
+  text-align: left;
+}
+.ledger-row {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ledger-what {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* Share DocGen: the ready promotional message. */
+.share-message {
+  width: 100%;
+  resize: none;
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}

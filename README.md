@@ -23,7 +23,7 @@ small businesses, by [reynrel.in](https://reynrel.in).
   customers, support requests, payments, licenses, products & pricing, downloads, website (incl. business
   details for the policies), app settings, ads, activity log. Both work on phones.
 - **DocGen Mobile**: install from the client panel (Downloads → Mobile), enter the license key once and use the
-  desktop app's features on the phone — all document types, the same 4 templates, documents, products and
+  desktop app's features on the phone — all document types, the same 10 templates, documents, products and
   settings (it shares the desktop app's code); data stays on the phone.
 
 ![Professional invoice](docs/screenshots/09-invoice-tally-pro.png)

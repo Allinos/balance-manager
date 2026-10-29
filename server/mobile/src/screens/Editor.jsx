@@ -10,7 +10,7 @@ import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/c
 import { SHIP_FIELDS, hasDifferentShipTo, offersShipping, shippingOn } from '@desktop/config/shipping.js';
 import { isServiceUnit, unitOptions } from '@desktop/config/units.js';
 import { isValidRate, rateValue, taxRateOptions } from '@desktop/config/taxRates.js';
-import { blankCharge, blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, renderPayload, saveDocument, withCharges } from '@desktop/services/documentService.js';
+import { blankCharge, blankItem, calculate, currencyInfo, getDocument, modelFromBundle, modelFromSource, newDocument, newDocumentForParty, renderPayload, saveDocument, withCharges } from '@desktop/services/documentService.js';
 import { CHARGE_SUGGESTIONS } from '@desktop/features/documents/editor/ChargesEditor.jsx';
 import { listParties, listProducts, saveProduct } from '@desktop/services/catalogService.js';
 import { previewNumber } from '@desktop/services/settingsService.js';
@@ -401,6 +401,8 @@ export default function Editor({ typeId, id, query = {} }) {
           }
         } else if (query.from) {
           m = modelFromSource(await getDocument(query.from), typeId, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
+        } else if (query.party) {
+          m = await newDocumentForParty(typeId, ctx, query.party, { advance: query.advance === '1' });
         } else {
           m = newDocument(typeId, ctx);
         }

@@ -90,7 +90,7 @@ export default function AdminClients() {
   const page = Number(params.get('page') || 1);
   const status = params.get('status') || '';
   const referred = params.get('referred') || '';
-  const { data, loading, error, reload } = useLoad(() => adminApi.get(`/clients${qs({ q: params.get('q') || '', status, referred, page, pageSize: 25 })}`), [params.toString()]);
+  const { data, loading, error, reload } = useLoad(() => adminApi.get(`/clients${qs({ q: params.get('q') || '', status, partner: referred, page, pageSize: 25 })}`), [params.toString()]);
   const [creating, setCreating] = useState(params.get('new') === '1');
 
   return (
@@ -111,10 +111,10 @@ export default function AdminClients() {
           setParams({ q, status, referred });
         }}
       >
-        <input className="input" placeholder="Search name, email, mobile, business, referral code" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="input" placeholder="Search name, email, mobile, business, partner code" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input" value={referred} onChange={(e) => setParams({ q, status, referred: e.target.value })} data-testid="clients-referred">
           <option value="">Everyone</option>
-          <option value="1">Came through a referral</option>
+          <option value="1">Came through a partner</option>
         </select>
         <select className="input" value={status} onChange={(e) => setParams({ q, status: e.target.value, referred })}>
           <option value="">All statuses</option>
@@ -138,7 +138,7 @@ export default function AdminClients() {
                 <th>Valid until</th>
                 <th className="right">Paid</th>
                 <th>Came from</th>
-                <th>Referral</th>
+                <th>Partner</th>
                 <th>Joined</th>
               </tr>
             </thead>
@@ -165,10 +165,15 @@ export default function AdminClients() {
                   <td>{c.license ? (c.license.lifetime ? 'Lifetime' : date(c.license.expiresAt)) : '—'}</td>
                   <td className="right">{c.paidTotal ? money(c.paidTotal) : '—'}</td>
                   <td className="small">{signupLabel(c.signup)}</td>
-                  <td className="small" data-testid="client-referral">
-                    <span className="mono">{c.referralCode || '—'}</span>
-                    {c.referralCount > 0 && <div className="muted">referred {c.referralCount}</div>}
-                    {c.referredBy && <div className="muted">by {c.referredBy.name}</div>}
+                  <td className="small" data-testid="client-partner">
+                    {c.partner ? (
+                      <>
+                        {c.partner.name}
+                        <div className="muted mono">{c.partner.code}</div>
+                      </>
+                    ) : (
+                      '—'
+                    )}
                   </td>
                   <td>{date(c.createdAt)}</td>
                 </tr>
@@ -204,7 +209,6 @@ export function AdminClientDetail() {
   const [editing, setEditing] = useState(false);
   const [newLicense, setNewLicense] = useState(false);
   const [license, setLicense] = useState(null);
-  const [codeOpen, setCodeOpen] = useState(false);
 
   if (loading) return <Spinner />;
   if (error) return <ErrorText error={error} />;
@@ -271,26 +275,14 @@ export function AdminClientDetail() {
             {signupLabel(c.signup)}
             {c.signup?.details?.landing && <div className="muted small mono">{c.signup.details.landing}</div>}
           </dd>
-          <dt>Referral code</dt>
-          <dd data-testid="client-referral-code">
-            <span className="mono">{c.referralCode || '—'}</span>{' '}
-            <button className="btn btn-sm" onClick={() => setCodeOpen(true)} data-testid="client-referral-edit">
-              {c.referralCode ? 'Change' : 'Assign'}
-            </button>
-            {c.referralLink && (
-              <div className="muted small mono">
-                {c.referralLink} <CopyButton text={c.referralLink} />
-              </div>
-            )}
-          </dd>
-          <dt>Referred by</dt>
-          <dd data-testid="client-referred-by">
-            {c.referredBy ? (
+          <dt>Partner</dt>
+          <dd data-testid="client-partner">
+            {c.partner ? (
               <>
-                <Link to={`/admin/clients/${c.referredBy.id}`}>{c.referredBy.name}</Link>
+                <Link to={`/admin/partners/${c.partner.id}`}>{c.partner.name}</Link>
                 <div className="muted small">
-                  code <span className="mono">{c.referredCode || c.referredBy.referralCode}</span>
-                  {c.referredAt && ` · ${date(c.referredAt)}`}
+                  code <span className="mono">{c.partnerCode || c.partner.code}</span>
+                  {c.partnerAt && ` · ${date(c.partnerAt)}`}
                 </div>
               </>
             ) : (
@@ -299,22 +291,6 @@ export function AdminClientDetail() {
           </dd>
         </dl>
       </div>
-      {data.referrals?.length > 0 && (
-        <>
-          <h2 className="section-title">Customers referred by {c.name} ({data.referrals.length})</h2>
-          <ReferredTable rows={data.referrals} showReferrer={false} />
-        </>
-      )}
-      {codeOpen && (
-        <ReferralCodeEditor
-          client={c}
-          onClose={() => setCodeOpen(false)}
-          onSaved={() => {
-            setCodeOpen(false);
-            reload();
-          }}
-        />
-      )}
       <h2 className="section-title">Licenses</h2>
       {!data.licenses.length ? (
         <Empty>No licenses yet.</Empty>
@@ -517,92 +493,5 @@ export function NewLicenseModal({ clientId, onClose, onDone }) {
         </form>
       )}
     </Modal>
-  );
-}
-
-/** Admin: set a customer's referral code by hand, or generate a new one. */
-function ReferralCodeEditor({ client, onClose, onSaved }) {
-  const toast = useToast();
-  const [code, setCode] = useState(client.referralCode || '');
-  const [error, setError] = useState(null);
-  const save = async (value) => {
-    setError(null);
-    try {
-      const r = await adminApi.put(`/clients/${client.id}/referral-code`, { code: value });
-      toast(`Referral code is now ${r.client.referralCode}`);
-      onSaved(r.client);
-    } catch (e) {
-      setError(e);
-    }
-  };
-  return (
-    <Modal title="Referral code" onClose={onClose}>
-      <form
-        className="form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save(code);
-        }}
-      >
-        <ErrorText error={error} />
-        <Field label="Code" hint="4 to 10 letters or digits. Links already shared with the old code stop working.">
-          <Input value={code} onChange={(v) => setCode(v.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} data-testid="referral-code-input" />
-        </Field>
-        <div className="row end">
-          <button type="button" className="btn" onClick={() => save('')} data-testid="referral-code-generate">
-            Generate a new one
-          </button>
-          <button className="btn btn-primary" data-testid="referral-code-save">
-            Save
-          </button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
-/** Referred customers: who, when, with which code, by whom, and what they have paid. */
-export function ReferredTable({ rows, showReferrer = true }) {
-  return (
-    <div className="card table-card">
-      <table className="table" data-testid="referred-table">
-        <thead>
-          <tr>
-            <th>Customer</th>
-            {showReferrer && <th>Referred by</th>}
-            <th>Referral code</th>
-            <th>Referred on</th>
-            <th className="right">Paid</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>
-                <Link to={`/admin/clients/${r.id}`}>
-                  <strong>{r.name}</strong>
-                </Link>
-                <div className="muted small">{r.email}</div>
-              </td>
-              {showReferrer && (
-                <td>
-                  {r.referrer ? (
-                    <>
-                      <Link to={`/admin/clients/${r.referrer.id}`}>{r.referrer.name}</Link>
-                      <div className="muted small">ID {r.referrer.id} · {r.referrer.email}</div>
-                    </>
-                  ) : (
-                    '—'
-                  )}
-                </td>
-              )}
-              <td className="mono">{r.referralCode || '—'}</td>
-              <td>{date(r.referredAt || r.createdAt)}</td>
-              <td className="right">{r.paidTotal ? money(r.paidTotal) : <span className="muted small">Not bought yet</span>}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
   );
 }

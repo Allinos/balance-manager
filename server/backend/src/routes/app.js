@@ -9,12 +9,12 @@
 
 import { Router } from 'express';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { nowIso, parseJson } from '../db.js';
 import { ApiError, clientIp, parse } from '../lib/http.js';
 import { limits } from '../lib/auth.js';
 import { CODE_PATTERN, burnPasswordCheck, loadLicenseKeys, normaliseCode, verifyLicenseToken, verifyPassword } from '../lib/security.js';
 import { audit, bumpStat, getAppConfig } from '../services/common.js';
-import { referralLink } from '../services/referrals.js';
 import { activateOnDevice, daysLeft, effectiveStatus, getLicenseWithPlan, licenseForClient, licenseToken } from '../services/licenses.js';
 
 const device = {
@@ -178,8 +178,8 @@ function licenseResponse(license, client, deviceId, kind = 'desktop') {
       maxMobileDevices: license.max_mobile_devices ?? 0,
       account: client ? { name: client.name, email: client.email, business: client.business_name } : null,
     },
-    /** The customer's referral link, for the Share button on the dashboard. */
-    referral: client?.referral_code ? { code: client.referral_code, link: referralLink(client.referral_code) } : null,
+    /** Dashboard → Share: the website (download) link the customer can pass on. Referral codes are for partners only. */
+    share: { link: config.portalUrl, mobileLink: `${config.portalUrl}/mobile` },
   };
 }
 

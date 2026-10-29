@@ -18,6 +18,7 @@ import Editor from './screens/Editor.jsx';
 import View from './screens/View.jsx';
 import Products from './screens/Products.jsx';
 import Parties from './screens/Parties.jsx';
+import PartyLedger from './screens/PartyLedger.jsx';
 import Settings, { SettingsSection } from './screens/Settings.jsx';
 
 const TABS = [
@@ -51,13 +52,14 @@ function TabBar({ path, tabs }) {
 
 function Screen({ path, query }) {
   let m;
-  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path))) return <Editor key={`${path}?${query.from || ''}`} typeId={m[1]} query={query} />;
+  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path))) return <Editor key={`${path}?${query.from || ''}${query.party || ''}`} typeId={m[1]} query={query} />;
   if ((m = /^\/doc\/(\d+)\/edit$/.exec(path))) return <Editor key={path} id={Number(m[1])} />;
   if ((m = /^\/doc\/(\d+)$/.exec(path))) return <View key={path} id={Number(m[1])} query={query} />;
   if ((m = /^\/settings\/([a-z]+)$/.exec(path))) return <SettingsSection key={path} id={m[1]} />;
   if (path.startsWith('/documents')) return <Documents key={JSON.stringify(query)} query={query} />;
   if (path.startsWith('/products')) return <Products />;
   if ((m = /^\/parties(?:\/(all|customer|vendor))?$/.exec(path))) return <Parties key={path} kind={m[1]} />;
+  if ((m = /^\/party\/(\d+)$/.exec(path))) return <PartyLedger key={path} id={Number(m[1])} />;
   if (path.startsWith('/settings')) return <Settings />;
   return <Dashboard />;
 }

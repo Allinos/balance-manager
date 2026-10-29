@@ -5,19 +5,23 @@
  *   /parties/vendor
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '@desktop/services/catalogService.js';
 import { formatDate } from '@desktop/utils/dates.js';
+import { balanceLabel, ledgerSummary } from '@desktop/services/ledgerService.js';
+import { abs } from '@desktop/utils/decimal.js';
+import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import Icon from '../components/Icon.jsx';
+import { useMoney } from './PartyLedger.jsx';
 import { Empty, Field, Header, Input, Picker, Segmented, Sheet, Spinner, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 const emptyParty = (kind) => ({ name: '', company_name: '', phone: '', email: '', gstin: '', tax_id: '', state: '', address: '', shipping_address: '', kind, notes: '' });
 
-function PartySheet({ initial, taxSystem, onClose, onSaved, onDelete }) {
+export function PartySheet({ initial, taxSystem, onClose, onSaved, onDelete }) {
   const { toast } = useUi();
   const [p, setP] = useState(initial);
   const [saving, setSaving] = useState(false);
@@ -89,7 +93,7 @@ function PartySheet({ initial, taxSystem, onClose, onSaved, onDelete }) {
         <button className="btn btn-primary btn-block" disabled={saving} data-testid="party-form-save">
           {saving ? 'Saving…' : 'Save'}
         </button>
-        {p.id && (
+        {p.id && onDelete && (
           <button type="button" className="btn btn-danger btn-block" onClick={() => onDelete(p)} data-testid="party-delete">
             <Icon name="trash" size={18} /> Delete
           </button>
@@ -155,26 +159,6 @@ export function PartyModulesSection() {
   );
 }
 
-/** Quick links under Products: Customers & Vendors once switched on, plus + Add More. */
-export function PartyLinks() {
-  const { settings } = useApp();
-  const on = enabledModules(settings);
-  return (
-    <div className="chip-row party-links" data-testid="party-links">
-      {on.length > 0 && (
-        <button type="button" className="chip" onClick={() => go('/parties/all')} data-testid="link-parties">
-          <Icon name="users" size={16} /> Customers &amp; Vendors
-        </button>
-      )}
-      {(
-        <button type="button" className="chip chip-ghost" onClick={() => go('/parties')} data-testid="nav-parties-add" aria-label="Add more features">
-          <Icon name="plus" size={16} /> Add More
-        </button>
-      )}
-    </div>
-  );
-}
-
 /** Customers and vendors together on one screen: All, Customers or Vendors. */
 const ALL = { kind: 'all', label: 'Customers & Vendors', singular: 'customer or vendor', icon: 'users' };
 
@@ -186,13 +170,23 @@ export default function Parties({ kind }) {
   const enabled = !!kind && tabs.length > 0;
   const newKind = mod.kind === 'all' ? 'customer' : mod.kind;
   const [rows, setRows] = useState(null);
+  const [totals, setTotals] = useState(null);
+  const loadTicket = useRef(0);
+  const money = useMoney();
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      setRows(await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search }));
+      const ticket = ++loadTicket.current;
+      const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search });
+      // Balances from the ledger (invoices, bills and payments of each party).
+      const summary = await ledgerSummary(list);
+      // Only the latest request counts (switching Active / Archived quickly must not show an older list).
+      if (ticket !== loadTicket.current) return;
+      setRows(summary.parties);
+      setTotals(summary.totals);
     } catch (e) {
       toast(e.message, 'bad');
     }
@@ -206,7 +200,7 @@ export default function Parties({ kind }) {
   if (!enabled) {
     return (
       <>
-        <Header title="Features" onBack={() => back('/products')} />
+        <Header title="Features" onBack={() => back('/settings')} />
         <PartyModulesSection />
       </>
     );
@@ -244,8 +238,24 @@ export default function Parties({ kind }) {
 
   return (
     <>
-      <Header title="Customers & Vendors" />
+      <Header title="Customers & Vendors" actions={<PrivacyToggle className="icon-btn" size={20} />} />
       <div className="page" data-testid={`parties-${mod.kind}`}>
+        {totals && !archived && (
+          <div className="ledger-totals" data-testid="ledger-totals">
+            <div className="get">
+              <span className="small muted">You&apos;ll get</span>
+              <strong data-testid="total-receivable">{money(totals.receivable)}</strong>
+            </div>
+            <div className="give">
+              <span className="small muted">You&apos;ll give</span>
+              <strong data-testid="total-payable">{money(totals.payable)}</strong>
+            </div>
+            <div>
+              <span className="small muted">Advances</span>
+              <strong data-testid="total-advance-received">{money(totals.advanceReceived)}</strong>
+            </div>
+          </div>
+        )}
         {tabs.length > 1 && (
           <Segmented
             value={mod.kind}
@@ -260,7 +270,11 @@ export default function Parties({ kind }) {
         </div>
         <Segmented
           value={archived ? 'archived' : 'active'}
-          onChange={(v) => setArchived(v === 'archived')}
+          onChange={(v) => {
+            // Clear the list while the other one loads, so no row of the old list (with its buttons) is shown.
+            setRows(null);
+            setArchived(v === 'archived');
+          }}
           options={[
             { value: 'active', label: 'Active' },
             { value: 'archived', label: 'Archived' },
@@ -280,7 +294,7 @@ export default function Parties({ kind }) {
             {rows.map((p) => (
               <div key={p.id} className="list-item" data-testid="party-row">
                 <span className="avatar">{(p.name || '?').slice(0, 1).toUpperCase()}</span>
-                <button type="button" className="list-main plain" onClick={() => !archived && setEditing({ ...emptyParty(newKind), ...p })}>
+                <button type="button" className="list-main plain" onClick={() => !archived && go(`/party/${p.id}`)} data-testid="party-open">
                   <strong>
                     {p.name}
                     <span className="pill" data-testid="party-kind-badge">{p.kind === 'both' ? 'Both' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}</span>
@@ -290,9 +304,21 @@ export default function Parties({ kind }) {
                     {p.document_count || 0} document(s){p.last_document_date ? ` · last ${formatDate(p.last_document_date, settings.dateFormat)}` : ''}
                   </span>
                 </button>
-                {archived && (
+                {archived ? (
                   <button type="button" className="btn btn-sm" onClick={() => restore(p)} data-testid="party-restore">
                     Restore
+                  </button>
+                ) : (
+                  <span className="list-end">
+                    <strong className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
+                      {money(abs(p.balance))}
+                    </strong>
+                    <span className="small muted">{balanceLabel(p.balance)}</span>
+                  </span>
+                )}
+                {!archived && (
+                  <button type="button" className="icon-btn sm" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} aria-label={`Edit ${p.name}`} data-testid="party-edit">
+                    <Icon name="edit" size={18} />
                   </button>
                 )}
               </div>
