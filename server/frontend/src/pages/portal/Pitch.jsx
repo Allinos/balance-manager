@@ -27,7 +27,7 @@ export const PAINS = [
     'file',
     'Excel and Word templates keep breaking',
     'Retyping customer details every time, invoice numbers that skip or repeat, formulas someone overwrote.',
-    'Saved customers and products, automatic numbering for every series and four ready-made professional templates.',
+    'Saved customers and products, automatic numbering for every series and ten ready-made professional templates.',
   ],
   [
     'complex',

@@ -688,6 +688,18 @@ textarea.input {
   /* visible so row menus and the status selector are never clipped */
   overflow: visible;
 }
+/* A heading inside a table card (customer profile: Ledger, Unpaid bills). */
+.table-card > .card-header {
+  padding: 14px 16px 0;
+}
+.table-card > .card-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.table-card > .card-header + .table thead th:first-child,
+.table-card > .card-header + .table thead th:last-child {
+  border-radius: 0;
+}
 .table-card .table thead th:first-child {
   border-top-left-radius: var(--radius);
 }

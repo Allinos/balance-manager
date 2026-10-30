@@ -10,7 +10,7 @@
  * Also saves the phone screenshots used on the website (frontend/public/screenshots/mobile-*.png).
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,6 +28,7 @@ try {
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shots = path.join(here, 'screenshots');
 const siteShots = path.join(here, '../../frontend/public/screenshots');
+const offerImg = path.join(here, '../../frontend/public/img/offer');
 fs.mkdirSync(shots, { recursive: true });
 const port = 8813;
 const base = `http://localhost:${port}`; // localhost: a secure context, so the service worker runs
@@ -84,7 +85,9 @@ async function pick(page, testId, label) {
   await sheet.waitFor();
   const search = sheet.getByTestId(`${testId}-search`);
   if (await search.count()) await search.fill(label);
-  await sheet.locator('.picker-option', { hasText: label }).first().click();
+  // An option named exactly so first (a search can also match another option's description).
+  const exact = sheet.locator('.picker-option').filter({ has: page.getByText(label, { exact: true }) });
+  await ((await exact.count()) ? exact : sheet.locator('.picker-option', { hasText: label })).first().click();
   await sheet.waitFor({ state: 'detached' });
 }
 
@@ -300,6 +303,29 @@ try {
     if (id === 'modern') await shot(a.page, '04-template-modern');
   }
   check(true, 'all 4 templates: Modern, Simple, Standard, Professional');
+  // The six newer templates on this invoice, for the website (frontend/public/img/offer/invoice-<id>.webp).
+  {
+    const wide = await a.context.newPage();
+    await wide.setViewportSize({ width: 900, height: 1300 });
+    await wide.goto(`${base}/app/#/doc/1`);
+    await wide.addStyleTag({ content: '[data-testid=toast]{display:none!important}' });
+    for (const [id, label] of [['gst-classic', 'GST Classic · GST'], ['b2b', 'Corporate B2B · B2B'], ['retail', 'Retail · Retail'], ['bold', 'Bold · Standard'], ['elegant', 'Elegant · Standard'], ['compact', 'Compact · B2B']]) {
+      await pick(wide, 'template-switch', label);
+      await wide.getByTestId('doc-page').locator(`.doc-${id}`).waitFor();
+      await wide.waitForTimeout(300);
+      const png = path.join(shots, `template-${id}.png`);
+      await wide.getByTestId('doc-page').locator('.doc').first().screenshot({ path: png });
+      try {
+        execFileSync('convert', [png, '-resize', '900x', '-quality', '80', path.join(offerImg, `invoice-${id}.webp`)]);
+      } catch {
+        /* ImageMagick missing: the PNG in e2e/screenshots is still saved */
+      }
+    }
+    await pick(wide, 'template-switch', 'Professional');
+    await wide.getByTestId('doc-page').locator('.doc-tp').waitFor();
+    await wide.close();
+    check(true, 'the six newer templates pictured for the website (GST Classic, Corporate B2B, Retail, Bold, Elegant, Compact)');
+  }
   await a.page.getByTestId('view-status').click();
   await a.page.getByTestId('status-option-PAID').click();
   await a.page.getByText('INV-00001: Paid').waitFor();

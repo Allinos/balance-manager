@@ -406,13 +406,21 @@ const TEMPLATE_SHOTS = [
   ['invoice-modern', 'Modern', 'Clean, your brand colour'],
   ['invoice-standard', 'Standard', 'Compact and boxed'],
   ['invoice-simple', 'Simple', 'Black & white'],
+  ['invoice-gst-classic', 'GST Classic', 'Boxed GST, tax summary'],
+  ['invoice-b2b', 'Corporate B2B', 'Brand-colour header'],
+  ['invoice-retail', 'Retail', 'Counter bill for shops'],
+  ['invoice-bold', 'Bold', 'Strong header and total'],
+  ['invoice-elegant', 'Elegant', 'Serif, for services'],
+  ['invoice-compact', 'Compact', 'Long bills, fewer pages'],
 ];
 
 function Templates() {
   return (
     <section className="offer-section" data-testid="offer-templates">
       <h2>Real documents made with DocGen</h2>
-      <p className="offer-sub">Four ready-made designs with your logo, GSTIN, bank details and UPI QR code. Print on A4 or save as PDF.</p>
+      <p className="offer-sub">
+        Ten ready-made designs — for GST, B2B, retail and everyday bills — with your logo, GSTIN, bank details and UPI QR code. Print on A4 or A5, or save as PDF.
+      </p>
       <div className="tpl-grid">
         {TEMPLATE_SHOTS.map(([img, name, note]) => (
           <figure key={img} className="tpl">
@@ -459,7 +467,9 @@ function FeatureRows() {
           </p>
           <ul className="frow-points">
             <li>Scan-to-pay UPI QR on the bill</li>
-            <li>Payment receipts with the balance due</li>
+            <li>Paid in full, part payment or credit on every bill</li>
+            <li>Payment received in two taps — oldest bills cleared first</li>
+            <li>I&apos;ll get / I&apos;ll give for every customer and supplier</li>
             <li>Works on your computer and on your phone</li>
           </ul>
         </div>
@@ -477,6 +487,24 @@ function FeatureRows() {
             </div>
           </div>
         </div>
+      </div>
+      <div className="frow" data-testid="offer-ledger">
+        <div className="frow-text">
+          <span className="frow-icon">
+            <Icon name="users" size={20} />
+          </span>
+          <h3>Know who owes you — and whom you owe</h3>
+          <p>
+            Switch on Payment &amp; Ledger and every customer and supplier gets a simple ledger. No accounting to learn: just I&apos;ll get and
+            I&apos;ll give.
+          </p>
+          <ul className="frow-points">
+            <li>Unpaid and part-paid bills at a glance</li>
+            <li>Record a payment with just the amount and the mode</li>
+            <li>Running balance for every customer and vendor</li>
+          </ul>
+        </div>
+        <Frame src={IMG('ledger')} alt="Customer profile in DocGen: I'll get balance, ledger and unpaid bills" w={1280} h={820} />
       </div>
     </section>
   );
@@ -552,7 +580,7 @@ export function faqItems({ periods, emailEnabled, mobileAvailable }) {
   return [
     [
       'Is DocGen accounting software?',
-      'No. DocGen is for making and keeping business documents — invoices, quotations, challans, receipts and more. There are no ledgers or bookkeeping to learn.',
+      "No. DocGen is for making and keeping business documents — invoices, quotations, challans, receipts and more. There is no bookkeeping to learn. If you like, switch on Payment & Ledger to mark bills paid or on credit and see what each customer owes you (I'll get) and what you owe suppliers (I'll give).",
     ],
     [
       'Can I make GST and Non-GST bills?',

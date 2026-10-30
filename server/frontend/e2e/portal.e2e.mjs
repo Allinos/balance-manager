@@ -166,6 +166,8 @@ try {
   check((await page.getByTestId('hero-buy').getAttribute('href')) === '#pricing', 'hero "Buy now" jumps to the pricing cards');
   const compare = (await page.getByTestId('comparison').textContent()).replace(/\s+/g, ' ');
   check(compare.includes('DocGen Desktop') && compare.includes('DocGen Mobile'), 'comparison table includes DocGen Desktop and DocGen Mobile');
+  check(compare.includes('10 templates') && compare.includes("I'll get"), 'comparison: 10 templates and payments with I\'ll get / I\'ll give (version 2.5.1)');
+  check(/10 professional templates[\s\S]*Payments & dues[\s\S]*Customers & vendors/.test(await page.locator('#features').textContent()), 'features: 10 templates, payments & dues, customers & vendors');
   check((await page.locator('.app-frame img').count()) >= 1, 'product screenshot shown');
   check((await page.getByTestId('faq').locator('details').count()) >= 4, 'FAQ shown');
   const problems = (await page.getByTestId('problems').textContent()).replace(/\s+/g, ' ');
@@ -522,7 +524,11 @@ try {
     'right under the hero: "Stop entering the same details again and again" with the saved customer / product pickers');
   const types = await ad.getByTestId('offer-doc-types').textContent();
   check(types.includes('18 business documents') && ['Tax Invoice', 'Quotation', 'Delivery Challan', 'Purchase Order', 'Payment Receipt', 'Job / Service Completion'].every((t) => types.includes(t)), 'all 18 document types listed');
-  check((await ad.getByTestId('offer-templates').locator('img').count()) === 4, 'four invoice templates shown with real invoices');
+  check((await ad.getByTestId('offer-templates').locator('img').count()) === 10, 'ten invoice templates shown with real invoices');
+  const tplSrcs = await ad.getByTestId('offer-templates').locator('img').evaluateAll((imgs) => imgs.map((i) => i.src));
+  const tplOk = await Promise.all(tplSrcs.map((src) => fetch(src).then((r) => r.ok && /image/.test(r.headers.get('content-type') || ''))));
+  check(tplOk.every(Boolean), `every template picture is served (${tplSrcs.length})`);
+  check((await ad.getByTestId('offer-ledger').textContent()).includes("I'll get"), "offer page: Know who owes you — Payment & Ledger with I'll get / I'll give");
   // Every product picture loads (lazy pictures load as they scroll into view).
   await ad.evaluate(async () => {
     for (const img of document.querySelectorAll('img[src^="/img/offer/"]')) {

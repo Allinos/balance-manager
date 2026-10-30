@@ -26,7 +26,7 @@
  * Build first:   npx tauri build --debug --no-bundle
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -1180,7 +1180,16 @@ async function main() {
     const openText = (await exists('[data-testid="open-bills"]')) ? await textOf('[data-testid="open-bills"]') : '';
     check(!openText.includes(ledgerInv.document_number) && openText.includes('Partly paid'), 'the older bill is cleared; the newer one is partly paid');
     check((await invoke('document_get', { id: ledgerInv.id })).document.status === 'PAID', `${ledgerInv.document_number} marked Paid`);
+    // Hide the notices for the picture (removing React's nodes would break the page).
+    await exec('const st = document.createElement("style"); st.id = "e2e-no-toasts"; st.textContent = ".toasts{display:none!important}"; document.head.appendChild(st);');
     await shot('20b-party-ledger');
+    await exec('document.getElementById("e2e-no-toasts")?.remove()');
+    // The customer profile for the website (frontend/public/img/offer/ledger.webp).
+    try {
+      execFileSync('convert', [path.join(OUT, '20b-party-ledger.png'), '-resize', '1280x', '-quality', '80', path.resolve(root, '../server/frontend/public/img/offer/ledger.webp')]);
+    } catch {
+      /* ImageMagick missing: the PNG is still saved */
+    }
     await go('#/parties/all');
     await find('[data-testid="party-table"]');
     await clickCss('[data-testid="party-tabs-vendor"]');

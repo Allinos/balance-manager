@@ -14,10 +14,13 @@ import { DocTypes, IntroVideo, SavedOnce } from './Showcase.jsx';
 
 const FEATURES = [
   ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
-  ['printer', 'Professional templates', 'Professional, Standard, Modern or Simple — with your logo, signature, bank details and UPI QR code.'],
+  ['printer', '10 professional templates', 'Professional, Standard, Modern and Simple, plus GST Classic, Corporate B2B, Retail, Bold, Elegant and Compact — with your logo, signature, bank details and UPI QR code.'],
   ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license, with the same templates on both.'],
   ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
+  ['card', 'Payments & dues', "Mark each bill paid in full, part-paid or on credit. Record a payment in two taps and the oldest bills are cleared first."],
+  ['users', 'Customers & vendors', "Every customer and supplier in one list, with a running ledger: I'll get from customers, I'll give to suppliers."],
+  ['chart', 'Reports for your accountant', 'Download a month of documents as one PDF, a CSV list or the GST sales register in a click.'],
   ['rupee', 'One-time payment', 'Pay once for 1, 2 or 5 years. No monthly fees, no per-invoice costs.'],
 ];
 
@@ -38,6 +41,10 @@ const FAQ = [
   [
     'Can I get a refund?',
     'Yes — within 7 days of payment if the license has not been activated, or if DocGen does not work on your device and we cannot fix it. See Cancellation & Refunds.',
+  ],
+  [
+    'Can I see which customers still owe me?',
+    "Yes. Switch on Payment & Ledger in Settings → Features. Each bill is marked paid in full, part-paid or on credit, and every customer and supplier has a simple ledger: I'll get (they owe you) and I'll give (you owe them). Record a payment with just the amount and the mode — it clears the oldest bills first. No accounting knowledge needed.",
   ],
   [
     'Is my data safe?',
@@ -168,7 +175,8 @@ function Comparison({ product, mobile }) {
     ['Runs on', 'Windows & Mac', mobile ? 'Android & iPhone' : null, 'Computer, often online only', 'Computer'],
     ['Ready to use', 'In 5 minutes', mobile ? 'In 2 minutes' : null, 'After setup and training', 'Every document by hand'],
     ['GST (CGST/SGST/IGST, HSN)', 'Automatic', mobile ? 'Automatic' : null, 'Automatic', no('Manual')],
-    ['All document types & 4 templates', yes(), mobile ? yes() : null, 'Varies', no('Make your own')],
+    ['All document types & 10 templates', yes(), mobile ? yes() : null, 'Varies', no('Make your own')],
+    ["Payments, dues & I'll get / I'll give", yes('Optional, simple'), mobile ? yes('Optional, simple') : null, 'Full bookkeeping', no('By hand')],
     ['Works without internet', yes(), mobile ? yes() : null, no('Often online only'), yes()],
     ['Print & PDF', yes(), mobile ? yes('Save as PDF, share on WhatsApp') : null, yes(), no('Depends on you')],
     ['Your data stays with you', yes(), mobile ? yes('On your phone') : null, no('Often on their servers'), yes()],
@@ -309,7 +317,7 @@ export function PricingCards({ product, popularDays = null }) {
               <Icon name="check" size={15} strokeWidth={2.4} /> {devices}
             </li>
             <li>
-              <Icon name="check" size={15} strokeWidth={2.4} /> All document types &amp; 4 templates
+              <Icon name="check" size={15} strokeWidth={2.4} /> All document types &amp; 10 templates
             </li>
             <li>
               <Icon name="check" size={15} strokeWidth={2.4} /> {p.durationDays ? `Valid for ${p.periodText.toLowerCase()} from payment` : 'Valid for life'}

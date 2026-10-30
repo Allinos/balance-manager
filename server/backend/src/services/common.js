@@ -34,7 +34,7 @@ export const DEFAULT_APP_CONFIG = {
   configIntervalDays: 30,
   adPolicy: { minDaysBetweenAds: 15, maxPerMonth: 2, firstOpenDelayDays: 15 },
   defaultAdEnabled: true,
-  app: { latestVersion: '1.0.0', downloadUrl: '', message: '' },
+  app: { latestVersion: '2.5.1', downloadUrl: '', message: '' },
   help: {
     youtubeChannel: 'https://www.youtube.com/@reynrel',
     videos: [],
