@@ -540,7 +540,7 @@ const commands = {
   },
 
   document_set_template: ({ id, template }) => {
-    if (String(template).length > 40 || !/^[a-z-]*$/.test(String(template))) fail('Unknown template.');
+    if (String(template).length > 40 || !/^[a-z0-9-]*$/.test(String(template))) fail('Unknown template.');
     return write(['documents', 'history'], async ({ documents, history }) => {
       const doc = await documents.get(Number(id));
       if (!doc) fail('This document could not be found.');

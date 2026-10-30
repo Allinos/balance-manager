@@ -785,7 +785,7 @@ pub fn document_set_status(db: State<'_, Db>, id: i64, status: String, note: Opt
 /// Choose the print template for one document ('' = use the default).
 #[tauri::command]
 pub fn document_set_template(db: State<'_, Db>, id: i64, template: String) -> AppResult<()> {
-    if template.len() > 40 || !template.chars().all(|c| c.is_ascii_lowercase() || c == '-') {
+    if template.len() > 40 || !template.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
         return Err(AppError::new("Unknown template."));
     }
     db.with(|c| {
