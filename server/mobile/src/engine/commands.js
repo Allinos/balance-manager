@@ -382,8 +382,20 @@ const commands = {
     requireName(party, 'customer');
     if (party.kind !== undefined && !PARTY_KINDS.includes(party.kind)) fail('Choose customer, vendor or both.');
     return write(['parties', 'documents'], async ({ parties, documents }) => {
-      const id = idOf(party);
-      const data = { ...party };
+      let id = idOf(party);
+      // Saved from a document with a typed name: reuse the party of that name (and GSTIN) instead of adding a copy.
+      if (party.merge_kind && !id) {
+        const name = String(party.name || '').trim().toLowerCase();
+        const gstin = String(party.gstin || '').trim().toUpperCase();
+        const same = (await parties.getAll())
+          .filter((p) => String(p.name || '').trim().toLowerCase() === name)
+          .filter((p) => !gstin || !p.gstin || String(p.gstin).trim().toUpperCase() === gstin)
+          .sort((a, b) => !!a.archived_at - !!b.archived_at || a.id - b.id);
+        if (same.length) id = same[0].id;
+      }
+      const reused = id && !idOf(party);
+      // Blank fields on the document never wipe details already saved for the party.
+      const data = reused ? Object.fromEntries(Object.entries(party).filter(([, v]) => v != null && String(v).trim() !== '')) : { ...party };
       // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
       if (party.merge_kind && id && party.kind) {
         const current = await parties.get(id);

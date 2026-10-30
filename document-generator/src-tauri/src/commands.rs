@@ -475,19 +475,40 @@ pub fn party_save(db: State<'_, Db>, party: Value) -> AppResult<i64> {
         }
     }
     let merge = data.remove("merge_kind").and_then(|v| v.as_bool()).unwrap_or(false);
-    db.with(|c| {
-        // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
-        if let (true, Some(id), Some(kind)) = (merge, get_id(&data), data.get("kind").and_then(Value::as_str).map(str::to_string)) {
-            let current: Option<String> = c
-                .query_row("SELECT kind FROM parties WHERE id = ?1", [id], |r| r.get(0))
-                .ok();
-            if let Some(current) = current {
-                let next = if current == kind { kind } else { "both".to_string() };
-                data.insert("kind".into(), Value::String(next));
-            }
+    db.with(|c| party_save_in(c, data, merge))
+}
+
+fn party_save_in(c: &rusqlite::Connection, mut data: Map<String, Value>, merge: bool) -> AppResult<i64> {
+    // Saved from a document with a typed name: reuse the party of that name (and GSTIN) instead of adding a copy.
+    if merge && get_id(&data).is_none() {
+        let name = data.get("name").and_then(Value::as_str).unwrap_or("").trim().to_string();
+        let gstin = data.get("gstin").and_then(Value::as_str).unwrap_or("").trim().to_uppercase();
+        let found: Option<i64> = c
+            .query_row(
+                "SELECT id FROM parties WHERE lower(trim(name)) = lower(?1)
+                    AND (?2 = '' OR coalesce(gstin, '') = '' OR upper(trim(gstin)) = ?2)
+                  ORDER BY archived_at IS NOT NULL, id LIMIT 1",
+                rusqlite::params![name, gstin],
+                |r| r.get(0),
+            )
+            .ok();
+        if let Some(id) = found {
+            // Blank fields on the document never wipe details already saved for the party.
+            data.retain(|_, v| !matches!(v, Value::String(t) if t.trim().is_empty()) && !v.is_null());
+            data.insert("id".into(), json!(id));
         }
-        upsert(c, "parties", get_id(&data), &data, PARTY_COLUMNS, true)
-    })
+    }
+    // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
+    if let (true, Some(id), Some(kind)) = (merge, get_id(&data), data.get("kind").and_then(Value::as_str).map(str::to_string)) {
+        let current: Option<String> = c
+            .query_row("SELECT kind FROM parties WHERE id = ?1", [id], |r| r.get(0))
+            .ok();
+        if let Some(current) = current {
+            let next = if current == kind { kind } else { "both".to_string() };
+            data.insert("kind".into(), Value::String(next));
+        }
+    }
+    upsert(c, "parties", get_id(&data), &data, PARTY_COLUMNS, true)
 }
 
 /// Archive a party (hidden from lists and suggestions) or bring it back. Documents are never changed.
@@ -1436,6 +1457,32 @@ mod tests {
                 c.query_row("SELECT party_id, party_name FROM documents WHERE document_number = 'INV-1'", [], |r| Ok((r.get(0)?, r.get(1)?)))?;
             assert_eq!(party_id, Some(1));
             assert_eq!(name, "Used Traders");
+            Ok(())
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn document_save_reuses_a_party_with_the_same_name() {
+        let (_dir, db) = temp_db();
+        db.with(|c| {
+            let party = |name: &str, gstin: &str, phone: &str| {
+                let mut m = Map::new();
+                m.insert("name".into(), json!(name));
+                m.insert("gstin".into(), json!(gstin));
+                m.insert("phone".into(), json!(phone));
+                m.insert("kind".into(), json!("customer"));
+                m
+            };
+            let first = party_save_in(c, party("Receipt Traders", "29ABCDE1234F1Z5", "98450 00000"), true)?;
+            // Typed again on a new document (different case, no phone): the same party, phone kept.
+            assert_eq!(party_save_in(c, party(" receipt traders ", "29abcde1234f1z5", ""), true)?, first);
+            let phone: String = c.query_row("SELECT phone FROM parties WHERE id = ?1", [first], |r| r.get(0))?;
+            assert_eq!(phone, "98450 00000");
+            // Same name with another GSTIN is a different business.
+            assert_ne!(party_save_in(c, party("Receipt Traders", "27AAPFU0939F1ZV", ""), true)?, first);
+            // Saved from the Customers page (no merge): always a new record.
+            assert_ne!(party_save_in(c, party("Receipt Traders", "29ABCDE1234F1Z5", ""), false)?, first);
             Ok(())
         })
         .unwrap();

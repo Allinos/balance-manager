@@ -113,7 +113,15 @@ async function findText(text, selector = 'button, a, li, label', timeout = 8000)
   throw new Error(`Text not found: ${text}`);
 }
 const click = async (id) => {
-  await wd('POST', s(`/element/${id}/click`), {});
+  try {
+    await wd('POST', s(`/element/${id}/click`), {});
+  } catch (err) {
+    // A sticky header or bar can cover the target: centre it and try once more.
+    if (!/click intercepted/.test(err.message)) throw err;
+    await exec('arguments[0].scrollIntoView({ block: "center" })', [{ 'element-6066-11e4-a52e-4f735466cecf': id }]);
+    await sleep(300);
+    await wd('POST', s(`/element/${id}/click`), {});
+  }
   await sleep(250);
 };
 const clickCss = async (css, timeout) => click(await find(css, timeout));
@@ -1089,13 +1097,27 @@ async function main() {
     await shot('20-customers');
 
     // Payments & ledger: balances from the documents, a profile with the Give & Get ledger, an advance.
+    // ABC's first invoice was cancelled above, so give it a live one for the ledger.
+    const ledgerInv = await invoke('document_save', {
+      payload: {
+        defaultPrefix: 'INV',
+        document: {
+          document_type: 'TAX_INVOICE', document_number: '', status: 'ISSUED', party_id: archivedAbc.id, party_name: 'ABC Construction Pvt Ltd',
+          party_gstin: '29ABCDE1234F1Z5', party_state: 'Karnataka', issue_date: '2026-10-05', currency: 'INR', currency_symbol: '₹',
+          currency_decimals: 2, exchange_rate: '1', tax_mode: 'NONE', subtotal: '10000.00', taxable: '10000.00', grand_total: '10000.00', meta: '{}',
+        },
+        items: [{ position: 0, name: 'Site work', quantity: '1', unit: 'Nos', unit_price: '10000', tax_rate: '0', taxable_amount: '10000', total_amount: '10000' }],
+        taxes: [],
+      },
+    });
+    await clickCss('[data-testid="party-archived-active"]');
     await find('[data-testid="ledger-totals"]');
     check((await textOf('[data-testid="ledger-totals"]')).includes("You'll get"), "Customers & Vendors: You'll get / You'll give / advances totals");
     await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-ledger-open]").click()`);
     await find('[data-testid="party-ledger"]');
     await find('[data-testid="ledger-row"]');
     const ledgerRows = await exec('return document.querySelectorAll("[data-testid=ledger-row]").length');
-    check(ledgerRows >= 1 && (await textOf('[data-testid="ledger-table"]')).includes('INV-00001'), `customer profile: Give & Get ledger with running balance (${ledgerRows} entries)`);
+    check(ledgerRows >= 1 && (await textOf('[data-testid="ledger-table"]')).includes(ledgerInv.document_number), `customer profile: Give & Get ledger with running balance (${ledgerRows} entries)`);
     const balText = async () => [await textOf('[data-testid="party-balance-amount"]'), await textOf('[data-testid="party-balance"]')];
     const num = (t) => Number(String(t).replace(/[^\d.]/g, ''));
     const signedBal = ([amt, label]) => (label.includes("You'll give") ? -num(amt) : num(amt));
