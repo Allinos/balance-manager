@@ -16,6 +16,7 @@ import { calcDocument, chargesOf } from '../utils/calc.js';
 import { dec, toFixed, round } from '../utils/decimal.js';
 import { todayISO, addDays } from '../utils/dates.js';
 import { saveParty } from './catalogService.js';
+import { paidStatus, paymentError, paymentMeta, takesPayment } from './billPayment.js';
 
 let keySeq = 0;
 export const newKey = () => `k${Date.now().toString(36)}${(keySeq++).toString(36)}`;
@@ -298,15 +299,11 @@ export function partyPatch(p, doc) {
   };
 }
 
-/**
- * New document for a saved party (Customers & Vendors → profile → Record payment / Advance).
- * `advance`: a payment not against any bill, printed as "Advance (on account)".
- */
-export async function newDocumentForParty(typeId, ctx, partyId, { advance = false } = {}) {
+/** New document for a saved party (Customers & Vendors → profile → new invoice, Payment received). */
+export async function newDocumentForParty(typeId, ctx, partyId) {
   const m = newDocument(typeId, ctx);
   const { party } = await call('party_ledger', { id: Number(partyId) });
   m.document = { ...m.document, ...partyPatch(party, m.document) };
-  if (advance && getType(typeId).layout === 'receipt') m.document.meta = { ...m.document.meta, against: 'Advance (on account)' };
   return m;
 }
 
@@ -364,6 +361,14 @@ export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
   }
   const { lines, taxes, totals } = calculate(model, ctx);
   const type = getType(doc.document_type);
+  // Payment & Ledger: the payment taken on a bill, and its status moved forward (Issued → Partly paid → Paid).
+  if (takesPayment(doc, ctx.settings)) {
+    const problem = paymentError(doc, totals.grand_total);
+    if (problem) throw new Error(problem);
+    const pay = paymentMeta(doc, totals.grand_total, Number(doc.currency_decimals ?? 2));
+    doc.meta = { ...doc.meta, ...pay };
+    doc.status = paidStatus(doc.status, pay.paid, totals.grand_total) || doc.status;
+  }
   const payload = {
     defaultPrefix: type.prefix,
     document: {

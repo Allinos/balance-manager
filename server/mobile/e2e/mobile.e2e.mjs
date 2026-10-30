@@ -529,11 +529,20 @@ try {
   await a.page.getByTestId('party-list').getByText('ABC Construction Pvt Ltd').waitFor();
   check(true, 'archived customer restored; documents never changed');
 
-  console.log('Payments & ledger');
+  console.log('Payment & Ledger');
   const amountOf = (t) => Number(String(t).replace(/[^\d.]/g, ''));
   await a.page.getByTestId('tab-parties').click();
+  await a.page.getByTestId('party-row').first().waitFor();
+  check(!(await a.page.getByTestId('ledger-totals').count()) && !(await a.page.getByTestId('party-balance-cell').count()), 'Payment & Ledger off: no balances or totals');
+  await a.page.getByTestId('tab-settings').click();
+  await a.page.getByTestId('settings-parties').click();
+  await a.page.getByTestId('module-ledger-toggle').check();
+  await a.page.getByText('Payment & Ledger switched on').waitFor();
+  check(true, 'Settings → Features: Payment & Ledger switched on');
+  await a.page.getByTestId('open-parties').click();
   await a.page.getByTestId('ledger-totals').waitFor();
-  check((await a.page.getByTestId('ledger-totals').textContent()).includes("You'll get"), "Customers & Vendors: totals — You'll get (receivables), You'll give (payables), advances");
+  const totalsText = await a.page.getByTestId('ledger-totals').textContent();
+  check(totalsText.includes("I'll get") && totalsText.includes("I'll give") && !/advance/i.test(totalsText), `Customers & Vendors: I'll get / I'll give totals, no separate advance (${totalsText})`);
   const abcRow = a.page.getByTestId('party-row').filter({ hasText: 'ABC Construction Pvt Ltd' });
   await abcRow.getByTestId('party-edit').click();
   await a.page.getByTestId('party-sheet').waitFor();
@@ -543,32 +552,61 @@ try {
   await abcRow.getByTestId('party-open').click();
   await a.page.getByTestId('party-ledger').waitFor();
   await a.page.getByTestId('ledger-row').first().waitFor();
+  const abcId = Number((await a.page.evaluate(() => location.hash)).match(/party\/(\d+)/)[1]);
   const ledgerRows = await a.page.getByTestId('ledger-row').count();
   const ledgerText = await a.page.getByTestId('ledger-table').textContent();
   check(ledgerRows >= 3 && ledgerText.includes('INV-00001') && ledgerText.includes('RCT-00001') && ledgerText.includes('against INV-00001'),
-    `customer profile: Give & Get ledger from the invoices and receipts (${ledgerRows} entries, running balance)`);
-  const before = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
-  const beforeLabel = await a.page.getByTestId('party-balance').textContent();
-  await a.page.getByTestId('party-profile-edit').waitFor();
+    `customer profile: ledger from the invoices and receipts (${ledgerRows} entries, running balance)`);
+  const balance = async () => {
+    const v = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
+    return (await a.page.getByTestId('party-balance').textContent()).includes("I'll give") ? -v : v;
+  };
+  const before = await balance();
+  check(!(await a.page.getByTestId('party-advance-customer').count()), 'no separate Advance received button');
   await shot(a.page, '05d-party-ledger');
-  await a.page.getByTestId('party-advance-customer').click();
-  await a.page.getByTestId('editor').waitFor();
-  check((await a.page.getByTestId('party-name').inputValue()) === 'ABC Construction Pvt Ltd', 'Advance received: a receipt for this customer, filled in');
-  await a.page.getByTestId('amount-received').fill('5000');
+
+  // Payment received: amount and mode only; clears the oldest bills first.
+  await a.page.getByTestId('party-pay-customer').click();
+  await a.page.getByTestId('pay-sheet').waitFor();
+  check(!(await a.page.getByTestId('pay-sheet').getByTestId('party-name').count()), 'Payment received sheet asks only for the amount and the mode');
+  await a.page.getByTestId('pay-amount').fill('5000');
+  await a.page.getByTestId('pay-mode-UPI').click();
+  await a.page.getByTestId('pay-settles').waitFor();
+  check((await a.page.getByTestId('pay-settles').textContent()).includes('Balance after'), `it shows what it settles and the balance after (${await a.page.getByTestId('pay-settles').textContent()})`);
+  await shot(a.page, '05e-payment-received');
+  await a.page.getByTestId('pay-save').click();
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 1);
+  const after = await balance();
+  check(Math.abs(after - (before - 5000)) < 0.01 && (await a.page.getByTestId('ledger-table').textContent()).includes('UPI'),
+    `Payment received ₹5,000 by UPI: in the ledger and the balance updated (${before} → ${after})`);
+
+  // A bill with the payment card at the bottom: Full by default, then two partial payments.
+  await a.page.goto(`${base}/app/#/doc/new/TAX_INVOICE?party=${abcId}`);
+  await a.page.getByTestId('bill-payment').waitFor();
+  check((await a.page.getByTestId('bill-payment-kind-full').getAttribute('aria-selected')) === 'true', 'new bill: payment card above Save, Full by default');
+  await a.page.getByTestId('item-name-0').fill('Site survey');
+  await a.page.getByTestId('item-qty-0').fill('1');
+  await a.page.getByTestId('item-rate-0').fill('1000');
+  const billTotal = amountOf(await a.page.getByTestId('grand-total').textContent());
+  await a.page.getByTestId('bill-payment-kind-partial').click();
+  await a.page.getByTestId('bill-payment-amount-0').fill('300');
+  await a.page.getByTestId('bill-payment-add').click();
+  await a.page.getByTestId('bill-payment-amount-1').fill('200');
+  await a.page.getByTestId('bill-payment-row-mode-1').selectOption('UPI');
+  check(amountOf(await a.page.getByTestId('bill-paid').textContent()) === 500 && Math.abs(amountOf(await a.page.getByTestId('bill-due').textContent()) - (billTotal - 500)) < 1,
+    `Partial: ₹300 cash + ₹200 UPI → paid 500, due ${billTotal - 500}`);
+  await a.page.getByTestId('bill-payment').scrollIntoViewIfNeeded();
+  await shot(a.page, '05f-bill-payment');
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('view').waitFor();
-  await a.page.getByTestId('tab-parties').waitFor({ timeout: 2000 }).catch(() => {});
-  await a.page.goto(`${base}/app/#/parties/all`);
-  await a.page.getByTestId('party-row').filter({ hasText: 'ABC Construction Pvt Ltd' }).getByTestId('party-open').click();
-  await a.page.getByTestId('party-ledger').waitFor();
-  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 1);
-  const after = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
-  const afterLabel = await a.page.getByTestId('party-balance').textContent();
-  const signed = (v, label) => (label.includes("You'll give") ? -v : v);
-  check(Math.abs(signed(after, afterLabel) - (signed(before, beforeLabel) - 5000)) < 0.01 && (await a.page.getByTestId('ledger-table').textContent()).includes('Advance'),
-    `advance of ₹5,000 recorded: in the ledger and the balance updated (${beforeLabel.trim()} → ${afterLabel.trim()})`);
+  await a.page.goto(`${base}/app/#/party/${abcId}`);
+  await a.page.getByTestId('ledger-row').first().waitFor();
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 3);
+  const withBill = await balance();
+  check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*Cash, UPI/.test(await a.page.getByTestId('ledger-table').textContent()),
+    `the bill and the payment taken on it are in the ledger (${after} → ${withBill})`);
 
-  await a.page.getByTestId('back').click();
+  await a.page.goto(`${base}/app/#/parties/all`);
   await a.page.getByTestId('tab-dashboard').click();
   await a.page.getByTestId('referral-share').click();
   const shareText = await a.page.getByTestId('share-message').inputValue();
@@ -618,8 +656,8 @@ try {
   await a.page.getByTestId('seq-format-TAX_INVOICE').selectOption('{PREFIX}/{FY}/{NUM}');
   await a.page.getByTestId('seq-save-TAX_INVOICE').click();
   await a.page.getByText('Invoice numbering saved').waitFor();
-  await a.page.waitForFunction(() => /^INV\/\d{4}-\d{2}\/0003$/.test(document.querySelector('[data-testid=seq-preview-TAX_INVOICE]')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
-  check(/^INV\/\d{4}-\d{2}\/0003$/.test(await a.page.getByTestId('seq-preview-TAX_INVOICE').textContent()), 'numbering format INV/2026-27/0003');
+  await a.page.waitForFunction(() => /^INV\/\d{4}-\d{2}\/0004$/.test(document.querySelector('[data-testid=seq-preview-TAX_INVOICE]')?.textContent || ''), null, { timeout: 5000 }).catch(() => {});
+  check(/^INV\/\d{4}-\d{2}\/0004$/.test(await a.page.getByTestId('seq-preview-TAX_INVOICE').textContent()), 'numbering format INV/2026-27/0004');
   await a.page.getByTestId('back').click();
   await a.page.getByTestId('settings-types').click();
   await pick(a.page, 'type-choose', 'Delivery Challan');
@@ -646,7 +684,7 @@ try {
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 8 && backup.stores.company.logo.startsWith('data:image'), 'backup file with documents and logo');
+  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 9 && backup.stores.company.logo.startsWith('data:image'), `backup file with documents and logo (${backup.stores.documents.length} documents)`);
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('add-product').click();
   await a.page.getByTestId('product-name').fill('Added after the backup');
@@ -662,16 +700,16 @@ try {
   await a.page.getByTestId('product-list').getByText('Office Chair').waitFor();
   check(!(await a.page.getByTestId('product-list').textContent()).includes('Added after the backup'), 'backup restored (product added later is gone)');
   await a.page.goto(`${base}/app/#/documents`);
-  await rows().nth(7).waitFor();
-  check((await rows().count()) === 8, 'all 8 documents back after the restore');
+  await rows().nth(8).waitFor();
+  check((await rows().count()) === 9, 'all 9 documents back after the restore');
 
   console.log('Works offline, no repeated login');
   await a.page.goto(`${base}/app/`);
   await a.page.getByTestId('dashboard').waitFor();
   await a.page.reload();
   await a.page.getByTestId('dashboard').waitFor();
-  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(7).waitFor({ timeout: 10000 }).catch(() => {});
-  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 8, 'reopened without logging in; recent documents');
+  await a.page.getByTestId('recent-documents').getByTestId('doc-row').nth(8).waitFor({ timeout: 10000 }).catch(() => {});
+  check((await a.page.getByTestId('recent-documents').getByTestId('doc-row').count()) === 9, 'reopened without logging in; recent documents');
   await a.page.waitForTimeout(400);
   await a.page.screenshot({ path: path.join(siteShots, 'mobile-dashboard.png') });
   await a.context.setOffline(true);

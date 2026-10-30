@@ -7,7 +7,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
-import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
+import { LEDGER_FEATURE, PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
+import { ledgerOn } from '@desktop/services/billPayment.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '@desktop/services/catalogService.js';
 import { formatDate } from '@desktop/utils/dates.js';
 import { balanceLabel, ledgerSummary } from '@desktop/services/ledgerService.js';
@@ -103,45 +104,52 @@ export function PartySheet({ initial, taxSystem, onClose, onSaved, onDelete }) {
   );
 }
 
-/** The Customers & Vendors feature switch (Settings → Features, and /parties). */
+/** The feature switches: Customers & Vendors, and Payment & Ledger (Settings → Features, and /parties). */
 export function PartyModuleSwitches() {
   const { settings, updateSettings } = useApp();
   const { toast } = useUi();
   // Shown switched at once; saved in the background.
-  const [shown, setShown] = useState(null);
-  const on = shown ?? partyFeatureOn(settings);
+  const [shown, setShown] = useState({});
+  const partiesOn = shown.parties ?? partyFeatureOn(settings);
+  const ledgerIsOn = shown.ledger ?? ledgerOn(settings);
+  const toggle = async (id, next) => {
+    setShown((s) => ({ ...s, [id]: next }));
+    try {
+      if (id === 'parties') {
+        await updateSettings(partyFeatureValue(next));
+        toast(next ? 'Customers & Vendors switched on' : 'Customers & Vendors switched off. Saved records are kept.');
+      } else {
+        await updateSettings({ [LEDGER_FEATURE.setting]: next });
+        toast(next ? 'Payment & Ledger switched on' : 'Payment & Ledger switched off. Recorded payments are kept.');
+      }
+    } catch (e) {
+      setShown((s) => ({ ...s, [id]: !next }));
+      toast(e.message, 'bad');
+    }
+  };
+  const cards = [
+    { feature: PARTY_FEATURE, on: partiesOn, open: partiesOn },
+    { feature: LEDGER_FEATURE, on: ledgerIsOn },
+  ];
   return (
     <div className="list">
-      <div className="list-item module-row" data-testid="module-parties">
-        <span className="avatar">
-          <Icon name={PARTY_FEATURE.icon} size={19} />
-        </span>
-        <span className="list-main">
-          <strong>{PARTY_FEATURE.label}</strong>
-          <span className="small muted">{PARTY_FEATURE.description}</span>
-          {on && (
-            <button type="button" className="link-btn small" onClick={() => go('/parties/all')} data-testid="open-parties">
-              Open Customers &amp; Vendors →
-            </button>
-          )}
-        </span>
-        <Toggle
-          checked={on}
-          onChange={async (next) => {
-            setShown(next);
-            try {
-              await updateSettings(partyFeatureValue(next));
-              toast(next ? 'Customers & Vendors switched on' : 'Customers & Vendors switched off. Saved records are kept.');
-            } catch (e) {
-              setShown(!next);
-              toast(e.message, 'bad');
-            }
-          }}
-          label=""
-          aria-label="Customers & Vendors feature"
-          data-testid="module-parties-toggle"
-        />
-      </div>
+      {cards.map(({ feature, on, open }) => (
+        <div key={feature.id} className="list-item module-row" data-testid={`module-${feature.id}`}>
+          <span className="avatar">
+            <Icon name={feature.icon} size={19} />
+          </span>
+          <span className="list-main">
+            <strong>{feature.label}</strong>
+            <span className="small muted">{feature.description}</span>
+            {open && (
+              <button type="button" className="link-btn small" onClick={() => go('/parties/all')} data-testid="open-parties">
+                Open Customers &amp; Vendors →
+              </button>
+            )}
+          </span>
+          <Toggle checked={on} onChange={(v) => toggle(feature.id, v)} label="" aria-label={`${feature.label} feature`} data-testid={`module-${feature.id}-toggle`} />
+        </div>
+      ))}
     </div>
   );
 }
@@ -166,6 +174,7 @@ export default function Parties({ kind }) {
   const { settings } = useApp();
   const { toast, confirm } = useUi();
   const tabs = enabledModules(settings);
+  const withLedger = ledgerOn(settings);
   const mod = tabs.find((m) => m.kind === kind) || (tabs.length === 1 ? tabs[0] : ALL);
   const enabled = !!kind && tabs.length > 0;
   const newKind = mod.kind === 'all' ? 'customer' : mod.kind;
@@ -181,8 +190,8 @@ export default function Parties({ kind }) {
     try {
       const ticket = ++loadTicket.current;
       const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search });
-      // Balances from the ledger (invoices, bills and payments of each party).
-      const summary = await ledgerSummary(list);
+      // Balances from the ledger (invoices, bills and payments of each party), with Payment & Ledger on.
+      const summary = withLedger ? await ledgerSummary(list) : { parties: list, totals: null };
       // Only the latest request counts (switching Active / Archived quickly must not show an older list).
       if (ticket !== loadTicket.current) return;
       setRows(summary.parties);
@@ -190,7 +199,7 @@ export default function Parties({ kind }) {
     } catch (e) {
       toast(e.message, 'bad');
     }
-  }, [mod.kind, archived, search, toast]);
+  }, [mod.kind, archived, search, toast, withLedger]);
   useEffect(() => {
     if (!enabled) return undefined;
     const t = setTimeout(load, 150);
@@ -240,19 +249,15 @@ export default function Parties({ kind }) {
     <>
       <Header title="Customers & Vendors" actions={<PrivacyToggle className="icon-btn" size={20} />} />
       <div className="page" data-testid={`parties-${mod.kind}`}>
-        {totals && !archived && (
+        {withLedger && totals && !archived && (
           <div className="ledger-totals" data-testid="ledger-totals">
             <div className="get">
-              <span className="small muted">You&apos;ll get</span>
+              <span className="small muted">I&apos;ll get</span>
               <strong data-testid="total-receivable">{money(totals.receivable)}</strong>
             </div>
             <div className="give">
-              <span className="small muted">You&apos;ll give</span>
+              <span className="small muted">I&apos;ll give</span>
               <strong data-testid="total-payable">{money(totals.payable)}</strong>
-            </div>
-            <div>
-              <span className="small muted">Advances</span>
-              <strong data-testid="total-advance-received">{money(totals.advanceReceived)}</strong>
             </div>
           </div>
         )}
@@ -309,12 +314,14 @@ export default function Parties({ kind }) {
                     Restore
                   </button>
                 ) : (
+                  withLedger && (
                   <span className="list-end">
                     <strong className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
                       {money(abs(p.balance))}
                     </strong>
                     <span className="small muted">{balanceLabel(p.balance)}</span>
                   </span>
+                  )
                 )}
                 {!archived && (
                   <button type="button" className="icon-btn sm" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} aria-label={`Edit ${p.name}`} data-testid="party-edit">

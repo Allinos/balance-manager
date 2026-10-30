@@ -41,10 +41,18 @@ const PARTY_KINDS = ['customer', 'vendor', 'both'];
 /** Purchase-side document types: a party saved on them is a vendor (migration 005 on the desktop). */
 const VENDOR_TYPES = new Set(['REVERSE_QUOTATION', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'PAYMENT_VOUCHER', 'WORK_ORDER']);
 
-/** A party's kind; parties saved before kinds existed are sorted by the documents they appear on. */
 /** The documents of a customer's / vendor's ledger (desktop: LEDGER_TYPES in commands.rs). */
 const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE']);
+/** Paid on a bill itself (Payment & Ledger: meta.paid), from its stored meta text. */
+const paidOnBill = (meta) => {
+  try {
+    return (typeof meta === 'string' ? JSON.parse(meta || '{}') : meta || {})?.paid || '0';
+  } catch {
+    return '0';
+  }
+};
 
+/** A party's kind; parties saved before kinds existed are sorted by the documents they appear on. */
 function partyKind(p, docs) {
   if (PARTY_KINDS.includes(p.kind)) return p.kind;
   const mine = docs.filter((d) => d.party_id === p.id);
@@ -368,14 +376,15 @@ const commands = {
         const d = cursor.value;
         if (!d.deleted_at && d.status !== 'CANCELLED' && d.status !== 'VOID' && LEDGER_TYPES.has(d.document_type)) {
           const key = `${d.party_id}|${d.document_type}`;
-          const row = sums.get(key) || { party_id: d.party_id, document_type: d.document_type, total: 0n, count: 0 };
+          const row = sums.get(key) || { party_id: d.party_id, document_type: d.document_type, total: 0n, paid: 0n, count: 0 };
           row.total += dec(d.grand_total);
+          row.paid += dec(paidOnBill(d.meta));
           row.count += 1;
           sums.set(key, row);
         }
         cursor = await cursor.continue();
       }
-      return [...sums.values()].map((r) => ({ ...r, total: toFixed(r.total, 3) }));
+      return [...sums.values()].map((r) => ({ ...r, total: toFixed(r.total, 3), paid: toFixed(r.paid, 3) }));
     }),
 
   party_save: ({ party }) => {

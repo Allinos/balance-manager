@@ -374,9 +374,11 @@ with pictures (`/mobile#android`, images in `frontend/public/install/`).
   browser tab the app still loads the newest version when online. The daily license check is unchanged.
 - **Bottom tabs**: Dashboard · Documents · Products · (Parties, once Customers & Vendors is switched on in Settings →
   Features) · Settings. Products & Services no longer shows Customers / Vendors buttons at the top.
-- **Payments & ledger**: Parties shows You'll get / You'll give / advances and each customer's balance; a row has an
-  Edit button, and tapping it opens the profile with the open bills, the Give & Get ledger and Receive payment /
-  Advance (same as the desktop).
+- **Payment & Ledger** (Settings → Features, same as the desktop): a compact Payment card at the bottom of a bill,
+  above Save (Full · Partial · Credit, payments with amount and mode, Total / Paid / Due); Parties shows I'll get /
+  I'll give and each balance; a row has an Edit button, and tapping it opens the profile with one big *Payment
+  received* (or *Payment made*) button — a bottom sheet asking only for the amount and a tap-to-pick mode, showing
+  which bills it clears — then the ledger and the unpaid bills.
 - **IndexedDB (data on the phone)**: schema version 2 adds indexes (documents by party, date, type and parent; parties
   by name) without touching records; lists by type or date, the ledger and receipts read only what they need. The app
   asks the browser to keep the data (`navigator.storage.persist`), closes and reopens the database when another tab

@@ -58,13 +58,18 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   and time, and space for exceptions to be written before signing; *Receiver's Signature & Stamp*. Numbered POD-00001.
 - **Share**: the share icon beside *Customize* on the Dashboard copies or sends a promotional message with the
   download links (computer and phone). Personal referral codes are for authorised partners only (website → Partners).
-- **Payments & ledger** (Customers & Vendors): totals of what you'll get (receivables), what you'll give (payables)
-  and advances; each party's balance. A party's profile shows the open bills (unpaid / partly paid / overdue, each with
-  Receive / Pay) and the **Give & Get ledger** with a running balance. *Receive payment* / *Make payment* / *Advance*
-  make a payment receipt (customer) or payment voucher (vendor) for that party. The ledger is read from the documents
-  themselves (invoices, bills, credit / debit notes, receipts, vouchers; cancelled and deleted ones left out), so it
-  is always in step and nothing is posted twice; a payment linked to a bill settles it fully or in part, one not
-  linked is an advance. Exact decimals; the desktop sums per party in SQLite (index added by migration 006).
+- **Payment & Ledger** (Settings → Features; off until switched on, everything hidden when off): a *Payment* section
+  at the bottom of every invoice and purchase bill, above Save — *Paid in full* (default, with the mode), *Partial*
+  (as many payments as needed, each with amount and mode, + *Add payment*) or *Credit* — showing what is paid and
+  what is still due; stored on the bill (`meta.payment`, `meta.payments`, `meta.paid`) and the bill's status moves
+  forward (Issued → Partly paid → Paid). A customer's profile has one **Payment received** button (a vendor's,
+  **Payment made**) asking only for the amount and the mode: it is saved as a receipt / payment voucher and clears
+  the oldest unpaid bills first (₹500 received against bills of ₹300 and ₹200 clears both, marking them Paid).
+  Profiles show **I'll get** / **I'll give**, the ledger with a running balance and the unpaid bills; Customers &
+  Vendors shows I'll get / I'll give totals (no separate advance figure — money paid beyond the bills shows in the
+  balance). The ledger is read from the documents themselves (invoices, bills, the payments on them, credit / debit
+  notes, receipts, vouchers; cancelled and deleted ones left out), so it is always in step and nothing is posted
+  twice. Exact decimals; the desktop sums per party in SQLite (index added by migration 006).
 - **Additional charges**: as many as needed per document (Freight, Packing, Loading, Installation … or
   any name; a minus amount is a deduction), each with its own GST / tax rate. Charges are added before
   tax, so subtotal, taxable value, CGST/SGST/IGST, the GST / HSN summary and the grand total are worked out

@@ -92,6 +92,7 @@ export const DEFAULT_SETTINGS = {
   documentCopies: 1, // 1–4 copies when printing / downloading
   customersModule: false, // Customers screen (config/partyModules.js); off until switched on
   vendorsModule: false, // Vendors screen
+  ledgerModule: false, // Payment & Ledger (services/billPayment.js): payments on bills, balances and the ledger
   units: DEFAULT_UNITS,
   qrContent: 'UPI', // 'UPI' | 'DOCUMENT' | 'CONTACT' | 'CUSTOM'
   qrCustomText: '',

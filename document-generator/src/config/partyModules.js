@@ -34,6 +34,14 @@ export const PARTY_FEATURE = {
   icon: 'users',
   description: 'Screens to list, search, add, edit and archive the people you sell to and the suppliers you buy from.',
 };
+/** Payment & Ledger (Settings → Features): payments on bills, I'll get / I'll give balances and each profile's ledger. */
+export const LEDGER_FEATURE = {
+  id: 'ledger',
+  setting: 'ledgerModule',
+  label: 'Payment & Ledger',
+  icon: 'wallet',
+  description: "Take payments on bills (paid in full, partial or credit), record payments from each customer and vendor, and see I'll get / I'll give balances with a running ledger.",
+};
 export const partyFeatureOn = (settings) => PARTY_MODULES.every((m) => settings?.[m.setting]);
 export const partyFeatureValue = (on) => Object.fromEntries(PARTY_MODULES.map((m) => [m.setting, on]));
 

@@ -1846,7 +1846,7 @@ button.license-chip {
 /* Payments & ledger */
 .ledger-totals {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .ledger-totals > div {
@@ -1859,7 +1859,7 @@ button.license-chip {
   min-width: 0;
 }
 .ledger-totals strong {
-  font-size: 14px;
+  font-size: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1887,34 +1887,24 @@ button.license-chip {
   font-size: 26px;
   font-variant-numeric: tabular-nums;
 }
-.balance-split {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px 12px;
-}
-.ledger-head,
 .ledger-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
-  padding: 8px 12px;
-  text-align: right;
-}
-.ledger-head > :first-child,
-.ledger-row > :first-child {
-  text-align: left;
-}
-.ledger-row {
+  padding: 10px 12px;
   width: 100%;
   border: 0;
   border-top: 1px solid var(--border);
   background: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+  text-align: left;
   font-variant-numeric: tabular-nums;
   cursor: pointer;
+}
+.ledger-row:first-child {
+  border-top: 0;
 }
 .ledger-what {
   display: flex;
@@ -1922,6 +1912,111 @@ button.license-chip {
   align-items: flex-start;
   gap: 2px;
   min-width: 0;
+}
+.ledger-amt {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.btn-lg {
+  padding: 13px 16px;
+  font-size: 16px;
+}
+
+/* Payment & Ledger: the Payment received sheet and the payment card of a bill. */
+.pay-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pay-sheet .pay-amount {
+  font-size: 22px;
+  font-weight: 700;
+}
+.mode-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mode-chips button {
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+}
+.mode-chips button.on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+.pay-plan {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.pay-plan > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.pay-plan-total {
+  border-top: 1px solid var(--border);
+  padding-top: 5px;
+}
+.pay-plan .get,
+.bill-pay .get {
+  color: var(--good);
+}
+.pay-plan .give,
+.bill-pay .give {
+  color: var(--bad);
+}
+.bill-pay {
+  border: 2px solid var(--brand);
+}
+.bill-pay-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.bill-pay-row .input {
+  flex: 1;
+  min-width: 0;
+}
+.bill-pay-row select.input {
+  width: 116px;
+  flex: none;
+}
+.bad-text {
+  color: var(--bad);
+}
+.bill-pay-sum {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.bill-pay-sum span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.bill-pay-sum strong {
+  font-size: 15px;
 }
 
 /* Share DocGen: the ready promotional message. */

@@ -409,38 +409,82 @@ test('download: periods, file names, and a license is required', async () => {
   await assert.rejects(exportDocuments({ format: 'csv', typeId: '', range: { from: '', to: '' }, licensed: false }), new RegExp(LICENSE_NEEDED.slice(0, 30)));
 });
 
-test('ledger: full, partial and advance payments, credit notes, vendor bills, running balance', async () => {
-  const { buildLedger, positionOf, ledgerTotals, balancesFromSums } = await import('../src/services/ledgerService.js');
+test('ledger: payments on bills, linked and oldest-first payments, credit notes, vendor bills, running balance', async () => {
+  const { buildLedger, positionOf, ledgerTotals, balancesFromSums, allocate, balanceLabel } = await import('../src/services/ledgerService.js');
   const doc = (id, type, total, extra = {}) => ({ id, document_type: type, document_number: `${type.slice(0, 3)}-${id}`, status: 'ISSUED', issue_date: `2026-10-${String(id).padStart(2, '0')}`, grand_total: total, parent_document_id: null, ...extra });
+  const paidMeta = (paid, payments) => JSON.stringify({ payment: 'partial', paid, payments });
   const customer = buildLedger([
     doc(1, 'TAX_INVOICE', '1180.00'),
     doc(2, 'TAX_INVOICE', '500.00'),
-    doc(3, 'PAYMENT_RECEIPT', '1180.00', { parent_document_id: 1 }), // full
-    doc(4, 'PAYMENT_RECEIPT', '200.00', { parent_document_id: 2 }), // partial
+    doc(3, 'PAYMENT_RECEIPT', '1180.00', { parent_document_id: 1, meta: '{"payment_mode":"UPI"}' }), // linked: settles INV 1
+    doc(4, 'TAX_INVOICE', '1000.00', { meta: paidMeta('700.00', [{ amount: '500.00', mode: 'UPI' }, { amount: '200.00', mode: 'Cash' }]) }), // partly paid on the bill
     doc(5, 'CREDIT_NOTE', '50.00'),
     doc(6, 'TAX_INVOICE', '999.00', { status: 'CANCELLED' }), // left out
-    doc(7, 'PAYMENT_RECEIPT', '100.00'), // advance (on account)
-  ], 'customer');
-  assert.equal(customer.rows.length, 6);
-  assert.deepEqual(customer.rows.map((r) => r.balance), ['1180.00', '1680.00', '500.00', '300.00', '250.00', '150.00']);
+    doc(7, 'PAYMENT_RECEIPT', '600.00'), // Payment received: oldest bills first (INV 2 500, then 100 of INV 4)
+  ]);
+  // The bill's own payment is a ledger line right after it.
+  assert.deepEqual(customer.rows.map((r) => r.balance), ['1180.00', '1680.00', '500.00', '1500.00', '800.00', '750.00', '150.00']);
+  const onBill = customer.rows.find((r) => r.key === '4-paid');
+  assert.deepEqual([onBill.label, onBill.got, onBill.mode, onBill.against], ['Payment received', '700.00', 'UPI, Cash', 'TAX-4']);
+  assert.equal(customer.rows.find((r) => r.id === 3).mode, 'UPI');
   assert.equal(customer.balance, '150.00');
-  assert.equal(customer.receivable, '150.00');
-  assert.deepEqual(customer.open.map((b) => [b.number, b.paid, b.due, b.state]), [['TAX-2', '200.00', '300.00', 'partial']]);
-  assert.equal(customer.unallocated, '100.00');
-  assert.ok(customer.rows.find((r) => r.id === 7).advance && customer.rows.find((r) => r.id === 3).against === 'TAX-1');
+  assert.deepEqual(customer.bills.map((b) => [b.number, b.paid, b.due, b.state]), [
+    ['TAX-1', '1180.00', '0.00', 'paid'],
+    ['TAX-2', '500.00', '0.00', 'paid'],
+    ['TAX-4', '800.00', '200.00', 'partial'],
+  ]);
+  assert.deepEqual(customer.open.map((b) => b.number), ['TAX-4']);
+  assert.equal(balanceLabel('150.00'), "I'll get");
 
-  // A customer who paid in advance: negative balance = advance received.
-  const adv = buildLedger([doc(1, 'PAYMENT_RECEIPT', '5000')], 'customer');
-  assert.deepEqual([adv.balance, adv.receivable, adv.advance, adv.advanceKind], ['-5000.00', '0.00', '5000.00', 'received']);
+  // "Payment received" of 500 against bills of 300 and 200 clears both.
+  const two = buildLedger([doc(1, 'TAX_INVOICE', '300'), doc(2, 'SERVICE_INVOICE', '200')]);
+  const plan = allocate(two, 'customer', '500');
+  assert.deepEqual(plan.settles.map((x) => [x.number, x.amount, x.clears]), [['TAX-1', '300.00', true], ['SER-2', '200.00', true]]);
+  assert.deepEqual([plan.left, plan.balanceAfter], ['0.00', '0.00']);
+  const after = buildLedger([doc(1, 'TAX_INVOICE', '300'), doc(2, 'SERVICE_INVOICE', '200'), doc(3, 'PAYMENT_RECEIPT', '500')]);
+  assert.deepEqual([after.open.length, after.balance], [0, '0.00']);
+  // Paid more than owed: shows as I'll give.
+  assert.deepEqual(allocate(two, 'customer', '650').left, '150.00');
+  assert.equal(buildLedger([doc(1, 'PAYMENT_RECEIPT', '5000')]).payable, '5000.00');
 
-  // Vendor: a bill to pay, part paid by voucher.
-  const vendor = buildLedger([doc(1, 'PURCHASE_INVOICE', '2500'), doc(2, 'PAYMENT_VOUCHER', '1000', { parent_document_id: 1 })], 'vendor');
-  assert.deepEqual([vendor.balance, vendor.payable, vendor.open[0].due], ['-1500.00', '1500.00', '1500.00']);
-  assert.deepEqual(positionOf('700', 'vendor'), { receivable: '0.00', payable: '0.00', advance: '700.00', advanceKind: 'paid' });
+  // Vendor: a bill paid in part on the bill and in part by Payment made; payables, not receivables.
+  const vendor = buildLedger([
+    doc(1, 'PURCHASE_INVOICE', '2500', { meta: paidMeta('500.00', [{ amount: '500.00', mode: 'Cash' }]) }),
+    doc(2, 'PAYMENT_VOUCHER', '1000'),
+  ]);
+  assert.deepEqual([vendor.balance, vendor.payable, vendor.receivable, vendor.open[0].due], ['-1000.00', '1000.00', '0.00', '1000.00']);
+  assert.equal(vendor.rows.find((r) => r.key === '1-paid').gave, '500.00');
+  assert.deepEqual(allocate(vendor, 'vendor', '1000').balanceAfter, '0.00');
 
-  const totals = ledgerTotals([{ ...positionOf('150') }, { ...positionOf('-1500', 'vendor') }, { ...positionOf('-5000') }]);
-  assert.deepEqual(totals, { receivable: '150.00', payable: '1500.00', advanceReceived: '5000.00', advancePaid: '0.00' });
-  // Backend sums (exact text) → balances.
-  const b = balancesFromSums([{ party_id: 1, document_type: 'TAX_INVOICE', total: '1000.300' }, { party_id: 1, document_type: 'PAYMENT_RECEIPT', total: '400.050' }, { party_id: 1, document_type: 'QUOTATION', total: '9' }]);
-  assert.equal(b.get(1), 600250000n);
+  assert.deepEqual(positionOf('-700'), { receivable: '0.00', payable: '700.00' });
+  const totals = ledgerTotals([{ ...positionOf('150') }, { ...positionOf('-1500') }, { ...positionOf('-5000') }]);
+  assert.deepEqual(totals, { receivable: '150.00', payable: '6500.00' });
+  // Backend sums (exact text) → balances; what was paid on the bills is taken off.
+  const b = balancesFromSums([
+    { party_id: 1, document_type: 'TAX_INVOICE', total: '1000.300', paid: '100.000' },
+    { party_id: 1, document_type: 'PAYMENT_RECEIPT', total: '400.050' },
+    { party_id: 1, document_type: 'QUOTATION', total: '9' },
+    { party_id: 2, document_type: 'PURCHASE_INVOICE', total: '2500.000', paid: '500.000' },
+  ]);
+  assert.equal(b.get(1), 500250000n);
+  assert.equal(b.get(2), -2000000000n);
+});
+
+test('bill payment: paid in full by default, partial payments, credit, status moves forward', async () => {
+  const { paymentKind, paymentSummary, paymentMeta, paymentError, paidStatus, takesPayment } = await import('../src/services/billPayment.js');
+  const bill = (meta = {}, extra = {}) => ({ document_type: 'TAX_INVOICE', currency_decimals: 2, meta, ...extra });
+  assert.equal(paymentKind(bill()), 'full'); // new bill
+  assert.equal(paymentKind(bill({}, { id: 5 })), 'credit'); // saved before the feature
+  assert.ok(takesPayment(bill(), { ledgerModule: true }) && !takesPayment(bill(), { ledgerModule: false }));
+  assert.ok(!takesPayment({ document_type: 'QUOTATION' }, { ledgerModule: true }));
+  assert.deepEqual(paymentMeta(bill({ payment_mode: 'UPI' }), '10030.00'), { payment: 'full', payments: [{ amount: '10030.00', mode: 'UPI' }], paid: '10030.00' });
+  const partial = bill({ payment: 'partial', payments: [{ amount: '5000', mode: 'UPI' }, { amount: '2000', mode: 'Cash' }, { amount: '', mode: 'Card' }] });
+  assert.deepEqual(paymentSummary(partial, '10030.00'), { kind: 'partial', paid: '7000.00', due: '3030.00', over: false });
+  assert.deepEqual(paymentMeta(partial, '10030.00').payments, [{ amount: '5000.00', mode: 'UPI' }, { amount: '2000.00', mode: 'Cash' }]);
+  assert.match(paymentError(bill({ payment: 'partial', payments: [{ amount: '20000', mode: 'UPI' }] }), '10030.00'), /more than the bill total/);
+  assert.deepEqual(paymentMeta(bill({ payment: 'credit' }), '500'), { payment: 'credit', payments: [], paid: '0.00' });
+  assert.equal(paidStatus('ISSUED', '7000', '10030'), 'PARTIAL');
+  assert.equal(paidStatus('PARTIAL', '10030', '10030'), 'PAID');
+  assert.equal(paidStatus('DRAFT', '10030', '10030'), null); // drafts keep their status
+  assert.equal(paidStatus('PAID', '0', '10030'), null); // never moved back
 });

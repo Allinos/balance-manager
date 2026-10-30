@@ -1111,33 +1111,75 @@ async function main() {
       },
     });
     await clickCss('[data-testid="party-archived-active"]');
+    await find('[data-testid="party-table"]');
+    check(!(await exists('[data-testid="ledger-totals"]')) && !(await exists('[data-testid="party-balance-cell"]')), 'Payment & Ledger off: no balances or totals on Customers & Vendors');
+    // Settings → Features → Payment & Ledger.
+    await go('#/settings/parties');
+    await find('[data-testid="module-ledger"]');
+    await clickCss('[data-testid="module-ledger"] .toggle');
+    await waitForText('Payment & Ledger switched on');
+    check(true, 'Settings → Features: Payment & Ledger switched on');
+    await go('#/parties/all');
     await find('[data-testid="ledger-totals"]');
-    check((await textOf('[data-testid="ledger-totals"]')).includes("You'll get"), "Customers & Vendors: You'll get / You'll give / advances totals");
-    await exec(`[...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction")).querySelector("[data-testid=party-ledger-open]").click()`);
-    await find('[data-testid="party-ledger"]');
-    await find('[data-testid="ledger-row"]');
-    const ledgerRows = await exec('return document.querySelectorAll("[data-testid=ledger-row]").length');
-    check(ledgerRows >= 1 && (await textOf('[data-testid="ledger-table"]')).includes(ledgerInv.document_number), `customer profile: Give & Get ledger with running balance (${ledgerRows} entries)`);
-    const balText = async () => [await textOf('[data-testid="party-balance-amount"]'), await textOf('[data-testid="party-balance"]')];
+    const totalsText = await textOf('[data-testid="ledger-totals"]');
+    check(totalsText.includes("I'll get") && totalsText.includes("I'll give") && !/advance/i.test(totalsText), `Customers & Vendors: I'll get / I'll give totals, no separate advance (${totalsText.replace(/\s+/g, ' ')})`);
     const num = (t) => Number(String(t).replace(/[^\d.]/g, ''));
-    const signedBal = ([amt, label]) => (label.includes("You'll give") ? -num(amt) : num(amt));
+    const balText = async () => [await textOf('[data-testid="party-balance-amount"]'), await textOf('[data-testid="party-balance"]')];
+    const signedBal = ([amt, label]) => (label.includes("I'll give") ? -num(amt) : num(amt));
+    const selectValue = (css, value) =>
+      exec(`const el = document.querySelector(arguments[0]); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(el, arguments[1]); el.dispatchEvent(new Event('change', { bubbles: true }));`, [css, value]);
+
+    // A new bill for ABC: payment section at the bottom, Paid in full by default; two partial payments.
+    await go(`#/doc/new/TAX_INVOICE?party=${archivedAbc.id}`);
+    await find('[data-testid="bill-payment"]');
+    check((await exec('return document.querySelector("[data-testid=bill-payment-kind-full]").getAttribute("aria-checked")')) === 'true', 'new bill: payment section above Save, Paid in full by default');
+    await type('[data-testid="item-name-0"]', 'Site survey');
+    await type('[data-testid="item-qty-0"]', '1');
+    await type('[data-testid="item-rate-0"]', '1000');
+    await sleep(300);
+    const billTotal = num(await textOf('[data-testid="grand-total"]'));
+    check(num(await textOf('[data-testid="bill-paid"]')) === billTotal && num(await textOf('[data-testid="bill-due"]')) === 0, `Paid in full: paid ${billTotal}, nothing due`);
+    await clickCss('[data-testid="bill-payment-kind-partial"]');
+    await type('[data-testid="bill-payment-amount-0"]', '300');
+    await clickCss('[data-testid="bill-payment-add"]');
+    await type('[data-testid="bill-payment-amount-1"]', '200');
+    await selectValue('[data-testid="bill-payment-row-mode-1"]', 'UPI');
+    await sleep(300);
+    check(num(await textOf('[data-testid="bill-paid"]')) === 500 && Math.abs(num(await textOf('[data-testid="bill-due"]')) - (billTotal - 500)) < 0.01,
+      `Partial: ₹300 cash + ₹200 UPI → paid 500, remaining due ${billTotal - 500}`);
+    await clickCss('[data-testid="save-doc-bottom"]');
+    await waitForText('saved', 10000);
+    const billId = Number((await exec('return location.hash')).match(/doc\/(\d+)/)[1]);
+    const billMeta = JSON.parse((await invoke('document_get', { id: billId })).document.meta);
+    check(billMeta.payment === 'partial' && billMeta.paid === '500.00' && billMeta.payments.length === 2 && billMeta.payments[1].mode === 'UPI', `bill saved with its payments (${JSON.stringify(billMeta.payments)})`);
+
+    // The profile: ledger with the bill and its payment, unpaid bills, Payment received.
+    await go(`#/party/${archivedAbc.id}`);
+    await find('[data-testid="ledger-row"]');
+    const ledgerText = await textOf('[data-testid="ledger-table"]');
+    check(ledgerText.includes(ledgerInv.document_number) && /Payment received[\s\S]*Cash, UPI/.test(ledgerText), 'customer profile: ledger with each bill, the payment taken on the bill and its modes, running balance');
     const balBefore = signedBal(await balText());
+    check(Math.abs(balBefore - (10000 + billTotal - 500)) < 0.01 && (await textOf('[data-testid="party-balance"]')).includes("I'll get"), `I'll get ${balBefore} (10,000 + ${billTotal} − 500 paid)`);
     await clickCss('[data-testid="party-profile-edit"]');
     await find('[data-testid="party-form-name"]');
     check((await exec('return document.querySelector("[data-testid=party-form-name]").value')) === 'ABC Construction Pvt Ltd', 'profile: Edit opens the customer');
     await exec(`document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}))`);
     await sleep(300);
-    await clickCss('[data-testid="party-advance-customer"]');
-    await find('[data-testid="amount-received"]');
-    check((await exec('return document.querySelector("[data-testid=party-name]").value')) === 'ABC Construction Pvt Ltd', 'Advance received: a receipt for this customer, filled in');
-    await type('[data-testid="amount-received"]', '2500');
-    await clickCss('[data-testid="save-doc"]');
-    await waitForText('RCT-', 15000);
-    await go(`#/party/${archivedAbc.id}`);
-    await find('[data-testid="ledger-row"]');
-    await waitFor(async () => (await exec('return document.querySelectorAll("[data-testid=ledger-row]").length')) === ledgerRows + 1, 'advance in the ledger', 8000);
-    const balAfter = signedBal(await balText());
-    check(Math.abs(balAfter - (balBefore - 2500)) < 0.01 && (await textOf('[data-testid="ledger-table"]')).includes('Advance'), `advance of ₹2,500 recorded: ledger entry and balance updated (${balBefore} → ${balAfter})`);
+    check(!(await exists('[data-testid="party-advance-customer"]')), 'no separate Advance received button');
+    await clickCss('[data-testid="party-pay-customer"]');
+    await find('[data-testid="pay-amount"]');
+    check(!(await exists('[data-testid="pay-dialog"] [data-testid="party-name"]')), 'Payment received asks only for the amount and the mode');
+    await type('[data-testid="pay-amount"]', String(10000 + 200));
+    await selectValue('[data-testid="pay-mode"]', 'UPI');
+    const plan = await textOf('[data-testid="pay-settles"]');
+    check(plan.includes(ledgerInv.document_number) && plan.indexOf(ledgerInv.document_number) < plan.lastIndexOf('INV-'), `it settles the oldest bill first, then the next (${plan.replace(/\s+/g, ' ')})`);
+    await clickCss('[data-testid="pay-save"]');
+    await waitForText('Payment received:', 15000);
+    await waitFor(async () => Math.abs(signedBal(await balText()) - (balBefore - 10200)) < 0.01, 'balance after the payment', 8000);
+    check(true, `Payment received ₹10,200: balance ${balBefore} → ${balBefore - 10200}`);
+    const openText = (await exists('[data-testid="open-bills"]')) ? await textOf('[data-testid="open-bills"]') : '';
+    check(!openText.includes(ledgerInv.document_number) && openText.includes('Partly paid'), 'the older bill is cleared; the newer one is partly paid');
+    check((await invoke('document_get', { id: ledgerInv.id })).document.status === 'PAID', `${ledgerInv.document_number} marked Paid`);
     await shot('20b-party-ledger');
     await go('#/parties/all');
     await find('[data-testid="party-table"]');

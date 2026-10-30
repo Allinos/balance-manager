@@ -378,7 +378,7 @@ pub fn party_ledger(db: State<'_, Db>, id: i64) -> AppResult<Value> {
             c,
             &format!(
                 "SELECT id, document_type, document_number, status, issue_date, due_date, grand_total, currency, currency_symbol,
-                        currency_decimals, parent_document_id, deleted_at
+                        currency_decimals, parent_document_id, deleted_at, meta
                    FROM documents WHERE party_id = ? AND deleted_at IS NULL AND document_type IN ({marks})
                   ORDER BY issue_date, id"
             ),
@@ -412,7 +412,8 @@ fn ledger_sums_in(c: &rusqlite::Connection, types: &[String]) -> AppResult<Vec<V
         let marks = vec!["?"; types.len()].join(",");
         let args: Vec<SqlValue> = types.iter().map(|t| text(t)).collect();
         let mut stmt = c.prepare(&format!(
-            "SELECT party_id, document_type, SUM(CAST(ROUND(CAST(grand_total AS REAL) * 1000) AS INTEGER)), COUNT(*)
+            "SELECT party_id, document_type, SUM(CAST(ROUND(CAST(grand_total AS REAL) * 1000) AS INTEGER)), COUNT(*),
+                    SUM(CASE WHEN json_valid(meta) THEN CAST(ROUND(CAST(COALESCE(json_extract(meta, '$.paid'), '0') AS REAL) * 1000) AS INTEGER) ELSE 0 END)
                FROM documents
               WHERE party_id IS NOT NULL AND deleted_at IS NULL AND status NOT IN ('CANCELLED', 'VOID') AND document_type IN ({marks})
               GROUP BY party_id, document_type"
@@ -424,6 +425,8 @@ fn ledger_sums_in(c: &rusqlite::Connection, types: &[String]) -> AppResult<Vec<V
                     "document_type": r.get::<_, String>(1)?,
                     "total": milli_text(r.get::<_, Option<i64>>(2)?.unwrap_or(0)),
                     "count": r.get::<_, i64>(3)?,
+                    // Paid on the bills themselves (Payment & Ledger: meta.paid).
+                    "paid": milli_text(r.get::<_, Option<i64>>(4)?.unwrap_or(0)),
                 }))
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -1282,7 +1285,11 @@ mod tests {
                    ('TAX_INVOICE', 'INV-3', 1, '500', 'CANCELLED', '2026-10-03'),
                    ('PAYMENT_RECEIPT', 'RCT-1', 1, '400.05', 'ISSUED', '2026-10-04'),
                    ('PURCHASE_INVOICE', 'PB-1', 2, '2500', 'ISSUED', '2026-10-04'),
-                   ('QUOTATION', 'QTN-1', 1, '99', 'DRAFT', '2026-10-04');",
+                   ('QUOTATION', 'QTN-1', 1, '99', 'DRAFT', '2026-10-04');
+                 INSERT INTO documents (document_type, document_number, party_id, grand_total, status, issue_date, meta) VALUES
+                   ('SERVICE_INVOICE', 'SRV-1', 1, '700', 'PARTIAL', '2026-10-05', '{\"payment\":\"partial\",\"paid\":\"250.25\"}'),
+                   ('SERVICE_INVOICE', 'SRV-2', 1, '100', 'PAID', '2026-10-05', '{\"payment\":\"full\",\"paid\":\"100.00\"}'),
+                   ('SERVICE_INVOICE', 'SRV-3', 1, '50', 'ISSUED', '2026-10-06', 'not json');",
             )?;
             let types: Vec<String> = LEDGER_TYPES.iter().map(|t| t.to_string()).collect();
             let rows = ledger_sums_in(c, &types)?;
@@ -1291,6 +1298,11 @@ mod tests {
             assert_eq!(find(1, "PAYMENT_RECEIPT").as_deref(), Some("400.050"));
             assert_eq!(find(2, "PURCHASE_INVOICE").as_deref(), Some("2500.000"));
             assert!(find(1, "QUOTATION").is_none());
+            // Paid on the bills themselves (meta.paid) is summed alongside; a bill without it (or bad meta) adds nothing.
+            let paid = |p: i64, t: &str| rows.iter().find(|r| r["party_id"] == p && r["document_type"] == t).map(|r| r["paid"].as_str().unwrap().to_string());
+            assert_eq!(find(1, "SERVICE_INVOICE").as_deref(), Some("850.000"));
+            assert_eq!(paid(1, "SERVICE_INVOICE").as_deref(), Some("350.250"));
+            assert_eq!(paid(1, "TAX_INVOICE").as_deref(), Some("0.000"));
             assert_eq!(milli_text(-1500), "-1.500");
             Ok(())
         })

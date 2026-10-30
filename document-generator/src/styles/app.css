@@ -4045,6 +4045,107 @@ tr.clickable {
   color: var(--muted);
 }
 
+/* Payment & Ledger: balance on a profile, Payment received dialog, payment section of a bill. */
+.party-balance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.party-balance-card small {
+  display: block;
+  font-size: 13px;
+}
+.party-balance-card strong {
+  font-size: 26px;
+  font-variant-numeric: tabular-nums;
+}
+.party-balance-card strong.get,
+.pay-plan .get,
+.bill-payment-sum .get {
+  color: var(--success);
+}
+.party-balance-card strong.give,
+.pay-plan .give,
+.bill-payment-sum .give {
+  color: var(--danger);
+}
+.pay-plan {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pay-plan > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.pay-plan-total {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+.pay-plan .settled {
+  color: var(--success);
+}
+.bill-payment {
+  border: 1px solid var(--accent);
+}
+.bill-payment-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.bill-payment-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.bill-payment-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  max-width: 460px;
+}
+.bill-payment-row .input,
+.bill-payment-row select {
+  flex: 1;
+  min-width: 0;
+}
+.bill-payment-sum {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-strong);
+}
+.bill-payment-sum span {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+}
+.bill-payment-sum strong {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+.editor-bottom-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
 /* Share DocGen: the ready promotional message. */
 .share-message {
   width: 100%;

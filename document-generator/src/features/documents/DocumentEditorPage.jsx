@@ -34,6 +34,8 @@ import PartyFields from './editor/PartyFields.jsx';
 import { useDocumentActions } from './useDocumentActions.js';
 import ItemsEditor from './editor/ItemsEditor.jsx';
 import ChargesEditor from './editor/ChargesEditor.jsx';
+import BillPaymentFields from './editor/BillPaymentFields.jsx';
+import { takesPayment } from '../../services/billPayment.js';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '../../services/receiptService.js';
 
 const PREVIEW_KEY = 'docgen.editor.preview';
@@ -86,7 +88,7 @@ export default function DocumentEditorPage({ params, query }) {
         } else if (query.from) {
           m = modelFromSource(await getDocument(query.from), params.type, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
         } else if (query.party) {
-          m = await newDocumentForParty(params.type, ctx, query.party, { advance: query.advance === '1' });
+          m = await newDocumentForParty(params.type, ctx, query.party);
         } else {
           m = newDocument(params.type, ctx);
         }
@@ -598,6 +600,19 @@ export default function DocumentEditorPage({ params, query }) {
               </div>
             )}
           </section>
+
+          {takesPayment(doc, settings) && showPrices && <BillPaymentFields doc={doc} grandTotal={t.grand_total} onChange={setMeta} />}
+
+          {takesPayment(doc, settings) && (
+            <div className="editor-bottom-actions no-print">
+              <button className="btn" onClick={() => save({ print: true })} disabled={saving}>
+                <Icon name="printer" /> Save &amp; Print
+              </button>
+              <button className="btn btn-primary" onClick={() => save()} disabled={saving} data-testid="save-doc-bottom">
+                <Icon name="save" /> {saving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          )}
 
           {type.conversions.length > 0 && isNew && !model.parent && (
             <p className="muted small center">

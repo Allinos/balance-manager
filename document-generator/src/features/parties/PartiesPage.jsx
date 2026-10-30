@@ -5,7 +5,8 @@ import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
 import SearchSelect from '../../components/SearchSelect.jsx';
 import { Field, Segmented, TextArea, TextInput, Toggle } from '../../components/Form.jsx';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '../../config/states.js';
-import { PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
+import { LEDGER_FEATURE, PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '../../config/partyModules.js';
+import { ledgerOn } from '../../services/billPayment.js';
 import { archiveParty, deleteParty, queryParties, saveParty } from '../../services/catalogService.js';
 import { balanceLabel, ledgerSummary } from '../../services/ledgerService.js';
 import { abs } from '../../utils/decimal.js';
@@ -125,35 +126,47 @@ export function PartyModuleSwitches() {
   const { settings, updateSettings } = useAppData();
   const toast = useToast();
   // Shown switched at once; saved in the background.
-  const [shown, setShown] = useState(null);
-  const on = shown ?? partyFeatureOn(settings);
-  const toggle = async (next) => {
-    setShown(next);
+  const [shown, setShown] = useState({});
+  const partiesOn = shown.parties ?? partyFeatureOn(settings);
+  const ledgerIsOn = shown.ledger ?? ledgerOn(settings);
+  const toggle = async (id, next) => {
+    setShown((s) => ({ ...s, [id]: next }));
     try {
-      await updateSettings(partyFeatureValue(next));
-      toast.success(`Customers & Vendors ${next ? 'switched on — find them in the sidebar' : 'switched off. Your saved records are kept.'}`);
+      if (id === 'parties') {
+        await updateSettings(partyFeatureValue(next));
+        toast.success(`Customers & Vendors ${next ? 'switched on — find them in the sidebar' : 'switched off. Your saved records are kept.'}`);
+      } else {
+        await updateSettings({ [LEDGER_FEATURE.setting]: next });
+        toast.success(next ? 'Payment & Ledger switched on' : 'Payment & Ledger switched off. Payments already recorded are kept.');
+      }
     } catch (e) {
-      setShown(!next);
+      setShown((s) => ({ ...s, [id]: !next }));
       toast.error(e.message);
     }
   };
+  const cards = [
+    { feature: PARTY_FEATURE, on: partiesOn, link: partiesOn && { to: '/parties/all', label: 'Open Customers & Vendors →', testId: 'open-parties' } },
+    { feature: LEDGER_FEATURE, on: ledgerIsOn },
+  ];
   return (
     <div className="module-cards">
-      <div className={`module-card ${on ? 'on' : ''}`} data-testid="module-parties">
-        <span className="module-icon">
-          <Icon name={PARTY_FEATURE.icon} size={22} />
-        </span>
-        <div className="module-text">
-          <strong>{PARTY_FEATURE.label}</strong>
-          <span className="muted small">{PARTY_FEATURE.description}</span>
-          {on && (
-            <Link to="/parties/all" className="link small" data-testid="open-parties">
-              Open Customers &amp; Vendors →
-            </Link>
-          )}
+      {cards.map(({ feature, on, link }) => (
+        <div key={feature.id} className={`module-card ${on ? 'on' : ''}`} data-testid={`module-${feature.id}`}>
+          <span className="module-icon">
+            <Icon name={feature.icon} size={22} />
+          </span>
+          <div className="module-text">
+            <strong>{feature.label}</strong>
+            <span className="muted small">{feature.description}</span>
+            {link && (
+              <Link to={link.to} className="link small" data-testid={link.testId}>
+                {link.label}
+              </Link>
+            )}
+          </div>
+          <Toggle checked={on} onChange={(v) => toggle(feature.id, v)} label="" aria-label={`${feature.label} feature`} data-testid={`module-${feature.id}-toggle`} />
         </div>
-        <Toggle checked={on} onChange={toggle} label="" aria-label="Customers & Vendors feature" data-testid="module-parties-toggle" />
-      </div>
+      ))}
     </div>
   );
 }
@@ -201,6 +214,7 @@ export default function PartiesPage({ params }) {
   const toast = useToast();
   const confirm = useConfirm();
   const tabs = enabledModules(settings);
+  const withLedger = ledgerOn(settings);
   const mod = tabs.find((m) => m.kind === params.kind) || (tabs.length === 1 ? tabs[0] : ALL);
   const enabled = tabs.length > 0;
   // A new record starts as the kind being looked at (a customer on All).
@@ -218,8 +232,8 @@ export default function PartiesPage({ params }) {
     try {
       const ticket = ++loadTicket.current;
       const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search: debounced });
-      // Balances from the ledger (invoices, bills and payments of each party).
-      const summary = await ledgerSummary(list);
+      // Balances from the ledger (invoices, bills and payments of each party), with Payment & Ledger on.
+      const summary = withLedger ? await ledgerSummary(list) : { parties: list, totals: null };
       // Only the latest request counts (switching Active / Archived quickly must not show an older list).
       if (ticket !== loadTicket.current) return;
       setRows(summary.parties);
@@ -227,7 +241,7 @@ export default function PartiesPage({ params }) {
     } catch (e) {
       toast.error(e.message);
     }
-  }, [mod.kind, archived, debounced, toast]);
+  }, [mod.kind, archived, debounced, toast, withLedger]);
 
   useEffect(() => {
     if (enabled) load();
@@ -274,23 +288,15 @@ export default function PartiesPage({ params }) {
           </button>
         }
       />
-      {totals && !archived && (
+      {withLedger && totals && !archived && (
         <div className="ledger-cards" data-testid="ledger-totals">
           <div className="ledger-card get">
-            <small>{"You'll get (receivables)"}</small>
+            <small>{"I'll get"}</small>
             <strong data-testid="total-receivable">{money(totals.receivable)}</strong>
           </div>
           <div className="ledger-card give">
-            <small>{"You'll give (payables)"}</small>
+            <small>{"I'll give"}</small>
             <strong data-testid="total-payable">{money(totals.payable)}</strong>
-          </div>
-          <div className="ledger-card">
-            <small>Advances received</small>
-            <strong data-testid="total-advance-received">{money(totals.advanceReceived)}</strong>
-          </div>
-          <div className="ledger-card">
-            <small>Advances paid</small>
-            <strong data-testid="total-advance-paid">{money(totals.advancePaid)}</strong>
           </div>
         </div>
       )}
@@ -357,7 +363,7 @@ export default function PartiesPage({ params }) {
                 <th>State</th>
                 <th className="num">Documents</th>
                 <th>Last document</th>
-                <th className="num">Balance</th>
+                {withLedger && <th className="num">Balance</th>}
                 <th className="actions-col">Actions</th>
               </tr>
             </thead>
@@ -382,12 +388,14 @@ export default function PartiesPage({ params }) {
                   <td>{p.state || '—'}</td>
                   <td className="num">{p.document_count || 0}</td>
                   <td>{p.last_document_date ? formatDate(p.last_document_date, settings.dateFormat) : '—'}</td>
-                  <td className="num">
-                    <span className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
-                      {money(abs(p.balance))}
-                      <small>{balanceLabel(p.balance)}</small>
-                    </span>
-                  </td>
+                  {withLedger && (
+                    <td className="num">
+                      <span className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
+                        {money(abs(p.balance))}
+                        <small>{balanceLabel(p.balance)}</small>
+                      </span>
+                    </td>
+                  )}
                   <td className="actions-col">
                     <div className="row-actions">
                       {archived ? (
@@ -396,9 +404,11 @@ export default function PartiesPage({ params }) {
                         </button>
                       ) : (
                         <>
-                          <button className="icon-btn" title="Ledger & payments" onClick={() => navigate(`/party/${p.id}`)} data-testid="party-ledger-open">
-                            <Icon name="book" size={17} />
-                          </button>
+                          {withLedger && (
+                            <button className="icon-btn" title="Ledger & payments" onClick={() => navigate(`/party/${p.id}`)} data-testid="party-ledger-open">
+                              <Icon name="book" size={17} />
+                            </button>
+                          )}
                           <button className="icon-btn" title="Edit" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-edit">
                             <Icon name="edit" size={17} />
                           </button>

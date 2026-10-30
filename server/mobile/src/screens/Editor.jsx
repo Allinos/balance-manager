@@ -20,6 +20,8 @@ import { formatMoney } from '@desktop/utils/format.js';
 import { amountInWords } from '@desktop/utils/numberToWords.js';
 import { dec, isZero } from '@desktop/utils/decimal.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
+import { takesPayment } from '@desktop/services/billPayment.js';
+import BillPayCard from '../components/BillPayCard.jsx';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
 import DueDateInput from '@desktop/components/DueDateInput.jsx';
 import { issueDatePatch } from '@desktop/utils/dates.js';
@@ -402,7 +404,7 @@ export default function Editor({ typeId, id, query = {} }) {
         } else if (query.from) {
           m = modelFromSource(await getDocument(query.from), typeId, query.mode === 'convert' ? 'convert' : 'duplicate', ctx);
         } else if (query.party) {
-          m = await newDocumentForParty(typeId, ctx, query.party, { advance: query.advance === '1' });
+          m = await newDocumentForParty(typeId, ctx, query.party);
         } else {
           m = newDocument(typeId, ctx);
         }
@@ -868,6 +870,8 @@ export default function Editor({ typeId, id, query = {} }) {
             </>
           )}
         </section>
+
+        {takesPayment(doc, settings) && showPrices && <BillPayCard doc={doc} grandTotal={t.grand_total} onChange={setMeta} />}
 
         {type.conversions.length > 0 && isNew && !model.parent && (
           <p className="small muted center">
