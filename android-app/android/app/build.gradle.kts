@@ -1,7 +1,16 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+}
+
+// Release signing: android/key.properties (storeFile, storePassword, keyAlias, keyPassword) — see README.
+val keyFile: File = rootProject.file("key.properties")
+val keyProps = Properties().apply {
+    if (keyFile.exists()) FileInputStream(keyFile).use { stream -> load(stream) }
 }
 
 android {
@@ -32,10 +41,6 @@ android {
             (project.findProperty("ADMOB_APP_ID") as String?) ?: "ca-app-pub-3940256099942544~3347511713"
     }
 
-    // Release signing: android/key.properties (storeFile, storePassword, keyAlias, keyPassword) — see README.
-    val keyProps = java.util.Properties()
-    val keyFile = rootProject.file("key.properties")
-    if (keyFile.exists()) keyFile.inputStream().use { keyProps.load(it) }
     signingConfigs {
         if (keyFile.exists()) {
             create("release") {
