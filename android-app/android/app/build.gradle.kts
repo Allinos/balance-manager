@@ -16,7 +16,8 @@ val keyProps = Properties().apply {
 
 android {
     namespace = "in.reynrel.docgen_android"
-    compileSdk = flutter.compileSdkVersion
+    // 37: permission_handler_android is compiled against it (newer SDKs still run on older phones).
+    compileSdk = maxOf(flutter.compileSdkVersion, 37)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

@@ -22,7 +22,7 @@ plugins {
     // AGP 8.11: flutter_inappwebview_android 1.1.3 uses proguard-android.txt, which AGP 9 refuses.
     // Move to AGP 9 once that plugin has a stable release that supports it.
     id("com.android.application") version "8.11.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.0" apply false
 }
 
 include(":app")
