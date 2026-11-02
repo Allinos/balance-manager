@@ -334,7 +334,7 @@ export default function DocumentEditorPage({ params, query }) {
                 <TextInput value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} />
               </Field>
               <Field label={type.dateLabel} required>
-                <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} />
+                <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} data-testid="doc-date" />
               </Field>
               {type.dueLabel && (
                 <Field label={type.dueLabel}>

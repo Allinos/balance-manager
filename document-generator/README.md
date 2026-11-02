@@ -60,8 +60,8 @@ all business data stays in one local file. A product of [reynrel.in](https://rey
   download links (computer and phone). Personal referral codes are for authorised partners only (website → Partners).
 - **Payment & Ledger** (Settings → Features; off until switched on, everything hidden when off): a *Payment* section
   at the bottom of every invoice and purchase bill, above Save — *Paid in full* (default, with the mode), *Partial*
-  (as many payments as needed, each with amount and mode, + *Add payment*) or *Credit* — showing what is paid and
-  what is still due; stored on the bill (`meta.payment`, `meta.payments`, `meta.paid`) and the bill's status moves
+  (as many payments as needed, each with amount, mode and date, + *Add payment*; the date starts as the bill date) or *Credit* — showing what is paid and
+  what is still due; each payment is its own dated line in the ledger; stored on the bill (`meta.payment`, `meta.payments`, `meta.paid`) and the bill's status moves
   forward (Issued → Partly paid → Paid). A customer's profile has one **Payment received** button (a vendor's,
   **Payment made**) asking only for the amount and the mode: it is saved as a receipt / payment voucher and clears
   the oldest unpaid bills first (₹500 received against bills of ₹300 and ₹200 clears both, marking them Paid).

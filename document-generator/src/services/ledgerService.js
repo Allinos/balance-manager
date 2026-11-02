@@ -17,7 +17,7 @@
 import { call } from './api.js';
 import { getType } from '../config/documentTypes.js';
 import { add, dec, toFixed } from '../utils/decimal.js';
-import { BILL_PAYMENT, modesOf, paidStatus } from './billPayment.js';
+import { BILL_PAYMENT, paidStatus } from './billPayment.js';
 import { newDocumentForParty, saveDocument, setDocumentStatus } from './documentService.js';
 
 export { BILL_PAYMENT };
@@ -114,18 +114,17 @@ export function buildLedger(documents) {
     };
   });
 
-  let balance = 0n;
-  const rows = [];
-  const line = (r, sign, amount) => {
-    balance += BigInt(sign) * amount;
-    rows.push({ ...r, gave: sign > 0 ? fixed(amount) : '', got: sign < 0 ? fixed(amount) : '', balance: fixed(balance) });
-  };
+  // Lines: every document, and every payment taken on a bill on its own date; oldest first.
+  const events = [];
   for (const d of docs) {
-    const sign = LEDGER_SIGN[d.document_type];
     const meta = metaOf(d);
     const bill = byId.get(d.parent_document_id);
-    line(
-      {
+    const sign = LEDGER_SIGN[d.document_type];
+    events.push({
+      sort: [d.issue_date, d.id, 0],
+      sign,
+      amount: dec(d.grand_total),
+      row: {
         key: String(d.id),
         id: d.id,
         date: d.issue_date,
@@ -136,31 +135,42 @@ export function buildLedger(documents) {
         mode: PAYMENTS.includes(d.document_type) ? meta.payment_mode || '' : '',
         against: bill ? bill.document_number : '',
       },
-      sign,
-      dec(d.grand_total),
-    );
-    // Paid on the bill: money in for a sale, money out for a purchase.
-    const paid = isBill(d) ? dec(meta.paid || '0') : 0n;
-    if (paid > 0n) {
-      const sale = BILL_PAYMENT[d.document_type] === 'PAYMENT_RECEIPT';
-      line(
-        {
-          key: `${d.id}-paid`,
+    });
+    if (!isBill(d) || dec(meta.paid || '0') <= 0n) continue;
+    // Paid on the bill: money in for a sale, money out for a purchase. Older bills kept only the total.
+    const sale = BILL_PAYMENT[d.document_type] === 'PAYMENT_RECEIPT';
+    const list = Array.isArray(meta.payments) && meta.payments.length ? meta.payments : [{ amount: meta.paid, mode: '', date: d.issue_date }];
+    list.forEach((p, i) => {
+      if (dec(p.amount || '0') <= 0n) return;
+      const date = p.date && p.date > d.issue_date ? p.date : d.issue_date;
+      events.push({
+        sort: [date, d.id, i + 1],
+        sign: -sign,
+        amount: dec(p.amount),
+        row: {
+          key: `${d.id}-paid-${i}`,
           id: d.id,
-          date: d.issue_date,
+          date,
           type: sale ? 'PAYMENT_RECEIPT' : 'PAYMENT_VOUCHER',
           label: sale ? 'Payment received' : 'Payment made',
           number: '',
           status: '',
-          mode: modesOf(meta.payments),
+          mode: p.mode || '',
           against: d.document_number,
           onBill: true,
         },
-        -sign,
-        paid,
-      );
-    }
+      });
+    });
   }
+  const before = (x, y) => {
+    for (let i = 0; i < 3; i += 1) if (x.sort[i] !== y.sort[i]) return x.sort[i] < y.sort[i] ? -1 : 1;
+    return 0;
+  };
+  let balance = 0n;
+  const rows = events.sort(before).map((e) => {
+    balance += BigInt(e.sign) * e.amount;
+    return { ...e.row, gave: e.sign > 0 ? fixed(e.amount) : '', got: e.sign < 0 ? fixed(e.amount) : '', balance: fixed(balance) };
+  });
   return {
     rows,
     bills,

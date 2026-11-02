@@ -1,10 +1,10 @@
 /**
  * Payment card at the bottom of a bill on the phone (Payment & Ledger on), just above Save:
- * Full (default) · Partial (payments of amount + mode, + Add payment) · Credit, with Total / Paid / Due.
+ * Full (default) · Partial (payments with amount, mode and date, + Add payment) · Credit, with Total / Paid / Due.
  */
 
 import { PAYMENT_MODES } from '@desktop/config/documentTypes.js';
-import { PAYMENT_KINDS, partialRows, paymentError, paymentKind, paymentSummary } from '@desktop/services/billPayment.js';
+import { PAYMENT_KINDS, newPaymentRow, partialRows, paymentDate, paymentError, paymentKind, paymentSummary } from '@desktop/services/billPayment.js';
 import { formatMoney } from '@desktop/utils/format.js';
 import Icon from './Icon.jsx';
 import { NumberInput, Segmented, Select } from './ui.jsx';
@@ -32,22 +32,42 @@ export default function BillPayCard({ doc, grandTotal, onChange }) {
         <div className="bill-pay-row">
           <span className="small muted">{doc.document_type === 'PURCHASE_INVOICE' ? 'Paid by' : 'Received by'}</span>
           <Select value={doc.meta.payment_mode || 'Cash'} onChange={(v) => onChange({ payment_mode: v })} options={PAYMENT_MODES} data-testid="bill-payment-mode" />
+          <input
+            className="input bill-pay-date"
+            type="date"
+            value={paymentDate(doc, { date: doc.meta.payment_date })}
+            min={doc.issue_date || undefined}
+            onChange={(e) => onChange({ payment_date: e.target.value })}
+            aria-label="Payment date"
+            data-testid="bill-payment-date"
+          />
         </div>
       )}
       {kind === 'partial' && (
         <>
           {rows.map((r, i) => (
-            <div className="bill-pay-row" key={i} data-testid="bill-payment-row">
+            <div className="bill-pay-row partial" key={i} data-testid="bill-payment-row">
               <NumberInput className="input" placeholder="Amount" inputMode="decimal" value={r.amount} onChange={(v) => setRow(i, { amount: v })} data-testid={`bill-payment-amount-${i}`} />
               <Select value={r.mode || 'Cash'} onChange={(v) => setRow(i, { mode: v })} options={PAYMENT_MODES} data-testid={`bill-payment-row-mode-${i}`} />
-              {rows.length > 1 && (
+              {rows.length > 1 ? (
                 <button type="button" className="icon-btn sm" aria-label="Remove payment" onClick={() => setRows(rows.filter((_, j) => j !== i))} data-testid={`bill-payment-remove-${i}`}>
                   <Icon name="x" size={16} />
                 </button>
+              ) : (
+                <span />
               )}
+              <input
+                className="input bill-pay-date"
+                type="date"
+                value={paymentDate(doc, r)}
+                min={doc.issue_date || undefined}
+                onChange={(e) => setRow(i, { date: e.target.value })}
+                aria-label="Payment date"
+                data-testid={`bill-payment-date-${i}`}
+              />
             </div>
           ))}
-          <button type="button" className="link-btn" onClick={() => setRows([...rows, { amount: '', mode: 'Cash' }])} data-testid="bill-payment-add">
+          <button type="button" className="link-btn" onClick={() => setRows([...rows, newPaymentRow(doc)])} data-testid="bill-payment-add">
             + Add payment
           </button>
         </>

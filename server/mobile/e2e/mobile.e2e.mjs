@@ -619,6 +619,9 @@ try {
   await a.page.getByTestId('bill-payment-add').click();
   await a.page.getByTestId('bill-payment-amount-1').fill('200');
   await a.page.getByTestId('bill-payment-row-mode-1').selectOption('UPI');
+  check((await a.page.getByTestId('bill-payment-date-0').inputValue()) === (await a.page.getByTestId('doc-date').inputValue()), 'each payment has a date, the bill date by default');
+  const laterDate = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+  await a.page.getByTestId('bill-payment-date-1').fill(laterDate);
   check(amountOf(await a.page.getByTestId('bill-paid').textContent()) === 500 && Math.abs(amountOf(await a.page.getByTestId('bill-due').textContent()) - (billTotal - 500)) < 1,
     `Partial: ₹300 cash + ₹200 UPI → paid 500, due ${billTotal - 500}`);
   await a.page.getByTestId('bill-payment').scrollIntoViewIfNeeded();
@@ -627,9 +630,10 @@ try {
   await a.page.getByTestId('view').waitFor();
   await a.page.goto(`${base}/app/#/party/${abcId}`);
   await a.page.getByTestId('ledger-row').first().waitFor();
-  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 3);
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 4); // the receipt, the bill and its two payments
   const withBill = await balance();
-  check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*Cash, UPI/.test(await a.page.getByTestId('ledger-table').textContent()),
+  check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*UPI[\s\S]*Payment received[\s\S]*Cash/.test(await a.page.getByTestId('ledger-table').textContent()) &&
+      (await a.page.getByTestId('ledger-table').textContent()).includes(laterDate.split('-').reverse().join('-')),
     `the bill and the payment taken on it are in the ledger (${after} → ${withBill})`);
 
   await a.page.goto(`${base}/app/#/parties/all`);
@@ -664,6 +668,7 @@ try {
   await shot(a.page, '07a-settings');
   for (const removed of ['units', 'general', 'currency']) check(!(await a.page.getByTestId(`settings-${removed}`).count()), `no ${removed} settings on the phone`);
   await a.page.getByTestId('settings-documents').click();
+  await a.page.getByTestId('more-templates').locator('button').nth(5).waitFor();
   check((await a.page.getByTestId('more-templates').locator('button').count()) === 6, 'Settings → Documents: 4 featured templates and 6 more (GST, B2B, retail, standard)');
   await a.page.getByTestId('settings-template-retail').click();
   await a.page.getByTestId('sample-preview').locator('.doc-retail .doc-thanks').waitFor();

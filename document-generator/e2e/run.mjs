@@ -1144,6 +1144,13 @@ async function main() {
     await clickCss('[data-testid="bill-payment-add"]');
     await type('[data-testid="bill-payment-amount-1"]', '200');
     await selectValue('[data-testid="bill-payment-row-mode-1"]', 'UPI');
+    const issueDate = await exec('return document.querySelector("[data-testid=doc-date]")?.value || ""');
+    check((await exec('return document.querySelector("[data-testid=bill-payment-date-0]").value')) === issueDate && issueDate !== '', `each payment has a date, the bill date by default (${issueDate})`);
+    const laterDate = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10);
+    await exec(
+      `const el = document.querySelector('[data-testid=bill-payment-date-1]'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, arguments[0]); el.dispatchEvent(new Event('input', { bubbles: true }));`,
+      [laterDate],
+    );
     await sleep(300);
     check(num(await textOf('[data-testid="bill-paid"]')) === 500 && Math.abs(num(await textOf('[data-testid="bill-due"]')) - (billTotal - 500)) < 0.01,
       `Partial: ₹300 cash + ₹200 UPI → paid 500, remaining due ${billTotal - 500}`);
@@ -1151,13 +1158,15 @@ async function main() {
     await waitForText('saved', 10000);
     const billId = Number((await exec('return location.hash')).match(/doc\/(\d+)/)[1]);
     const billMeta = JSON.parse((await invoke('document_get', { id: billId })).document.meta);
-    check(billMeta.payment === 'partial' && billMeta.paid === '500.00' && billMeta.payments.length === 2 && billMeta.payments[1].mode === 'UPI', `bill saved with its payments (${JSON.stringify(billMeta.payments)})`);
+    check(billMeta.payment === 'partial' && billMeta.paid === '500.00' && billMeta.payments.length === 2 && billMeta.payments[1].mode === 'UPI' && billMeta.payments[0].date === issueDate && billMeta.payments[1].date === laterDate,
+      `bill saved with its payments and their dates (${JSON.stringify(billMeta.payments)})`);
 
     // The profile: ledger with the bill and its payment, unpaid bills, Payment received.
     await go(`#/party/${archivedAbc.id}`);
     await find('[data-testid="ledger-row"]');
     const ledgerText = await textOf('[data-testid="ledger-table"]');
-    check(ledgerText.includes(ledgerInv.document_number) && /Payment received[\s\S]*Cash, UPI/.test(ledgerText), 'customer profile: ledger with each bill, the payment taken on the bill and its modes, running balance');
+    check(ledgerText.includes(ledgerInv.document_number) && /Payment received[\s\S]*Cash[\s\S]*Payment received[\s\S]*UPI/.test(ledgerText),
+      'customer profile: ledger with each bill and each payment taken on it (own date and mode), running balance');
     const balBefore = signedBal(await balText());
     check(Math.abs(balBefore - (10000 + billTotal - 500)) < 0.01 && (await textOf('[data-testid="party-balance"]')).includes("I'll get"), `I'll get ${balBefore} (10,000 + ${billTotal} − 500 paid)`);
     await clickCss('[data-testid="party-profile-edit"]');

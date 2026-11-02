@@ -422,10 +422,20 @@ test('ledger: payments on bills, linked and oldest-first payments, credit notes,
     doc(6, 'TAX_INVOICE', '999.00', { status: 'CANCELLED' }), // left out
     doc(7, 'PAYMENT_RECEIPT', '600.00'), // Payment received: oldest bills first (INV 2 500, then 100 of INV 4)
   ]);
-  // The bill's own payment is a ledger line right after it.
-  assert.deepEqual(customer.rows.map((r) => r.balance), ['1180.00', '1680.00', '500.00', '1500.00', '800.00', '750.00', '150.00']);
-  const onBill = customer.rows.find((r) => r.key === '4-paid');
-  assert.deepEqual([onBill.label, onBill.got, onBill.mode, onBill.against], ['Payment received', '700.00', 'UPI, Cash', 'TAX-4']);
+  // Each payment taken on the bill is a ledger line (on the bill date when none was entered).
+  assert.deepEqual(customer.rows.map((r) => r.balance), ['1180.00', '1680.00', '500.00', '1500.00', '1000.00', '800.00', '750.00', '150.00']);
+  const onBill = customer.rows.find((r) => r.key === '4-paid-0');
+  assert.deepEqual([onBill.label, onBill.got, onBill.mode, onBill.against, onBill.date], ['Payment received', '500.00', 'UPI', 'TAX-4', '2026-10-04']);
+  // A payment made later is placed on its own date, after the documents in between.
+  const dated = buildLedger([
+    doc(1, 'TAX_INVOICE', '1000', { meta: JSON.stringify({ payment: 'partial', paid: '300.00', payments: [{ amount: '300.00', mode: 'UPI', date: '2026-10-05' }] }) }),
+    doc(2, 'TAX_INVOICE', '200'),
+  ]);
+  assert.deepEqual(dated.rows.map((r) => [r.label, r.date, r.balance]), [
+    ['Invoice', '2026-10-01', '1000.00'],
+    ['Invoice', '2026-10-02', '1200.00'],
+    ['Payment received', '2026-10-05', '900.00'],
+  ]);
   assert.equal(customer.rows.find((r) => r.id === 3).mode, 'UPI');
   assert.equal(customer.balance, '150.00');
   assert.deepEqual(customer.bills.map((b) => [b.number, b.paid, b.due, b.state]), [
@@ -453,7 +463,7 @@ test('ledger: payments on bills, linked and oldest-first payments, credit notes,
     doc(2, 'PAYMENT_VOUCHER', '1000'),
   ]);
   assert.deepEqual([vendor.balance, vendor.payable, vendor.receivable, vendor.open[0].due], ['-1000.00', '1000.00', '0.00', '1000.00']);
-  assert.equal(vendor.rows.find((r) => r.key === '1-paid').gave, '500.00');
+  assert.equal(vendor.rows.find((r) => r.key === '1-paid-0').gave, '500.00');
   assert.deepEqual(allocate(vendor, 'vendor', '1000').balanceAfter, '0.00');
 
   assert.deepEqual(positionOf('-700'), { receivable: '0.00', payable: '700.00' });
@@ -472,15 +482,19 @@ test('ledger: payments on bills, linked and oldest-first payments, credit notes,
 
 test('bill payment: paid in full by default, partial payments, credit, status moves forward', async () => {
   const { paymentKind, paymentSummary, paymentMeta, paymentError, paidStatus, takesPayment } = await import('../src/services/billPayment.js');
-  const bill = (meta = {}, extra = {}) => ({ document_type: 'TAX_INVOICE', currency_decimals: 2, meta, ...extra });
+  const bill = (meta = {}, extra = {}) => ({ document_type: 'TAX_INVOICE', currency_decimals: 2, issue_date: '2026-10-30', meta, ...extra });
   assert.equal(paymentKind(bill()), 'full'); // new bill
   assert.equal(paymentKind(bill({}, { id: 5 })), 'credit'); // saved before the feature
   assert.ok(takesPayment(bill(), { ledgerModule: true }) && !takesPayment(bill(), { ledgerModule: false }));
   assert.ok(!takesPayment({ document_type: 'QUOTATION' }, { ledgerModule: true }));
-  assert.deepEqual(paymentMeta(bill({ payment_mode: 'UPI' }), '10030.00'), { payment: 'full', payments: [{ amount: '10030.00', mode: 'UPI' }], paid: '10030.00' });
-  const partial = bill({ payment: 'partial', payments: [{ amount: '5000', mode: 'UPI' }, { amount: '2000', mode: 'Cash' }, { amount: '', mode: 'Card' }] });
+  // Paid in full on the bill date, unless another payment date is chosen.
+  assert.deepEqual(paymentMeta(bill({ payment_mode: 'UPI' }), '10030.00'), { payment: 'full', payments: [{ amount: '10030.00', mode: 'UPI', date: '2026-10-30' }], paid: '10030.00' });
+  assert.equal(paymentMeta(bill({ payment_date: '2026-11-02' }), '10030.00').payments[0].date, '2026-11-02');
+  const partial = bill({ payment: 'partial', payments: [{ amount: '5000', mode: 'UPI' }, { amount: '2000', mode: 'Cash', date: '2026-11-05' }, { amount: '', mode: 'Card' }] });
   assert.deepEqual(paymentSummary(partial, '10030.00'), { kind: 'partial', paid: '7000.00', due: '3030.00', over: false });
-  assert.deepEqual(paymentMeta(partial, '10030.00').payments, [{ amount: '5000.00', mode: 'UPI' }, { amount: '2000.00', mode: 'Cash' }]);
+  assert.deepEqual(paymentMeta(partial, '10030.00').payments, [{ amount: '5000.00', mode: 'UPI', date: '2026-10-30' }, { amount: '2000.00', mode: 'Cash', date: '2026-11-05' }]);
+  assert.match(paymentError(bill({ payment: 'partial', payments: [{ amount: '100', mode: 'UPI', date: '2026-10-01' }] }), '10030.00'), /before the bill date/);
+  assert.match(paymentError(bill({ payment_date: '2026-10-29' }), '10030.00'), /before the bill date/);
   assert.match(paymentError(bill({ payment: 'partial', payments: [{ amount: '20000', mode: 'UPI' }] }), '10030.00'), /more than the bill total/);
   assert.deepEqual(paymentMeta(bill({ payment: 'credit' }), '500'), { payment: 'credit', payments: [], paid: '0.00' });
   assert.equal(paidStatus('ISSUED', '7000', '10030'), 'PARTIAL');
