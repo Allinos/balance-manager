@@ -253,16 +253,19 @@ export async function syncBillStatuses(partyId, note = '') {
 }
 
 /**
- * "Payment received" (customer) / "Payment made" (vendor) from a profile: only the amount and the mode.
- * Saved as one receipt / payment voucher for the party, which settles the oldest open bills first.
+ * "Payment received" (customer) / "Payment made" (vendor) from a profile: the amount, the mode and the date
+ * (today unless another day is chosen). Saved as one receipt / payment voucher for the party, dated that day,
+ * which settles the oldest open bills first.
  * @returns {Promise<{id: number, document_number: string, settles: Object[]}>}
  */
-export async function recordPayment({ party, side, amount, mode, ledger, ctx }) {
+export async function recordPayment({ party, side, amount, mode, date, ledger, ctx }) {
   if (dec(amount || '0') <= 0n) throw new Error('Please enter the amount.');
+  if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Please choose a valid payment date.');
   const typeId = PAYMENT_SIDES[side].type;
   const { settles } = allocate(ledger, side, amount);
   const model = await newDocumentForParty(typeId, ctx, party.id);
   model.document.status = 'ISSUED';
+  if (date) model.document.issue_date = date;
   model.document.meta = {
     ...model.document.meta,
     amount_received: amount,

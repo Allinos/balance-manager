@@ -24,13 +24,14 @@ import { PartyForm } from './PartiesPage.jsx';
 const KIND_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & vendor' };
 const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 
-/** Payment received / Payment made: amount and mode only, with what it will settle. */
+/** Payment received / Payment made: amount, mode and date (today by default), with what it will settle. */
 function PaymentDialog({ party, side, ledger, onClose, onSaved }) {
   const ctx = useDocContext();
   const toast = useToast();
   const money = useMoney();
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('Cash');
+  const [date, setDate] = useState(todayISO());
   const [saving, setSaving] = useState(false);
   const labels = PAYMENT_SIDES[side];
   const plan = allocate(ledger, side, amount);
@@ -41,7 +42,7 @@ function PaymentDialog({ party, side, ledger, onClose, onSaved }) {
     if (saving) return;
     setSaving(true);
     try {
-      const saved = await recordPayment({ party, side, amount, mode, ledger, ctx });
+      const saved = await recordPayment({ party, side, amount, mode, date, ledger, ctx });
       toast.success(`${labels.button}: ${money(amount)} saved as ${saved.document_number}`);
       onSaved();
     } catch (err) {
@@ -57,9 +58,14 @@ function PaymentDialog({ party, side, ledger, onClose, onSaved }) {
         <Field label={labels.amount} required>
           <NumberInput placeholder="0.00" value={amount} onChange={setAmount} autoFocus data-testid="pay-amount" />
         </Field>
-        <Field label="Payment mode">
-          <Select value={mode} onChange={setMode} options={PAYMENT_MODES} data-testid="pay-mode" />
-        </Field>
+        <div className="grid-2">
+          <Field label="Payment mode">
+            <Select value={mode} onChange={setMode} options={PAYMENT_MODES} data-testid="pay-mode" />
+          </Field>
+          <Field label="Payment date">
+            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required data-testid="pay-date" />
+          </Field>
+        </div>
         {dec(amount || '0') > 0n && (
           <div className="pay-plan" data-testid="pay-settles">
             {plan.settles.length > 0 && <strong>This will settle</strong>}
@@ -91,7 +97,7 @@ function PaymentDialog({ party, side, ledger, onClose, onSaved }) {
           <button type="button" className="btn" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={saving || dec(amount || '0') <= 0n} data-testid="pay-save">
+          <button type="submit" className="btn btn-primary" disabled={saving || dec(amount || '0') <= 0n || !date} data-testid="pay-save">
             {saving ? 'Saving…' : 'Save'}
           </button>
         </div>

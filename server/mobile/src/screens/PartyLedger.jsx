@@ -35,13 +35,14 @@ const KIND_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & v
 const tone = (v) => (dec(v) > 0n ? 'get' : dec(v) < 0n ? 'give' : '');
 const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 
-/** Bottom sheet: amount and mode only, then what it will settle. */
+/** Bottom sheet: amount, mode and date (today by default), then what it will settle. */
 function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
   const ctx = useDocContext();
   const { toast, confirm } = useUi();
   const money = useMoney();
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('Cash');
+  const [date, setDate] = useState(todayISO());
   const [saving, setSaving] = useState(false);
   const labels = PAYMENT_SIDES[side];
   const plan = allocate(ledger, side, amount);
@@ -50,12 +51,12 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
 
   const save = async (e) => {
     e.preventDefault();
-    if (saving || !has) return;
+    if (saving || !has || !date) return;
     setSaving(true);
     try {
-      const saved = await recordPayment({ party, side, amount, mode, ledger, ctx });
+      const saved = await recordPayment({ party, side, amount, mode, date, ledger, ctx });
       toast(`${labels.button}: ${money(amount)} saved as ${saved.document_number}`);
-      const doc = { document_type: labels.type, document_number: saved.document_number, status: 'ISSUED', issue_date: todayISO(), party_name: party.name, party_phone: party.phone, grand_total: amount };
+      const doc = { document_type: labels.type, document_number: saved.document_number, status: 'ISSUED', issue_date: date, party_name: party.name, party_phone: party.phone, grand_total: amount };
       smsAlert(doc, ctx).then((r) => r === 'sent' && toast(`SMS sent to ${party.name}`));
       reportEvent('doc_saved');
       onSaved();
@@ -81,6 +82,10 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
             </button>
           ))}
         </div>
+        <label className="field">
+          <span className="field-label">Payment date</span>
+          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required data-testid="pay-date" />
+        </label>
         {has && (
           <div className="pay-plan" data-testid="pay-settles">
             {plan.settles.map((s) => (
@@ -104,7 +109,7 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
             </div>
           </div>
         )}
-        <button type="submit" className="btn btn-primary btn-block" disabled={saving || !has} data-testid="pay-save">
+        <button type="submit" className="btn btn-primary btn-block" disabled={saving || !has || !date} data-testid="pay-save">
           {saving ? 'Saving…' : 'Save'}
         </button>
       </form>

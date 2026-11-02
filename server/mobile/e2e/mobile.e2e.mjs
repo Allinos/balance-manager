@@ -594,9 +594,17 @@ try {
   // Payment received: amount and mode only; clears the oldest bills first.
   await a.page.getByTestId('party-pay-customer').click();
   await a.page.getByTestId('pay-sheet').waitFor();
-  check(!(await a.page.getByTestId('pay-sheet').getByTestId('party-name').count()), 'Payment received sheet asks only for the amount and the mode');
+  check(!(await a.page.getByTestId('pay-sheet').getByTestId('party-name').count()), 'Payment received sheet asks only for the amount, the mode and the date');
   await a.page.getByTestId('pay-amount').fill('5000');
   await a.page.getByTestId('pay-mode-UPI').click();
+  {
+    const t = new Date();
+    const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    check((await a.page.getByTestId('pay-date').inputValue()) === iso(t), 'Payment received has a payment date, today by default');
+    const earlier = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 2);
+    await a.page.getByTestId('pay-date').fill(iso(earlier));
+    var payShown = `${String(earlier.getDate()).padStart(2, '0')}-${String(earlier.getMonth() + 1).padStart(2, '0')}-${earlier.getFullYear()}`;
+  }
   await a.page.getByTestId('pay-settles').waitFor();
   check((await a.page.getByTestId('pay-settles').textContent()).includes('Balance after'), `it shows what it settles and the balance after (${await a.page.getByTestId('pay-settles').textContent()})`);
   await shot(a.page, '05e-payment-received');
@@ -605,6 +613,10 @@ try {
   const after = await balance();
   check(Math.abs(after - (before - 5000)) < 0.01 && (await a.page.getByTestId('ledger-table').textContent()).includes('UPI'),
     `Payment received ₹5,000 by UPI: in the ledger and the balance updated (${before} → ${after})`);
+  {
+    const rows = await a.page.getByTestId('ledger-row').allTextContents();
+    check(rows.some((r) => r.includes('Receipt') && r.includes(payShown) && r.includes('UPI')), `the payment is saved on the chosen date (${payShown})`);
+  }
 
   // A bill with the payment card at the bottom: Full by default, then two partial payments.
   await a.page.goto(`${base}/app/#/doc/new/TAX_INVOICE?party=${abcId}`);

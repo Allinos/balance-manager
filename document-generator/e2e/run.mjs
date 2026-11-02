@@ -1177,7 +1177,12 @@ async function main() {
     check(!(await exists('[data-testid="party-advance-customer"]')), 'no separate Advance received button');
     await clickCss('[data-testid="party-pay-customer"]');
     await find('[data-testid="pay-amount"]');
-    check(!(await exists('[data-testid="pay-dialog"] [data-testid="party-name"]')), 'Payment received asks only for the amount and the mode');
+    check(!(await exists('[data-testid="pay-dialog"] [data-testid="party-name"]')), 'Payment received asks only for the amount, the mode and the date');
+    {
+      const t = new Date();
+      const localToday = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      check((await exec('return document.querySelector("[data-testid=pay-date]").value')) === localToday, `Payment received has a payment date, today by default (${localToday})`);
+    }
     await type('[data-testid="pay-amount"]', String(10000 + 200));
     await selectValue('[data-testid="pay-mode"]', 'UPI');
     const plan = await textOf('[data-testid="pay-settles"]');
