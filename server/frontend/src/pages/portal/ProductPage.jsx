@@ -11,11 +11,12 @@ import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
 import { ProblemSection } from './Pitch.jsx';
 import { DocTypes, IntroVideo, SavedOnce } from './Showcase.jsx';
+import { AndroidAppSection } from './AndroidApp.jsx';
 
 const FEATURES = [
   ['file', 'GST invoices in a minute', 'Tax invoices, quotations, challans, credit notes, receipts and more — HSN, CGST, SGST and IGST worked out for you.'],
   ['printer', '10 professional templates', 'Professional, Standard, Modern and Simple, plus GST Classic, Corporate B2B, Retail, Bold, Elegant and Compact — with your logo, signature, bank details and UPI QR code.'],
-  ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license, with the same templates on both.'],
+  ['phone', 'Computer and phone', 'Use DocGen on Windows, Mac and Android or iPhone with one license, with the same templates on both — or start free with the Android app.'],
   ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
   ['card', 'Payments & dues', "Mark each bill paid in full, part-paid or on credit. Record a payment in two taps and the oldest bills are cleared first."],
@@ -32,6 +33,10 @@ const FAQ = [
   [
     'Can I use DocGen on my phone?',
     'Yes. The same license works on your computer and on your phone. DocGen Mobile installs from the browser in a few seconds — see the step-by-step guide on the mobile page.',
+  ],
+  [
+    'Is there a free Android app?',
+    'Yes. DocGen for Android starts free, without a license: every feature for 20 documents, 20 payments and 20 customers & vendors, with small, occasional ads. Create your account in the app with your name, business and mobile — a 4-digit PIN instead of a password. When you upgrade, the limits and ads go away and your data moves to your DocGen account.',
   ],
   ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
   [
@@ -367,11 +372,9 @@ export default function ProductPage() {
               <a className="btn btn-primary btn-lg" href="#pricing" data-testid="hero-buy">
                 {from !== null ? `Buy now — from ${money(from, product.currency)}` : 'See pricing'}
               </a>
-              {data.mobileAvailable && (
-                <Link className="btn btn-lg" to="/mobile">
-                  <Icon name="phone" size={18} /> Mobile app
-                </Link>
-              )}
+              <a className="btn btn-lg" href="#android-app" data-testid="hero-android">
+                <Icon name="phone" size={18} /> Free Android app
+              </a>
             </div>
             <div className="trust-row">
               <span>
@@ -467,6 +470,8 @@ export default function ProductPage() {
             </p>
           </section>
         </div>
+
+        <AndroidAppSection url={site.androidAppUrl} />
 
         {data.mobileAvailable && (
           <section className="lp-section mobile-promo" id="mobile" data-testid="mobile-section">

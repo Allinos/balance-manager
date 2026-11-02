@@ -179,6 +179,19 @@ try {
   await page.getByTestId('mobile-section').scrollIntoViewIfNeeded();
   check((await page.getByTestId('mobile-section').locator('img').count()) === 2, 'landing page: "DocGen on Mobile" section with screenshots');
   check((await page.getByTestId('get-mobile').getAttribute('href')) === '/mobile', 'landing page: "Get the mobile app" opens the installation page');
+  {
+    const android = page.getByTestId('android-section');
+    const text = (await android.textContent()).replace(/\s+/g, ' ');
+    check(text.includes('free to start') && text.includes('20 documents, 20 payments and 20 customers & vendors') && text.includes('A PIN, not a password') && text.includes('SMS & WhatsApp') && text.includes('Simple retail bills') && text.includes('Reports at a glance'),
+      'home: DocGen for Android section — free plan, PIN, SMS & WhatsApp, retail bills, reports');
+    check((await page.getByTestId('android-soon').count()) === 1 && (await page.getByTestId('android-get').count()) === 0, 'no Play Store link set yet: "Coming soon on Google Play"');
+    check((await page.getByTestId('hero-android').getAttribute('href')) === '#android-app', 'hero: "Free Android app" button jumps to the section');
+    check((await page.getByTestId('faq').textContent()).includes('Is there a free Android app?'), 'FAQ: Is there a free Android app?');
+    for (const img of await android.locator('img').evaluateAll((els) => els.map((e) => e.getAttribute('src')))) {
+      const r = await fetch(`${base}${img}`);
+      check(r.status === 200 && r.headers.get('content-type').includes('image'), `Android picture served (${img})`);
+    }
+  }
   await shot('01-product');
 
   await page.getByTestId('buy-365').click();
@@ -365,6 +378,9 @@ try {
   await page.getByTestId('mobile-page').waitFor();
   check((await page.getByTestId('install-mobile').getAttribute('href')) === '/app/?install=1' && (await page.getByTestId('install-qr').count()) === 1,
     'mobile page: install button and QR code for the phone');
+  await page.getByTestId('android-banner').waitFor();
+  check((await page.getByTestId('android-banner').textContent()).includes('free to start') && (await page.getByTestId('android-banner').getByTestId('android-soon').count()) === 1,
+    'mobile page: DocGen for Android banner (coming soon until the Play Store link is set)');
   const guide = page.getByTestId('android-guide');
   check((await guide.locator('figure').count()) === 4 && (await guide.textContent()).includes('Install and create shortcut'), 'mobile page: Android install guide in 4 steps with pictures');
   const stepImg = await fetch(`${base}/install/android-1-menu.jpg`);
@@ -720,6 +736,7 @@ try {
   await page.getByTestId('site-headline').fill('Invoices your customers trust');
   await page.getByTestId('add-video').click();
   await page.getByTestId('video-url-0').fill('https://www.youtube.com/watch?v=abcdefghijk');
+  await page.getByTestId('android-app-url').fill('https://play.google.com/store/apps/details?id=in.reynrel.docgen');
   await page.getByTestId('upload-screenshot').setInputFiles(path.join(here, '../public/logo.png'));
   await page.locator('.thumb').nth(3).waitFor();
   await page.getByTestId('save-site').click();
@@ -733,6 +750,16 @@ try {
   check((await page2.getByTestId('intro-video').locator('iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/qycjuev523o')
     && (await page2.getByTestId('offer-saved').count()) === 1 && (await page2.getByTestId('offer-doc-types').count()) === 1,
     'website: the DocGen YouTube video, saved customers & products and the 18 document types');
+  await page2.getByTestId('android-get').waitFor();
+  check((await page2.getByTestId('android-get').getAttribute('href')) === 'https://play.google.com/store/apps/details?id=in.reynrel.docgen' && (await page2.getByTestId('android-get').textContent()).includes('Get it on Google Play'),
+    'Admin → Website → DocGen for Android: the home page shows "Get it on Google Play" with that link');
+  {
+    const mobileTab = await context.newPage();
+    await mobileTab.goto(`${base}/mobile`);
+    await mobileTab.getByTestId('android-banner').getByTestId('android-get').waitFor();
+    check(true, 'mobile page: the banner links to Google Play too');
+    await mobileTab.close();
+  }
   check((await page2.getByTestId('headline').textContent()) === 'Invoices your customers trust', 'website headline changed by the admin');
   check((await page2.locator('[data-testid=videos] iframe').getAttribute('src')).startsWith('https://www.youtube-nocookie.com/embed/abcdefghijk'), 'product video embedded');
   check((await page2.getByTestId('price').first().textContent()).includes('1,500') && (await page2.getByTestId('pricing-cards').textContent()).includes('3 years'), 'website shows the new prices at once');

@@ -4334,3 +4334,95 @@ a.stat:hover {
     font-size: 13px;
   }
 }
+
+/* ------------------------------------------------------------ DocGen for Android (AndroidApp.jsx) */
+.android-app {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: center;
+}
+.android-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin-top: 18px;
+}
+.android-point {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.android-point > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.android-point strong {
+  color: var(--text);
+  font-size: 15px;
+}
+.android-point .feature-icon {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+}
+.phone-shots.three img {
+  width: min(31%, 200px);
+}
+.phone-shots.three img:nth-child(2) {
+  margin-top: 30px;
+}
+.play-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-weight: 600;
+}
+.android-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+.android-banner .feature-icon {
+  flex: none;
+  margin: 0;
+}
+.android-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  font-size: 14px;
+  color: var(--text-2);
+}
+.android-banner-text strong {
+  color: var(--text);
+  font-size: 15.5px;
+}
+@media (max-width: 900px) {
+  .android-app {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .android-points {
+    grid-template-columns: 1fr;
+  }
+  .android-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

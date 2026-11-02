@@ -14,7 +14,7 @@ val keyProps = Properties().apply {
 }
 
 android {
-    namespace = "`in`.reynrel.docgen_android"
+    namespace = "in.reynrel.docgen_android"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         // Android 7+ (the WebView needs a current Chrome engine, updated from the Play Store).
-        applicationId = "`in`.reynrel.docgen"
+        applicationId = "in.reynrel.docgen"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = maxOf(flutter.minSdkVersion, 24)

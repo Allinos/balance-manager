@@ -140,6 +140,22 @@ export default function AdminWebsite() {
         )}
       </div>
 
+      <div className="card form" data-testid="android-app-settings">
+        <h3>DocGen for Android</h3>
+        <Field
+          label="Google Play link (or APK download link)"
+          hint="Shown as “Get it on Google Play” on the home page and the mobile page. Empty = “Coming soon on Google Play”."
+        >
+          <Input
+            value={form.androidAppUrl || ''}
+            onChange={set('androidAppUrl')}
+            maxLength={500}
+            placeholder="https://play.google.com/store/apps/details?id=in.reynrel.docgen"
+            data-testid="android-app-url"
+          />
+        </Field>
+      </div>
+
       <div className="card form" data-testid="intro-video-settings">
         <h3>Intro video</h3>
         <Field label="YouTube or Vimeo link" hint="A short video shown near the top of the website and on the offer page for ads. Empty = not shown.">

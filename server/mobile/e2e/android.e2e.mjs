@@ -11,7 +11,7 @@
  * to the server. Saves the Android screenshots to e2e/screenshots/android-*.png.
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,6 +28,7 @@ try {
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const shots = path.join(here, 'screenshots');
+const siteShots = path.join(here, '../../frontend/public/screenshots');
 fs.mkdirSync(shots, { recursive: true });
 const port = 8814;
 const base = `http://localhost:${port}`;
@@ -129,6 +130,12 @@ const shot = (page, name) => page.screenshot({ path: path.join(shots, `android-$
 const calls = (page, name) => page.evaluate((n) => JSON.parse(sessionStorage.getItem('__calls') || '[]').filter((c) => !n || c.name === n), name);
 const clearCalls = (page) => page.evaluate(() => sessionStorage.setItem('__calls', '[]'));
 const hideToasts = (page) => page.addStyleTag({ content: '.toast-stack,.toasts,.toast{display:none!important}' }).catch(() => {});
+/** A picture without notices on it (used on the website). */
+const cleanShot = async (page, name) => {
+  const style = await hideToasts(page);
+  await shot(page, name);
+  await style?.evaluate((el) => el.remove());
+};
 
 /** A backup with `n` invoices and `n` customers (the app's own backup format), for the free plan limits. */
 function backupWith(n, settings) {
@@ -180,7 +187,7 @@ try {
   check((await a.page.getByTestId('install-banner').count()) === 0, 'no "Install app" banner inside the Android app');
   const screens = await calls(a.page, 'screen');
   check(screens.some((c) => c.args.path === '/' && c.args.free === true), 'the app tells Android the screen and the free plan (ad banner on lists)');
-  await shot(a.page, '03-home');
+  await cleanShot(a.page, '03-home');
 
   console.log('Explore first (second phone)');
   const b = await phone();
@@ -220,7 +227,7 @@ try {
   await a.page.getByTestId('bill-payment-amount-0').fill('200');
   check((await a.page.getByTestId('bill-due').textContent()).includes('300'), 'partly paid: 300 due');
   await a.page.getByTestId('bill-whatsapp').scrollIntoViewIfNeeded();
-  await shot(a.page, '05-retail-bill-payment');
+  await cleanShot(a.page, '05-retail-bill-payment');
   await a.page.getByTestId('bill-whatsapp').click();
   const wa = (await calls(a.page, 'open')).at(-1)?.args.url || '';
   check(wa.startsWith('https://wa.me/919876543210?text=') && decodeURIComponent(wa).includes('₹300'), 'WhatsApp reminder to +91 98765 43210 with the outstanding ₹300');
@@ -253,7 +260,7 @@ try {
   check((await a.page.getByTestId('report-in').textContent()).includes('200'), 'Reports: money in 200');
   check((await a.page.getByTestId('report-unpaid').textContent()).includes('300'), 'Reports: customers still owe 300');
   check((await a.page.getByTestId('report-customers').textContent()).includes('Walk-in Meena'), 'Reports: top customers');
-  await shot(a.page, '07-reports');
+  await cleanShot(a.page, '07-reports');
   await a.page.getByTestId('report-period').getByText('Last month').click();
   await a.page.getByTestId('report-sales').getByText('0 bills').waitFor();
   check((await a.page.getByTestId('report-unpaid').textContent()).includes('300'), 'Reports: last month has no sales; what customers owe stays (all time)');
@@ -351,6 +358,16 @@ try {
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('share-doc').waitFor();
   check(true, 'no limits after the upgrade (21st invoice saved)');
+
+  // Pictures for the website (frontend/public/screenshots/android-*.png, AndroidApp.jsx), at phone size.
+  for (const [from, to] of [['03-home', 'home'], ['05-retail-bill-payment', 'bill'], ['07-reports', 'reports']]) {
+    try {
+      execFileSync('convert', [path.join(shots, `android-${from}.png`), '-resize', '50%', '-strip', path.join(siteShots, `android-${to}.png`)]);
+    } catch {
+      fs.copyFileSync(path.join(shots, `android-${from}.png`), path.join(siteShots, `android-${to}.png`));
+    }
+  }
+  check(fs.existsSync(path.join(siteShots, 'android-reports.png')), 'Android pictures saved for the website');
 
   console.log(`\nAndroid e2e: ${passed} checks passed`);
 } catch (e) {

@@ -8,6 +8,8 @@ import { Link, useLocation } from 'react-router-dom';
 import QRCode from 'qrcode';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
+import { useSite } from './InfoPages.jsx';
+import { AndroidAppBanner } from './AndroidApp.jsx';
 
 const APP_PATH = '/app/';
 // On the server (the page's HTML is rendered there too) there is no browser: a computer on a secure address is assumed.
@@ -39,6 +41,7 @@ export default function MobilePage() {
     QRCode.toDataURL(appUrl, { margin: 1, width: 180 }).then(setQr).catch(() => setQr(''));
   }, [appUrl]);
   const phone = isPhone();
+  const { data: siteData } = useSite();
   const { hash } = useLocation();
   useEffect(() => {
     if (hash) setTimeout(() => document.getElementById(hash.slice(1))?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -48,6 +51,9 @@ export default function MobilePage() {
     <div className="site">
       <SiteHeader nav />
       <main>
+        <section className="lp-section" style={{ paddingBottom: 0 }}>
+          <AndroidAppBanner url={siteData?.site?.androidAppUrl || ''} />
+        </section>
         <section className="lp-section mobile-hero" data-testid="mobile-page">
           <div>
             <span className="lp-eyebrow">DocGen Mobile</span>
