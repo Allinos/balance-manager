@@ -62,7 +62,18 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
     }),
   );
   const allowed = new Set([config.portalUrl, ...config.corsOrigins]);
-  app.use('/api', cors({ origin: (origin, cb) => cb(null, !origin || allowed.has(origin)), maxAge: 600 }));
+  // The Android app may call only the app endpoints (licenses, data transfer), never the portal or admin APIs.
+  const appAllowed = new Set([...allowed, ...config.appOrigins]);
+  app.use(
+    '/api',
+    cors((req, cb) => {
+      const origin = req.header('Origin');
+      const list = req.path.startsWith('/app/') ? appAllowed : allowed;
+      cb(null, { origin: !origin || list.has(origin), maxAge: 600 });
+    }),
+  );
+  // Data transfer after an upgrade in the Android app: the whole phone's data in one request.
+  app.use('/api/app/migrate', express.json({ limit: '25mb' }));
   // Keep the raw body: payment webhooks are signed over the exact bytes received.
   app.use('/api', express.json({ limit: '100kb', verify: (req, _res, buf) => (req.rawBody = buf) }));
   app.use('/api', limits.api);

@@ -125,7 +125,11 @@ export function CheckoutForm({ product, price, onPrice, priceTiles = true, onSte
   const { client } = useAuth();
   const navigate = useNavigate();
   const { pay, element } = usePayment();
-  const [form, setForm] = useState({ name: '', phone: '', email: '' });
+  // The Android app's Upgrade button passes the free account's name and mobile (?name=&phone=) to save typing.
+  const [form, setForm] = useState(() => {
+    const q = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+    return { name: (q.get('name') || '').slice(0, 120), phone: (q.get('phone') || '').slice(0, 20), email: '' };
+  });
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [accepted, setAccepted] = useState(false);

@@ -7,6 +7,8 @@ import { CompanySection, DocumentTypesSection, DocumentsSection } from './settin
 import { AboutSection, BackupSection, HelpSection, LicenseSection, NumberingSection, TaxSection } from './settings/system.jsx';
 import { useApp } from '../data.jsx';
 import { PartyModulesSection } from './Parties.jsx';
+import { PlanSection, SecuritySection } from './Android.jsx';
+import { native } from '../lib/native.js';
 
 export const SECTIONS = [
   { id: 'company', label: 'Company', icon: 'building', detail: 'Name, address, GSTIN, logo, bank & UPI', Component: CompanySection },
@@ -21,8 +23,17 @@ export const SECTIONS = [
   { id: 'about', label: 'About', icon: 'info', detail: 'Version, privacy', Component: AboutSection },
 ];
 
+/** Android app: Plan & Account (free plan, upgrade) instead of License, and Security (PIN lock). */
+const ANDROID_SECTIONS = [
+  { id: 'plan', label: 'Plan & Account', icon: 'crown', detail: 'Free plan, upgrade, your account', Component: PlanSection },
+  { id: 'security', label: 'Security', icon: 'lock', detail: 'PIN lock when DocGen opens', Component: SecuritySection },
+];
+export const sectionsFor = (android = native()) =>
+  android ? SECTIONS.flatMap((s) => (s.id === 'license' ? ANDROID_SECTIONS : [s])) : SECTIONS;
+
 export function SettingsSection({ id }) {
-  const section = SECTIONS.find((s) => s.id === id) || SECTIONS[0];
+  const sections = sectionsFor();
+  const section = sections.find((s) => s.id === id) || sections[0];
   const { Component } = section;
   return (
     <>
@@ -38,9 +49,9 @@ export default function Settings() {
     <>
       <Header title="Settings" />
       <div className="page" data-testid="settings">
-        <InstallBanner />
+        {!native() && <InstallBanner />}
         <div className="list">
-          {SECTIONS.map((s) => (
+          {sectionsFor().map((s) => (
             <button key={s.id} className="list-item" onClick={() => go(`/settings/${s.id}`)} data-testid={`settings-${s.id}`}>
               <span className="avatar">
                 <Icon name={s.icon} size={19} />
@@ -48,7 +59,7 @@ export default function Settings() {
               <span className="list-main">
                 <strong>{s.label}</strong>
                 <span className="small muted">
-                  {s.id === 'company' && company?.name ? company.name : s.id === 'license' && lic?.daysLeft !== null && lic?.daysLeft !== undefined ? `${lic.daysLeft} days left` : s.detail}
+                  {s.id === 'company' && company?.name ? company.name : s.id === 'plan' && lic?.state === 'free' ? 'Free plan · Upgrade' : s.id === 'license' && lic?.daysLeft !== null && lic?.daysLeft !== undefined ? `${lic.daysLeft} days left` : s.detail}
                 </span>
               </span>
               <Icon name="chevronRight" size={18} />

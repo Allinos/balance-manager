@@ -17,6 +17,10 @@ import { ActionSheet, Header, Picker, Sheet, Spinner, StatusBadge, go, useUi } f
 import { StatusSheet } from '../components/docs.jsx';
 import { isCancelled, useApp, useDocumentActions } from '../data.jsx';
 import { canShareFiles, documentPdf, saveFile } from '../lib/pdf.js';
+import { native, nativeFile } from '../lib/native.js';
+import { sendWhatsAppReminder } from '../lib/notify.js';
+import { BILL_PAYMENT } from '@desktop/services/billPayment.js';
+import { dec, toFixed } from '@desktop/utils/decimal.js';
 
 const parseMeta = (meta) => {
   try {
@@ -88,6 +92,19 @@ function ContactSheet({ doc, onClose }) {
       </div>
     </Sheet>
   );
+}
+
+/** What is still due on an unpaid / partly paid sales bill (paid on the bill itself), or '' when nothing is. */
+function billDue(doc) {
+  if (!doc || BILL_PAYMENT[doc.document_type] !== 'PAYMENT_RECEIPT' || !['DRAFT', 'ISSUED', 'PARTIAL'].includes(doc.status)) return '';
+  let meta = doc.meta;
+  try {
+    meta = typeof meta === 'string' ? JSON.parse(meta || '{}') : meta || {};
+  } catch {
+    meta = {};
+  }
+  const due = dec(doc.grand_total) - dec(meta?.paid || '0');
+  return due > 0n ? toFixed(due, 2) : '';
 }
 
 export default function View({ id, query = {} }) {
@@ -181,7 +198,9 @@ export default function View({ id, query = {} }) {
     }
     setMaking('');
     try {
-      if (canShareFiles(file)) {
+      if (native()) {
+        if (!(await nativeFile('share', file, file.name, shareText()))) toast('The PDF could not be shared.', 'bad');
+      } else if (canShareFiles(file)) {
         await navigator.share({ files: [file], title: fileTitle, text: shareText() });
       } else {
         saveFile(file);
@@ -328,6 +347,15 @@ export default function View({ id, query = {} }) {
             {!cancelled && (
               <button className="btn btn-block no-print" onClick={() => actions.edit(doc)} data-testid="edit-doc">
                 <Icon name="edit" size={18} /> Edit
+              </button>
+            )}
+            {billDue(doc) && (
+              <button
+                className="btn btn-green btn-block no-print"
+                onClick={() => sendWhatsAppReminder({ phone: doc.party_phone, name: doc.party_name, due: billDue(doc), company, upi: company?.upi_id, doc })}
+                data-testid="doc-whatsapp"
+              >
+                <Icon name="share" size={18} /> WhatsApp payment reminder
               </button>
             )}
           </>

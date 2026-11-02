@@ -28,6 +28,7 @@ export const DEFAULT_TERMS = {
   TAX_INVOICE: (s) => numbered([s.defaultPaymentTerms, ...INVOICE_TERMS]),
   SERVICE_INVOICE: (s) => numbered([s.defaultPaymentTerms, ...SERVICE_TERMS]),
   BILL_OF_SUPPLY: (s) => numbered([s.defaultPaymentTerms, ...INVOICE_TERMS]),
+  RETAIL_BILL: () => numbered(['Goods once sold will be exchanged only with this bill within 7 days.', 'Thank you for shopping with us.']),
   QUOTATION: () =>
     numbered([
       'Prices are valid until the date mentioned above.',

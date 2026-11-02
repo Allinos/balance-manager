@@ -437,6 +437,14 @@ export function AboutSection() {
           <dd>{info?.dataFile}</dd>
         </dl>
       </div>
+      {window.DOCGEN_NATIVE ? (
+        <div className="card" data-testid="app-update-card">
+          <strong>Updates</strong>
+          <p className="small muted" style={{ marginBottom: 0 }}>
+            DocGen for Android is updated from the Google Play Store. Your documents and settings stay as they are.
+          </p>
+        </div>
+      ) : (
       <div className="card" data-testid="app-update-card">
         <strong>Updates</strong>
         <p className="small muted">
@@ -449,6 +457,7 @@ export function AboutSection() {
           <Icon name="refresh" size={18} /> {updating ? 'Updating…' : 'Update app'}
         </button>
       </div>
+      )}
       <div className="card">
         <strong>Privacy</strong>
         <p className="small muted" style={{ marginBottom: 0 }}>

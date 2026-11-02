@@ -5,6 +5,8 @@
  *   /parties/vendor
  */
 
+import { native } from '../lib/native.js';
+import { SmsSwitch } from './Android.jsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { STATE_NAMES, isValidGstin, stateCode, stateFromGstin } from '@desktop/config/states.js';
 import { LEDGER_FEATURE, PARTY_FEATURE, PARTY_KIND_OPTIONS, enabledModules, partyFeatureOn, partyFeatureValue } from '@desktop/config/partyModules.js';
@@ -159,6 +161,7 @@ export function PartyModulesSection() {
     <div className="page" data-testid="settings-parties">
       <p className="small muted">Optional features, off until you switch them on. Documents still remember the names you type either way.</p>
       <PartyModuleSwitches />
+      {native() && <SmsSwitch />}
       <p className="small muted">
         Deleting never changes your documents: a customer or vendor that appears on any document is archived (hidden, restorable) and every document keeps
         the details printed on it.

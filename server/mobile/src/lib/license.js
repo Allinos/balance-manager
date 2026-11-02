@@ -15,6 +15,7 @@ import { hashes, verify } from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha2.js';
 import { kvDel, kvGet, kvSet } from './db.js';
 import { opened, sealed } from './vault.js';
+import { serverUrl } from './native.js';
 
 export const APP_VERSION = '2.5.1';
 const DAY = 86400000;
@@ -82,7 +83,7 @@ class LicenseError extends Error {
 async function call(path, body) {
   let res;
   try {
-    res = await fetch(`/api/app${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    res = await fetch(`${serverUrl()}/api/app${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   } catch {
     throw new LicenseError('OFFLINE', 'No internet connection. Connect once to activate DocGen.');
   }
@@ -94,7 +95,7 @@ async function call(path, body) {
 async function publicKey() {
   let key = await kvGet('license-public-key');
   if (!key) {
-    const res = await fetch('/api/app/public-key');
+    const res = await fetch(`${serverUrl()}/api/app/public-key`);
     if (!res.ok) throw new LicenseError('OFFLINE', 'Could not reach the license server.');
     key = (await res.json()).publicKey;
     await kvSet('license-public-key', key);
@@ -133,6 +134,12 @@ export async function activateWithKey(code) {
 /** Activate with the customer account (email + password). */
 export async function activateWithLogin(email, password) {
   return store(await call('/login', { email, password, ...(await device()) }));
+}
+
+/** The signed license token of this phone (for the data transfer after an upgrade), or ''. */
+export async function licenseToken() {
+  const record = await opened(await kvGet('license'));
+  return record?.token || '';
 }
 
 /** Refresh from the server (when online). Clears the license if the server removed this phone. */

@@ -20,8 +20,11 @@ import { formatMoney } from '@desktop/utils/format.js';
 import { amountInWords } from '@desktop/utils/numberToWords.js';
 import { dec, isZero } from '@desktop/utils/decimal.js';
 import PagePreview from '@desktop/renderer/PagePreview.jsx';
-import { takesPayment } from '@desktop/services/billPayment.js';
+import { paymentSummary, takesPayment } from '@desktop/services/billPayment.js';
 import BillPayCard from '../components/BillPayCard.jsx';
+import { smsAlert } from '../lib/notify.js';
+import { reportEvent } from '../lib/native.js';
+import { isLimitError } from '../lib/plan.js';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
 import DueDateInput from '@desktop/components/DueDateInput.jsx';
 import { issueDatePatch } from '@desktop/utils/dates.js';
@@ -519,10 +522,18 @@ export default function Editor({ typeId, id, query = {} }) {
     if (saving) return;
     setSaving(true);
     try {
+      const isNew = !model.document.id;
       const result = await saveDocument(model, ctx, { saveCustomer: saveParty });
       setDirty(false);
       dirtyRef.current = false;
       toast(`${result.document_number} saved`);
+      // Android app: SMS alert to the customer / vendor of a new bill or payment (Settings → Features → SMS alerts).
+      if (isNew) {
+        const saved = { ...model.document, document_number: result.document_number, grand_total: calc.totals.grand_total };
+        const due = takesPayment(model.document, settings) ? paymentSummary(model.document, calc.totals.grand_total).due : null;
+        smsAlert(saved, { settings, company, due }).then((r) => r === 'sent' && toast(`SMS sent to ${saved.party_name}`));
+        reportEvent('doc_saved');
+      }
       const inv = model.document.parent_document_id && invoices.find((i) => i.id === model.document.parent_document_id);
       if (inv) {
         const receipt = { ...model.document, document_number: result.document_number, grand_total: calc.totals.grand_total };
@@ -531,7 +542,9 @@ export default function Editor({ typeId, id, query = {} }) {
       }
       go(`/doc/${result.id}${print ? '?print=1' : ''}`, { replace: true });
     } catch (e) {
-      toast(e.message, 'bad');
+      if (isLimitError(e)) {
+        if (await confirm({ title: 'Free plan limit reached', message: e.message, confirmLabel: 'See plans', cancelLabel: 'Not now' })) go('/settings/plan');
+      } else toast(e.message, 'bad');
     } finally {
       setSaving(false);
     }

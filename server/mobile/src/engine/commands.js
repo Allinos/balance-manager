@@ -11,6 +11,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { AppError, STORES, byName, contains, dataDb, getAllBy, now, pick } from './db.js';
 import { dec, toFixed } from '@desktop/utils/decimal.js';
 import * as numbering from './numbering.js';
+import { FREE_LIMITS, PAYMENT_TYPES, isFreePlan, limitMessage, usageOf } from '../lib/plan.js';
 import { clean, download, openBlob, pickFiles, readAsDataUrl } from './io.js';
 import { exportData, importData } from './backup.js';
 import { APP_VERSION, status as licenseStatus } from '../lib/license.js';
@@ -42,7 +43,7 @@ const PARTY_KINDS = ['customer', 'vendor', 'both'];
 const VENDOR_TYPES = new Set(['REVERSE_QUOTATION', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'PAYMENT_VOUCHER', 'WORK_ORDER']);
 
 /** The documents of a customer's / vendor's ledger (desktop: LEDGER_TYPES in commands.rs). */
-const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE']);
+const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE']);
 /** Paid on a bill itself (Payment & Ledger: meta.paid), from its stored meta text. */
 const paidOnBill = (meta) => {
   try {
@@ -403,6 +404,11 @@ const commands = {
         if (same.length) id = same[0].id;
       }
       const reused = id && !idOf(party);
+      if (!id && isFreePlan() && usageOf([], await parties.getAll()).parties >= FREE_LIMITS.parties) {
+        // A name typed on a bill: the bill is still saved with the name printed on it, just not added to the list.
+        if (party.merge_kind) return null;
+        fail(limitMessage('parties'));
+      }
       // Blank fields on the document never wipe details already saved for the party.
       const data = reused ? Object.fromEntries(Object.entries(party).filter(([, v]) => v != null && String(v).trim() !== '')) : { ...party };
       // Saved from a document: a customer who is now also a vendor (or the other way round) becomes "both".
@@ -517,6 +523,12 @@ const commands = {
         previous = await s.documents.get(id);
         if (!previous || previous.deleted_at) fail('This document no longer exists.');
       }
+      // Free plan (Android app without a license): a new document or payment within the limits.
+      if (!previous && isFreePlan()) {
+        const used = usageOf(await s.documents.getAll(), []);
+        const what = PAYMENT_TYPES.has(docType) ? 'payments' : 'documents';
+        if (used[what] >= FREE_LIMITS[what]) fail(limitMessage(what));
+      }
       if (!number) {
         number = previous ? previous.document_number : await numbering.allocate(s, docType, payload.defaultPrefix || '', doc.issue_date);
       } else {
@@ -589,6 +601,77 @@ const commands = {
       await documents.put({ ...doc, deleted_at: null, updated_at: now() });
       await addHistory(history, doc.id, 'RESTORED');
     }),
+
+  /**
+   * Reports (Android app): sales, purchases, money in / out and the best customers of a period, exact decimals as
+   * text. Cancelled and deleted documents are left out; a saved bill counts (as in the ledger), draft or issued.
+   * Money taken on a bill counts on its payment date.
+   */
+  report_summary: ({ from = '', to = '' } = {}) =>
+    read(['documents'], async ({ documents }) => {
+      const SALES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL']);
+      const inRange = (d) => (!from || d >= from) && (!to || d <= to);
+      const live = (await documents.getAll()).filter((d) => !d.deleted_at && !['CANCELLED', 'VOID'].includes(d.status));
+      const out = { sales: 0n, salesCount: 0, purchases: 0n, purchaseCount: 0, moneyIn: 0n, moneyOut: 0n, unpaid: 0n, unpaidCount: 0 };
+      const customers = new Map();
+      const months = new Map();
+      for (const d of live) {
+        const total = dec(d.grand_total);
+        let meta = {};
+        try {
+          meta = JSON.parse(d.meta || '{}') || {};
+        } catch {
+          /* older document */
+        }
+        const sale = SALES.has(d.document_type);
+        const purchase = d.document_type === 'PURCHASE_INVOICE';
+        if (sale || purchase) {
+          // Paid on the bill itself, each payment on its own date.
+          const list = Array.isArray(meta.payments) && meta.payments.length ? meta.payments : dec(meta.paid || '0') > 0n ? [{ amount: meta.paid, date: d.issue_date }] : [];
+          for (const p of list) if (inRange(p.date || d.issue_date)) out[sale ? 'moneyIn' : 'moneyOut'] += dec(p.amount || '0');
+          if (sale && d.status !== 'PAID') {
+            const due = total - dec(meta.paid || '0');
+            if (due > 0n) {
+              out.unpaid += due;
+              out.unpaidCount += 1;
+            }
+          }
+        }
+        if (!inRange(d.issue_date)) continue;
+        if (sale) {
+          out.sales += total;
+          out.salesCount += 1;
+          const name = String(d.party_name || '').trim() || 'Walk-in customer';
+          const c = customers.get(name) || { name, total: 0n, count: 0 };
+          c.total += total;
+          c.count += 1;
+          customers.set(name, c);
+          const m = d.issue_date.slice(0, 7);
+          months.set(m, (months.get(m) || 0n) + total);
+        } else if (purchase) {
+          out.purchases += total;
+          out.purchaseCount += 1;
+        } else if (d.document_type === 'PAYMENT_RECEIPT') out.moneyIn += total;
+        else if (d.document_type === 'PAYMENT_VOUCHER') out.moneyOut += total;
+      }
+      const fx = (v) => toFixed(v, 2);
+      return {
+        sales: fx(out.sales),
+        salesCount: out.salesCount,
+        purchases: fx(out.purchases),
+        purchaseCount: out.purchaseCount,
+        moneyIn: fx(out.moneyIn),
+        moneyOut: fx(out.moneyOut),
+        unpaid: fx(out.unpaid),
+        unpaidCount: out.unpaidCount,
+        topCustomers: [...customers.values()].sort((a, b) => (b.total > a.total ? 1 : b.total < a.total ? -1 : 0)).slice(0, 5).map((c) => ({ ...c, total: fx(c.total) })),
+        months: [...months.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1)).map(([month, total]) => ({ month, total: fx(total) })),
+      };
+    }),
+
+  /** Free plan: what is used of the limits (Android app). */
+  plan_usage: () =>
+    read(['documents', 'parties'], async ({ documents, parties }) => ({ ...usageOf(await documents.getAll(), await parties.getAll()), limits: FREE_LIMITS })),
 
   dashboard_stats: () =>
     read(['documents', 'products', 'parties'], async ({ documents, products, parties }) => {

@@ -1,7 +1,8 @@
 /** Dashboard: a card per document type (count + quick create), Customize, recent documents. */
 
 import { useEffect, useState } from 'react';
-import { BUSINESS_TYPES, DOCUMENT_TYPES } from '@desktop/config/documentTypes.js';
+import { BUSINESS_TYPES, DOCUMENT_TYPES, TYPE_MAP } from '@desktop/config/documentTypes.js';
+import { native } from '../lib/native.js';
 import { dashboardStats } from '@desktop/services/documentService.js';
 import Icon from '../components/Icon.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
@@ -21,7 +22,10 @@ export function dashboardTypes(settings) {
   if (chosen.length) return DOCUMENT_TYPES.filter((t) => chosen.includes(t.id));
   const business = BUSINESS_TYPES.find((b) => b.id === settings.businessType) || BUSINESS_TYPES[0];
   const preferred = settings.visibleDocTypes?.length ? settings.visibleDocTypes : business.types;
-  return DOCUMENT_TYPES.filter((t) => preferred.includes(t.id)).slice(0, DEFAULT_CARDS);
+  const cards = DOCUMENT_TYPES.filter((t) => preferred.includes(t.id));
+  // Android app: the simple Retail Bill (no GST) comes first, one tap from Home.
+  if (native() && !preferred.includes('RETAIL_BILL')) return [TYPE_MAP.RETAIL_BILL, ...cards].slice(0, DEFAULT_CARDS);
+  return cards.slice(0, DEFAULT_CARDS);
 }
 
 function CustomizeSheet({ selected, onClose, onSave }) {
@@ -88,6 +92,14 @@ function ReferralSheet({ onClose }) {
 
 export function LicenseChip() {
   const { lic } = useApp();
+  if (lic?.state === 'free') {
+    return (
+      <button className="license-chip" onClick={() => go('/settings/plan')} data-testid="free-chip">
+        <Icon name="crown" size={14} />
+        Free plan · Upgrade
+      </button>
+    );
+  }
   if (!lic?.license) return null;
   const warn = lic.daysLeft !== null && lic.daysLeft <= 30;
   return (

@@ -18,6 +18,9 @@ import Icon from '../components/Icon.jsx';
 import { Empty, Header, NumberInput, Sheet, Spinner, back, go, useUi } from '../components/ui.jsx';
 import { useApp, useDocContext } from '../data.jsx';
 import { PartySheet } from './Parties.jsx';
+import { sendWhatsAppReminder, smsAlert } from '../lib/notify.js';
+import { reportEvent } from '../lib/native.js';
+import { isLimitError } from '../lib/plan.js';
 
 /** Money in the base currency, hidden while the privacy eye is on. */
 export function useMoney() {
@@ -35,7 +38,7 @@ const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 /** Bottom sheet: amount and mode only, then what it will settle. */
 function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
   const ctx = useDocContext();
-  const { toast } = useUi();
+  const { toast, confirm } = useUi();
   const money = useMoney();
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('Cash');
@@ -52,10 +55,14 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
     try {
       const saved = await recordPayment({ party, side, amount, mode, ledger, ctx });
       toast(`${labels.button}: ${money(amount)} saved as ${saved.document_number}`);
+      const doc = { document_type: labels.type, document_number: saved.document_number, status: 'ISSUED', issue_date: todayISO(), party_name: party.name, party_phone: party.phone, grand_total: amount };
+      smsAlert(doc, ctx).then((r) => r === 'sent' && toast(`SMS sent to ${party.name}`));
+      reportEvent('doc_saved');
       onSaved();
     } catch (err) {
-      toast(err.message, 'bad');
       setSaving(false);
+      if (isLimitError(err) && (await confirm({ title: 'Free plan limit reached', message: err.message, confirmLabel: 'See plans', cancelLabel: 'Not now' }))) go('/settings/plan');
+      else if (!isLimitError(err)) toast(err.message, 'bad');
     }
   };
 
@@ -106,7 +113,7 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
 }
 
 export default function PartyLedger({ id }) {
-  const { settings } = useApp();
+  const { settings, company } = useApp();
   const { toast } = useUi();
   const money = useMoney();
   const [data, setData] = useState(null);
@@ -156,6 +163,15 @@ export default function PartyLedger({ id }) {
               <strong data-testid="party-balance-amount">{money(abs(ledger.balance))}</strong>
               <span className="small muted">{ledger.open.length === 0 ? 'No unpaid bills' : `${ledger.open.length} bill${ledger.open.length > 1 ? 's' : ''} unpaid`}</span>
             </div>
+            {dec(ledger.balance) > 0n && (
+              <button
+                className="btn btn-green btn-block"
+                onClick={() => sendWhatsAppReminder({ phone: party.phone, name: party.name, due: ledger.balance, company, upi: company?.upi_id })}
+                data-testid="party-whatsapp"
+              >
+                <Icon name="share" size={18} /> WhatsApp payment reminder
+              </button>
+            )}
             {sidesOf(party).map((side) => (
               <button key={side} className="btn btn-primary btn-block btn-lg" onClick={() => setPaying(side)} data-testid={`party-pay-${side}`}>
                 <Icon name="wallet" size={18} /> {PAYMENT_SIDES[side].button}

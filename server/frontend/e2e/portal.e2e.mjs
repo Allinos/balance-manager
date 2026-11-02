@@ -883,6 +883,14 @@ try {
   await page.getByText('license.extend').first().waitFor();
   check(true, 'activity log shows admin actions');
 
+  // DocGen for Android: Upgrade opens the checkout with the free account's name and mobile filled in.
+  const fromApp = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const androidPage = await fromApp.newPage();
+  await androidPage.goto(`${base}/buy?utm_source=android&name=Ravi+Kumar&phone=98765+43210`);
+  await androidPage.getByTestId('co-name').waitFor();
+  check((await androidPage.getByTestId('co-name').inputValue()) === 'Ravi Kumar' && (await androidPage.getByTestId('co-phone').inputValue()) === '98765 43210', 'checkout from the Android app: name and mobile filled in');
+  await fromApp.close();
+
   check(nativeDialogs === 0, 'no browser alert/confirm/prompt boxes were used');
   console.log(`\nAll ${passed} portal checks passed.`);
 } catch (e) {

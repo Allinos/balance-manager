@@ -8,6 +8,7 @@ small businesses, by [reynrel.in](https://reynrel.in).
 | Desktop app (Windows, macOS, Linux) | [`document-generator/`](document-generator/) | Tauri 2, React (JavaScript), SQLite |
 | Server: license & configuration API + website, client panel + admin panel (one port) | [`server/`](server/): [`backend/`](server/backend/) + [`frontend/`](server/frontend/) | Node.js, Express 5, MySQL 8 (SQLite for development); React + Vite |
 | DocGen Mobile (Android, iPhone — installable web app, served by the server at `/app/`) | [`server/mobile/`](server/mobile/) | React + Vite PWA, IndexedDB |
+| DocGen for Android (Play Store app: free plan, Firebase accounts, PIN, SMS, WhatsApp, AdMob) | [`android-app/`](android-app/) | Flutter (runs DocGen Mobile offline inside) |
 
 - **Desktop**: GST invoices (Tally-style and other templates), quotations, orders, challans,
   notes, receipts, work orders; Dashboard with document counts; Document Manager with uploaded
@@ -25,6 +26,11 @@ small businesses, by [reynrel.in](https://reynrel.in).
 - **DocGen Mobile**: install from the client panel (Downloads → Mobile), enter the license key once and use the
   desktop app's features on the phone — all document types, the same 10 templates, documents, products and
   settings (it shares the desktop app's code); data stays on the phone.
+- **DocGen for Android** ([`android-app/`](android-app/README.md)): the Flutter app for the Play Store. No license needed
+  to start: a free plan with every feature for 20 documents, 20 payments and 20 customers & vendors (with small,
+  rare ads); a free account (name, business, mobile and a 4-digit PIN, no password) in Firebase; PIN lock; SMS
+  alerts through the phone; WhatsApp payment reminders; a Retail Bill without GST; a Reports tab. Upgrading
+  copies the phone's data to the server with the license. Built in GitHub Actions (APK + AAB).
 
 ![Professional invoice](docs/screenshots/09-invoice-tally-pro.png)
 

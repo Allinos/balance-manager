@@ -1,0 +1,39 @@
+name: docgen_android
+description: "DocGen for Android: GST invoices, retail bills, payments and reports on your phone."
+publish_to: 'none'
+version: 2.5.1+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # Runs the DocGen mobile web app (server/mobile, built into assets/web/app) offline in the app.
+  flutter_inappwebview: ^6.1.5
+  # Ads for free-plan users only (lib/ads.dart).
+  google_mobile_ads: ^9.2.0
+  # Free accounts: anonymous sign-in + a profile document (lib/account.dart). No password, a PIN instead.
+  firebase_core: ^5.1.0
+  firebase_auth: ^7.0.1
+  cloud_firestore: ^7.1.0
+  # PIN (hashed) and the account, kept encrypted on the phone.
+  flutter_secure_storage: ^11.2.0
+  crypto: ^3.0.8
+  share_plus: ^13.3.1
+  path_provider: ^2.1.6
+  url_launcher: ^6.3.3
+  permission_handler: ^13.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  # The web app, copied in by tool/build_web.sh (not committed). Flutter does not list folders recursively.
+  assets:
+    - assets/web/app/
+    - assets/web/app/assets/
+    - assets/web/app/icons/

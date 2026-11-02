@@ -31,6 +31,7 @@ const PLURAL = {
   CREDIT_NOTE: 'Credit Notes',
   DEBIT_NOTE: 'Debit Notes',
   BILL_OF_SUPPLY: 'Bills of Supply',
+  RETAIL_BILL: 'Retail Bills',
   PAYMENT_RECEIPT: 'Receipts',
   PAYMENT_VOUCHER: 'Payment Vouchers',
   WORK_ORDER: 'Work Orders',

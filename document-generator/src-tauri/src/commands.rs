@@ -359,8 +359,8 @@ pub fn parties_list(db: State<'_, Db>, search: Option<String>) -> AppResult<Vec<
 }
 
 /// Document types that make up a customer's / vendor's ledger (services/ledgerService.js LEDGER_SIGN).
-const LEDGER_TYPES: [&str; 8] = [
-    "TAX_INVOICE", "SERVICE_INVOICE", "BILL_OF_SUPPLY", "DEBIT_NOTE", "PAYMENT_VOUCHER", "CREDIT_NOTE", "PAYMENT_RECEIPT", "PURCHASE_INVOICE",
+const LEDGER_TYPES: [&str; 9] = [
+    "TAX_INVOICE", "SERVICE_INVOICE", "BILL_OF_SUPPLY", "RETAIL_BILL", "DEBIT_NOTE", "PAYMENT_VOUCHER", "CREDIT_NOTE", "PAYMENT_RECEIPT", "PURCHASE_INVOICE",
 ];
 
 /// One party and the documents of its ledger (the UI computes the running balance and open bills).

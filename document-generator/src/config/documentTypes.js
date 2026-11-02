@@ -243,6 +243,18 @@ export const DOCUMENT_TYPES = [
     },
   }),
   def({
+    // A simple counter bill for shops without GST: no tax columns, the Retail template, A5, UPI QR to pay at once.
+    id: 'RETAIL_BILL', label: 'Retail Bill (no GST)', short: 'Retail Bill', prefix: 'RB', title: 'BILL',
+    dateLabel: 'Bill Date', financial: true, icon: 'cart', partyLabel: 'Customer',
+    statuses: INVOICE_STATUSES,
+    required: ['party_name', 'issue_date', 'items'],
+    conversions: ['PAYMENT_RECEIPT'],
+    defaults: {
+      template: 'retail', paperSize: 'A5', showTax: false, showHsn: false, showTaxBreakup: false, showCustomerTaxId: false,
+      showBank: false, showQr: true, showDeclaration: false, showAmountInWords: false,
+    },
+  }),
+  def({
     id: 'PAYMENT_RECEIPT', label: 'Payment Receipt', short: 'Receipt', prefix: 'RCT', title: 'PAYMENT RECEIPT',
     group: 'payment', partyLabel: 'Received From', dateLabel: 'Receipt Date', layout: 'receipt', financial: true, icon: 'wallet',
     statuses: ['DRAFT', 'ISSUED', 'CANCELLED'],

@@ -48,7 +48,8 @@ function DownloadSheet({ onClose }) {
   const [month, setMonth] = useState(todayISO().slice(0, 7));
   const [custom, setCustom] = useState(() => rangeFor('month'));
   const [busy, setBusy] = useState(false);
-  const licensed = lic?.state === 'active';
+  // The Android app's free plan includes every feature.
+  const licensed = lic?.state === 'active' || lic?.state === 'free';
   const range = periodRange(period, { month, custom, fyStartMonth: Number(settings.fiscalYearStartMonth) || 4 });
   const run = async () => {
     setBusy(true);

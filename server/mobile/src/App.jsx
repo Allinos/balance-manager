@@ -20,6 +20,10 @@ import Products from './screens/Products.jsx';
 import Parties from './screens/Parties.jsx';
 import PartyLedger from './screens/PartyLedger.jsx';
 import Settings, { SettingsSection } from './screens/Settings.jsx';
+import Reports from './screens/Reports.jsx';
+import { Welcome, nativeAccount } from './screens/Android.jsx';
+import { native, reportScreen } from './lib/native.js';
+import { setFreePlan } from './lib/plan.js';
 
 const TABS = [
   ['/', 'Dashboard', 'home'],
@@ -30,8 +34,15 @@ const TABS = [
 /** Customers & Vendors: a tab of its own once the feature is switched on (Settings → Features). */
 const PARTIES_TAB = ['/parties/all', 'Parties', 'users', '/parties'];
 
+/** Android app: simple reports, always the rightmost tab. */
+const REPORTS_TAB = ['/reports', 'Reports', 'chart'];
+
 /** The bottom tabs for these settings: [path, label, icon, matching path prefix?]. */
-export const tabsFor = (settings) => (enabledModules(settings || {}).length ? [...TABS.slice(0, 3), PARTIES_TAB, TABS[3]] : TABS);
+export const tabsFor = (settings, android = native()) => {
+  const tabs = enabledModules(settings || {}).length ? [...TABS.slice(0, 3), PARTIES_TAB, TABS[3]] : TABS;
+  // Android: Home opens first (Dashboard with the bills), Reports is the last item on the right.
+  return android ? [['/', 'Home', 'home'], ...tabs.slice(1), REPORTS_TAB] : tabs;
+};
 const tabMatches = ([p, , , prefix], path) => (p === '/' ? path === '/' : path === p || path.startsWith(prefix ? `${prefix}/` : p));
 
 function TabBar({ path, tabs }) {
@@ -61,6 +72,7 @@ function Screen({ path, query }) {
   if ((m = /^\/parties(?:\/(all|customer|vendor))?$/.exec(path))) return <Parties key={path} kind={m[1]} />;
   if ((m = /^\/party\/(\d+)$/.exec(path))) return <PartyLedger key={path} id={Number(m[1])} />;
   if (path.startsWith('/settings')) return <Settings />;
+  if (path === '/reports' && native()) return <Reports />;
   return <Dashboard />;
 }
 
@@ -69,6 +81,12 @@ function Shell() {
   const [lic, setLic] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const android = native();
+  // Android app: the free account (Firebase, kept by the app); undefined while loading.
+  const [account, setAccount] = useState(android ? undefined : null);
+  useEffect(() => {
+    if (android) nativeAccount().then(setAccount);
+  }, [android]);
 
   const reload = useCallback(async () => {
     const next = await status();
@@ -117,9 +135,17 @@ function Shell() {
   const setCompany = useCallback((company) => setData((d) => ({ ...d, company })), []);
   const setDocSettings = useCallback((docSettings) => setData((d) => ({ ...d, docSettings })), []);
 
+  // Android app without an active license: the free plan (every feature, limited counts, ads).
+  const free = android && !!lic && lic.state !== 'active';
+  setFreePlan(free);
+  const appLic = useMemo(() => (free ? { ...lic, state: 'free', account } : android && lic ? { ...lic, account } : lic), [free, android, lic, account]);
+  useEffect(() => {
+    if (android && lic && data) reportScreen(path, free);
+  }, [android, path, free, lic, data]);
+
   const ctx = useMemo(
-    () => ({ ...(data || {}), lic, reload, reloadData, check, updateSettings, setCompany, setDocSettings }),
-    [data, lic, reload, reloadData, check, updateSettings, setCompany, setDocSettings],
+    () => ({ ...(data || {}), lic: appLic, reload, reloadData, check, updateSettings, setCompany, setDocSettings, account, setAccount }),
+    [data, appLic, reload, reloadData, check, updateSettings, setCompany, setDocSettings, account],
   );
 
   if (error) {
@@ -129,7 +155,7 @@ function Shell() {
       </div>
     );
   }
-  if (!lic || !data) {
+  if (!lic || !data || account === undefined) {
     return (
       <div className="gate center">
         <img src="/app/icons/icon-192.png" alt="" width="72" height="72" style={{ margin: '0 auto' }} />
@@ -139,16 +165,28 @@ function Shell() {
   const tabs = tabsFor(data.settings);
   const main = tabs.some(([p, , , prefix]) => p === path || (prefix && path.startsWith(`${prefix}/`)));
   let body;
-  if (lic.state === 'none') body = <Activation onDone={reload} message={lic.message} />;
-  else if (lic.state !== 'active') body = <Locked />;
-  else if (!data.settings.setupComplete && !data.company?.name) body = <Setup />;
-  else
+  if (android && !data.settings.androidWelcome) {
     body = (
-      <div className={`app ${main ? '' : 'no-tabs'}`}>
-        <Screen path={path} query={query} />
-        {main && <TabBar path={path} tabs={tabs} />}
-      </div>
+      <Welcome
+        onDone={async (acc) => {
+          await updateSettings({ androidWelcome: true });
+          if (acc) setAccount(acc);
+        }}
+      />
     );
+  } else if (free) body = null;
+  else if (lic.state === 'none') body = <Activation onDone={reload} message={lic.message} />;
+  else if (lic.state !== 'active') body = <Locked />;
+  if (body === null || body === undefined) {
+    if (!data.settings.setupComplete && !data.company?.name) body = <Setup />;
+    else
+      body = (
+        <div className={`app ${main ? '' : 'no-tabs'}`}>
+          <Screen path={path} query={query} />
+          {main && <TabBar path={path} tabs={tabs} />}
+        </div>
+      );
+  }
   return <AppCtx.Provider value={ctx}>{body}</AppCtx.Provider>;
 }
 

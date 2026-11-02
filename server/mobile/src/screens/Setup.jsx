@@ -20,7 +20,7 @@ export default function Setup() {
   const { lic, reloadData } = useApp();
   const { toast } = useUi();
   const [step, setStep] = useState(0);
-  const [name, setName] = useState(lic?.license?.account?.business || '');
+  const [name, setName] = useState(lic?.license?.account?.business || lic?.account?.business || '');
   const [gstin, setGstin] = useState('');
   const [state, setState] = useState('');
   const [logo, setLogo] = useState('');

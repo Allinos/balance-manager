@@ -50,7 +50,7 @@ const device = (n = 1) => ({ deviceId: `test-device-${n}-abcdef`, deviceName: `P
 before(async () => {
   knex = process.env.TEST_DATABASE_URL ? createKnex({ databaseUrl: process.env.TEST_DATABASE_URL }) : createKnex({ databaseUrl: '', sqliteFile: path.join(dataDir, 'test.sqlite') });
   if (process.env.TEST_DATABASE_URL) {
-    for (const t of ['support_messages', 'support_requests', 'plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
+    for (const t of ['app_data_uploads', 'support_messages', 'support_requests', 'plan_prices', 'audit_log', 'app_config', 'usage_stats', 'ads', 'devices', 'licenses', 'payments', 'clients', 'plans', 'admins', 'knex_migrations', 'knex_migrations_lock']) {
       await knex.schema.dropTableIfExists(t);
     }
   }
@@ -340,6 +340,76 @@ describe('admin', () => {
     const ok = await api('GET', '/api/admin/licenses?pageSize=2&page=2', { token: t });
     assert.equal(ok.body.rows.length, 2);
     assert.equal(ok.body.page, 2);
+  });
+});
+
+describe('Android app: data transfer after an upgrade', () => {
+  let adminToken;
+  let appToken;
+  const phone = { ...device(21), deviceKind: 'mobile', platform: 'android' };
+  const backup = (docs) => ({
+    format: 'docgen-mobile-data',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    stores: {
+      documents: docs,
+      parties: [{ id: 1, name: 'Ravi Traders', phone: '9876543210' }, { id: 2, name: 'Sample', is_demo: 1 }],
+      products: [{ id: 1, name: 'Rice 5kg' }],
+      settings: [],
+    },
+  });
+
+  before(async () => {
+    adminToken = (await api('POST', '/api/admin/auth/login', { body: { email: 'owner@test.local', password: 'owner-password-1' } })).body.token;
+    const plans = await api('GET', '/api/admin/plans', { token: adminToken });
+    const plan = plans.body.plans.find((p) => p.code === 'BUSINESS');
+    const created = await api('POST', '/api/admin/licenses', { token: adminToken, body: { planId: plan.id, count: 1, notes: 'Android upgrade' } });
+    const code = created.body.licenses[0].code;
+    await knex('licenses').where({ code }).update({ max_mobile_devices: 2 });
+    const r = await api('POST', '/api/app/activate', { body: { code, ...phone } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    appToken = r.body.token;
+  });
+
+  test('the phone data is kept with the license; demo and deleted rows are not counted', async () => {
+    const docs = [
+      { id: 1, document_type: 'TAX_INVOICE', document_number: 'INV-1' },
+      { id: 2, document_type: 'RETAIL_BILL', document_number: 'RB-1' },
+      { id: 3, document_type: 'TAX_INVOICE', document_number: 'INV-2', deleted_at: '2026-11-01' },
+    ];
+    const account = { uid: 'firebase-uid-1', name: 'Ravi', business: 'Ravi Traders', phone: '9876543210' };
+    const r = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, account, data: backup(docs) } });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    assert.deepEqual([r.body.documents, r.body.parties, r.body.products], [2, 1, 1]);
+    const row = await knex('app_data_uploads').orderBy('id', 'desc').first();
+    assert.equal(row.account_uid, 'firebase-uid-1');
+    assert.equal(JSON.parse(row.data).stores.documents.length, 3);
+    assert.equal(crypto.createHash('sha256').update(row.data).digest('hex'), r.body.sha256);
+  });
+
+  test('a large phone (over the normal 100 kB limit) is accepted; only the latest three copies are kept', async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => ({ id: i + 1, document_type: 'TAX_INVOICE', document_number: `INV-${i + 1}`, notes: 'x'.repeat(100) }));
+    for (let i = 0; i < 3; i += 1) {
+      const r = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, data: backup(many) } });
+      assert.equal(r.status, 200, JSON.stringify(r.body));
+      assert.equal(r.body.documents, 1500);
+    }
+    const rows = await knex('app_data_uploads').where({ device_id: phone.deviceId });
+    assert.equal(rows.length, 3);
+  });
+
+  test('a wrong token, another phone or not a backup is refused', async () => {
+    const other = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: device(22).deviceId, data: backup([]) } });
+    assert.equal(other.status, 401);
+    const bad = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, data: { format: 'something-else' } } });
+    assert.equal(bad.status, 400);
+  });
+
+  test('CORS: the app origin may call the app endpoints only', async () => {
+    const appCall = await fetch(`${base}/api/app/public-key`, { headers: { Origin: 'http://localhost:47312' } });
+    assert.equal(appCall.headers.get('access-control-allow-origin'), 'http://localhost:47312');
+    const portal = await fetch(`${base}/api/portal/products`, { headers: { Origin: 'http://localhost:47312' } });
+    assert.equal(portal.headers.get('access-control-allow-origin'), null);
   });
 });
 

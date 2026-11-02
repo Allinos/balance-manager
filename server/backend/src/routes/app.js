@@ -7,6 +7,7 @@
  * device name, platform, app version) and anonymous ad counters.
  */
 
+import crypto from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
@@ -28,6 +29,25 @@ const device = {
 
 const loginSchema = z.object({ email: z.string().trim().toLowerCase().email().max(190), password: z.string().min(1).max(200), ...device });
 const activateSchema = z.object({ code: z.string().trim().max(20), ...device });
+const migrateSchema = z.object({
+  token: z.string().max(4000),
+  deviceId: device.deviceId,
+  account: z
+    .object({
+      uid: z.string().trim().max(128).optional().default(''),
+      name: z.string().trim().max(120).optional().default(''),
+      business: z.string().trim().max(160).optional().default(''),
+      phone: z.string().trim().max(30).optional().default(''),
+    })
+    .partial()
+    .nullable()
+    .optional(),
+  data: z.object({
+    format: z.literal('docgen-mobile-data'),
+    version: z.number().int().min(1).max(1),
+    stores: z.object({ documents: z.array(z.any()), parties: z.array(z.any()), products: z.array(z.any()) }).passthrough(),
+  }).passthrough(),
+});
 const tokenSchema = z.object({ token: z.string().max(4000), deviceId: device.deviceId, deviceKind: device.deviceKind });
 
 /** Ads published to the app: active, inside their date window, newest first. */
@@ -157,6 +177,59 @@ export function appRoutes(knex) {
     await knex('devices').where({ license_id: payload.lid, device_id: body.deviceId }).update({ released_at: nowIso() });
     await audit(knex, { actorType: 'app', action: 'app.release', entity: 'license', entityId: payload.lid, details: { deviceId: body.deviceId }, ip: clientIp(req) });
     res.status(204).end();
+  });
+
+  /**
+   * DocGen for Android, after an upgrade: the free user's data on the phone (the app's backup format:
+   * customers, vendors, products, documents and payments) is kept on the server with the license.
+   */
+  r.post('/migrate', limits.auth, async (req, res) => {
+    const body = parse(migrateSchema, req.body);
+    const payload = verifyLicenseToken(body.token);
+    if (!payload || payload.did !== body.deviceId) throw new ApiError(401, 'INVALID_TOKEN', 'This license could not be verified. Please activate again.');
+    const license = await getLicenseWithPlan(knex, payload.lid);
+    if (!license) throw new ApiError(404, 'LICENSE_NOT_FOUND', 'This license no longer exists. Please contact support.');
+    if (effectiveStatus(license) !== 'active') throw new ApiError(403, 'LICENSE_NOT_ACTIVE', 'Your DocGen license is not active, so your data cannot be copied to your account.');
+    const deviceRow = await knex('devices').where({ license_id: license.id, device_id: body.deviceId }).first();
+    if (!deviceRow || deviceRow.released_at) throw new ApiError(403, 'DEVICE_RELEASED', 'This phone was removed from the license. Please activate again.');
+
+    const stores = body.data.stores;
+    const live = (rows) => (Array.isArray(rows) ? rows.filter((x) => x && !x.deleted_at && !x.is_demo).length : 0);
+    const json = JSON.stringify(body.data);
+    const sha256 = crypto.createHash('sha256').update(json).digest('hex');
+    const account = body.account || {};
+    const row = {
+      license_id: license.id,
+      client_id: license.client_id ?? null,
+      device_id: body.deviceId,
+      account_uid: account.uid || '',
+      account_name: account.name || '',
+      account_business: account.business || '',
+      account_phone: account.phone || '',
+      documents: live(stores.documents),
+      parties: live(stores.parties),
+      products: live(stores.products),
+      size_bytes: Buffer.byteLength(json),
+      sha256,
+      data: json,
+      created_at: nowIso(),
+    };
+    await knex.transaction(async (trx) => {
+      await trx('app_data_uploads').insert(row);
+      // Keep the latest three copies of this phone.
+      const old = await trx('app_data_uploads').where({ license_id: license.id, device_id: body.deviceId }).orderBy('id', 'desc').offset(3).limit(100).pluck('id');
+      if (old.length) await trx('app_data_uploads').whereIn('id', old).del();
+    });
+    await audit(knex, {
+      actorType: 'app',
+      actorId: license.client_id ?? null,
+      action: 'app.migrate',
+      entity: 'license',
+      entityId: license.id,
+      details: { deviceId: body.deviceId, documents: row.documents, parties: row.parties, bytes: row.size_bytes },
+      ip: clientIp(req),
+    });
+    res.json({ ok: true, documents: row.documents, parties: row.parties, products: row.products, sha256, savedAt: row.created_at });
   });
 
   return r;

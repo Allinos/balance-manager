@@ -15,6 +15,7 @@ import * as pricesAndMobile from './migrations/004_prices_and_mobile.js';
 import * as supportAndTerms from './migrations/005_support_and_terms.js';
 import * as referrals from './migrations/006_referrals.js';
 import * as partners from './migrations/007_partners.js';
+import * as appData from './migrations/008_app_data.js';
 
 /** Ordered migrations. Append new ones; never edit an applied migration. */
 const MIGRATIONS = {
@@ -22,6 +23,7 @@ const MIGRATIONS = {
   '005_support_and_terms': supportAndTerms,
   '006_referrals': referrals,
   '007_partners': partners,
+  '008_app_data': appData,
 };
 
 class InlineMigrationSource {

@@ -20,7 +20,8 @@
     "keys": "npm run keys -w backend",
     "seed:load": "npm run seed:load -w backend --",
     "loadtest": "npm run loadtest -w backend --",
-    "test:mobile": "npm run test:mobile -w backend"
+    "test:mobile": "npm run test:mobile -w backend",
+    "test:android": "npm run test:android -w backend"
   },
   "engines": {
     "node": ">=20"

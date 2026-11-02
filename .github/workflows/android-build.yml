@@ -1,0 +1,122 @@
+# Builds DocGen for Android (android-app/, Flutter) in the cloud: an installable APK and the AAB for the
+# Google Play Store. No Android Studio is needed on your own computer.
+#
+# Uses NO third-party or marketplace actions (only shell commands and the GitHub CLI), because this
+# organization only allows actions owned by Allinos. The Ubuntu runners already have Java 17, the Android SDK,
+# Node.js and the GitHub CLI; Flutter is downloaded from Google by a shell step.
+#
+# Where to get the app:
+#   GitHub → repository → Releases → "DocGen Android latest build" →
+#   DocGen-<version>.apk (install on a phone) and DocGen-<version>.aab (upload to the Play Console)
+#
+# Runs when anything in android-app/ or server/mobile/ changes, or manually with
+# Actions → "DocGen Android build" → "Run workflow".
+#
+# Settings (Settings → Secrets and variables → Actions). Without them the app is built with Google's TEST ads,
+# the account kept on the phone only (no Firebase) and signed with a debug key — fine for testing, not for the Play Store.
+#   Variables (public values):
+#     DOCGEN_SERVER         e.g. https://docgen.reynrel.in
+#     ADMOB_APP_ID          ca-app-pub-…~…           ADMOB_BANNER / ADMOB_INTERSTITIAL   ca-app-pub-…/…
+#     FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_SENDER_ID, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET
+#   Secrets (upload key for the Play Store):
+#     ANDROID_KEYSTORE_BASE64  the .jks file, base64-encoded     ANDROID_KEYSTORE_PASSWORD
+#     ANDROID_KEY_ALIAS                                           ANDROID_KEY_PASSWORD
+
+name: DocGen Android build
+
+on:
+  push:
+    paths:
+      - 'android-app/**'
+      - 'server/mobile/**'
+      - 'document-generator/src/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  FLUTTER_VERSION: 3.47.9
+  RELEASE: android-latest
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Get the code
+        run: |
+          git init -q .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch -q --depth 1 origin "$GITHUB_SHA"
+          git checkout -q FETCH_HEAD
+          git log -1 --oneline
+
+      - name: Install Flutter
+        run: |
+          curl -fsSL -o /tmp/flutter.tar.xz "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          tar xf /tmp/flutter.tar.xz -C "$HOME"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
+          "$HOME/flutter/bin/flutter" config --no-analytics
+          "$HOME/flutter/bin/flutter" --version
+          java -version
+          echo "Android SDK: $ANDROID_HOME"
+
+      - name: Build the mobile web app into the Flutter assets
+        run: android-app/tool/build_web.sh
+
+      - name: Analyze and test
+        working-directory: android-app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Upload key (when the secrets are set)
+        working-directory: android-app/android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then echo "::warning::No upload key: the app is signed with a debug key (testing only)."; exit 0; fi
+          printf '%s' "$KEYSTORE" | base64 -d > upload.jks
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$PWD/upload.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > key.properties
+
+      - name: Build APK and App Bundle
+        working-directory: android-app
+        env:
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+        run: |
+          defines=()
+          add() { if [ -n "$2" ]; then defines+=("--dart-define=$1=$2"); fi; }
+          add DOCGEN_SERVER "${{ vars.DOCGEN_SERVER }}"
+          add ADMOB_BANNER "${{ vars.ADMOB_BANNER }}"
+          add ADMOB_INTERSTITIAL "${{ vars.ADMOB_INTERSTITIAL }}"
+          add FIREBASE_API_KEY "${{ vars.FIREBASE_API_KEY }}"
+          add FIREBASE_APP_ID "${{ vars.FIREBASE_APP_ID }}"
+          add FIREBASE_SENDER_ID "${{ vars.FIREBASE_SENDER_ID }}"
+          add FIREBASE_PROJECT_ID "${{ vars.FIREBASE_PROJECT_ID }}"
+          add FIREBASE_STORAGE_BUCKET "${{ vars.FIREBASE_STORAGE_BUCKET }}"
+          if [ -n "$ADMOB_APP_ID" ]; then echo "ADMOB_APP_ID=$ADMOB_APP_ID" >> android/gradle.properties; fi
+          flutter build apk --release "${defines[@]}"
+          flutter build appbundle --release "${defines[@]}"
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')
+          mkdir -p ../out
+          cp build/app/outputs/flutter-apk/app-release.apk "../out/DocGen-${version}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "../out/DocGen-${version}.aab"
+          ls -la ../out
+
+      - name: Publish to the "DocGen Android latest build" release
+        run: |
+          gh release delete "$RELEASE" --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RELEASE" out/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "DocGen Android latest build" \
+            --notes "Built from ${GITHUB_SHA::7}. Install the .apk on a phone (allow installing from this source), or upload the .aab to the Google Play Console."

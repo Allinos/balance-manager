@@ -15,7 +15,8 @@ window.addEventListener('docgen-db-blocked', () =>
 
 // Offline support: the service worker keeps the app on the phone after the first visit. Once installed, the app
 // opens from the phone without asking the server; updates come from Settings → About → Update app.
-if ('serviceWorker' in navigator && window.isSecureContext) {
+// Not in the Android app: its files are inside the app already, and updates come from the Play Store.
+if ('serviceWorker' in navigator && window.isSecureContext && !window.DOCGEN_NATIVE) {
   window.addEventListener('load', () =>
     navigator.serviceWorker
       .register('/app/sw.js', { scope: '/app/' })

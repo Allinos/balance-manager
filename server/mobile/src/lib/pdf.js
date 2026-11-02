@@ -4,6 +4,7 @@
  * pictures are put into a small PDF file. Used by Download and Share on the document screen.
  */
 
+import { native, nativeFile } from './native.js';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { toCanvas } from 'html-to-image';
@@ -169,6 +170,8 @@ async function pagesOf(payload, copies) {
 
 /** Save a file to the phone (Downloads on Android, Files on iPhone). */
 export function saveFile(file) {
+  // Android app: saved to Downloads by the phone (a WebView cannot download blob: links).
+  if (native()) return nativeFile('save', file, file.name);
   const url = URL.createObjectURL(file);
   const a = document.createElement('a');
   a.href = url;

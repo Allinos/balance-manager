@@ -12,7 +12,7 @@ import { listDocuments, setDocumentStatus } from './documentService.js';
 
 /** Documents a payment can be received (customer) or made (vendor) against. */
 export const PAYABLE_TYPES = {
-  customer: ['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'PROFORMA_INVOICE'],
+  customer: ['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL', 'PROFORMA_INVOICE'],
   vendor: ['PURCHASE_INVOICE'],
 };
 

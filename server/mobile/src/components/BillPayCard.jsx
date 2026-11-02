@@ -8,6 +8,8 @@ import { PAYMENT_KINDS, newPaymentRow, partialRows, paymentDate, paymentError, p
 import { formatMoney } from '@desktop/utils/format.js';
 import Icon from './Icon.jsx';
 import { NumberInput, Segmented, Select } from './ui.jsx';
+import { useApp } from '../data.jsx';
+import { sendWhatsAppReminder } from '../lib/notify.js';
 
 export default function BillPayCard({ doc, grandTotal, onChange }) {
   const kind = paymentKind(doc);
@@ -17,6 +19,8 @@ export default function BillPayCard({ doc, grandTotal, onChange }) {
   const setRows = (next) => onChange({ payment: 'partial', payments: next });
   const setRow = (i, patch) => setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   // Whole amounts on the phone: ₹10,030 reads faster than ₹10,030.00.
+  const { company } = useApp();
+  const sale = doc.document_type !== 'PURCHASE_INVOICE';
   const short = (v) => formatMoney(v, { ...doc, currency_decimals: Number(v) % 1 ? doc.currency_decimals : 0 });
 
   return (
@@ -87,6 +91,16 @@ export default function BillPayCard({ doc, grandTotal, onChange }) {
         </div>
       </div>
       {error && <p className="small bad-text" data-testid="bill-payment-error">{error}</p>}
+      {sale && Number(sum.due) > 0 && (
+        <button
+          type="button"
+          className="btn btn-green btn-block"
+          onClick={() => sendWhatsAppReminder({ phone: doc.party_phone, name: doc.party_name, due: sum.due, company, upi: company?.upi_id, doc })}
+          data-testid="bill-whatsapp"
+        >
+          <Icon name="share" size={17} /> WhatsApp payment reminder
+        </button>
+      )}
     </section>
   );
 }

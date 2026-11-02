@@ -79,6 +79,8 @@ export const config = {
   adminPassword: env.ADMIN_PASSWORD || '',
   portalUrl: (env.PORTAL_URL || `http://localhost:${env.PORT || 8787}`).replace(/\/$/, ''),
   corsOrigins: (env.CORS_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
+  /** DocGen for Android runs the mobile app from http://localhost:<port> inside its WebView (android-app/lib/config.dart). */
+  appOrigins: (env.APP_ORIGINS || 'http://localhost:47312').split(',').map((s) => s.trim()).filter(Boolean),
   // Off unless explicitly enabled: with it on, anyone can "pay" with the test provider and get a real license.
   enableMockPayments: env.ENABLE_MOCK_PAYMENTS === 'true' && !isProd,
   razorpay: {

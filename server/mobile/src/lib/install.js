@@ -15,7 +15,8 @@ export function captureInstallPrompt() {
   });
 }
 
-export const isInstalled = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+// The Android app (Flutter, lib/native.js) is installed by definition.
+export const isInstalled = () => !!window.DOCGEN_NATIVE || window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
 export const canPrompt = () => !!deferred;
 export const isIos = () => /iPhone|iPad|iPod/.test(navigator.userAgent);
 export const onInstallChange = (fn) => {

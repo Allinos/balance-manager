@@ -5,6 +5,8 @@
  * so it creates and clicks the <input type="file"> synchronously.
  */
 
+import { native, nativeFile } from '../lib/native.js';
+
 export function pickFiles({ accept = '', multiple = false } = {}) {
   return new Promise((resolve) => {
     const input = document.createElement('input');
@@ -28,6 +30,7 @@ export function pickFiles({ accept = '', multiple = false } = {}) {
 
 /** Save a file to the phone (Downloads). */
 export function download(blob, fileName) {
+  if (native()) return nativeFile('save', blob, fileName);
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -41,6 +44,7 @@ export function download(blob, fileName) {
 
 /** Open a stored file in the phone's viewer (PDF, image …) in a new tab. */
 export function openBlob(blob) {
+  if (native()) return nativeFile('share', blob, `file.${(blob.type.split('/')[1] || 'bin').replace(/[^a-z0-9]/g, '')}`);
   const url = URL.createObjectURL(blob);
   const win = window.open(url, '_blank', 'noopener');
   if (!win) window.location.href = url;
