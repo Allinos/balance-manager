@@ -534,6 +534,24 @@ try {
   check((await a.page.getByTestId('party-tabs-customer').count()) === 1 && (await a.page.getByTestId('party-tabs-vendor').count()) === 1, 'one Customers & Vendors screen: All / Customers / Vendors');
   await a.page.getByTestId('party-row').first().waitFor();
   check((await a.page.getByTestId('party-list').textContent()).includes('ABC Construction Pvt Ltd'), 'Customers: customers saved from documents are listed, with their document count');
+  {
+    // Switching Customers ↔ Vendors keeps the screen: no spinner, no empty flash, the screen is not rebuilt.
+    await a.page.evaluate(() => {
+      window.__flicker = 0;
+      document.querySelector('.page').dataset.keep = '1';
+      window.__flickerObs = new MutationObserver(() => {
+        if (document.querySelector('.spinner') || !document.querySelector('[data-testid=party-tabs]')) window.__flicker += 1;
+      });
+      window.__flickerObs.observe(document.body, { childList: true, subtree: true });
+    });
+    for (const k of ['vendor', 'customer', 'all', 'vendor', 'all']) {
+      await a.page.getByTestId(`party-tabs-${k}`).click();
+      await a.page.getByTestId(`parties-${k}`).waitFor();
+      await a.page.waitForFunction(() => !document.querySelector('[data-testid=party-list][aria-busy=true]'));
+    }
+    const kept = await a.page.evaluate(() => (window.__flickerObs.disconnect(), { flicker: window.__flicker, same: document.querySelector('.page').dataset.keep === '1' }));
+    check(kept.flicker === 0 && kept.same, 'switching Customers ↔ Vendors does not flicker (same screen, no spinner)');
+  }
   await a.page.getByTestId('party-search').fill('zzz');
   await a.page.getByText('Nothing found').waitFor();
   await a.page.getByTestId('party-search').fill('');

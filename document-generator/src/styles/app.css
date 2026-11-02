@@ -4169,3 +4169,6 @@ tr.clickable {
   line-height: 1.45;
   margin-bottom: 10px;
 }
+
+/* A list being replaced (Customers → Vendors): kept in place, faded, until the new one arrives. */
+.list-stale { opacity: .55; pointer-events: none; transition: opacity .12s ease; }

@@ -2065,3 +2065,5 @@ button.license-chip {
 .welcome-points li { display: flex; gap: 10px; align-items: center; color: var(--text-2); }
 .welcome-points .icon { color: var(--brand); flex: none; }
 .pin-input { letter-spacing: .5em; font-size: 1.2rem; text-align: center; }
+/* A list being replaced (e.g. Customers → Vendors): kept in place, faded, until the new one arrives. */
+.list-stale { opacity: .55; pointer-events: none; transition: opacity .12s ease; }

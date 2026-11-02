@@ -227,10 +227,13 @@ export default function PartiesPage({ params }) {
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState(null);
   const debounced = useDebounced(search, 200);
+  // A new list is loading: the current one stays on screen (faded) until it arrives — no spinner flash.
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
+    const ticket = ++loadTicket.current;
+    setLoading(true);
     try {
-      const ticket = ++loadTicket.current;
       const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search: debounced });
       // Balances from the ledger (invoices, bills and payments of each party), with Payment & Ledger on.
       const summary = withLedger ? await ledgerSummary(list) : { parties: list, totals: null };
@@ -240,6 +243,8 @@ export default function PartiesPage({ params }) {
       setTotals(summary.totals);
     } catch (e) {
       toast.error(e.message);
+    } finally {
+      if (ticket === loadTicket.current) setLoading(false);
     }
   }, [mod.kind, archived, debounced, toast, withLedger]);
 
@@ -333,7 +338,7 @@ export default function PartiesPage({ params }) {
           testId="party-archived"
         />
       </div>
-      <div className="card table-card">
+      <div className={`card table-card${loading && rows ? ' list-stale' : ''}`} aria-busy={loading}>
         {!rows ? (
           <Spinner />
         ) : rows.length === 0 ? (

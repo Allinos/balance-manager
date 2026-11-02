@@ -63,7 +63,9 @@ function Routes() {
   if (redirect) return null;
   for (const [pattern, Component] of ROUTES) {
     const params = matchPath(pattern, path);
-    if (params) return <Component key={`${pattern}:${JSON.stringify(params)}:${query.from || ''}:${query.mode || ''}`} params={params} query={query} />;
+    // All / Customers / Vendors are one screen: switching keeps it (no flash of an empty list).
+    const key = pattern === '/parties/:kind' ? pattern : `${pattern}:${JSON.stringify(params)}:${query.from || ''}:${query.mode || ''}`;
+    if (params) return <Component key={key} params={params} query={query} />;
   }
   return <DashboardPage params={{}} query={query} />;
 }

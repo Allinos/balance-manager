@@ -69,7 +69,8 @@ function Screen({ path, query }) {
   if ((m = /^\/settings\/([a-z]+)$/.exec(path))) return <SettingsSection key={path} id={m[1]} />;
   if (path.startsWith('/documents')) return <Documents key={JSON.stringify(query)} query={query} />;
   if (path.startsWith('/products')) return <Products />;
-  if ((m = /^\/parties(?:\/(all|customer|vendor))?$/.exec(path))) return <Parties key={path} kind={m[1]} />;
+  // One screen for All / Customers / Vendors: switching keeps it (no flash of an empty list).
+  if ((m = /^\/parties(?:\/(all|customer|vendor))?$/.exec(path))) return <Parties key="parties" kind={m[1]} />;
   if ((m = /^\/party\/(\d+)$/.exec(path))) return <PartyLedger key={path} id={Number(m[1])} />;
   if (path.startsWith('/settings')) return <Settings />;
   if (path === '/reports' && native()) return <Reports />;

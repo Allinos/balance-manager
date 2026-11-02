@@ -188,10 +188,14 @@ export default function Parties({ kind }) {
   const [search, setSearch] = useState('');
   const [archived, setArchived] = useState(false);
   const [editing, setEditing] = useState(null);
+  // A new list is loading: the current one stays on screen (faded) until it arrives — no spinner flash.
+  const [loading, setLoading] = useState(false);
+  const lastSearch = useRef(search);
 
   const load = useCallback(async () => {
+    const ticket = ++loadTicket.current;
+    setLoading(true);
     try {
-      const ticket = ++loadTicket.current;
       const list = await queryParties({ kind: mod.kind === 'all' ? '' : mod.kind, archived, search });
       // Balances from the ledger (invoices, bills and payments of each party), with Payment & Ledger on.
       const summary = withLedger ? await ledgerSummary(list) : { parties: list, totals: null };
@@ -201,13 +205,18 @@ export default function Parties({ kind }) {
       setTotals(summary.totals);
     } catch (e) {
       toast(e.message, 'bad');
+    } finally {
+      if (ticket === loadTicket.current) setLoading(false);
     }
   }, [mod.kind, archived, search, toast, withLedger]);
   useEffect(() => {
     if (!enabled) return undefined;
-    const t = setTimeout(load, 150);
+    // Wait for a pause only while typing a search; a tab switch loads at once.
+    const typing = lastSearch.current !== search;
+    lastSearch.current = search;
+    const t = setTimeout(load, typing ? 150 : 0);
     return () => clearTimeout(t);
-  }, [load, enabled]);
+  }, [load, enabled, search]);
 
   if (!enabled) {
     return (
@@ -298,7 +307,7 @@ export default function Parties({ kind }) {
             message={archived ? 'Deleted ones that are on documents are kept here.' : `Tap + to add one, or save it while creating a document.`}
           />
         ) : (
-          <div className="list" data-testid="party-list">
+          <div className={`list${loading ? ' list-stale' : ''}`} aria-busy={loading} data-testid="party-list">
             {rows.map((p) => (
               <div key={p.id} className="list-item" data-testid="party-row">
                 <span className="avatar">{(p.name || '?').slice(0, 1).toUpperCase()}</span>
