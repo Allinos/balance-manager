@@ -85,8 +85,17 @@ export const sidesOf = (party) => (party?.kind === 'both' ? ['customer', 'vendor
 /**
  * The ledger of one party from its documents.
  * @param {Object[]} documents  rows of this party (any order): id, document_type, document_number, status,
- *   issue_date, due_date, grand_total, parent_document_id, deleted_at, meta
+ *   issue_date, due_date, grand_total, parent_document_id, deleted_at, meta, created_at
  */
+/**
+ * "HH:MM" when the document was made on the day of its line ("2026-11-04 14:05:09" on 2026-11-04 → "14:05").
+ * A back-dated entry has no time: the time it was typed in would read as the time of the payment.
+ */
+export function timeOn(createdAt, date) {
+  const m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(createdAt || '');
+  return m && m[1] === date ? m[2] : '';
+}
+
 export function buildLedger(documents) {
   const docs = documents
     .filter(counts)
@@ -156,6 +165,7 @@ export function buildLedger(documents) {
         status: d.status,
         mode: PAYMENTS.includes(d.document_type) || entry ? meta.payment_mode || '' : '',
         entry,
+        time: timeOn(d.created_at, d.issue_date),
         against: bill ? bill.document_number : '',
       },
     });
@@ -179,6 +189,7 @@ export function buildLedger(documents) {
           number: '',
           status: '',
           mode: p.mode || '',
+          time: timeOn(d.created_at, date),
           against: d.document_number,
           onBill: true,
         },

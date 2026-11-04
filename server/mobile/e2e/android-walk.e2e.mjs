@@ -265,7 +265,7 @@ try {
   await page.getByTestId('entry-save').click();
   await page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
   const owe = await page.getByTestId('party-balance').textContent();
-  if (!owe.includes("I'll give") || !owe.includes('2,000')) issues.push(`vendor: after goods bought the balance is not "I'll give ₹2,000" (${owe})`);
+  if (!owe.includes('You will pay') || !owe.includes('2,000')) issues.push(`vendor: after goods bought the balance is not "You will pay … ₹2,000" (${owe})`);
   if (await page.getByTestId('reminder-section').count()) issues.push('vendor: a payment reminder is offered while you owe the vendor');
   await step(page, 'ux-12-vendor');
   await page.getByTestId('ledger-given').click();
@@ -275,7 +275,7 @@ try {
   await page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
   await page.waitForTimeout(400);
   const settled = await page.getByTestId('party-balance').textContent();
-  if (!settled.includes('Settled')) issues.push(`vendor: Payment made of ₹2,000 does not settle (${settled})`);
+  if (!/settled/i.test(settled)) issues.push(`vendor: Payment made of ₹2,000 does not settle (${settled})`);
   for (const [p, n] of [['/documents', 'ux-12-documents'], ['/reports', 'ux-13-reports'], ['/products', 'ux-14-products'], ['/settings', 'ux-15-settings'], ['/settings/plan', 'ux-16-plan'], ['/settings/security', 'ux-17-security'], ['/settings/printer', 'ux-18-printer']]) {
     await page.goto(`${base}/app/#${p}`);
     await page.waitForTimeout(700);

@@ -366,7 +366,7 @@ export default function PartiesPage({ params }) {
                 <th>Contact</th>
                 <th>{settings.taxSystem === 'GST' ? 'GSTIN' : 'Tax ID'}</th>
                 <th>State</th>
-                <th className="num">Documents</th>
+                <th>Ledger</th>
                 <th>Last document</th>
                 {withLedger && <th className="num">Balance</th>}
                 <th className="actions-col">Actions</th>
@@ -375,24 +375,39 @@ export default function PartiesPage({ params }) {
             <tbody>
               {rows.map((p) => (
                 <tr key={p.id} onDoubleClick={() => !archived && setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-row">
-                  <td>
+                  <td className="party-name-cell">
                     <Link to={`/party/${p.id}`} data-testid="party-open">
                       <strong>{p.name}</strong>
                     </Link>
-                    <span className={`badge party-kind-${p.kind}`} data-testid="party-kind-badge">
-                      {p.kind === 'both' ? 'Customer & vendor' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}
-                    </span>
-                    {p.is_demo ? <span className="badge badge-demo">Sample</span> : null}
+                    <div className="party-badges">
+                      <span className={`badge party-kind-${p.kind}`} data-testid="party-kind-badge">
+                        {p.kind === 'both' ? 'Customer & vendor' : p.kind === 'vendor' ? 'Vendor' : 'Customer'}
+                      </span>
+                      {p.is_demo ? <span className="badge badge-demo">Sample</span> : null}
+                    </div>
                     {p.company_name && p.company_name !== p.name && <div className="muted small">{p.company_name}</div>}
                   </td>
-                  <td>
-                    {p.phone || '—'}
-                    {p.email && <div className="muted small">{p.email}</div>}
+                  <td className="party-contact-cell">
+                    <span className="nowrap">{p.phone || '—'}</span>
+                    {p.email && (
+                      <div className="muted small party-email" title={p.email}>
+                        {p.email}
+                      </div>
+                    )}
                   </td>
                   <td>{(settings.taxSystem === 'GST' ? p.gstin : p.tax_id) || '—'}</td>
                   <td>{p.state || '—'}</td>
-                  <td className="num">{p.document_count || 0}</td>
-                  <td>{p.last_document_date ? formatDate(p.last_document_date, settings.dateFormat) : '—'}</td>
+                  <td>
+                    {archived ? (
+                      <span className="muted">{p.document_count || 0} documents</span>
+                    ) : (
+                      <Link to={`/party/${p.id}`} className="ledger-link" title={`Ledger & payments · ${p.document_count || 0} document${p.document_count === 1 ? '' : 's'}`} data-testid="party-ledger-open">
+                        <Icon name="book" size={15} /> Ledger
+                        <small>{p.document_count || 0}</small>
+                      </Link>
+                    )}
+                  </td>
+                  <td className="nowrap">{p.last_document_date ? formatDate(p.last_document_date, settings.dateFormat) : '—'}</td>
                   {withLedger && (
                     <td className="num">
                       <span className={`party-balance ${Number(p.balance) > 0 ? 'get' : Number(p.balance) < 0 ? 'give' : ''}`} data-testid="party-balance-cell">
@@ -409,11 +424,6 @@ export default function PartiesPage({ params }) {
                         </button>
                       ) : (
                         <>
-                          {withLedger && (
-                            <button className="icon-btn" title="Ledger & payments" onClick={() => navigate(`/party/${p.id}`)} data-testid="party-ledger-open">
-                              <Icon name="book" size={17} />
-                            </button>
-                          )}
                           <button className="icon-btn" title="Edit" onClick={() => setEditing({ ...emptyParty(newKind), ...p })} data-testid="party-edit">
                             <Icon name="edit" size={17} />
                           </button>

@@ -378,7 +378,7 @@ pub fn party_ledger(db: State<'_, Db>, id: i64) -> AppResult<Value> {
             c,
             &format!(
                 "SELECT id, document_type, document_number, status, issue_date, due_date, grand_total, currency, currency_symbol,
-                        currency_decimals, parent_document_id, deleted_at, meta
+                        currency_decimals, parent_document_id, deleted_at, meta, created_at
                    FROM documents WHERE party_id = ? AND deleted_at IS NULL AND document_type IN ({marks})
                   ORDER BY issue_date, id"
             ),

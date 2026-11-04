@@ -267,12 +267,9 @@ try {
   await a.page.getByTestId('bill-payment-kind').getByText('Partial').click();
   await a.page.getByTestId('bill-payment-amount-0').fill('200');
   check((await a.page.getByTestId('bill-due').textContent()).includes('300'), 'partly paid: 300 due');
-  await a.page.getByTestId('bill-whatsapp').scrollIntoViewIfNeeded();
+  await a.page.getByTestId('bill-due').scrollIntoViewIfNeeded();
+  check((await a.page.getByTestId('bill-whatsapp').count()) === 0, 'no WhatsApp reminder while creating or editing a bill (reminders are sent from the ledger)');
   await cleanShot(a.page, '05-retail-bill-payment');
-  await a.page.getByTestId('bill-whatsapp').click();
-  const wa = (await calls(a.page, 'open')).at(-1)?.args.url || '';
-  check(wa.startsWith('https://wa.me/919876543210?text=') && decodeURIComponent(wa).includes('₹300'), 'WhatsApp reminder to +91 98765 43210 with the outstanding ₹300');
-  check(decodeURIComponent(wa).includes('Ravi Traders'), 'reminder signed with the business name');
   await a.page.getByTestId('save-doc').click();
   await a.page.getByTestId('share-doc').waitFor();
   await a.page.waitForFunction(() => JSON.parse(sessionStorage.getItem('__calls') || '[]').some((c) => c.name === 'sms.send'));

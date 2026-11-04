@@ -627,7 +627,7 @@ try {
     `customer profile: ledger from the invoices and receipts (${ledgerRows} entries, running balance)`);
   const balance = async () => {
     const v = amountOf(await a.page.getByTestId('party-balance-amount').textContent());
-    return (await a.page.getByTestId('party-balance').textContent()).includes("I'll give") ? -v : v;
+    return (await a.page.getByTestId('party-balance').textContent()).includes('You will pay') ? -v : v;
   };
   const before = await balance();
   check(!(await a.page.getByTestId('party-advance-customer').count()) && !(await a.page.getByTestId('party-pay-customer').count()) && !(await a.page.getByTestId('party-whatsapp').count()),
@@ -644,6 +644,17 @@ try {
       rows.map((r) => (r.textContent.match(/(\d{2})-(\d{2})-(\d{4})/) || []).slice(1).reverse().join('-')),
     );
     check(dates.every((d, i) => i === 0 || d >= dates[i - 1]), `mobile ledger: oldest first, latest at the bottom (${dates.join(', ')})`);
+    // Plain labels: Given / Received columns, no + or − signs; the time (HH:MM) next to the date of today's entries.
+    const texts = await a.page.getByTestId('ledger-row').allTextContents();
+    check(texts.every((t) => !/[+−]\s*₹/.test(t)) && (await a.page.getByTestId('ledger-top').textContent()).includes('Received'), 'ledger: Given / Received columns, no + or − signs');
+    check((await a.page.getByTestId('ledger-when').allTextContents()).some((t) => /\d{2}-\d{2}-\d{4} · \d{2}:\d{2}$/.test(t)), 'ledger: the time (HH:MM) next to the date');
+    // Opens at the latest entry; the balance stays pinned while the entries scroll.
+    await a.page.waitForTimeout(150);
+    const atEnd = await a.page.evaluate(() => Math.abs(window.scrollY + innerHeight - document.documentElement.scrollHeight) < 4 || document.documentElement.scrollHeight <= innerHeight);
+    check(atEnd, 'ledger: opens scrolled to the latest entry (the bottom)');
+    await a.page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const pinned = await a.page.getByTestId('party-balance').boundingBox();
+    check(pinned && pinned.y >= 0 && pinned.y < 140, `ledger: the balance stays on screen while the entries scroll (y ${pinned?.y})`);
     // Filter (top bar): a period of the ledger.
     await a.page.getByTestId('ledger-filter').click();
     await a.page.getByTestId('ledger-filter-sheet').waitFor();

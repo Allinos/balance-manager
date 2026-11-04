@@ -4206,3 +4206,18 @@ tr.clickable {
 .ledger-period-totals {
   padding: 0 16px 10px;
 }
+
+/* Customers & Vendors table: the name and contact never squeeze into a tall column; Ledger opens the profile. */
+.party-name-cell { min-width: 220px; }
+.party-name-cell > a { display: inline-block; }
+.party-badges { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0 2px; }
+.party-badges .badge { margin: 0; }
+.party-contact-cell { min-width: 170px; }
+.party-email { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-link { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--accent); font-weight: 600; font-size: 13px; text-decoration: none; white-space: nowrap; }
+.ledger-link:hover { border-color: var(--accent); background: var(--accent-soft, var(--surface-2)); }
+.ledger-link small { min-width: 18px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-weight: 600; text-align: center; }
+
+/* Party profile: Ledger / Unpaid bills tabs */
+.party-tabs { align-self: flex-start; }
+.party-tabs button { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; font-weight: 600; }

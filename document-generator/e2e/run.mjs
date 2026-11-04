@@ -1073,6 +1073,11 @@ async function main() {
     check((await exec('return document.querySelectorAll("[data-testid=party-kind-badge]").length')) > 0, 'each row shows whether it is a customer or a vendor');
     const abcRow = await exec('return [...document.querySelectorAll("[data-testid=party-row]")].find(r=>r.innerText.includes("ABC Construction"))?.innerText || ""');
     check(/ABC Construction[\s\S]*\b[1-9]\d*\b/.test(abcRow), `saved customers listed with their documents (${abcRow.replace(/\s+/g, ' ')})`);
+    {
+      // The Documents column is now "Ledger" with an icon; the name column does not squeeze into a tall, narrow column.
+      const look = await exec(`const r = [...document.querySelectorAll("[data-testid=party-row]")].find((x) => x.innerText.includes("ABC Construction")); const l = r.querySelector("[data-testid=party-ledger-open]"); return { ledger: !!l && !!l.querySelector("svg") && l.textContent.includes("Ledger"), name: r.querySelector(".party-name-cell").getBoundingClientRect().width, height: r.getBoundingClientRect().height }`);
+      check(look.ledger && look.name >= 200 && look.height < 110, `parties table: a Ledger button with an icon; name column ${Math.round(look.name)}px wide, row ${Math.round(look.height)}px tall`);
+    }
     await clickCss('[data-testid="add-party"]');
     await type('[data-testid="party-form-name"]', 'Walk-in Retail');
     await type('[data-testid="party-form-gstin"]', '27AAPFU0939F1ZV');
@@ -1210,10 +1215,16 @@ async function main() {
     await waitForText('Payment received:', 15000);
     await waitFor(async () => Math.abs(signedBal(await balText()) - (balBefore - 10200)) < 0.01, 'balance after the payment', 8000);
     check(true, `Payment received ₹10,200: balance ${balBefore} → ${balBefore - 10200}`);
+    check((await exec('return document.querySelector("[data-testid=party-tab-ledger]").getAttribute("aria-selected")')) === 'true' && !(await exists('[data-testid="open-bills"]')),
+      'profile: Ledger and Unpaid bills are tabs, Ledger open by default');
+    await clickCss('[data-testid="party-tab-unpaid"]');
+    await sleep(200);
     const openText = (await exists('[data-testid="open-bills"]')) ? await textOf('[data-testid="open-bills"]') : '';
     check(!openText.includes(ledgerInv.document_number) && openText.includes('Partly paid'), 'the older bill is cleared; the newer one is partly paid');
     check((await invoke('document_get', { id: ledgerInv.id })).document.status === 'PAID', `${ledgerInv.document_number} marked Paid`);
     // Hide the notices for the picture (removing React's nodes would break the page).
+    await clickCss('[data-testid="party-tab-ledger"]');
+    await find('[data-testid="ledger-row"]');
     await exec('const st = document.createElement("style"); st.id = "e2e-no-toasts"; st.textContent = ".toasts{display:none!important}"; document.head.appendChild(st);');
     await shot('20b-party-ledger');
     await exec('document.getElementById("e2e-no-toasts")?.remove()');

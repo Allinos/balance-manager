@@ -44,6 +44,11 @@ const tone = (v) => (dec(v) > 0n ? 'get' : dec(v) < 0n ? 'give' : '');
 const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 const smsHint = () => (native() ? 'Sent from your phone (normal SMS charges)' : 'Opens your SMS app with the message');
 const NO_FILTER = { period: 'all', from: '', to: '' };
+/** The balance in plain words: who owes whom. */
+const balanceText = (balance, party) => {
+  const b = dec(balance);
+  return b > 0n ? `${party.name} will pay you` : b < 0n ? `You will pay ${party.name}` : 'All settled';
+};
 
 /** WhatsApp and SMS marks for the reminder buttons. */
 function WhatsAppMark() {
@@ -374,8 +379,17 @@ export default function PartyLedger({ id }) {
     load();
   }, [load]);
   // Like a chat: open at the latest entry (the bottom), and again after an entry is added or the filter changes.
+  // The page itself scrolls (its bottom padding keeps the last entry above Given / Received).
   useEffect(() => {
-    if (data && withLedger) end.current?.scrollIntoView({ block: 'end' });
+    if (!data || !withLedger) return undefined;
+    const toEnd = () =>
+      window.scrollTo({
+        top: document.documentElement.scrollHeight,
+        behavior: 'auto',
+      });
+    toEnd();
+    const t = setTimeout(toEnd, 60); // after the fonts and sheets settle
+    return () => clearTimeout(t);
   }, [data, filter, withLedger]);
 
   if (!data) return <Spinner />;
@@ -387,58 +401,77 @@ export default function PartyLedger({ id }) {
   const periodText =
     filter.period === 'custom' ? [filter.from, filter.to].map((d) => (d ? formatDate(d, settings.dateFormat) : '…')).join(' – ') : LEDGER_PERIODS.find((p) => p.value === filter.period)?.label;
 
+  const header = (
+    <Header
+      title={party.name}
+      subtitle={[KIND_LABEL[party.kind] || 'Customer', party.phone].filter(Boolean).join(' · ')}
+      onBack={() => back('/parties/all')}
+      actions={
+        <>
+          {withLedger && (
+            <button className={`icon-btn ${filtered ? 'on' : ''}`} onClick={() => setFiltering(true)} aria-label="Filter by date" data-testid="ledger-filter">
+              <Icon name="filter" size={20} />
+            </button>
+          )}
+          {withLedger && <PrivacyToggle className="icon-btn" size={20} />}
+          <button className="icon-btn" onClick={() => setEditing(true)} aria-label="Edit" data-testid="party-profile-edit">
+            <Icon name="edit" size={20} />
+          </button>
+        </>
+      }
+    />
+  );
+
   return (
     <>
-      <Header
-        title={party.name}
-        subtitle={[KIND_LABEL[party.kind] || 'Customer', party.phone].filter(Boolean).join(' · ')}
-        onBack={() => back('/parties/all')}
-        actions={
-          <>
-            {withLedger && (
-              <button className={`icon-btn ${filtered ? 'on' : ''}`} onClick={() => setFiltering(true)} aria-label="Filter by date" data-testid="ledger-filter">
-                <Icon name="filter" size={20} />
-              </button>
-            )}
-            {withLedger && <PrivacyToggle className="icon-btn" size={20} />}
-            <button className="icon-btn" onClick={() => setEditing(true)} aria-label="Edit" data-testid="party-profile-edit">
-              <Icon name="edit" size={20} />
-            </button>
-          </>
-        }
-      />
-      <div className={`page ${withLedger ? 'ledger-page' : ''}${withLedger && owes ? ' with-reminder' : ''}`} data-testid="party-ledger">
-        {!withLedger ? (
-          <div className="card small muted" data-testid="ledger-off">
-            Switch on <strong>Payment &amp; Ledger</strong> in Settings → Features to take payments on bills and see what {party.name} owes you or you owe them.
-          </div>
-        ) : (
-          <>
-            <div className={`balance-strip ${tone(ledger.balance)}`} data-testid="party-balance">
-              <span className="balance-strip-main">
-                <span className="small muted">{balanceLabel(ledger.balance)}</span>
-                <strong data-testid="party-balance-amount">{money(abs(ledger.balance))}</strong>
-              </span>
-              <button className="btn btn-sm" onClick={() => setUnpaid(true)} data-testid="view-unpaid">
-                Unpaid bills ({ledger.open.length})
-              </button>
+      {!withLedger ? (
+        <>
+          {header}
+          <div className="page" data-testid="party-ledger">
+            <div className="card small muted" data-testid="ledger-off">
+              Switch on <strong>Payment &amp; Ledger</strong> in Settings → Features to take payments on bills and see what {party.name} owes you or you owe them.
             </div>
-
-            {filtered && (
-              <div className="filter-bar" data-testid="ledger-filter-bar">
-                <span>
-                  <Icon name="filter" size={14} /> <strong>{periodText}</strong>
-                  <span className="small muted">
-                    {' '}
-                    · gave {money(inPeriod.gave)} · got {money(inPeriod.got)}
-                  </span>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Pinned: the header, the balance and the column names stay on screen while the entries scroll. */}
+          <div className="ledger-top" data-testid="ledger-top">
+            {header}
+            <div className="ledger-pinned">
+              <div className={`balance-strip ${tone(ledger.balance)}`} data-testid="party-balance">
+                <span className="balance-strip-main">
+                  <span className="small muted">{balanceText(ledger.balance, party)}</span>
+                  <strong data-testid="party-balance-amount">{money(abs(ledger.balance))}</strong>
                 </span>
-                <button className="link-btn" onClick={() => setFilter(NO_FILTER)} data-testid="ledger-filter-clear">
-                  Clear
+                <button className="btn btn-sm" onClick={() => setUnpaid(true)} data-testid="view-unpaid">
+                  Unpaid bills ({ledger.open.length})
                 </button>
               </div>
-            )}
-            <div className="section-label">Ledger · oldest first</div>
+              {filtered && (
+                <div className="filter-bar" data-testid="ledger-filter-bar">
+                  <span>
+                    <Icon name="filter" size={14} /> <strong>{periodText}</strong>
+                    <span className="small muted">
+                      {' '}
+                      · given {money(inPeriod.gave)} · received {money(inPeriod.got)}
+                    </span>
+                  </span>
+                  <button className="link-btn" onClick={() => setFilter(NO_FILTER)} data-testid="ledger-filter-clear">
+                    Clear
+                  </button>
+                </div>
+              )}
+              {rows.length > 0 && (
+                <div className="ledger-head" aria-hidden="true">
+                  <span>Entries</span>
+                  <span>Given</span>
+                  <span>Received</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className={`page ledger-page${owes ? ' with-reminder' : ''}`} data-testid="party-ledger">
             {rows.length === 0 ? (
               filtered ? (
                 <Empty icon="calendar" title="Nothing in this period" message="Choose another period with Filter, or clear the filter." />
@@ -446,24 +479,25 @@ export default function PartyLedger({ id }) {
                 <Empty icon="book" title="No transactions yet" message="Bills, payments and entries you add with Given / Received appear here." />
               )
             ) : (
-              <div className="list ledger-list" data-testid="ledger-table">
+              <div className="ledger-list" data-testid="ledger-table">
                 {rows.map((r) => (
                   <button type="button" key={r.key} className="ledger-row" onClick={() => (r.entry ? setDetails(r) : go(`/doc/${r.id}`))} data-testid="ledger-row">
                     <span className="ledger-what">
-                      <strong>
-                        {r.label} {r.number}
-                      </strong>
-                      <span className="small muted">
+                      <span className="ledger-when" data-testid="ledger-when">
                         {formatDate(r.date, settings.dateFormat)}
-                        {r.mode ? ` · ${r.mode}` : ''}
-                        {r.against ? ` · ${r.onBill ? 'on' : 'against'} ${r.against}` : ''}
+                        {r.time && <span className="ledger-time"> · {r.time}</span>}
                       </span>
+                      <strong>{r.label}</strong>
+                      {(r.number || r.mode || r.against) && (
+                        <span className="ledger-detail">{[r.number, r.mode, r.against && `${r.onBill ? 'on' : 'against'} ${r.against}`].filter(Boolean).join(' · ')}</span>
+                      )}
+                      <span className={`ledger-bal ${tone(r.balance)}`}>{dec(r.balance) > 0n ? `To get ${money(r.balance)}` : dec(r.balance) < 0n ? `To give ${money(abs(r.balance))}` : 'Settled'}</span>
                     </span>
-                    <span className="ledger-amt">
-                      <strong className={r.gave ? 'give' : 'get'}>{r.gave ? `+${money(r.gave)}` : `−${money(r.got)}`}</strong>
-                      <span className="small muted">
-                        {money(abs(r.balance))} {dec(r.balance) > 0n ? 'get' : dec(r.balance) < 0n ? 'give' : ''}
-                      </span>
+                    <span className={`ledger-cell give ${r.gave ? '' : 'empty'}`} data-testid="ledger-given-amount">
+                      {r.gave ? money(r.gave) : ''}
+                    </span>
+                    <span className={`ledger-cell get ${r.got ? '' : 'empty'}`} data-testid="ledger-received-amount">
+                      {r.got ? money(r.got) : ''}
                     </span>
                   </button>
                 ))}
@@ -474,15 +508,15 @@ export default function PartyLedger({ id }) {
             <div className={`ledger-actions no-print ${owes ? 'with-reminder' : ''}`} data-testid="ledger-actions">
               {owes && <ReminderRow party={party} due={ledger.balance} />}
               <button className="btn ledger-given" onClick={() => openEntry('gave')} data-testid="ledger-given">
-                <span aria-hidden="true">↑</span> Given
+                Given
               </button>
               <button className="btn ledger-received" onClick={() => openEntry('got')} data-testid="ledger-received">
-                <span aria-hidden="true">↓</span> Received
+                Received
               </button>
             </div>
-          </>
-        )}
-      </div>
+          </div>
+        </>
+      )}
       {entry && (
         <EntrySheet
           party={party}

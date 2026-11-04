@@ -1867,14 +1867,12 @@ button.license-chip {
 }
 .ledger-totals .get strong,
 .party-balance.get,
-.balance-card.get strong,
-.ledger-row .get {
+.balance-card.get strong {
   color: var(--good);
 }
 .ledger-totals .give strong,
 .party-balance.give,
-.balance-card.give strong,
-.ledger-row .give {
+.balance-card.give strong {
   color: var(--bad);
 }
 .balance-card {
@@ -1887,38 +1885,6 @@ button.license-chip {
 .balance-card strong {
   font-size: 26px;
   font-variant-numeric: tabular-nums;
-}
-.ledger-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 12px;
-  width: 100%;
-  border: 0;
-  border-top: 1px solid var(--border);
-  background: #fff;
-  font: inherit;
-  font-size: 14px;
-  text-align: left;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.ledger-row:first-child {
-  border-top: 0;
-}
-.ledger-what {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  min-width: 0;
-}
-.ledger-amt {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
 }
 .btn-lg {
   padding: 13px 16px;
@@ -2286,6 +2252,35 @@ html.docgen-native .sheet-top { padding-top: 4px; }
 .filter-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-dark); font-size: 14px; }
 .icon-btn.on { color: var(--brand); background: var(--brand-soft); }
 .ledger-end { height: 1px; }
+
+/* Ledger (phone): the header, balance and column names pinned; the entries scroll under them. */
+.ledger-top { position: sticky; top: 0; z-index: 20; background: var(--bg); }
+.ledger-top .app-header { position: static; }
+.ledger-pinned { display: flex; flex-direction: column; gap: 8px; max-width: 720px; margin: 0 auto; padding: 10px 14px 0; }
+.ledger-page { padding-top: 0; gap: 0; }
+.ledger-head, .ledger-row { display: grid; grid-template-columns: minmax(0, 1fr) 100px 100px; }
+.ledger-head { font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius) var(--radius) 0 0; background: var(--surface); }
+.ledger-head > span { padding: 7px 10px; }
+.ledger-head > span + span { text-align: right; border-left: 1px solid var(--border); }
+.ledger-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; }
+.ledger-row { width: 100%; padding: 0; border: 0; border-top: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 14px; text-align: left; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ledger-row:active { background: var(--surface-2); }
+.ledger-what { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; padding: 9px 10px; }
+.ledger-what strong { font-size: 14.5px; overflow-wrap: anywhere; }
+.ledger-when { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.ledger-detail { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.ledger-time { font-weight: 500; }
+.ledger-bal { font-size: 12px; font-weight: 600; margin-top: 2px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); }
+.ledger-bal.get { background: var(--good-bg); color: var(--good); }
+.ledger-bal.give { background: var(--bad-bg); color: var(--bad); }
+.ledger-cell { display: flex; align-items: center; justify-content: flex-end; padding: 9px 8px; font-weight: 700; font-size: 13.5px; letter-spacing: -0.01em; white-space: nowrap; border-left: 1px solid var(--border); text-align: right; min-width: 0; overflow: hidden; }
+.ledger-cell.give { color: var(--bad); background: #fff7f7; }
+.ledger-cell.get { color: var(--good); background: #f3fcf7; }
+.ledger-cell.empty { background: transparent; }
+@media (max-width: 370px) {
+  .ledger-head, .ledger-row { grid-template-columns: minmax(0, 1fr) 92px 92px; }
+  .ledger-cell { font-size: 12.5px; padding: 9px 5px; }
+}
 
 /* Home → summary cards (Customize → Summary cards): figures and small charts */
 .summary-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

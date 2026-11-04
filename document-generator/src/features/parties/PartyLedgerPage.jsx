@@ -2,7 +2,7 @@
  * A customer's / vendor's profile: I'll get / I'll give, the bills still unpaid, and the ledger with a running
  * balance (Payment & Ledger on). "Payment received" (customer) / "Payment made" (vendor) asks only for the amount
  * and the mode; it is saved as a receipt / payment voucher that clears the oldest unpaid bills first.
- * The ledger lists the latest entry at the top; Filter shows one period (this month, last 30 days, custom dates …).
+ * Two tabs: Ledger (default; the latest entry at the top, Filter shows one period) and Unpaid bills.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -118,6 +118,7 @@ export default function PartyLedgerPage({ params }) {
   const [paying, setPaying] = useState('');
   const [period, setPeriod] = useState('all');
   const [custom, setCustom] = useState({ from: '', to: '' });
+  const [tab, setTab] = useState('ledger');
   const withLedger = ledgerOn(settings);
 
   const load = useCallback(async () => {
@@ -153,7 +154,7 @@ export default function PartyLedgerPage({ params }) {
         subtitle={[KIND_LABEL[party.kind] || 'Customer', party.phone, party.gstin || party.tax_id, party.state].filter(Boolean).join(' · ')}
         actions={
           <div className="row-actions">
-            {withLedger && (
+            {withLedger && tab === 'ledger' && (
               <label className={`ledger-filter ${period !== 'all' ? 'on' : ''}`} data-testid="ledger-filter" title="Filter the ledger by date">
                 <Icon name="filter" size={15} />
                 <Select value={period} onChange={setPeriod} options={LEDGER_PERIODS} aria-label="Filter by date" data-testid="ledger-period" />
@@ -192,110 +193,123 @@ export default function PartyLedgerPage({ params }) {
             </span>
           </div>
 
-          <section className="card table-card">
-            <div className="card-header">
-              <h2>Ledger</h2>
-              <span className="muted small">Latest first, with the running balance</span>
-              {period === 'custom' && (
-                <div className="ledger-filter" data-testid="ledger-custom">
-                  <>
-                    <input className="input" type="date" value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom({ ...custom, from: e.target.value })} aria-label="From" data-testid="ledger-from" />
-                    <input className="input" type="date" value={custom.to} min={custom.from || undefined} onChange={(e) => setCustom({ ...custom, to: e.target.value })} aria-label="To" data-testid="ledger-to" />
-                  </>
+          <div className="segmented party-tabs" role="tablist" aria-label="Ledger or unpaid bills">
+            <button role="tab" aria-selected={tab === 'ledger'} className={tab === 'ledger' ? 'active' : ''} onClick={() => setTab('ledger')} data-testid="party-tab-ledger">
+              <Icon name="book" size={15} /> Ledger <small>{ledger.rows.length}</small>
+            </button>
+            <button role="tab" aria-selected={tab === 'unpaid'} className={tab === 'unpaid' ? 'active' : ''} onClick={() => setTab('unpaid')} data-testid="party-tab-unpaid">
+              <Icon name="receipt" size={15} /> Unpaid bills <small>{ledger.open.length}</small>
+            </button>
+          </div>
+
+          {tab === 'ledger' && (
+            <section className="card table-card" role="tabpanel">
+              <div className="card-header">
+                <h2>Ledger</h2>
+                <span className="muted small">Latest first, with the running balance</span>
+                {period === 'custom' && (
+                  <div className="ledger-filter" data-testid="ledger-custom">
+                    <>
+                      <input className="input" type="date" value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom({ ...custom, from: e.target.value })} aria-label="From" data-testid="ledger-from" />
+                      <input className="input" type="date" value={custom.to} min={custom.from || undefined} onChange={(e) => setCustom({ ...custom, to: e.target.value })} aria-label="To" data-testid="ledger-to" />
+                    </>
+                  </div>
+                )}
+              </div>
+              {totals && (
+                <div className="ledger-period-totals muted small" data-testid="ledger-period-totals">
+                  {rows.length} entr{rows.length === 1 ? 'y' : 'ies'} · You gave <strong className="give">{money(totals.gave)}</strong> · You got <strong className="get">{money(totals.got)}</strong>
                 </div>
               )}
-            </div>
-            {totals && (
-              <div className="ledger-period-totals muted small" data-testid="ledger-period-totals">
-                {rows.length} entr{rows.length === 1 ? 'y' : 'ies'} · You gave <strong className="give">{money(totals.gave)}</strong> · You got <strong className="get">{money(totals.got)}</strong>
-              </div>
-            )}
-            {rows.length === 0 ? (
-              period !== 'all' ? (
-                <EmptyState icon="calendar" title="Nothing in this period" message="Choose another period, or All." />
+              {rows.length === 0 ? (
+                period !== 'all' ? (
+                  <EmptyState icon="calendar" title="Nothing in this period" message="Choose another period, or All." />
+                ) : (
+                  <EmptyState icon="book" title="No transactions yet" message="Invoices, bills and payments of this party appear here automatically." />
+                )
               ) : (
-                <EmptyState icon="book" title="No transactions yet" message="Invoices, bills and payments of this party appear here automatically." />
-              )
-            ) : (
-              <table className="table ledger-table" data-testid="ledger-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Entry</th>
-                    <th>Mode</th>
-                    <th className="num">You gave</th>
-                    <th className="num">You got</th>
-                    <th className="num">Balance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r) => (
-                    <tr key={r.key} onClick={() => navigate(`/doc/${r.id}`)} className="clickable" data-testid="ledger-row">
-                      <td>{formatDate(r.date, settings.dateFormat)}</td>
-                      <td>
-                        <strong>{r.label}</strong> {r.number}
-                        {r.against && <span className="muted small"> · {r.onBill ? 'on' : 'against'} {r.against}</span>}
-                      </td>
-                      <td>{r.mode}</td>
-                      <td className="num give">{r.gave ? money(r.gave) : ''}</td>
-                      <td className="num get">{r.got ? money(r.got) : ''}</td>
-                      <td className="num">
-                        {money(abs(r.balance))} <span className="muted small">{dec(r.balance) > 0n ? 'get' : dec(r.balance) < 0n ? 'give' : ''}</span>
-                      </td>
+                <table className="table ledger-table" data-testid="ledger-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Entry</th>
+                      <th>Mode</th>
+                      <th className="num">You gave</th>
+                      <th className="num">You got</th>
+                      <th className="num">Balance</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          <section className="card table-card">
-            <div className="card-header">
-              <h2>Unpaid bills</h2>
-              <span className="muted small">Payments clear the oldest bill first</span>
-            </div>
-            {ledger.open.length === 0 ? (
-              <p className="muted card-pad" data-testid="open-bills-empty">
-                Nothing outstanding.
-              </p>
-            ) : (
-              <table className="table" data-testid="open-bills">
-                <thead>
-                  <tr>
-                    <th>Bill</th>
-                    <th>Date</th>
-                    <th>Due date</th>
-                    <th className="num">Total</th>
-                    <th className="num">Due</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ledger.open.map((b) => {
-                    const overdue = b.due_date && b.due_date < today;
-                    return (
-                      <tr key={b.id} onClick={() => navigate(`/doc/${b.id}`)} className="clickable" data-testid="open-bill">
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.key} onClick={() => navigate(`/doc/${r.id}`)} className="clickable" data-testid="ledger-row">
+                        <td>{formatDate(r.date, settings.dateFormat)}</td>
                         <td>
-                          <strong>{b.number}</strong> <span className="muted small">{b.label}</span>
+                          <strong>{r.label}</strong> {r.number}
+                          {r.against && <span className="muted small"> · {r.onBill ? 'on' : 'against'} {r.against}</span>}
                         </td>
-                        <td>{formatDate(b.date, settings.dateFormat)}</td>
-                        <td className={overdue ? 'text-danger' : ''}>{b.due_date ? formatDate(b.due_date, settings.dateFormat) : '—'}</td>
-                        <td className="num">{money(b.total)}</td>
+                        <td>{r.mode}</td>
+                        <td className="num give">{r.gave ? money(r.gave) : ''}</td>
+                        <td className="num get">{r.got ? money(r.got) : ''}</td>
                         <td className="num">
-                          <strong>{money(b.due)}</strong>
-                        </td>
-                        <td>
-                          <span className={`badge ${b.state === 'partial' ? 'badge-partial' : overdue ? 'badge-cancelled' : 'badge-issued'}`} data-testid="open-bill-state">
-                            {overdue && b.state === 'unpaid' ? 'Overdue' : STATE_LABEL[b.state]}
-                          </span>
+                          {money(abs(r.balance))} <span className="muted small">{dec(r.balance) > 0n ? 'get' : dec(r.balance) < 0n ? 'give' : ''}</span>
                         </td>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </section>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          )}
+
+          {tab === 'unpaid' && (
+            <section className="card table-card" role="tabpanel">
+              <div className="card-header">
+                <h2>Unpaid bills</h2>
+                <span className="muted small">Payments clear the oldest bill first</span>
+              </div>
+              {ledger.open.length === 0 ? (
+                <p className="muted card-pad" data-testid="open-bills-empty">
+                  Nothing outstanding.
+                </p>
+              ) : (
+                <table className="table" data-testid="open-bills">
+                  <thead>
+                    <tr>
+                      <th>Bill</th>
+                      <th>Date</th>
+                      <th>Due date</th>
+                      <th className="num">Total</th>
+                      <th className="num">Due</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledger.open.map((b) => {
+                      const overdue = b.due_date && b.due_date < today;
+                      return (
+                        <tr key={b.id} onClick={() => navigate(`/doc/${b.id}`)} className="clickable" data-testid="open-bill">
+                          <td>
+                            <strong>{b.number}</strong> <span className="muted small">{b.label}</span>
+                          </td>
+                          <td>{formatDate(b.date, settings.dateFormat)}</td>
+                          <td className={overdue ? 'text-danger' : ''}>{b.due_date ? formatDate(b.due_date, settings.dateFormat) : '—'}</td>
+                          <td className="num">{money(b.total)}</td>
+                          <td className="num">
+                            <strong>{money(b.due)}</strong>
+                          </td>
+                          <td>
+                            <span className={`badge ${b.state === 'partial' ? 'badge-partial' : overdue ? 'badge-cancelled' : 'badge-issued'}`} data-testid="open-bill-state">
+                              {overdue && b.state === 'unpaid' ? 'Overdue' : STATE_LABEL[b.state]}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </section>
+          )}
         </>
       )}
 
