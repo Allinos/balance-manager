@@ -4172,3 +4172,37 @@ tr.clickable {
 
 /* A list being replaced (Customers → Vendors): kept in place, faded, until the new one arrives. */
 .list-stale { opacity: .55; pointer-events: none; transition: opacity .12s ease; }
+
+/* Ledger date filter (party page header) */
+.ledger-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.ledger-filter.on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.ledger-filter .input {
+  border: 0;
+  min-height: 34px;
+  padding: 4px 8px;
+  width: auto;
+  background: transparent;
+}
+.card-header .ledger-filter {
+  padding-left: 0;
+  border: 0;
+  margin-left: auto;
+}
+.card-header .ledger-filter .input {
+  border: 1px solid var(--border);
+}
+.ledger-period-totals {
+  padding: 0 16px 10px;
+}

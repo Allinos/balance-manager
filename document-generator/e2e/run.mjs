@@ -1165,8 +1165,27 @@ async function main() {
     await go(`#/party/${archivedAbc.id}`);
     await find('[data-testid="ledger-row"]');
     const ledgerText = await textOf('[data-testid="ledger-table"]');
-    check(ledgerText.includes(ledgerInv.document_number) && /Payment received[\s\S]*Cash[\s\S]*Payment received[\s\S]*UPI/.test(ledgerText),
+    check(ledgerText.includes(ledgerInv.document_number) && /Payment received[\s\S]*UPI[\s\S]*Payment received[\s\S]*Cash/.test(ledgerText),
       'customer profile: ledger with each bill and each payment taken on it (own date and mode), running balance');
+    {
+      // Desktop: the latest entry at the top. Filter (header): a period of the ledger.
+      const dates = await exec(`return [...document.querySelectorAll('[data-testid=ledger-row] td:first-child')].map((td) => td.textContent.split(/[-/ ]/).reverse().join('-'))`);
+      check(dates.length > 1 && dates.every((d, i) => i === 0 || d <= dates[i - 1]), `desktop ledger: latest first (${dates.join(', ')})`);
+      const all = dates.length;
+      await selectValue('[data-testid="ledger-period"]', 'custom');
+      await find('[data-testid="ledger-from"]');
+      await exec(
+        `for (const [id, v] of [['ledger-from', '2001-01-01'], ['ledger-to', '2001-12-31']]) { const el = document.querySelector('[data-testid=' + id + ']'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); }`,
+      );
+      await sleep(300);
+      check(!(await exists('[data-testid="ledger-row"]')) && (await textOf('[data-testid="party-ledger"]')).includes('Nothing in this period'), 'Filter → custom dates with no entries: "Nothing in this period"');
+      await selectValue('[data-testid="ledger-period"]', 'month');
+      await sleep(300);
+      const inMonth = await exec('return document.querySelectorAll("[data-testid=ledger-row]").length');
+      check(inMonth >= 1 && inMonth <= all && (await exists('[data-testid="ledger-period-totals"]')), `Filter → This month: ${inMonth} of ${all} entries, with what was given and got`);
+      await selectValue('[data-testid="ledger-period"]', 'all');
+      await sleep(300);
+    }
     const balBefore = signedBal(await balText());
     check(Math.abs(balBefore - (10000 + billTotal - 500)) < 0.01 && (await textOf('[data-testid="party-balance"]')).includes("I'll get"), `I'll get ${balBefore} (10,000 + ${billTotal} − 500 paid)`);
     await clickCss('[data-testid="party-profile-edit"]');

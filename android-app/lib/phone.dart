@@ -22,29 +22,54 @@ class Phone {
     return cleaned.length > 150 ? cleaned.substring(0, 150) : cleaned;
   }
 
+  /// Whether this build can send SMS by itself: the SEND_SMS permission is in the app (a Play Store build can leave
+  /// it out, see README) and the phone has a SIM / mobile network feature.
+  static Future<bool> smsAvailable() async {
+    try {
+      return await _channel.invokeMethod<bool>('smsAvailable') == true;
+    } on Exception {
+      return false;
+    }
+  }
+
+  /// The SMS permission. With [ask] Android's permission dialog is shown when it was not refused for good.
   static Future<bool> smsPermission({bool ask = true}) async {
+    if (!await smsAvailable()) return false;
     var status = await Permission.sms.status;
-    if (!status.isGranted && ask) status = await Permission.sms.request();
+    if (!status.isGranted && ask && !status.isPermanentlyDenied) status = await Permission.sms.request();
     return status.isGranted;
   }
 
-  /// Send an SMS with the phone's SMS service. Without the SMS permission the SMS app opens with the message
-  /// filled in, so the user only taps Send.
-  static Future<Map<String, Object?>> sendSms(String phone, String text) async {
+  /// What the SMS alerts switch needs: 'granted', 'denied' (asked, refused) or 'blocked' (refused for good — only
+  /// the phone's settings can change it) or 'unavailable' (no SIM feature, or a build without SMS).
+  static Future<String> smsPermissionState({bool ask = true}) async {
+    if (!await smsAvailable()) return 'unavailable';
+    if (await smsPermission(ask: ask)) return 'granted';
+    return (await Permission.sms.status).isPermanentlyDenied ? 'blocked' : 'denied';
+  }
+
+  /// The app's page in Android settings (to allow a permission refused for good).
+  static Future<bool> openSettings() => openAppSettings();
+
+  /// Send an SMS with the phone's SMS service and wait until the phone reports it sent. With [ask] the SMS
+  /// permission is asked first when needed. Without the permission, or when the phone cannot send (no SIM ready,
+  /// airplane mode …), the SMS app opens with the message filled in, so the user only taps Send.
+  static Future<Map<String, Object?>> sendSms(String phone, String text, {bool ask = false}) async {
     final number = phone.replaceAll(RegExp(r'[^\d+]'), '');
     if (number.length < 8 || text.trim().isEmpty) return {'sent': false, 'reason': 'no phone'};
-    if (await smsPermission(ask: false)) {
+    String? error;
+    if (await smsPermission(ask: ask)) {
       try {
         await _channel.invokeMethod('sendSms', {'phone': number, 'text': text});
         return {'sent': true};
       } on PlatformException catch (e) {
-        return {'sent': false, 'reason': e.message ?? 'failed'};
+        error = e.message ?? 'failed';
       }
     }
     // Encoded by hand: queryParameters would turn spaces into '+', which some SMS apps show as is.
     final uri = Uri.parse('sms:$number?body=${Uri.encodeComponent(text)}');
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    return {'sent': false, 'reason': opened ? 'composer' : 'no sms app'};
+    return {'sent': false, 'reason': opened ? 'composer' : 'failed', 'error': ?error};
   }
 
   /// Save to Downloads (MediaStore). Returns true when saved.

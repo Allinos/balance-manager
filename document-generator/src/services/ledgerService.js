@@ -378,3 +378,48 @@ export async function recordLedgerEntry({ party, direction, reasonId, amount, mo
   if (settles) await syncBillStatuses(party.id, `${reason.label} ${date}`);
   return { ...saved, payment: false };
 }
+
+/** Date filter of a ledger (desktop and phone): the periods offered, newest first. */
+export const LEDGER_PERIODS = [
+  { value: 'all', label: 'All' },
+  { value: 'month', label: 'This month' },
+  { value: 'last', label: 'Last month' },
+  { value: '30', label: 'Last 30 days' },
+  { value: '90', label: 'Last 90 days' },
+  { value: 'year', label: 'This financial year' },
+  { value: 'custom', label: 'Custom dates' },
+];
+
+/** { from, to } (YYYY-MM-DD, '' = open) of a period; 'custom' uses the dates given. */
+export function ledgerPeriod(id, custom = {}, today = new Date()) {
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const back = (days) => iso(new Date(y, m, today.getDate() - days + 1));
+  if (id === 'month') return { from: iso(new Date(y, m, 1)), to: iso(new Date(y, m + 1, 0)) };
+  if (id === 'last') return { from: iso(new Date(y, m - 1, 1)), to: iso(new Date(y, m, 0)) };
+  if (id === '30' || id === '90') return { from: back(Number(id)), to: iso(today) };
+  if (id === 'year') {
+    const start = m >= 3 ? y : y - 1;
+    return { from: `${start}-04-01`, to: `${start + 1}-03-31` };
+  }
+  if (id === 'custom') return { from: custom.from || '', to: custom.to || '' };
+  return { from: '', to: '' };
+}
+
+/**
+ * Ledger rows between two dates (inclusive). Each row keeps the running balance of the whole ledger, so the
+ * balance shown on a row is the real balance on that day.
+ */
+export const rowsBetween = (rows, { from = '', to = '' } = {}) => rows.filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
+
+/** In and out of the filtered rows: what you gave and what you got in that period. */
+export function periodTotals(rows) {
+  let gave = 0n;
+  let got = 0n;
+  for (const r of rows) {
+    gave += dec(r.gave || '0');
+    got += dec(r.got || '0');
+  }
+  return { gave: toFixed(gave, 2), got: toFixed(got, 2) };
+}

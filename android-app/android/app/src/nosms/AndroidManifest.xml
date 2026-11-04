@@ -1,0 +1,7 @@
+<!-- Release builds with DOCGEN_SMS=false (android/gradle.properties, or the DOCGEN_SMS variable on GitHub):
+     no SEND_SMS permission. Google Play only allows it with an approved Permissions Declaration, so use this for a
+     Play Store build until that is approved. SMS reminders and alerts then open the SMS app with the message ready. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="android.permission.SEND_SMS" tools:node="remove" />
+</manifest>

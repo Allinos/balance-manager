@@ -362,7 +362,12 @@ try {
   await a.page.getByTestId('action-convert-PAYMENT_RECEIPT').click();
   await a.page.getByTestId('editor').waitFor();
   check((await a.page.getByTestId('amount-received').inputValue()) === '60180.00', 'convert invoice → payment receipt with the amount');
-  await a.page.getByTestId('payment-mode').selectOption('UPI');
+  // A choice opens a list sheet (not the WebView's old dropdown).
+  await a.page.getByTestId('payment-mode-button').click();
+  await a.page.getByTestId('payment-mode-sheet').waitFor();
+  await a.page.getByTestId('payment-mode-option-UPI').click();
+  await a.page.getByTestId('payment-mode-sheet').waitFor({ state: 'detached' });
+  check((await a.page.getByTestId('payment-mode').inputValue()) === 'UPI' && (await a.page.getByTestId('payment-mode-button').textContent()).includes('UPI'), 'Payment mode chosen from a list sheet: UPI');
   await a.page.getByTestId('receipt-balance').waitFor();
   await a.page.getByTestId('amount-received').fill('20000');
   check(/Balance after this receipt\s*₹\s?40,180/.test(await a.page.getByTestId('receipt-balance').textContent()), 'receipt against INV-00001: invoice amount and balance after this receipt (₹40,180)');
@@ -633,6 +638,32 @@ try {
     check(g.x < r.x && Math.abs(g.y - r.y) < 2 && g.y + g.height > 844 - 90, 'Given on the left, Received on the right, fixed at the bottom of the screen');
   }
   await shot(a.page, '05d-party-ledger');
+  {
+    // Like a chat: oldest at the top, the latest at the bottom, and the page opens at the bottom.
+    const dates = await a.page.getByTestId('ledger-row').evaluateAll((rows) =>
+      rows.map((r) => (r.textContent.match(/(\d{2})-(\d{2})-(\d{4})/) || []).slice(1).reverse().join('-')),
+    );
+    check(dates.every((d, i) => i === 0 || d >= dates[i - 1]), `mobile ledger: oldest first, latest at the bottom (${dates.join(', ')})`);
+    // Filter (top bar): a period of the ledger.
+    await a.page.getByTestId('ledger-filter').click();
+    await a.page.getByTestId('ledger-filter-sheet').waitFor();
+    await a.page.getByTestId('ledger-period-custom').click();
+    await a.page.getByTestId('ledger-from').fill('2001-01-01');
+    await a.page.getByTestId('ledger-to').fill('2001-12-31');
+    await a.page.getByTestId('ledger-filter-apply').click();
+    await a.page.getByTestId('ledger-filter-bar').waitFor();
+    check((await a.page.getByTestId('ledger-row').count()) === 0 && (await a.page.getByText('Nothing in this period').count()) === 1, 'Filter → custom dates with no entries: "Nothing in this period"');
+    await a.page.getByTestId('ledger-filter').click();
+    await a.page.getByTestId('ledger-period-month').click();
+    await a.page.getByTestId('ledger-filter-bar').waitFor();
+    const inMonth = await a.page.getByTestId('ledger-row').count();
+    check(inMonth >= 1 && inMonth <= ledgerRows && (await a.page.getByTestId('ledger-filter-bar').textContent()).includes('This month'), `Filter → This month: ${inMonth} of ${ledgerRows} entries, with what was given and got`);
+    await a.page.waitForTimeout(300);
+    await shot(a.page, '05d-ledger-filter');
+    await a.page.getByTestId('ledger-filter-clear').click();
+    await a.page.getByTestId('ledger-filter-bar').waitFor({ state: 'detached' });
+    check((await a.page.getByTestId('ledger-row').count()) === ledgerRows, 'Clear: the whole ledger again');
+  }
 
   // Received → Payment received: reason, date, amount and mode; clears the oldest bills first.
   await a.page.getByTestId('ledger-received').click();
@@ -688,7 +719,7 @@ try {
   await a.page.getByTestId('ledger-row').first().waitFor();
   await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 4); // the receipt, the bill and its two payments
   const withBill = await balance();
-  check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*UPI[\s\S]*Payment received[\s\S]*Cash/.test(await a.page.getByTestId('ledger-table').textContent()) &&
+  check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*Cash[\s\S]*Payment received[\s\S]*UPI/.test(await a.page.getByTestId('ledger-table').textContent()) &&
       (await a.page.getByTestId('ledger-table').textContent()).includes(laterDate.split('-').reverse().join('-')),
     `the bill and the payment taken on it are in the ledger (${after} → ${withBill})`);
 
@@ -734,16 +765,34 @@ try {
   {
     const t = new Date(Date.now() + 5 * 864e5);
     const payBy = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-    await a.page.getByTestId('reminder-paydate').fill(payBy);
+    // The due date through the calendar sheet (the modern picker, not the WebView's date dialog).
+    await a.page.getByTestId('reminder-paydate-button').click();
+    await a.page.getByTestId('reminder-paydate-sheet').waitFor();
+    await a.page.waitForTimeout(400);
+    await shot(a.page, '05h-calendar');
+    if (!(await a.page.getByTestId(`cal-day-${payBy}`).count())) await a.page.getByTestId('cal-next').click();
+    await a.page.getByTestId(`cal-day-${payBy}`).click();
+    await a.page.getByTestId('reminder-paydate-sheet').waitFor({ state: 'detached' });
+    check((await a.page.getByTestId('reminder-paydate').inputValue()) === payBy, `due date picked in the calendar: ${payBy}`);
+    {
+      const [row, given] = await Promise.all([a.page.getByTestId('reminder-section').boundingBox(), a.page.getByTestId('ledger-given').boundingBox()]);
+      check(row.y < given.y && row.height < 60 && (await a.page.getByTestId('reminder-send').count()) === 1, 'one compact row (due date + Send reminder) just above Given / Received');
+    }
     await a.page.evaluate(() => {
       window.__opened = [];
       window.open = (url) => (window.__opened.push(url), {});
     });
+    await a.page.getByTestId('reminder-send').click();
+    await a.page.getByTestId('reminder-sheet').waitFor();
+    check((await a.page.getByTestId('reminder-whatsapp').count()) === 1 && (await a.page.getByTestId('reminder-sms').count()) === 1, 'Send reminder → choose WhatsApp or SMS');
+    await a.page.waitForTimeout(400);
+    await shot(a.page, '05h-reminder-choice');
     await a.page.getByTestId('reminder-whatsapp').click();
     const wa = decodeURIComponent((await a.page.evaluate(() => window.__opened.at(-1))) || '');
     const longDate = t.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     check(wa.startsWith('https://wa.me/919876543210?text=') && wa.includes('outstanding') && wa.includes(`Kindly pay by ${longDate}`), `Send reminder → WhatsApp with the amount and "pay by ${longDate}"`);
     await shot(a.page, '05h-reminder');
+    await a.page.getByTestId('reminder-send').click();
     await a.page.getByTestId('reminder-sms').click();
     const sms = decodeURIComponent((await a.page.evaluate(() => window.__opened.at(-1))) || '');
     check(sms.startsWith('sms:+919876543210?body=Dear ABC Construction') && sms.includes(`Kindly pay by ${longDate}`), 'Send reminder → SMS opens the SMS app with the message ready to send');
@@ -751,6 +800,20 @@ try {
 
   await a.page.goto(`${base}/app/#/parties/all`);
   await a.page.getByTestId('tab-dashboard').click();
+  // Customize → Summary cards: figures and charts on Home.
+  check((await a.page.getByTestId('summary-cards').count()) === 0, 'Home: no summary cards until chosen');
+  await a.page.getByTestId('customize-dashboard').click();
+  await a.page.getByTestId('customize').waitFor();
+  for (const id of ['sales', 'received', 'owed', 'trend']) await a.page.getByTestId(`customize-card-${id}`).check();
+  await a.page.getByTestId('customize-save').click();
+  await a.page.getByTestId('summary-trend').waitFor();
+  {
+    const tiles = await a.page.locator('[data-testid^=summary-]').evaluateAll((els) => els.map((e) => e.dataset.testid));
+    const bars = await a.page.locator('.summary-bar').count();
+    check(['summary-sales', 'summary-received', 'summary-owed', 'summary-trend'].every((t) => tiles.includes(t)) && bars === 6 && /₹/.test(await a.page.getByTestId('summary-sales').textContent()),
+      'Customize → Summary cards: sales, money received, customers owe you and a 6-month sales chart on Home');
+    await shot(a.page, '05i-summary-cards');
+  }
   await a.page.getByTestId('referral-share').click();
   const shareText = await a.page.getByTestId('share-message').inputValue();
   check(shareText.includes(`${base}/`) && shareText.includes(`${base}/mobile`) && !(await a.page.getByTestId('referral-code').count()) && (await a.page.getByTestId('referral-whatsapp').count()) === 1,

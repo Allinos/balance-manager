@@ -201,6 +201,15 @@ try {
   await step(page, 'ux-04-features');
   // An invoice on credit, due in 3 days.
   await page.goto(`${base}/app/#/doc/new/TAX_INVOICE`);
+  // Explored first: the free account comes before the first document.
+  await page.getByTestId('account-gate').waitFor();
+  await step(page, 'ux-04b-account-gate');
+  await page.getByTestId('account-name').fill('Lakshmi');
+  await page.getByTestId('account-business').fill('Sri Lakshmi Stores');
+  await page.getByTestId('account-phone').fill('9845011111');
+  await page.getByTestId('account-pin').fill('2468');
+  await page.getByTestId('account-pin2').fill('2468');
+  await page.getByTestId('account-create').click();
   await page.getByTestId('editor').waitFor();
   await page.getByTestId('party-name').fill('Kumar Hardware');
   await page.getByTestId('party-phone').fill('98450 22222');

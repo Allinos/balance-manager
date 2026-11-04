@@ -1,32 +1,34 @@
 /**
  * A customer's / vendor's ledger on the phone (and in the Android app) with Payment & Ledger on — compact:
  *   - the balance (I'll get / I'll give) with "Unpaid bills (n)", which opens all the party's unpaid bills;
- *   - the ledger, newest first; an entry made here can be opened and deleted;
- *   - Send reminder: WhatsApp and SMS with the amount due and an optional "pay by" date;
+ *   - the ledger like a chat: oldest at the top, the latest at the bottom (where the page opens); Filter (top bar)
+ *     shows one period only. An entry made here can be opened and deleted;
+ *   - above the buttons, one compact reminder row: an optional due date and Send reminder (WhatsApp or SMS);
  *   - at the bottom, Given (left) and Received (right): add a ledger entry straight away, without a bill —
  *     reason, date, amount and payment mode. A payment reason saves a receipt / payment voucher that clears the
  *     oldest bills first (ledgerService.recordLedgerEntry).
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { currencyInfo, deleteDocument } from '@desktop/services/documentService.js';
 import { PAYMENT_MODES } from '@desktop/config/documentTypes.js';
 import { ledgerOn } from '@desktop/services/billPayment.js';
-import { ENTRY_REASONS, PAYMENT_SIDES, allocate, balanceLabel, entrySide, partyLedger, recordLedgerEntry } from '@desktop/services/ledgerService.js';
+import { ENTRY_REASONS, LEDGER_PERIODS, PAYMENT_SIDES, allocate, balanceLabel, entrySide, ledgerPeriod, partyLedger, periodTotals, recordLedgerEntry, rowsBetween } from '@desktop/services/ledgerService.js';
 import { formatMoney } from '@desktop/utils/format.js';
 import { formatDate, todayISO } from '@desktop/utils/dates.js';
 import { abs, dec, toFixed } from '@desktop/utils/decimal.js';
 import { maskAmount, useAmountsHidden } from '@desktop/hooks/usePrivacy.js';
 import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import Icon from '../components/Icon.jsx';
-import { Empty, Header, NumberInput, Sheet, Spinner, back, go, useUi } from '../components/ui.jsx';
+import { Empty, Field, Header, NumberInput, Sheet, Spinner, back, go, useUi } from '../components/ui.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { useApp, useDocContext } from '../data.jsx';
 import { PartySheet } from './Parties.jsx';
 import { phoneDigits, sendSmsReminder, sendWhatsAppReminder, smsAlert } from '../lib/notify.js';
 import { native, reportEvent } from '../lib/native.js';
 import { isLimitError } from '../lib/plan.js';
 import { syncDues } from '../lib/dues.js';
-import { useFreeLimit } from './Android.jsx';
+import { AccountSheet, needsAccount, useFreeLimit } from './Android.jsx';
 
 /** Money in the base currency, hidden while the privacy eye is on. */
 export function useMoney() {
@@ -40,6 +42,8 @@ export function useMoney() {
 const KIND_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & vendor' };
 const tone = (v) => (dec(v) > 0n ? 'get' : dec(v) < 0n ? 'give' : '');
 const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
+const smsHint = () => (native() ? 'Sent from your phone (normal SMS charges)' : 'Opens your SMS app with the message');
+const NO_FILTER = { period: 'all', from: '', to: '' };
 
 /** WhatsApp and SMS marks for the reminder buttons. */
 function WhatsAppMark() {
@@ -118,7 +122,7 @@ function EntrySheet({ party, direction, ledger, onClose, onSaved }) {
           </label>
           <label className="field">
             <span className="field-label">Date</span>
-            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required data-testid="entry-date" />
+            <DateInput value={date} onChange={(e) => setDate(e.target.value)} required data-testid="entry-date" />
           </label>
         </div>
         <span className="field-label">Payment mode</span>
@@ -239,40 +243,111 @@ function EntryDetails({ row, onClose, onDeleted }) {
   );
 }
 
-/** Send reminder: WhatsApp and SMS with what is due, and an optional "pay by" date. */
-function Reminder({ party, due }) {
+/**
+ * One compact row above Given / Received: an optional due date ("kindly pay by") and Send reminder, which offers
+ * WhatsApp or SMS. SMS goes out by itself through the phone (Android app, after asking for the SMS permission);
+ * otherwise the SMS app opens with the message ready.
+ */
+function ReminderRow({ party, due }) {
   const { company } = useApp();
   const { toast } = useUi();
+  const money = useMoney();
   const [payBy, setPayBy] = useState('');
+  const [choosing, setChoosing] = useState(false);
   const args = { phone: party.phone, name: party.name, due, company, upi: company?.upi_id, payBy };
+  const whatsapp = () => {
+    setChoosing(false);
+    sendWhatsAppReminder(args);
+  };
   const sms = async () => {
+    setChoosing(false);
+    if (native() && phoneDigits(party.phone)) toast('Sending the SMS…', 'info');
     const r = await sendSmsReminder(args);
     if (r === 'no phone') toast(`Add ${party.name}'s mobile number (Edit) to send an SMS.`, 'bad');
     else if (r === 'sent') toast(`Reminder sent by SMS to ${party.name}`);
+    else if (r === 'failed') toast('The SMS could not be sent. Check the SIM and the balance, then try again.', 'bad');
   };
   return (
-    <section className="reminder" data-testid="reminder-section">
-      <div className="reminder-head">
-        <strong>Send reminder</strong>
-        <label className="reminder-date">
-          <span className="small muted">Pay by</span>
-          <input className="input" type="date" value={payBy} min={todayISO()} onChange={(e) => setPayBy(e.target.value)} aria-label="Pay by date (optional)" data-testid="reminder-paydate" />
-        </label>
+    <div className="reminder-row" data-testid="reminder-section">
+      <DateInput value={payBy} min={todayISO()} onChange={(e) => setPayBy(e.target.value)} placeholder="Due date" title="Kindly pay by" aria-label="Due date (optional)" data-testid="reminder-paydate" />
+      <button type="button" className="btn reminder-send" onClick={() => setChoosing(true)} data-testid="reminder-send">
+        <Icon name="message" size={17} /> Send reminder
+      </button>
+      {choosing && (
+        <Sheet title={`Remind ${party.name}`} onClose={() => setChoosing(false)} testId="reminder-sheet">
+          <p className="small muted" style={{ margin: 0 }}>
+            {money(due)} due
+            {payBy ? ` · pay by ${formatDate(payBy, 'DD MMM YYYY')}` : ''}
+          </p>
+          <div className="reminder-choices">
+            <button type="button" className="reminder-choice reminder-wa" onClick={whatsapp} data-testid="reminder-whatsapp">
+              <span className="reminder-logo wa">
+                <WhatsAppMark />
+              </span>
+              <span>
+                <strong>WhatsApp</strong>
+                <span className="small muted">Opens WhatsApp with the message</span>
+              </span>
+            </button>
+            <button type="button" className="reminder-choice reminder-sms" onClick={sms} disabled={!phoneDigits(party.phone)} data-testid="reminder-sms">
+              <span className="reminder-logo sms">
+                <SmsMark />
+              </span>
+              <span>
+                <strong>SMS</strong>
+                <span className="small muted">{phoneDigits(party.phone) ? smsHint() : 'Add a mobile number first'}</span>
+              </span>
+            </button>
+          </div>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
+/** Filter (top bar): one period of the ledger. */
+function FilterSheet({ value, onApply, onClose }) {
+  const [period, setPeriod] = useState(value.period);
+  const [custom, setCustom] = useState({ from: value.from, to: value.to });
+  const apply = (id, c = custom) => onApply({ period: id, ...ledgerPeriod(id, c) });
+  return (
+    <Sheet title="Filter by date" onClose={onClose} testId="ledger-filter-sheet">
+      <div className="mode-chips" role="radiogroup">
+        {LEDGER_PERIODS.map((p) => (
+          <button
+            type="button"
+            key={p.value}
+            role="radio"
+            aria-checked={period === p.value}
+            className={period === p.value ? 'on' : ''}
+            onClick={() => (p.value === 'custom' ? setPeriod('custom') : apply(p.value))}
+            data-testid={`ledger-period-${p.value}`}
+          >
+            {p.label}
+          </button>
+        ))}
       </div>
-      <div className="reminder-buttons">
-        <button className="btn reminder-wa" onClick={() => sendWhatsAppReminder(args)} data-testid="reminder-whatsapp">
-          <WhatsAppMark /> WhatsApp
-        </button>
-        <button className="btn reminder-sms" onClick={sms} disabled={!native() && !phoneDigits(party.phone)} data-testid="reminder-sms">
-          <SmsMark /> SMS
-        </button>
-      </div>
-    </section>
+      {period === 'custom' && (
+        <>
+          <div className="entry-row">
+            <Field label="From">
+              <DateInput value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom({ ...custom, from: e.target.value })} data-testid="ledger-from" />
+            </Field>
+            <Field label="To">
+              <DateInput value={custom.to} min={custom.from || undefined} onChange={(e) => setCustom({ ...custom, to: e.target.value })} data-testid="ledger-to" />
+            </Field>
+          </div>
+          <button type="button" className="btn btn-primary btn-block" disabled={!custom.from && !custom.to} onClick={() => apply('custom')} data-testid="ledger-filter-apply">
+            Show
+          </button>
+        </>
+      )}
+    </Sheet>
   );
 }
 
 export default function PartyLedger({ id }) {
-  const { settings } = useApp();
+  const { settings, lic, account } = useApp();
   const { toast } = useUi();
   const money = useMoney();
   const [data, setData] = useState(null);
@@ -280,6 +355,12 @@ export default function PartyLedger({ id }) {
   const [entry, setEntry] = useState('');
   const [unpaid, setUnpaid] = useState(false);
   const [details, setDetails] = useState(null);
+  const [filter, setFilter] = useState(NO_FILTER);
+  const [filtering, setFiltering] = useState(false);
+  const [askAccount, setAskAccount] = useState('');
+  // Android free plan: the free account comes first (like a new document).
+  const openEntry = (direction) => (needsAccount(lic, account) ? setAskAccount(direction) : setEntry(direction));
+  const end = useRef(null);
   const withLedger = ledgerOn(settings);
 
   const load = useCallback(async () => {
@@ -292,10 +373,19 @@ export default function PartyLedger({ id }) {
   useEffect(() => {
     load();
   }, [load]);
+  // Like a chat: open at the latest entry (the bottom), and again after an entry is added or the filter changes.
+  useEffect(() => {
+    if (data && withLedger) end.current?.scrollIntoView({ block: 'end' });
+  }, [data, filter, withLedger]);
 
   if (!data) return <Spinner />;
   const { party, ledger } = data;
   const owes = dec(ledger.balance) > 0n;
+  const filtered = filter.period !== 'all';
+  const rows = rowsBetween(ledger.rows, filter);
+  const inPeriod = filtered ? periodTotals(rows) : null;
+  const periodText =
+    filter.period === 'custom' ? [filter.from, filter.to].map((d) => (d ? formatDate(d, settings.dateFormat) : '…')).join(' – ') : LEDGER_PERIODS.find((p) => p.value === filter.period)?.label;
 
   return (
     <>
@@ -305,6 +395,11 @@ export default function PartyLedger({ id }) {
         onBack={() => back('/parties/all')}
         actions={
           <>
+            {withLedger && (
+              <button className={`icon-btn ${filtered ? 'on' : ''}`} onClick={() => setFiltering(true)} aria-label="Filter by date" data-testid="ledger-filter">
+                <Icon name="filter" size={20} />
+              </button>
+            )}
             {withLedger && <PrivacyToggle className="icon-btn" size={20} />}
             <button className="icon-btn" onClick={() => setEditing(true)} aria-label="Edit" data-testid="party-profile-edit">
               <Icon name="edit" size={20} />
@@ -312,7 +407,7 @@ export default function PartyLedger({ id }) {
           </>
         }
       />
-      <div className={`page ${withLedger ? 'ledger-page' : ''}`} data-testid="party-ledger">
+      <div className={`page ${withLedger ? 'ledger-page' : ''}${withLedger && owes ? ' with-reminder' : ''}`} data-testid="party-ledger">
         {!withLedger ? (
           <div className="card small muted" data-testid="ledger-off">
             Switch on <strong>Payment &amp; Ledger</strong> in Settings → Features to take payments on bills and see what {party.name} owes you or you owe them.
@@ -329,12 +424,30 @@ export default function PartyLedger({ id }) {
               </button>
             </div>
 
-            <div className="section-label">Ledger</div>
-            {ledger.rows.length === 0 ? (
-              <Empty icon="book" title="No transactions yet" message="Bills, payments and entries you add with Given / Received appear here." />
+            {filtered && (
+              <div className="filter-bar" data-testid="ledger-filter-bar">
+                <span>
+                  <Icon name="filter" size={14} /> <strong>{periodText}</strong>
+                  <span className="small muted">
+                    {' '}
+                    · gave {money(inPeriod.gave)} · got {money(inPeriod.got)}
+                  </span>
+                </span>
+                <button className="link-btn" onClick={() => setFilter(NO_FILTER)} data-testid="ledger-filter-clear">
+                  Clear
+                </button>
+              </div>
+            )}
+            <div className="section-label">Ledger · oldest first</div>
+            {rows.length === 0 ? (
+              filtered ? (
+                <Empty icon="calendar" title="Nothing in this period" message="Choose another period with Filter, or clear the filter." />
+              ) : (
+                <Empty icon="book" title="No transactions yet" message="Bills, payments and entries you add with Given / Received appear here." />
+              )
             ) : (
               <div className="list ledger-list" data-testid="ledger-table">
-                {[...ledger.rows].reverse().map((r) => (
+                {rows.map((r) => (
                   <button type="button" key={r.key} className="ledger-row" onClick={() => (r.entry ? setDetails(r) : go(`/doc/${r.id}`))} data-testid="ledger-row">
                     <span className="ledger-what">
                       <strong>
@@ -356,14 +469,14 @@ export default function PartyLedger({ id }) {
                 ))}
               </div>
             )}
+            <div ref={end} className="ledger-end" />
 
-            {owes && <Reminder party={party} due={ledger.balance} />}
-
-            <div className="ledger-actions no-print" data-testid="ledger-actions">
-              <button className="btn ledger-given" onClick={() => setEntry('gave')} data-testid="ledger-given">
+            <div className={`ledger-actions no-print ${owes ? 'with-reminder' : ''}`} data-testid="ledger-actions">
+              {owes && <ReminderRow party={party} due={ledger.balance} />}
+              <button className="btn ledger-given" onClick={() => openEntry('gave')} data-testid="ledger-given">
                 <span aria-hidden="true">↑</span> Given
               </button>
-              <button className="btn ledger-received" onClick={() => setEntry('got')} data-testid="ledger-received">
+              <button className="btn ledger-received" onClick={() => openEntry('got')} data-testid="ledger-received">
                 <span aria-hidden="true">↓</span> Received
               </button>
             </div>
@@ -379,6 +492,25 @@ export default function PartyLedger({ id }) {
           onSaved={() => {
             setEntry('');
             load();
+          }}
+        />
+      )}
+      {askAccount && (
+        <AccountSheet
+          onClose={() => setAskAccount('')}
+          onDone={() => {
+            setEntry(askAccount);
+            setAskAccount('');
+          }}
+        />
+      )}
+      {filtering && (
+        <FilterSheet
+          value={filter}
+          onClose={() => setFiltering(false)}
+          onApply={(f) => {
+            setFiltering(false);
+            setFilter(f);
           }}
         />
       )}

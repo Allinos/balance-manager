@@ -28,11 +28,28 @@ import { syncDues } from '../lib/dues.js';
 import { isLimitError } from '../lib/plan.js';
 import { useFreeLimit } from './Android.jsx';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
-import DueDateInput from '@desktop/components/DueDateInput.jsx';
-import { issueDatePatch } from '@desktop/utils/dates.js';
+import { DUE_TERMS, addDays, dueTermOf, issueDatePatch } from '@desktop/utils/dates.js';
 import Icon from '../components/Icon.jsx';
 import { ActionSheet, Field, Header, Input, NumberInput, Picker, Segmented, Select, Sheet, Spinner, StatusBadge, Suggest, TextArea, Toggle, back, go, useUi } from '../components/ui.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { useApp, useDocContext, useDocumentActions } from '../data.jsx';
+
+/** Due date with a "Due in" choice (7 / 15 / 30 … days from the document date) — same rule as the desktop. */
+function DueDateInput({ issue, value, onChange }) {
+  const term = dueTermOf(issue, value);
+  const choice = value ? (DUE_TERMS.includes(term) ? String(term) : 'custom') : '';
+  const options = [
+    { value: '', label: 'No due date' },
+    ...DUE_TERMS.map((d) => ({ value: String(d), label: d === 0 ? 'On receipt' : `${d} days` })),
+    ...(choice === 'custom' ? [{ value: 'custom', label: term > 0 ? `${term} days` : 'Custom' }] : []),
+  ];
+  return (
+    <div className="due-input">
+      <Select value={choice} onChange={(v) => (v === '' ? onChange('') : v !== 'custom' && onChange(addDays(issue, Number(v))))} options={options} title="Due in" aria-label="Due in" data-testid="doc-due-term" />
+      <DateInput value={value || ''} min={issue || undefined} onChange={(e) => onChange(e.target.value)} aria-label="Due date" placeholder="Due date" data-testid="doc-due" />
+    </div>
+  );
+}
 
 const stateOptions = STATE_NAMES.map((s) => ({ value: s, label: s, hint: stateCode(s) }));
 
@@ -629,7 +646,7 @@ export default function Editor({ typeId, id, query = {} }) {
               <Input value={doc.document_number} onChange={(v) => setDoc({ document_number: v })} placeholder={autoNumber || 'Automatic'} data-testid="doc-number" />
             </Field>
             <Field label={type.dateLabel} required>
-              <input className="input" type="date" value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} data-testid="doc-date" />
+              <DateInput value={doc.issue_date} onChange={(e) => setDoc(issueDatePatch(doc, e.target.value))} data-testid="doc-date" />
             </Field>
             {type.dueLabel && (
               <Field label={type.dueLabel}>
@@ -743,7 +760,7 @@ export default function Editor({ typeId, id, query = {} }) {
                 return (
                   <Field key={k} label={f.label} required={type.required.includes(`meta.${k}`)} hint={f.help}>
                     {f.type === 'date' ? (
-                      <input className="input" type="date" value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
+                      <DateInput value={value} onChange={(e) => setMeta({ [k]: e.target.value })} data-testid={`meta-${k}`} />
                     ) : f.type === 'yesno' ? (
                       <Select value={value || 'No'} onChange={(v) => setMeta({ [k]: v })} options={['No', 'Yes']} data-testid={`meta-${k}`} />
                     ) : f.type === 'select' ? (

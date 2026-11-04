@@ -65,17 +65,19 @@ export function reminderText({ name, due, company, upi, doc, payBy = '' }) {
 export const whatsappUrl = (phone, text) => `https://wa.me/${phoneDigits(phone)}?text=${encodeURIComponent(text)}`;
 
 /**
- * Send the reminder by SMS. Android app: the phone's SMS service (or, without the SMS permission, the SMS app with
- * the message filled in). Browser: the phone's SMS app with the message ready to send.
- * Returns 'sent' | 'opened' | 'no phone'.
+ * Send the reminder by SMS. Android app: sent by itself through the phone's SMS service — the SMS permission is
+ * asked first when it is not given yet; when it is refused (or the phone has no SIM ready), the SMS app opens with
+ * the message filled in. Browser: the phone's SMS app with the message ready to send.
+ * Returns 'sent' | 'opened' | 'failed' | 'no phone'.
  */
 export async function sendSmsReminder({ phone, ...rest }) {
   const digits = phoneDigits(phone);
   if (!digits) return 'no phone';
   const text = reminderText(rest);
   if (native()) {
-    const res = await bridge('sms.send', { phone: digits, text });
-    return res?.sent ? 'sent' : 'opened';
+    const res = await bridge('sms.send', { phone: digits, text, ask: true });
+    if (res?.sent) return 'sent';
+    return res?.reason === 'failed' ? 'failed' : 'opened';
   }
   window.open(`sms:+${digits}?body=${encodeURIComponent(text)}`, '_self');
   return 'opened';

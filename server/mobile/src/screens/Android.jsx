@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import { Field, Input, Sheet, Spinner, Toggle, go, useUi } from '../components/ui.jsx';
+import { Field, Header, Input, Sheet, Spinner, Toggle, back, go, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
 import { call } from '../engine/api.js';
 import { activateWithKey, activateWithLogin, formatKey, status as licenseStatus } from '../lib/license.js';
@@ -158,6 +158,63 @@ export function Welcome({ onDone }) {
   );
 }
 
+/** Android free plan: a free account is needed before creating documents (licensed users never need one). */
+export const needsAccount = (lic, account) => native() && lic?.state === 'free' && !account;
+
+function AccountPitch() {
+  return (
+    <div className="account-pitch" data-testid="account-pitch">
+      <span className="account-pitch-icon">
+        <Icon name="user" size={22} />
+      </span>
+      <div>
+        <strong>Create your free account to make documents</strong>
+        <p className="small muted" style={{ margin: '2px 0 0' }}>
+          It takes a minute and stays free: {FREE_LIMITS.documents} documents, {FREE_LIMITS.payments} payments and {FREE_LIMITS.parties} customers &amp; vendors.
+          No password — you open DocGen with your PIN. Upgrade to Premium any time for no limits and no ads.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** The screen shown instead of a new document until the free account exists. */
+export function AccountGate({ children }) {
+  const { lic, account, setAccount } = useApp();
+  const { toast } = useUi();
+  if (!needsAccount(lic, account)) return children;
+  return (
+    <>
+      <Header title="Free account" onBack={() => back('/')} />
+      <div className="page" data-testid="account-gate">
+        <AccountPitch />
+        <AccountForm
+          onDone={(acc) => {
+            setAccount(acc);
+            toast('Free account created. You can make your first document now.');
+          }}
+        />
+      </div>
+    </>
+  );
+}
+
+/** The same, in a sheet (e.g. Given / Received in a ledger). */
+export function AccountSheet({ onClose, onDone }) {
+  const { setAccount } = useApp();
+  return (
+    <Sheet title="Create your free account" onClose={onClose} testId="account-sheet">
+      <AccountPitch />
+      <AccountForm
+        onDone={(acc) => {
+          setAccount(acc);
+          onDone?.(acc);
+        }}
+      />
+    </Sheet>
+  );
+}
+
 function Meter({ label, used, limit, testId }) {
   const pct = Math.min(100, Math.round((used / limit) * 100));
   return (
@@ -289,10 +346,10 @@ export function PlanSection() {
           </>
         )}
         <p className="small muted" style={{ margin: 0 }}>
-          Every feature is included. Upgrade for unlimited documents, no ads and DocGen on your computer too. Your data stays on this phone.
+          The basic account is free and includes every feature. Premium: unlimited documents, payments and customers, no ads, and DocGen on your computer too. Your data stays on this phone.
         </p>
         <button className="btn btn-primary btn-block btn-lg" onClick={() => openLink(upgradeUrl(account))} data-testid="plan-upgrade">
-          <Icon name="crown" size={18} /> Upgrade
+          <Icon name="crown" size={18} /> Upgrade to Premium
         </button>
         <button className="btn btn-block" onClick={() => setActivating(true)} data-testid="plan-have-license">
           <Icon name="key" size={18} /> I have a license key
@@ -412,17 +469,28 @@ export function SecuritySection() {
 /** Settings → Features: SMS alerts (Android app). */
 export function SmsSwitch() {
   const { settings, updateSettings } = useApp();
-  const { toast } = useUi();
+  const { toast, confirm } = useUi();
   // Shown switched at once; the permission is asked and the setting saved in the background.
   const [shown, setShown] = useState(null);
   const on = shown ?? !!settings[SMS_SETTING];
   const toggle = async (next) => {
     setShown(next);
     if (next) {
-      const res = await bridge('sms.permission');
+      // Android's permission dialog; refused for good → the app's page in the phone's settings.
+      const res = await bridge('sms.permission', { ask: true });
       if (res && res.granted === false) {
         setShown(false);
-        return toast('Allow DocGen to send SMS in your phone settings to use SMS alerts.', 'bad');
+        if (res.state === 'unavailable') return toast('This phone cannot send SMS from DocGen. Reminders by SMS open your SMS app instead.', 'bad');
+        if (res.state === 'blocked') {
+          const open = await confirm({
+            title: 'Allow SMS for DocGen',
+            message: 'SMS permission is turned off for DocGen. Open the app settings, tap Permissions → SMS → Allow, then switch SMS alerts on again.',
+            confirmLabel: 'Open settings',
+          });
+          if (open) await bridge('app.settings');
+          return undefined;
+        }
+        return toast('SMS alerts need the SMS permission. Switch them on again and tap Allow.', 'bad');
       }
     }
     await updateSettings({ [SMS_SETTING]: next });

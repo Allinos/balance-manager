@@ -18,6 +18,8 @@
 #     DOCGEN_SERVER         e.g. https://docgen.reynrel.in
 #     ADMOB_APP_ID          ca-app-pub-…~…           ADMOB_REWARDED / ADMOB_INTERSTITIAL   ca-app-pub-…/…
 #     FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_SENDER_ID, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET
+#     DOCGEN_SMS            false = no SEND_SMS permission (SMS opens the SMS app) — for the Play Store until
+#                           Google approves the SMS Permissions Declaration (see android-app/README.md)
 #   Secrets (upload key for the Play Store):
 #     ANDROID_KEYSTORE_BASE64  the .jks file, base64-encoded     ANDROID_KEYSTORE_PASSWORD
 #     ANDROID_KEY_ALIAS                                           ANDROID_KEY_PASSWORD
@@ -94,6 +96,7 @@ jobs:
         working-directory: android-app
         env:
           ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+          DOCGEN_SMS: ${{ vars.DOCGEN_SMS }}
         run: |
           defines=()
           add() { if [ -n "$2" ]; then defines+=("--dart-define=$1=$2"); fi; }
@@ -106,6 +109,7 @@ jobs:
           add FIREBASE_PROJECT_ID "${{ vars.FIREBASE_PROJECT_ID }}"
           add FIREBASE_STORAGE_BUCKET "${{ vars.FIREBASE_STORAGE_BUCKET }}"
           if [ -n "$ADMOB_APP_ID" ]; then echo "ADMOB_APP_ID=$ADMOB_APP_ID" >> android/gradle.properties; fi
+          if [ -n "$DOCGEN_SMS" ]; then echo "DOCGEN_SMS=$DOCGEN_SMS" >> android/gradle.properties; fi
           flutter build apk --release "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
           version=$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')

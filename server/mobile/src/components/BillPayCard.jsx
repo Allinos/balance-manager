@@ -8,6 +8,7 @@ import { PAYMENT_KINDS, newPaymentRow, partialRows, paymentDate, paymentError, p
 import { formatMoney } from '@desktop/utils/format.js';
 import Icon from './Icon.jsx';
 import { NumberInput, Segmented, Select } from './ui.jsx';
+import DateInput from './DateInput.jsx';
 import { useApp } from '../data.jsx';
 import { sendWhatsAppReminder } from '../lib/notify.js';
 
@@ -36,9 +37,8 @@ export default function BillPayCard({ doc, grandTotal, onChange }) {
         <div className="bill-pay-row">
           <span className="small muted">{doc.document_type === 'PURCHASE_INVOICE' ? 'Paid by' : 'Received by'}</span>
           <Select value={doc.meta.payment_mode || 'Cash'} onChange={(v) => onChange({ payment_mode: v })} options={PAYMENT_MODES} data-testid="bill-payment-mode" />
-          <input
-            className="input bill-pay-date"
-            type="date"
+          <DateInput
+            className="bill-pay-date"
             value={paymentDate(doc, { date: doc.meta.payment_date })}
             min={doc.issue_date || undefined}
             onChange={(e) => onChange({ payment_date: e.target.value })}
@@ -60,9 +60,8 @@ export default function BillPayCard({ doc, grandTotal, onChange }) {
               ) : (
                 <span />
               )}
-              <input
-                className="input bill-pay-date"
-                type="date"
+              <DateInput
+                className="bill-pay-date"
                 value={paymentDate(doc, r)}
                 min={doc.issue_date || undefined}
                 onChange={(e) => setRow(i, { date: e.target.value })}

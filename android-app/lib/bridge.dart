@@ -19,7 +19,8 @@ class Bridge {
     this.dues,
     this.printers,
     this.sendSms = Phone.sendSms,
-    this.smsPermission = Phone.smsPermission,
+    this.smsPermission = Phone.smsPermissionState,
+    this.openSettings = Phone.openSettings,
     this.open = Phone.open,
     this.saveFile = Phone.saveToDownloads,
     this.shareFile = Phone.share,
@@ -30,8 +31,9 @@ class Bridge {
   final AdsController ads;
   final DueReminders? dues;
   final Printers? printers;
-  final Future<Map<String, Object?>> Function(String phone, String text) sendSms;
-  final Future<bool> Function({bool ask}) smsPermission;
+  final Future<Map<String, Object?>> Function(String phone, String text, {bool ask}) sendSms;
+  final Future<String> Function({bool ask}) smsPermission;
+  final Future<bool> Function() openSettings;
   final Future<bool> Function(String url) open;
   final Future<bool> Function(String name, String mime, String base64) saveFile;
   final Future<bool> Function(String name, String mime, String base64, String text) shareFile;
@@ -60,8 +62,12 @@ class Bridge {
       return {'ok': true};
     },
     'pin.disable': (a) async => (await pins.disable(_s(a, 'pin'))) ? {'ok': true} : {'ok': false, 'error': 'That PIN is not correct.'},
-    'sms.permission': (_) async => {'granted': await smsPermission(ask: true)},
-    'sms.send': (a) => sendSms(_s(a, 'phone'), _s(a, 'text')),
+    'sms.permission': (a) async {
+      final state = await smsPermission(ask: a['ask'] != false);
+      return {'granted': state == 'granted', 'state': state};
+    },
+    'sms.send': (a) => sendSms(_s(a, 'phone'), _s(a, 'text'), ask: a['ask'] == true),
+    'app.settings': (_) async => {'ok': await openSettings()},
     'open': (a) async => {'ok': await open(_s(a, 'url'))},
     'file.save': (a) async => {'ok': await saveFile(_s(a, 'name'), _s(a, 'mime'), _s(a, 'base64'))},
     'file.share': (a) async => {'ok': await shareFile(_s(a, 'name'), _s(a, 'mime'), _s(a, 'base64'), _s(a, 'text'))},

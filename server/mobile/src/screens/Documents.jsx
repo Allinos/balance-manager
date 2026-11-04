@@ -14,6 +14,7 @@ import { documentsPdf, saveFile } from '../lib/pdf.js';
 import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import Icon from '../components/Icon.jsx';
 import { ActionSheet, Empty, Field, Header, Picker, Select, Sheet, useUi } from '../components/ui.jsx';
+import DateInput from '../components/DateInput.jsx';
 import { DocRow, NewDocumentSheet, StatusSheet } from '../components/docs.jsx';
 import { useApp, useDocumentActions } from '../data.jsx';
 
@@ -92,10 +93,10 @@ function DownloadSheet({ onClose }) {
         {period === 'custom' && (
           <div className="grid-2">
             <Field label="From">
-              <input className="input" type="date" value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} data-testid="sales-from" />
+              <DateInput value={custom.from} onChange={(e) => setCustom({ ...custom, from: e.target.value })} data-testid="sales-from" />
             </Field>
             <Field label="To">
-              <input className="input" type="date" value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} data-testid="sales-to" />
+              <DateInput value={custom.to} onChange={(e) => setCustom({ ...custom, to: e.target.value })} data-testid="sales-to" />
             </Field>
           </div>
         )}

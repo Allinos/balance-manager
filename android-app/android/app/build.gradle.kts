@@ -56,6 +56,12 @@ android {
         }
     }
 
+    // DOCGEN_SMS=false: a release without the SEND_SMS permission (src/nosms), e.g. for the Play Store while the SMS
+    // Permissions Declaration is not approved. The app then opens the SMS app with the message ready instead.
+    if ((project.findProperty("DOCGEN_SMS") as String?)?.trim()?.lowercase() == "false") {
+        sourceSets.getByName("release").manifest.srcFile("src/nosms/AndroidManifest.xml")
+    }
+
     buildTypes {
         release {
             // Signed with your upload key when android/key.properties exists, else with the debug key (testing only).

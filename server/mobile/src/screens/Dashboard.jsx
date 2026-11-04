@@ -12,6 +12,7 @@ import InstallBanner from '../components/InstallBanner.jsx';
 import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import { Empty, Header, Sheet, Spinner, go, useUi } from '../components/ui.jsx';
 import { DocRow, NewDocumentSheet, PLURAL } from '../components/docs.jsx';
+import SummaryCards, { SUMMARY_CARDS, summaryCardsOf } from '../components/SummaryCards.jsx';
 import { useApp } from '../data.jsx';
 import { copyText, emailShareUrl, promoMessage, shareLinksFor, whatsappShareUrl } from '@desktop/config/referral.js';
 
@@ -31,11 +32,34 @@ export function dashboardTypes(settings) {
   return cards.slice(0, DEFAULT_CARDS);
 }
 
-function CustomizeSheet({ selected, onClose, onSave }) {
+function CustomizeSheet({ selected, cards: chosenCards, onClose, onSave }) {
   const [ids, setIds] = useState(selected);
+  const [cards, setCards] = useState(chosenCards);
   const toggle = (id) => setIds((x) => (x.includes(id) ? x.filter((i) => i !== id) : x.length >= MAX_CARDS ? x : [...x, id]));
+  const toggleCard = (id) => setCards((x) => (x.includes(id) ? x.filter((i) => i !== id) : [...x, id]));
   return (
     <Sheet title="Customize Dashboard" onClose={onClose} testId="customize">
+      <div className="section-label" style={{ margin: 0 }}>
+        Summary cards
+      </div>
+      <p className="small muted" style={{ margin: 0 }}>
+        Figures and charts at the top of Home ({cards.length} chosen).
+      </p>
+      <div className="check-list">
+        {SUMMARY_CARDS.map((c) => (
+          <label key={c.id} className="check-row">
+            <input type="checkbox" checked={cards.includes(c.id)} onChange={() => toggleCard(c.id)} data-testid={`customize-card-${c.id}`} />
+            <Icon name={c.icon} size={18} />
+            <span>
+              {c.label}
+              <span className="small muted block">{c.note}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="section-label" style={{ margin: 0 }}>
+        Document cards
+      </div>
       <p className="small muted" style={{ margin: 0 }}>
         Choose up to {MAX_CARDS} document types ({ids.length} chosen).
       </p>
@@ -48,7 +72,7 @@ function CustomizeSheet({ selected, onClose, onSave }) {
           </label>
         ))}
       </div>
-      <button className="btn btn-primary btn-block" disabled={!ids.length} onClick={() => onSave(DOCUMENT_TYPES.map((t) => t.id).filter((id) => ids.includes(id)))} data-testid="customize-save">
+      <button className="btn btn-primary btn-block" disabled={!ids.length} onClick={() => onSave(DOCUMENT_TYPES.map((t) => t.id).filter((id) => ids.includes(id)), SUMMARY_CARDS.map((c) => c.id).filter((id) => cards.includes(id)))} data-testid="customize-save">
         Save
       </button>
     </Sheet>
@@ -205,6 +229,7 @@ export default function Dashboard() {
           )}
         </div>
         <InstallBanner />
+        <SummaryCards ids={summaryCardsOf(settings)} />
         <DuesCard rows={dues} />
         <div className="type-cards" data-testid="type-cards">
           {types.map((t) => (
@@ -249,10 +274,11 @@ export default function Dashboard() {
       {customize && (
         <CustomizeSheet
           selected={types.map((t) => t.id)}
+          cards={summaryCardsOf(settings)}
           onClose={() => setCustomize(false)}
-          onSave={async (ids) => {
+          onSave={async (ids, cards) => {
             try {
-              await updateSettings({ dashboardTypes: ids });
+              await updateSettings({ dashboardTypes: ids, dashboardCards: cards });
               setCustomize(false);
               toast('Dashboard updated');
             } catch (e) {

@@ -21,7 +21,7 @@ import Parties from './screens/Parties.jsx';
 import PartyLedger from './screens/PartyLedger.jsx';
 import Settings, { SettingsSection } from './screens/Settings.jsx';
 import Reports from './screens/Reports.jsx';
-import { Welcome, nativeAccount } from './screens/Android.jsx';
+import { AccountGate, Welcome, nativeAccount } from './screens/Android.jsx';
 import { native, reportScreen } from './lib/native.js';
 import { setFreePlan } from './lib/plan.js';
 
@@ -64,7 +64,13 @@ function TabBar({ path, tabs }) {
 
 function Screen({ path, query }) {
   let m;
-  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path))) return <Editor key={`${path}?${query.from || ''}${query.party || ''}`} typeId={m[1]} query={query} />;
+  // Android free plan: the free account first (AccountGate), then the new document.
+  if ((m = /^\/doc\/new\/([A-Z_]+)$/.exec(path)))
+    return (
+      <AccountGate>
+        <Editor key={`${path}?${query.from || ''}${query.party || ''}`} typeId={m[1]} query={query} />
+      </AccountGate>
+    );
   if ((m = /^\/doc\/(\d+)\/edit$/.exec(path))) return <Editor key={path} id={Number(m[1])} />;
   if ((m = /^\/doc\/(\d+)$/.exec(path))) return <View key={path} id={Number(m[1])} query={query} />;
   if ((m = /^\/settings\/([a-z]+)$/.exec(path))) return <SettingsSection key={path} id={m[1]} />;

@@ -220,6 +220,22 @@ try {
   await b.page.getByTestId('welcome-explore').click();
   await b.page.getByTestId('setup').waitFor();
   check(true, 'Explore first: straight to setup, no account needed');
+  await b.page.getByTestId('company-name').fill('Explorer Stores');
+  for (let i = 0; i < 3; i += 1) await b.page.getByTestId('setup-next').click();
+  await b.page.getByTestId('setup-save').click();
+  await b.page.getByTestId('dashboard').waitFor();
+  await b.page.getByTestId('create-RETAIL_BILL').click();
+  await b.page.getByTestId('account-gate').waitFor();
+  check((await b.page.getByTestId('editor').count()) === 0 && (await b.page.getByTestId('account-pitch').textContent()).includes('free account'), 'a new document needs the free account first (exploring users see the account form)');
+  await shot(b.page, '03b-account-gate');
+  await b.page.getByTestId('account-name').fill('Asha');
+  await b.page.getByTestId('account-business').fill('Explorer Stores');
+  await b.page.getByTestId('account-phone').fill('9876500000');
+  await b.page.getByTestId('account-pin').fill('4321');
+  await b.page.getByTestId('account-pin2').fill('4321');
+  await b.page.getByTestId('account-create').click();
+  await b.page.getByTestId('editor').waitFor();
+  check(true, 'after the free account is created, the new document opens');
   await b.context.close();
 
   console.log('Settings: Features (Payment & Ledger, SMS alerts)');
@@ -322,9 +338,11 @@ try {
   }
   await a.page.getByTestId('reminder-section').waitFor();
   await clearCalls(a.page);
+  await a.page.getByTestId('reminder-send').click();
   await a.page.getByTestId('reminder-sms').click();
   await a.page.getByText('Reminder sent by SMS').waitFor();
   const smsReminder = (await calls(a.page, 'sms.send'))[0].args;
+  check(smsReminder.ask === true, 'Send reminder → SMS asks Android for the SMS permission first when it is not given yet');
   check(smsReminder.phone === '919876543210' && smsReminder.text.includes('₹300.00 is outstanding') && smsReminder.text.includes('Kindly pay at the earliest'), `Send reminder → SMS through the phone's SMS service: "${smsReminder.text.slice(0, 70)}…"`);
   await cleanShot(a.page, '12-ledger');
 

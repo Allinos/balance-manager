@@ -2,6 +2,7 @@
  * A customer's / vendor's profile: I'll get / I'll give, the bills still unpaid, and the ledger with a running
  * balance (Payment & Ledger on). "Payment received" (customer) / "Payment made" (vendor) asks only for the amount
  * and the mode; it is saved as a receipt / payment voucher that clears the oldest unpaid bills first.
+ * The ledger lists the latest entry at the top; Filter shows one period (this month, last 30 days, custom dates …).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -11,7 +12,7 @@ import { EmptyState, PageHeader, Spinner } from '../../components/Common.jsx';
 import { Field, NumberInput, Select } from '../../components/Form.jsx';
 import { PAYMENT_MODES } from '../../config/documentTypes.js';
 import { ledgerOn } from '../../services/billPayment.js';
-import { allocate, balanceLabel, partyLedger, PAYMENT_SIDES, recordPayment, sidesOf } from '../../services/ledgerService.js';
+import { allocate, balanceLabel, LEDGER_PERIODS, ledgerPeriod, partyLedger, PAYMENT_SIDES, periodTotals, recordPayment, rowsBetween, sidesOf } from '../../services/ledgerService.js';
 import { formatDate, todayISO } from '../../utils/dates.js';
 import { abs, dec } from '../../utils/decimal.js';
 import { useAppData, useDocContext } from '../../hooks/useAppData.jsx';
@@ -115,6 +116,8 @@ export default function PartyLedgerPage({ params }) {
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
   const [paying, setPaying] = useState('');
+  const [period, setPeriod] = useState('all');
+  const [custom, setCustom] = useState({ from: '', to: '' });
   const withLedger = ledgerOn(settings);
 
   const load = useCallback(async () => {
@@ -133,6 +136,10 @@ export default function PartyLedgerPage({ params }) {
   const { party, ledger } = data;
   const today = todayISO();
   const balance = dec(ledger.balance);
+  const range = ledgerPeriod(period, custom);
+  // Latest first; each row keeps the running balance of the whole ledger.
+  const rows = rowsBetween(ledger.rows, range).reverse();
+  const totals = period !== 'all' ? periodTotals(rows) : null;
 
   return (
     <div className="page" data-testid="party-ledger">
@@ -146,6 +153,12 @@ export default function PartyLedgerPage({ params }) {
         subtitle={[KIND_LABEL[party.kind] || 'Customer', party.phone, party.gstin || party.tax_id, party.state].filter(Boolean).join(' · ')}
         actions={
           <div className="row-actions">
+            {withLedger && (
+              <label className={`ledger-filter ${period !== 'all' ? 'on' : ''}`} data-testid="ledger-filter" title="Filter the ledger by date">
+                <Icon name="filter" size={15} />
+                <Select value={period} onChange={setPeriod} options={LEDGER_PERIODS} aria-label="Filter by date" data-testid="ledger-period" />
+              </label>
+            )}
             {withLedger && <PrivacyToggle className="btn" size={16} />}
             <button className="btn" onClick={() => setEditing(true)} data-testid="party-profile-edit">
               <Icon name="edit" size={16} /> Edit
@@ -182,10 +195,27 @@ export default function PartyLedgerPage({ params }) {
           <section className="card table-card">
             <div className="card-header">
               <h2>Ledger</h2>
-              <span className="muted small">Every bill and payment, oldest first, with the running balance</span>
+              <span className="muted small">Latest first, with the running balance</span>
+              {period === 'custom' && (
+                <div className="ledger-filter" data-testid="ledger-custom">
+                  <>
+                    <input className="input" type="date" value={custom.from} max={custom.to || undefined} onChange={(e) => setCustom({ ...custom, from: e.target.value })} aria-label="From" data-testid="ledger-from" />
+                    <input className="input" type="date" value={custom.to} min={custom.from || undefined} onChange={(e) => setCustom({ ...custom, to: e.target.value })} aria-label="To" data-testid="ledger-to" />
+                  </>
+                </div>
+              )}
             </div>
-            {ledger.rows.length === 0 ? (
-              <EmptyState icon="book" title="No transactions yet" message="Invoices, bills and payments of this party appear here automatically." />
+            {totals && (
+              <div className="ledger-period-totals muted small" data-testid="ledger-period-totals">
+                {rows.length} entr{rows.length === 1 ? 'y' : 'ies'} · You gave <strong className="give">{money(totals.gave)}</strong> · You got <strong className="get">{money(totals.got)}</strong>
+              </div>
+            )}
+            {rows.length === 0 ? (
+              period !== 'all' ? (
+                <EmptyState icon="calendar" title="Nothing in this period" message="Choose another period, or All." />
+              ) : (
+                <EmptyState icon="book" title="No transactions yet" message="Invoices, bills and payments of this party appear here automatically." />
+              )
             ) : (
               <table className="table ledger-table" data-testid="ledger-table">
                 <thead>
@@ -199,7 +229,7 @@ export default function PartyLedgerPage({ params }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.rows.map((r) => (
+                  {rows.map((r) => (
                     <tr key={r.key} onClick={() => navigate(`/doc/${r.id}`)} className="clickable" data-testid="ledger-row">
                       <td>{formatDate(r.date, settings.dateFormat)}</td>
                       <td>

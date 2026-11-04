@@ -24,6 +24,9 @@ export function Header({ title, subtitle, onBack, actions }) {
   );
 }
 
+/** The label of the Field a control is in (the title of a Select's or a date's sheet). */
+export const FieldLabel = createContext('');
+
 /** A labelled field. `help` shows a short explanation under the label (no hover on phones). */
 export function Field({ label, hint, help, required, children, className = '' }) {
   return (
@@ -34,7 +37,7 @@ export function Field({ label, hint, help, required, children, className = '' })
           {required && <span className="req"> *</span>}
         </span>
       )}
-      {children}
+      <FieldLabel.Provider value={typeof label === 'string' ? label : ''}>{children}</FieldLabel.Provider>
       {(hint || help) && <span className="field-hint">{hint || help}</span>}
     </label>
   );
@@ -44,21 +47,55 @@ export const Input = ({ value, onChange, ...rest }) => <input className="input" 
 export const TextArea = ({ value, onChange, rows = 3, ...rest }) => (
   <textarea className="input" rows={rows} value={value ?? ''} onChange={(e) => onChange(e.target.value)} {...rest} />
 );
-export function Select({ value, onChange, options, ...rest }) {
+/**
+ * A choice from a short list: a field that opens the options in a bottom sheet (modern on every phone, unlike the
+ * WebView's own dropdown). A real <select> stays in the page (invisible, not tappable) for forms and tests.
+ */
+export function Select({ value, onChange, options, title, disabled, className = '', 'data-testid': testId, 'aria-label': ariaLabel, ...rest }) {
+  const [open, setOpen] = useState(false);
+  const fieldLabel = useContext(FieldLabel);
+  const list = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+  const current = list.find((o) => String(o.value) === String(value ?? ''));
   return (
-    <select className="input" value={value ?? ''} onChange={(e) => onChange(e.target.value)} {...rest}>
-      {options.map((o) =>
-        typeof o === 'string' ? (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ) : (
+    <span className={`select-input ${className.replace(/\binput\b/, '')}`}>
+      <button type="button" className="input select-btn" onClick={() => setOpen(true)} disabled={disabled} aria-haspopup="listbox" aria-label={ariaLabel} data-testid={testId ? `${testId}-button` : undefined}>
+        <span>{current ? current.label : value || 'Choose…'}</span>
+        <Icon name="chevronDown" size={16} />
+      </button>
+      <select className="select-native" tabIndex={-1} aria-hidden="true" value={value ?? ''} onChange={(e) => onChange(e.target.value)} disabled={disabled} data-testid={testId} {...rest}>
+        {list.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
-        ),
+        ))}
+      </select>
+      {open && (
+        <Sheet title={title || ariaLabel || fieldLabel || 'Choose'} onClose={() => setOpen(false)} testId={testId ? `${testId}-sheet` : undefined}>
+          <div className="picker-list" role="listbox">
+            {list.map((o) => {
+              const on = String(o.value) === String(value ?? '');
+              return (
+                <button
+                  type="button"
+                  key={o.value}
+                  role="option"
+                  aria-selected={on}
+                  className={`picker-option ${on ? 'current' : ''}`}
+                  onClick={() => {
+                    setOpen(false);
+                    if (!on) onChange(o.value);
+                  }}
+                  data-testid={testId ? `${testId}-option-${String(o.value).replace(/\W+/g, '-')}` : undefined}
+                >
+                  <span>{o.label}</span>
+                  {on && <Icon name="check" size={18} />}
+                </button>
+              );
+            })}
+          </div>
+        </Sheet>
       )}
-    </select>
+    </span>
   );
 }
 export function Toggle({ checked, onChange, label, hint, ...rest }) {

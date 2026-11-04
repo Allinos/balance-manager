@@ -130,19 +130,12 @@ function SequenceCard({ seq, onSaved }) {
           <Input placeholder="e.g. INV" value={s.prefix} onChange={(v) => set({ prefix: v.replace(/\s/g, '') })} maxLength={20} data-testid={`seq-prefix-${s.doc_type}`} />
         </Field>
         <Field label="Format">
-          <select
-            className="input"
+          <Select
             value={FORMATS.some((f) => f.value === s.format) ? s.format : 'custom'}
-            onChange={(e) => e.target.value !== 'custom' && set({ format: e.target.value, padding: e.target.value.includes('FY') || e.target.value.includes('YYYY') ? 4 : 5 })}
+            onChange={(v) => v !== 'custom' && set({ format: v, padding: v.includes('FY') || v.includes('YYYY') ? 4 : 5 })}
+            options={[...FORMATS, ...(FORMATS.some((f) => f.value === s.format) ? [] : [{ value: 'custom', label: s.format }])]}
             data-testid={`seq-format-${s.doc_type}`}
-          >
-            {FORMATS.map((f) => (
-              <option key={f.value} value={f.value}>
-                {f.label}
-              </option>
-            ))}
-            {!FORMATS.some((f) => f.value === s.format) && <option value="custom">{s.format}</option>}
-          </select>
+          />
         </Field>
         <Field label="Next number">
           <input placeholder="1" className="input" type="number" min="1" value={s.next_number} onChange={(e) => set({ next_number: e.target.value })} data-testid={`seq-next-${s.doc_type}`} />

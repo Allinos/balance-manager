@@ -215,11 +215,12 @@ void main() {
         accounts: AccountService(store, pins, cloud: FakeCloud()),
         pins: pins,
         ads: AdsController(startAds: (_) async {}, runRewarded: () async => true),
-        sendSms: (phone, text) async {
-          sms.add([phone, text]);
+        sendSms: (phone, text, {bool ask = false}) async {
+          sms.add([phone, text, if (ask) 'ask']);
           return {'sent': true};
         },
-        smsPermission: ({bool ask = true}) async => true,
+        smsPermission: ({bool ask = true}) async => 'granted',
+        openSettings: () async => true,
         open: (url) async {
           opened.add(url);
           return true;
@@ -265,6 +266,13 @@ void main() {
         {'sent': true},
       );
       expect(sms.single, ['919876543210', 'Hi']);
+      // A reminder asks for the SMS permission first (ask: true); the switch reads the permission state.
+      await bridge.handle('sms.send', [
+        {'phone': '919876543210', 'text': 'Pay', 'ask': true},
+      ]);
+      expect(sms.last, ['919876543210', 'Pay', 'ask']);
+      expect(await bridge.handle('sms.permission', [{}]), {'granted': true, 'state': 'granted'});
+      expect(await bridge.handle('app.settings', []), {'ok': true});
       await bridge.handle('open', [
         {'url': 'https://wa.me/919876543210?text=Hi'},
       ]);
