@@ -507,7 +507,7 @@ try {
   check(true, 'no limits after the upgrade (21st invoice saved)');
 
   // Pictures for the website (frontend/public/screenshots/android-*.png, AndroidApp.jsx), at phone size.
-  for (const [from, to] of [['03-home', 'home'], ['05-retail-bill-payment', 'bill'], ['07-reports', 'reports']]) {
+  for (const [from, to] of [['03-home', 'home'], ['05-retail-bill-payment', 'bill'], ['12-ledger', 'ledger'], ['07-reports', 'reports']]) {
     try {
       execFileSync('convert', [path.join(shots, `android-${from}.png`), '-resize', '50%', '-strip', path.join(siteShots, `android-${to}.png`)]);
     } catch {

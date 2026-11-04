@@ -10,11 +10,13 @@ export const ANDROID_FREE = { documents: 20, payments: 20, parties: 20 };
 
 const POINTS = [
   ['zap', 'Free to start', `No license needed: every feature for ${ANDROID_FREE.documents} documents, ${ANDROID_FREE.payments} payments and ${ANDROID_FREE.parties} customers & vendors.`],
-  ['lock', 'A PIN, not a password', 'Create your account in the app with your name, business and mobile. Your 4-digit PIN locks DocGen every time it opens.'],
-  ['chat', 'SMS & WhatsApp', 'An SMS to your customer for every new bill or payment, a WhatsApp payment reminder in one tap, and a notification on the day a bill is due.'],
-  ['file', 'Simple retail bills', 'A counter bill without GST — share it as a PDF straight away. GST invoices and every other document type too.'],
-  ['chart', 'Reports at a glance', 'Sales, purchases, money in and out, and who still owes you — this month, last month or this year.'],
-  ['refresh', 'Upgrade any time', 'No limits and no ads, and DocGen on your computer too. Everything you made stays on your phone.'],
+  ['lock', 'Free account, PIN lock', 'Create your free account before your first bill — just your name, business and mobile, no password. Your 4-digit PIN locks DocGen every time it opens.'],
+  ['users', 'Customer ledger', 'Given and Received at the bottom of every customer and vendor — reason, date, amount and mode. Latest entry at the bottom, a date filter at the top, unpaid bills in one tap.'],
+  ['chat', 'Reminders by WhatsApp or SMS', 'Pick a due date and tap Send reminder: WhatsApp, or an SMS sent straight from your phone. Plus an SMS for every new bill and a notification on the day a bill is due.'],
+  ['file', 'Retail bills & receipts', 'A counter bill without GST, issued as you save it — share it as a PDF or print a receipt on a Bluetooth thermal printer. GST invoices and every other document type too.'],
+  ['chart', 'Reports & Home cards', 'Sales, money received, who still owes you and a 6-month sales chart — on the Reports tab and, if you like, right on Home.'],
+  ['calendar', 'Made for your phone', 'A calendar for every date, choices that open from the bottom of the screen, and the DocGen icon on your home screen. Works offline.'],
+  ['refresh', 'Premium any time', 'No limits and no ads, and DocGen on your computer too. Everything you made stays on your phone.'],
 ];
 
 /** "Get it on Google Play" (or the APK link), or a "Coming soon" badge. */
@@ -66,7 +68,7 @@ export function AndroidAppSection({ url }) {
       </div>
       <div className="phone-shots three">
         <img src="/screenshots/android-home.png" alt="DocGen for Android: Home" loading="lazy" />
-        <img src="/screenshots/android-bill.png" alt="A retail bill with its payment and the WhatsApp reminder" loading="lazy" />
+        <img src="/screenshots/android-ledger.png" alt="A customer's ledger with Given, Received and Send reminder" loading="lazy" />
         <img src="/screenshots/android-reports.png" alt="Reports in DocGen for Android" loading="lazy" />
       </div>
     </section>
@@ -83,8 +85,8 @@ export function AndroidAppBanner({ url }) {
       <span className="android-banner-text">
         <strong>DocGen for Android — free to start</strong>
         <span>
-          The Play Store app: no license needed for your first {ANDROID_FREE.documents} documents, PIN lock, SMS and WhatsApp reminders, retail bills
-          and reports.
+          The Play Store app: a free account for your first {ANDROID_FREE.documents} documents, PIN lock, a customer ledger with Given / Received,
+          reminders by WhatsApp or SMS, retail bills, thermal receipts and reports.
         </span>
       </span>
       <AndroidAppButton url={url} className="btn btn-primary" />

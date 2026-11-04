@@ -182,8 +182,9 @@ try {
   {
     const android = page.getByTestId('android-section');
     const text = (await android.textContent()).replace(/\s+/g, ' ');
-    check(text.includes('free to start') && text.includes('20 documents, 20 payments and 20 customers & vendors') && text.includes('A PIN, not a password') && text.includes('SMS & WhatsApp') && text.includes('Simple retail bills') && text.includes('Reports at a glance'),
-      'home: DocGen for Android section — free plan, PIN, SMS & WhatsApp, retail bills, reports');
+    check(text.includes('free to start') && text.includes('20 documents, 20 payments and 20 customers & vendors') && text.includes('Free account, PIN lock') && text.includes('Customer ledger') && text.includes('Reminders by WhatsApp or SMS') && text.includes('Retail bills & receipts') && text.includes('Reports & Home cards') && text.includes('Premium any time') &&
+        (await android.locator('img[src="/screenshots/android-ledger.png"]').count()) === 1,
+      'home: DocGen for Android section — free account and PIN, ledger, WhatsApp / SMS reminders, retail bills and receipts, reports, Premium');
     check((await page.getByTestId('android-soon').count()) === 1 && (await page.getByTestId('android-get').count()) === 0, 'no Play Store link set yet: "Coming soon on Google Play"');
     check((await page.getByTestId('hero-android').getAttribute('href')) === '#android-app', 'hero: "Free Android app" button jumps to the section');
     check((await page.getByTestId('faq').textContent()).includes('Is there a free Android app?'), 'FAQ: Is there a free Android app?');

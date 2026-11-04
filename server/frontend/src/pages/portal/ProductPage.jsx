@@ -20,7 +20,7 @@ const FEATURES = [
   ['monitor', 'Works offline', 'No internet needed to create documents. Your business data stays on your device — never uploaded.'],
   ['box', 'Everything in one place', 'Find any document instantly, track it from draft to paid, and reuse saved customers and products.'],
   ['card', 'Payments & dues', "Mark each bill paid in full, part-paid or on credit. Record a payment in two taps and the oldest bills are cleared first."],
-  ['users', 'Customers & vendors', "Every customer and supplier in one list, with a running ledger: I'll get from customers, I'll give to suppliers."],
+  ['users', 'Customers & vendors', "Every customer and supplier in one list, with a running ledger: I'll get from customers, I'll give to suppliers. Filter it by date and send payment reminders."],
   ['chart', 'Reports for your accountant', 'Download a month of documents as one PDF, a CSV list or the GST sales register in a click.'],
   ['rupee', 'One-time payment', 'Pay once for 1, 2 or 5 years. No monthly fees, no per-invoice costs.'],
 ];
@@ -36,7 +36,7 @@ const FAQ = [
   ],
   [
     'Is there a free Android app?',
-    'Yes. DocGen for Android starts free, without a license: every feature for 20 documents, 20 payments and 20 customers & vendors, with small, occasional ads. Create your account in the app with your name, business and mobile — a 4-digit PIN instead of a password. When you upgrade, the limits and ads go away and everything you made stays on your phone.',
+    'Yes. DocGen for Android starts free, without a license: every feature for 20 documents, 20 payments and 20 customers & vendors, with small, occasional ads. Create your free account in the app before your first bill — name, business and mobile, with a 4-digit PIN instead of a password. Upgrade to Premium and the limits and ads go away; everything you made stays on your phone.',
   ],
   ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
   [
@@ -49,7 +49,7 @@ const FAQ = [
   ],
   [
     'Can I see which customers still owe me?',
-    "Yes. Switch on Payment & Ledger in Settings → Features. Each bill is marked paid in full, part-paid or on credit, and every customer and supplier has a simple ledger: I'll get (they owe you) and I'll give (you owe them). Record a payment with just the amount and the mode — it clears the oldest bills first. No accounting knowledge needed.",
+    "Yes. Switch on Payment & Ledger in Settings → Features. Each bill is marked paid in full, part-paid or on credit, and every customer and supplier has a simple ledger: I'll get (they owe you) and I'll give (you owe them). Record a payment with just the amount and the mode — it clears the oldest bills first. Filter the ledger by date (on the computer the latest entry is at the top, on the phone at the bottom, like a chat) and send a reminder by WhatsApp or SMS with a due date. No accounting knowledge needed.",
   ],
   [
     'Is my data safe?',
