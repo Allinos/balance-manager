@@ -109,6 +109,9 @@ const NATIVE_MOCK = (server) => {
       return next;
     },
     'dues.sync': (a) => ({ ok: true, scheduled: a.enabled ? (a.bills || []).length : 0 }),
+    // A paired Bluetooth thermal printer.
+    'printer.list': () => ({ ok: true, printers: [{ name: 'RPP02N', address: '66:22:7A:1B:2C:3D' }] }),
+    'printer.print': (a) => ({ ok: /^[0-9A-F:]{17}$/.test(a.address) && atob(a.base64 || '').charCodeAt(0) === 0x1b }),
   };
   window.flutter_inappwebview = {
     callHandler: async (name, args) => {
@@ -273,6 +276,57 @@ try {
   await a.page.waitForFunction(() => JSON.parse(sessionStorage.getItem('__calls') || '[]').some((c) => c.name === 'file.save'));
   check(true, 'Download saves the PDF to Downloads through Android');
   check(await a.page.getByTestId('doc-whatsapp').isVisible(), 'WhatsApp payment reminder on the unpaid bill');
+  check((await a.page.locator('.badge, .pill, [data-testid=status-badge]').allTextContents()).some((t) => /Partly paid/.test(t)) || (await a.page.getByTestId('view').textContent()).includes('Partly paid'),
+    'Issue on save (on for new Android installs): the bill is issued, and with ₹200 of ₹500 paid it is Partly paid — not a draft');
+
+  console.log('Thermal printer (Bluetooth)');
+  await clearCalls(a.page);
+  await a.page.getByTestId('print-receipt').click();
+  await a.page.getByTestId('receipt-sheet').waitFor();
+  check((await a.page.getByTestId('thermal-receipt').textContent()).includes('RB-00001'), 'receipt preview of the retail bill');
+  await a.page.getByTestId('receipt-print').click();
+  await a.page.getByText('Choose your Bluetooth printer').waitFor();
+  await a.page.getByTestId('printer').waitFor();
+  check(true, 'no printer chosen yet: Print receipt opens Settings → Printer');
+  await a.page.getByTestId('printer-option').first().waitFor();
+  await cleanShot(a.page, '11-printer');
+  await a.page.getByTestId('printer-option').first().click();
+  await a.page.getByText('RPP02N chosen for receipts').waitFor();
+  await a.page.getByTestId('printer-paper-80').click();
+  await a.page.getByTestId('printer-test').click();
+  await a.page.getByText('Test receipt printed').waitFor();
+  check((await calls(a.page, 'printer.print')).at(-1).args.address === '66:22:7A:1B:2C:3D', 'Settings → Printer: paired printer chosen, 80 mm paper, test print sent to it');
+  await a.page.goBack();
+  await a.page.getByTestId('print-receipt').click();
+  await a.page.getByTestId('receipt-print').click();
+  await a.page.getByText('Receipt printed on RPP02N').waitFor();
+  const printed = (await calls(a.page, 'printer.print')).at(-1).args;
+  check(printed.address === '66:22:7A:1B:2C:3D' && printed.bytes > 200 && (await a.page.getByTestId('receipt-sheet').textContent()).includes('80 mm'), `the receipt goes straight to the Bluetooth printer (ESC/POS, ${printed.bytes} bytes base64, 80 mm)`);
+  await a.page.keyboard.press('Escape');
+
+  console.log('Ledger: Send reminder by SMS (native)');
+  await a.page.goto(`${base}/app/#/parties/all`);
+  {
+    // Payment & Ledger is on; open Walk-in Meena's ledger (saved from the bill).
+    const id = await a.page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const req = indexedDB.open('docgen-data');
+          req.onsuccess = () => {
+            const all = req.result.transaction('parties').objectStore('parties').getAll();
+            all.onsuccess = () => resolve(all.result.find((p) => p.name === 'Walk-in Meena')?.id);
+          };
+        }),
+    );
+    await a.page.goto(`${base}/app/#/party/${id}`);
+  }
+  await a.page.getByTestId('reminder-section').waitFor();
+  await clearCalls(a.page);
+  await a.page.getByTestId('reminder-sms').click();
+  await a.page.getByText('Reminder sent by SMS').waitFor();
+  const smsReminder = (await calls(a.page, 'sms.send'))[0].args;
+  check(smsReminder.phone === '919876543210' && smsReminder.text.includes('₹300.00 is outstanding') && smsReminder.text.includes('Kindly pay at the earliest'), `Send reminder → SMS through the phone's SMS service: "${smsReminder.text.slice(0, 70)}…"`);
+  await cleanShot(a.page, '12-ledger');
 
   console.log('Reports');
   await a.page.goto(`${base}/app/#/reports`);
@@ -409,15 +463,14 @@ try {
   const buy = (await calls(a.page, 'open'))[0]?.args.url || '';
   check(buy.startsWith(`${base}/buy?`) && buy.includes('name=Ravi+Kumar') && buy.includes('phone=98765+43210'), 'Upgrade opens the website checkout with the account filled in');
 
-  console.log('Upgrade: activate the license, data copied to the server');
+  console.log('Upgrade: activate the license (the data stays on the phone)');
   const { client } = await admin('POST', '/clients', { name: 'Ravi Kumar', email: 'ravi@example.com', password: 'ravi-pass-123', business_name: 'Ravi Traders' });
   const [license] = (await admin('POST', '/licenses', { clientId: client.id, activateNow: true, maxMobileDevices: 1 })).licenses;
   await a.page.getByTestId('plan-have-license').click();
   await a.page.getByTestId('plan-license-key').fill(license.code);
   await a.page.getByTestId('plan-activate').click();
-  await a.page.getByText('Your data is safe in your DocGen account').waitFor({ timeout: 20000 });
-  const toast = await a.page.getByText('Your data is safe in your DocGen account').textContent();
-  check(toast.includes('21 documents') && toast.includes('20 customers & vendors'), `phone data copied to the server: ${toast}`);
+  await a.page.getByText('DocGen is upgraded: no limits and no ads').waitFor({ timeout: 20000 });
+  check((await a.page.getByText('Your data stays on this phone').count()) >= 1 && (await a.page.getByTestId('plan-transfer').count()) === 0, 'upgraded: no limits, no ads; nothing is copied online (the data stays on the phone)');
   check((await calls(a.page, 'account.upgraded'))[0]?.args.licenseKey === license.code, 'the account is marked as upgraded (Firebase)');
   await a.page.getByTestId('license-card').waitFor();
   check(true, 'Plan & Account now shows the license');

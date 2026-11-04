@@ -52,14 +52,34 @@ export async function smsAlert(doc, { settings, company, due = null } = {}) {
   return res?.sent ? 'sent' : res?.reason || 'not sent';
 }
 
-/** The WhatsApp payment reminder text. */
-export function reminderText({ name, due, company, upi, doc }) {
+const longDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** The payment reminder text (WhatsApp and SMS). With payBy (YYYY-MM-DD) it asks to pay by that date. */
+export function reminderText({ name, due, company, upi, doc, payBy = '' }) {
   const pay = upi ? ` You can pay by UPI to ${upi}.` : '';
   const bill = doc?.document_number ? ` for ${getType(doc.document_type).short} ${doc.document_number}` : '';
-  return `Dear ${firstName(name)}, this is a friendly reminder that ${amount(due, doc)} is outstanding${bill} with ${company?.name || 'us'}.${pay} Kindly pay at the earliest. Thank you!`;
+  const when = /^\d{4}-\d{2}-\d{2}$/.test(payBy) ? `Kindly pay by ${longDate(payBy)}.` : 'Kindly pay at the earliest.';
+  return `Dear ${firstName(name)}, this is a friendly reminder that ${amount(due, doc)} is outstanding${bill} with ${company?.name || 'us'}.${pay} ${when} Thank you!`;
 }
 
 export const whatsappUrl = (phone, text) => `https://wa.me/${phoneDigits(phone)}?text=${encodeURIComponent(text)}`;
+
+/**
+ * Send the reminder by SMS. Android app: the phone's SMS service (or, without the SMS permission, the SMS app with
+ * the message filled in). Browser: the phone's SMS app with the message ready to send.
+ * Returns 'sent' | 'opened' | 'no phone'.
+ */
+export async function sendSmsReminder({ phone, ...rest }) {
+  const digits = phoneDigits(phone);
+  if (!digits) return 'no phone';
+  const text = reminderText(rest);
+  if (native()) {
+    const res = await bridge('sms.send', { phone: digits, text });
+    return res?.sent ? 'sent' : 'opened';
+  }
+  window.open(`sms:+${digits}?body=${encodeURIComponent(text)}`, '_self');
+  return 'opened';
+}
 
 /** Open WhatsApp with the reminder (to the party's number, or WhatsApp's own chooser without one). */
 export function sendWhatsAppReminder({ phone, ...rest }) {

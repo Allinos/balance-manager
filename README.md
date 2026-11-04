@@ -30,7 +30,8 @@ small businesses, by [reynrel.in](https://reynrel.in).
   to start: a free plan with every feature for 20 documents, 20 payments and 20 customers & vendors (with small,
   rare ads); a free account (name, business, mobile and a 4-digit PIN, no password) in Firebase; PIN lock; SMS
   alerts through the phone; WhatsApp payment reminders; a Retail Bill without GST; a Reports tab. Upgrading
-  copies the phone's data to the server with the license. Built in GitHub Actions (APK + AAB).
+  removes the limits and ads; the data stays on the phone. Ledger with Given / Received and reminders by WhatsApp /
+  SMS, Bluetooth thermal receipts (58 / 80 mm). Built in GitHub Actions (APK + AAB).
 
 ![Professional invoice](docs/screenshots/09-invoice-tally-pro.png)
 

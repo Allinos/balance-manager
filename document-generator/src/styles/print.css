@@ -166,3 +166,44 @@
     padding-right: 5mm !important;
   }
 }
+
+/* ==========================================================================
+   Thermal receipts (services/thermal.js): a 58 / 80 mm roll, monospace, only the receipt is printed.
+   ========================================================================== */
+#thermal-print {
+  display: none;
+}
+.thermal-receipt {
+  font-family: 'Courier New', Courier, monospace;
+  color: #000;
+  background: #fff;
+  white-space: pre;
+  line-height: 1.25;
+}
+.thermal-receipt.tr-58 {
+  width: 54mm;
+  font-size: 10.5px;
+}
+.thermal-receipt.tr-80 {
+  width: 76mm;
+  font-size: 10px;
+}
+.thermal-receipt .tr-c {
+  text-align: center;
+}
+.thermal-receipt .tr-b {
+  font-weight: 700;
+}
+.thermal-receipt .tr-big {
+  font-size: 1.45em;
+  font-weight: 700;
+  white-space: normal;
+}
+@media print {
+  html.thermal-printing body > *:not(#thermal-print) {
+    display: none !important;
+  }
+  html.thermal-printing #thermal-print {
+    display: block !important;
+  }
+}

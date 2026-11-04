@@ -1,7 +1,7 @@
 /**
- * DocGen for Android: when a free user upgrades (activates a license in the app), the app copies the data on the
- * phone (customers, vendors, products, documents, payments) to the server with that license (routes/app.js,
- * POST /api/app/migrate). One row per upload; the latest three per license and phone are kept.
+ * DocGen for Android: a table for copying a phone's data to the server after an upgrade. The feature was withdrawn
+ * (4 November 2026: the apps keep all data on the device for now), so nothing writes to it; the migration stays
+ * because databases may already have applied it. Never edit an applied migration.
  */
 
 export async function up(knex) {

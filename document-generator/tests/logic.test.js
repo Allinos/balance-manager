@@ -502,3 +502,75 @@ test('bill payment: paid in full by default, partial payments, credit, status mo
   assert.equal(paidStatus('DRAFT', '10030', '10030'), null); // drafts keep their status
   assert.equal(paidStatus('PAID', '0', '10030'), null); // never moved back
 });
+
+test('Issue on save: a new draft of a type that can be issued is saved as Issued, only when switched on', async () => {
+  const { issuesOnSave } = await import('../src/services/documentService.js');
+  const { DEFAULT_SETTINGS } = await import('../src/config/defaults.js');
+  assert.equal(DEFAULT_SETTINGS.issueOnSave, false, 'off by default');
+  const on = { issueOnSave: true };
+  assert.equal(issuesOnSave({ document_type: 'TAX_INVOICE', status: 'DRAFT' }, on), true);
+  assert.equal(issuesOnSave({ document_type: 'QUOTATION', status: 'DRAFT' }, on), true);
+  assert.equal(issuesOnSave({ document_type: 'TAX_INVOICE', status: 'DRAFT' }, {}), false, 'switched off');
+  assert.equal(issuesOnSave({ id: 7, document_type: 'TAX_INVOICE', status: 'DRAFT' }, on), false, 'an existing draft keeps its status');
+  assert.equal(issuesOnSave({ document_type: 'TAX_INVOICE', status: 'PAID' }, on), false);
+  assert.equal(issuesOnSave({ document_type: 'JOB_COMPLETION', status: 'DRAFT' }, on), false, 'a type without Issued');
+});
+
+test('thermal receipt: 58 / 80 mm lines, totals, paid / due, UPI; ESC/POS bytes', async () => {
+  const { receiptLines, receiptText, escposBytes, lr, wrap, paperOf } = await import('../src/services/thermal.js');
+  assert.equal(paperOf({}), 58);
+  assert.equal(paperOf({ thermalPaper: '80' }), 80);
+  assert.equal(lr('Total', '1,180.00', 32).length, 32);
+  assert.equal(lr('A very long product name that does not fit', '99.00', 32).length, 32);
+  assert.deepEqual(wrap('Basmati rice premium quality 5kg bag', 16), ['Basmati rice', 'premium quality', '5kg bag']);
+  const bundle = {
+    document: {
+      document_type: 'TAX_INVOICE', document_number: 'INV-00012', issue_date: '2026-11-04', party_name: 'Kumar Hardware', party_phone: '98450 22222',
+      currency_symbol: '₹', currency_decimals: 2, subtotal: '1000', discount: '0', tax: '180', cgst: '90', sgst: '90', igst: '0', round_off: '0', grand_total: '1180',
+      meta: { paid: '500', payments: [{ amount: '500', mode: 'UPI' }] },
+    },
+    items: [{ name: 'PVC pipe 2 inch', quantity: '10', unit: 'Nos', unit_price: '100', total_amount: '1000' }],
+  };
+  const company = { name: 'Sri Lakshmi Stores', address: '12 MG Road, Pune', phone: '98220 12345', gstin: '27AAPFU0939F1ZV', upi_id: 'lakshmi@okaxis' };
+  for (const paper of [58, 80]) {
+    const width = paper === 58 ? 32 : 48;
+    const lines = receiptLines(bundle, { company, settings: {}, paper });
+    for (const l of lines) assert.ok(l.text.length <= (l.big ? Math.ceil(width / 2) + 8 : width), `${paper} mm: "${l.text}" fits`);
+    const text = receiptText(lines, paper);
+    for (const want of ['Sri Lakshmi', 'INV-00012', 'Kumar Hardware', 'PVC pipe 2 inch', '10 Nos x 100.00', 'CGST', 'SGST', 'TOTAL', '₹1,180.00', 'Paid (UPI)', 'Balance due', '680.00', 'Pay by UPI: lakshmi@okaxis']) {
+      assert.ok(text.includes(want), `${paper} mm receipt has "${want}"`);
+    }
+  }
+  const bytes = escposBytes(receiptLines(bundle, { company, settings: {}, paper: 58, symbol: 'Rs.' }));
+  assert.deepEqual([...bytes.slice(0, 2)], [0x1b, 0x40], 'starts with ESC @');
+  assert.deepEqual([...bytes.slice(-4)], [0x1d, 0x56, 0x42, 0x00], 'ends with a cut');
+  assert.ok([...bytes].every((b) => b < 0x80), 'plain ASCII for any printer');
+  assert.ok(new TextDecoder().decode(bytes).includes('Rs.1,180.00'));
+});
+
+test('ledger entries without a bill: Given / Received count in the balance; payments and goods back clear the oldest bills', async () => {
+  const { buildLedger, balancesFromSums, ENTRY_REASONS } = await import('../src/services/ledgerService.js');
+  const bill = (id, date, total) => ({ id, document_type: 'TAX_INVOICE', document_number: `INV-${id}`, status: 'ISSUED', issue_date: date, grand_total: total, meta: '{}' });
+  const entry = (id, date, total, meta) => ({ id, document_type: 'LEDGER_ENTRY', document_number: `LE-${id}`, status: 'ISSUED', issue_date: date, grand_total: total, meta: JSON.stringify(meta) });
+  const l = buildLedger([
+    bill(1, '2026-11-01', '1000'),
+    entry(2, '2026-11-02', '300', { side: 'gave', reason: 'Goods sold (no bill)', payment_mode: 'Cash' }),
+    entry(3, '2026-11-03', '400', { side: 'got', reason: 'Goods returned', payment_mode: 'Cash', settles: 'PAYMENT_RECEIPT' }),
+  ]);
+  assert.equal(l.balance, '900.00', '1000 + 300 − 400');
+  assert.deepEqual(l.rows.map((r) => [r.label, r.gave, r.got, r.entry]), [
+    ['Invoice', '1000.00', '', false],
+    ['Goods sold (no bill)', '300.00', '', true],
+    ['Goods returned', '', '400.00', true],
+  ]);
+  assert.equal(l.open[0].due, '600.00', 'goods back clear the oldest bill like a payment');
+  assert.equal(l.open.length, 1, 'an entry is never an unpaid bill');
+  const sums = balancesFromSums([
+    { party_id: 5, document_type: 'TAX_INVOICE', total: '1000', paid: '0' },
+    { party_id: 5, document_type: 'LEDGER_ENTRY_GAVE', total: '300' },
+    { party_id: 5, document_type: 'LEDGER_ENTRY_GOT', total: '400' },
+  ]);
+  assert.equal(toFixed(sums.get(5), 2), '900.00', 'list balances count the entries too');
+  assert.ok(ENTRY_REASONS.customer.got.find((r) => r.id === 'payment').pay === 'customer', 'Payment received is a real receipt');
+  assert.ok(ENTRY_REASONS.vendor.gave.find((r) => r.id === 'payment').pay === 'vendor', 'Payment made is a real voucher');
+});

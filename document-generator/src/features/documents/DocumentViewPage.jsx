@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { paperOf, printThermal, receiptLines } from '../../services/thermal.js';
 import Icon from '../../components/Icon.jsx';
 import Modal from '../../components/Modal.jsx';
 import { Menu, Spinner, StatusBadge } from '../../components/Common.jsx';
@@ -167,6 +168,13 @@ export default function DocumentViewPage({ params, query }) {
     if (doc) await printCurrent(fileTitle);
   }, [doc, fileTitle]);
 
+  /** A receipt for a 58 / 80 mm thermal printer (Settings → Documents → Thermal receipt paper). */
+  const printReceipt = useCallback(async () => {
+    if (!bundle) return;
+    const paper = paperOf(settings);
+    await printThermal(receiptLines(bundle, { company, settings, paper }), paper, () => printCurrent(fileTitle));
+  }, [bundle, company, settings, fileTitle]);
+
   const download = async () => {
     if (!doc || downloading) return;
     setDownloading(true);
@@ -262,6 +270,9 @@ export default function DocumentViewPage({ params, query }) {
               )}
               <button className="btn" onClick={() => print()} data-testid="print-doc">
                 <Icon name="printer" /> <span className="hide-sm">Print</span>
+              </button>
+              <button className="btn" onClick={printReceipt} title="Print a receipt on a thermal printer" data-testid="print-receipt">
+                <Icon name="receipt" /> <span className="hide-sm">Receipt</span>
               </button>
               {!cancelled && type.financial && (
                 <button className="btn btn-danger-outline" onClick={async () => (await actions.cancel(doc)) && load()} data-testid="cancel-doc">

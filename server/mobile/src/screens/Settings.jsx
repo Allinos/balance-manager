@@ -7,7 +7,7 @@ import { CompanySection, DocumentTypesSection, DocumentsSection } from './settin
 import { AboutSection, BackupSection, HelpSection, LicenseSection, NumberingSection, TaxSection } from './settings/system.jsx';
 import { useApp } from '../data.jsx';
 import { PartyModulesSection } from './Parties.jsx';
-import { PlanSection, SecuritySection } from './Android.jsx';
+import { PlanSection, PrinterSection, SecuritySection } from './Android.jsx';
 import { native } from '../lib/native.js';
 
 export const SECTIONS = [
@@ -27,6 +27,7 @@ export const SECTIONS = [
 const ANDROID_SECTIONS = [
   { id: 'plan', label: 'Plan & Account', icon: 'crown', detail: 'Free plan, upgrade, your account', Component: PlanSection },
   { id: 'security', label: 'Security', icon: 'lock', detail: 'PIN lock when DocGen opens', Component: SecuritySection },
+  { id: 'printer', label: 'Printer', icon: 'printer', detail: 'Bluetooth thermal printer for receipts', Component: PrinterSection },
 ];
 export const sectionsFor = (android = native()) =>
   android ? SECTIONS.flatMap((s) => (s.id === 'license' ? ANDROID_SECTIONS : [s])) : SECTIONS;

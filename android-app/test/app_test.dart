@@ -3,6 +3,7 @@ import 'package:docgen_android/ads.dart';
 import 'package:docgen_android/bridge.dart';
 import 'package:docgen_android/config.dart';
 import 'package:docgen_android/dues.dart';
+import 'package:docgen_android/printer.dart';
 import 'package:docgen_android/pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -61,7 +62,11 @@ void main() {
       final pins = PinStore(MemorySecretStore());
       await pins.set('2580');
       var unlocked = false;
-      await tester.pumpWidget(MaterialApp(home: LockScreen(pins: pins, onUnlocked: () => unlocked = true)));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LockScreen(pins: pins, onUnlocked: () => unlocked = true),
+        ),
+      );
       Future<void> enter(String pin) async {
         for (final d in pin.split('')) {
           await tester.tap(find.byKey(ValueKey('pin-key-$d')));
@@ -81,7 +86,11 @@ void main() {
       phoneScreen(tester);
       final pins = PinStore(MemorySecretStore());
       await pins.set('2580');
-      await tester.pumpWidget(MaterialApp(home: LockScreen(pins: pins, name: 'Ravi Kumar', business: 'Ravi Traders', onUnlocked: () {})));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: LockScreen(pins: pins, name: 'Ravi Kumar', business: 'Ravi Traders', onUnlocked: () {}),
+        ),
+      );
       expect(find.text('Welcome back, Ravi'), findsOneWidget);
       expect(find.text('Ravi Traders'), findsOneWidget);
       expect(find.text('Enter your 4-digit PIN'), findsOneWidget);
@@ -132,8 +141,8 @@ void main() {
 
   group('ads are not irritating', () {
     final start = DateTime(2026, 11, 2, 10);
-    test('full-screen: free users only, not in the first 3 minutes, at most every 10 minutes', () {
-      final p = InterstitialPolicy(started: start);
+    test('full-screen: free users only, not in the first 3 minutes, at most every 10 minutes (when set so)', () {
+      final p = InterstitialPolicy(started: start, every: const Duration(minutes: 10));
       expect(p.mayShow(free: true, now: start.add(const Duration(minutes: 2))), isFalse);
       expect(p.mayShow(free: false, now: start.add(const Duration(minutes: 30))), isFalse);
       final first = start.add(const Duration(minutes: 4));
@@ -166,6 +175,22 @@ void main() {
       result = null;
       expect('${(await ads.rewarded())['reason']}', contains('No ad is available'));
       expect(shown, 3);
+    });
+
+    test('by default at most one full-screen ad every 7 days, remembered across restarts', () async {
+      expect(AppConfig.interstitialEvery, const Duration(days: 7));
+      final store = MemorySecretStore();
+      final shownAt = DateTime.now().subtract(const Duration(days: 2));
+      store.values['ads.lastShown'] = shownAt.toIso8601String();
+      final ads = AdsController(started: DateTime.now().subtract(const Duration(hours: 1)), startAds: (_) async {}, store: store);
+      await Future<void>.delayed(Duration.zero);
+      expect(ads.policy.lastShown, shownAt, reason: 'the last ad, from before the restart');
+      expect(ads.policy.mayShow(free: true, now: DateTime.now()), isFalse, reason: 'only 2 days ago');
+      expect(ads.policy.mayShow(free: true, now: shownAt.add(const Duration(days: 7))), isTrue);
+      final rewarded = AdsController(started: DateTime.now(), startAds: (_) async {}, runRewarded: () async => true, store: store);
+      rewarded.screen('/', true);
+      await rewarded.rewarded();
+      expect(DateTime.parse(store.values['ads.lastShown']!).isAfter(shownAt), isTrue, reason: 'a rewarded ad counts too');
     });
 
     test('no full-screen ad straight after a rewarded one', () async {
@@ -217,21 +242,54 @@ void main() {
       expect(ok['ok'], isTrue);
       expect((ok['account'] as Map)['business'], 'Ravi Traders');
       expect(await bridge.handle('pin.get', []), {'enabled': true});
-      expect((await bridge.handle('pin.disable', [{'pin': '0000'}]) as Map)['ok'], isFalse);
-      expect((await bridge.handle('pin.disable', [{'pin': '1234'}]) as Map)['ok'], isTrue);
+      expect(
+        (await bridge.handle('pin.disable', [
+          {'pin': '0000'},
+        ]) as Map)['ok'],
+        isFalse,
+      );
+      expect(
+        (await bridge.handle('pin.disable', [
+          {'pin': '1234'},
+        ]) as Map)['ok'],
+        isTrue,
+      );
       expect(await bridge.handle('pin.get', []), {'enabled': false});
     });
 
     test('SMS, links, files, screens; unknown calls answer safely', () async {
-      expect(await bridge.handle('sms.send', [{'phone': '919876543210', 'text': 'Hi'}]), {'sent': true});
+      expect(
+        await bridge.handle('sms.send', [
+          {'phone': '919876543210', 'text': 'Hi'},
+        ]),
+        {'sent': true},
+      );
       expect(sms.single, ['919876543210', 'Hi']);
-      await bridge.handle('open', [{'url': 'https://wa.me/919876543210?text=Hi'}]);
+      await bridge.handle('open', [
+        {'url': 'https://wa.me/919876543210?text=Hi'},
+      ]);
       expect(opened.single, startsWith('https://wa.me/'));
-      expect(await bridge.handle('file.save', [{'name': 'INV-1.pdf', 'mime': 'application/pdf', 'base64': ''}]), {'ok': true});
-      expect(await bridge.handle('screen', [{'path': '/', 'free': true}]), {'ok': true});
+      expect(
+        await bridge.handle('file.save', [
+          {'name': 'INV-1.pdf', 'mime': 'application/pdf', 'base64': ''},
+        ]),
+        {'ok': true},
+      );
+      expect(
+        await bridge.handle('screen', [
+          {'path': '/', 'free': true},
+        ]),
+        {'ok': true},
+      );
       expect(bridge.ads.free, isTrue);
       expect(await bridge.handle('ads.rewarded', []), {'rewarded': true});
-      expect(await bridge.handle('dues.sync', [{'bills': [], 'enabled': true}]), {'ok': false, 'scheduled': 0}, reason: 'no reminders service in tests');
+      expect(
+        await bridge.handle('dues.sync', [
+          {'bills': [], 'enabled': true},
+        ]),
+        {'ok': false, 'scheduled': 0},
+        reason: 'no reminders service in tests',
+      );
       expect((await bridge.handle('nope', []) as Map)['ok'], isFalse);
     });
   });
@@ -259,4 +317,50 @@ void main() {
       expect(DueReminders.plan(many, now).length, DueReminders.maxScheduled);
     });
   });
+
+  group('thermal printer', () {
+    test('lists paired printers and prints the receipt bytes to the chosen one', () async {
+      final fake = FakePrinter();
+      final printers = Printers(fake);
+      expect(await printers.list(), {
+        'ok': true,
+        'printers': [
+          {'name': 'RPP02N', 'address': '66:22:7A:1B:2C:3D'},
+        ],
+      });
+      final r = await printers.print('66:22:7A:1B:2C:3D', 'G0AKSGVsbG8K');
+      expect(r, {'ok': true});
+      expect(fake.sent.single.key, '66:22:7A:1B:2C:3D');
+      expect(fake.sent.single.value.take(2), [0x1b, 0x40]);
+    });
+
+    test('a missing printer, bad bytes or a printer that does not answer give a clear message', () async {
+      final fake = FakePrinter()..answers = false;
+      final printers = Printers(fake);
+      expect('${(await printers.print('', 'AA=='))['reason']}', contains('Settings → Printer'));
+      expect('${(await printers.print('66:22:7A:1B:2C:3D', '***'))['reason']}', contains('could not be prepared'));
+      expect('${(await printers.print('66:22:7A:1B:2C:3D', 'G0A='))['reason']}', contains('did not answer'));
+      fake.error = StateError('Bluetooth is off. Switch it on and try again.');
+      expect((await printers.list())['reason'], 'Bluetooth is off. Switch it on and try again.');
+    });
+  });
+}
+
+class FakePrinter implements ThermalPrinter {
+  bool answers = true;
+  StateError? error;
+  final sent = <MapEntry<String, List<int>>>[];
+  @override
+  Future<List<Map<String, String>>> paired() async {
+    if (error != null) throw error!;
+    return [
+      {'name': 'RPP02N', 'address': '66:22:7A:1B:2C:3D'},
+    ];
+  }
+
+  @override
+  Future<bool> print(String address, List<int> bytes) async {
+    sent.add(MapEntry(address, bytes));
+    return answers;
+  }
 }

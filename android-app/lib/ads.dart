@@ -1,8 +1,9 @@
 /// AdMob for free-plan users only. No banners.
 ///  - Rewarded ad, the user's choice: when the free plan's 20 documents (or payments) are used up, the app offers
 ///    "Watch a short ad · +1 document". Watching the whole ad earns one more place (web app: useFreeLimit).
-///  - Full-screen (interstitial) ad: at most once every 10 minutes, never in the first 3 minutes, only right after a
-///    bill or payment was saved (never while typing), and never straight after a rewarded ad.
+///  - Full-screen (interstitial) ad: at most once every 7 days (the last one is remembered across restarts), never in
+///    the first 3 minutes, only right after a bill or payment was saved (never while typing), and never straight
+///    after a rewarded ad.
 /// With a license (upgrade) there are no ads at all.
 library;
 
@@ -12,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'config.dart';
+import 'pin.dart' show SecretStore;
 
 /// When a full-screen ad may show. Pure logic, tested in test/app_test.dart.
 class InterstitialPolicy {
@@ -36,9 +38,26 @@ typedef RewardedRunner = Future<bool?> Function();
 
 class AdsController {
   /// [startAds] starts AdMob and loads the first full-screen ad; [runRewarded] shows a rewarded ad (both replaced in tests).
-  AdsController({DateTime? started, Future<void> Function(AdsController)? startAds, this.runRewarded})
+  AdsController({DateTime? started, Future<void> Function(AdsController)? startAds, this.runRewarded, this.store})
     : policy = InterstitialPolicy(started: started ?? DateTime.now()),
-      _startAds = startAds ?? _startAdMob;
+      _startAds = startAds ?? _startAdMob {
+    _restore();
+  }
+
+  /// Keeps when the last full-screen ad was shown, so "once every 7 days" holds across restarts (null in tests).
+  final SecretStore? store;
+  static const _lastKey = 'ads.lastShown';
+
+  Future<void> _restore() async {
+    final raw = await store?.read(_lastKey);
+    final at = raw == null ? null : DateTime.tryParse(raw);
+    if (at != null && (policy.lastShown == null || at.isAfter(policy.lastShown!))) policy.lastShown = at;
+  }
+
+  void _remember(DateTime at) {
+    policy.shown(at);
+    store?.write(_lastKey, at.toIso8601String());
+  }
 
   static Future<void> _startAdMob(AdsController c) async {
     await MobileAds.instance.initialize();
@@ -47,6 +66,7 @@ class AdsController {
   }
 
   final Future<void> Function(AdsController) _startAds;
+
   /// Shows a rewarded ad (AdMob by default; replaced in tests).
   final RewardedRunner? runRewarded;
 
@@ -141,7 +161,7 @@ class AdsController {
       return;
     }
     if (!policy.mayShow(free: _free, now: now)) return;
-    policy.shown(now);
+    _remember(now);
     _interstitial = null;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
@@ -167,7 +187,7 @@ class AdsController {
       earned = null;
     }
     // No full-screen ad straight after a rewarded one.
-    if (earned != null) policy.shown(DateTime.now());
+    if (earned != null) _remember(DateTime.now());
     if (earned == true) return {'rewarded': true};
     if (earned == false) return {'rewarded': false, 'reason': 'Watch the whole ad to get one more document.'};
     return {'rewarded': false, 'reason': 'No ad is available right now. Check your internet connection and try again.'};

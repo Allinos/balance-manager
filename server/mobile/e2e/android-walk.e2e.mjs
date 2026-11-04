@@ -230,11 +230,11 @@ try {
   await page.getByTestId('party-row').first().locator('.list-main, button').first().click();
   await page.getByTestId('party-ledger').waitFor();
   await step(page, 'ux-09-ledger');
-  await page.getByTestId('party-pay-customer').click();
-  await page.getByTestId('pay-amount').fill('2124');
-  await page.getByTestId('pay-mode-UPI').click();
+  await page.getByTestId('ledger-received').click();
+  await page.getByTestId('entry-amount').fill('2124');
+  await page.getByTestId('entry-mode-UPI').click();
   await step(page, 'ux-10-payment');
-  await page.getByTestId('pay-save').click();
+  await page.getByTestId('entry-save').click();
   await page.waitForTimeout(800);
   await page.goto(`${base}/app/#/`);
   await page.getByTestId('dashboard').waitFor();
@@ -242,13 +242,38 @@ try {
   const after = (await page.getByTestId('dues-card').count()) ? await page.getByTestId('dues-card').textContent() : '';
   if (after.includes('Kumar Hardware')) issues.push(`Home: the bill is still in Payments due after the customer paid in full (${after})`);
   await step(page, 'ux-11-home-paid');
-  for (const [p, n] of [['/documents', 'ux-12-documents'], ['/reports', 'ux-13-reports'], ['/products', 'ux-14-products'], ['/settings', 'ux-15-settings'], ['/settings/plan', 'ux-16-plan'], ['/settings/security', 'ux-17-security']]) {
+  // A vendor: Received = goods bought without a bill (I'll give), Given = Payment made, which settles it.
+  await page.goto(`${base}/app/#/parties/all`);
+  await page.getByTestId('add-party').click();
+  await page.getByTestId('party-kind').getByText('Vendor').click();
+  await page.getByTestId('party-form-name').fill('Balaji Pipes');
+  await page.getByTestId('party-form-save').click();
+  await page.getByTestId('party-list').getByText('Balaji Pipes').click();
+  await page.getByTestId('party-ledger').waitFor();
+  await page.getByTestId('ledger-received').click();
+  if ((await page.getByTestId('entry-reason-goods').textContent()) !== 'Goods bought (no bill)') issues.push('vendor: Received does not offer "Goods bought (no bill)" first');
+  await page.getByTestId('entry-amount').fill('2000');
+  await page.getByTestId('entry-save').click();
+  await page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
+  const owe = await page.getByTestId('party-balance').textContent();
+  if (!owe.includes("I'll give") || !owe.includes('2,000')) issues.push(`vendor: after goods bought the balance is not "I'll give ₹2,000" (${owe})`);
+  if (await page.getByTestId('reminder-section').count()) issues.push('vendor: a payment reminder is offered while you owe the vendor');
+  await step(page, 'ux-12-vendor');
+  await page.getByTestId('ledger-given').click();
+  if ((await page.getByTestId('entry-reason-payment').getAttribute('aria-checked')) !== 'true') issues.push('vendor: Given does not start with "Payment made"');
+  await page.getByTestId('entry-amount').fill('2000');
+  await page.getByTestId('entry-save').click();
+  await page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
+  await page.waitForTimeout(400);
+  const settled = await page.getByTestId('party-balance').textContent();
+  if (!settled.includes('Settled')) issues.push(`vendor: Payment made of ₹2,000 does not settle (${settled})`);
+  for (const [p, n] of [['/documents', 'ux-12-documents'], ['/reports', 'ux-13-reports'], ['/products', 'ux-14-products'], ['/settings', 'ux-15-settings'], ['/settings/plan', 'ux-16-plan'], ['/settings/security', 'ux-17-security'], ['/settings/printer', 'ux-18-printer']]) {
     await page.goto(`${base}/app/#${p}`);
     await page.waitForTimeout(700);
     await step(page, n);
   }
   if (issues.length) throw new Error(`issues found:\n- ${[...new Set(issues)].join('\n- ')}`);
-  console.log('Android walk-through (360 px phone): no issues on 17 screens');
+  console.log('Android walk-through (360 px phone): no issues on 19 screens');
 } catch (e) {
   console.error(`ANDROID WALK FAILED: ${e.message}`);
   if (issues.length && !e.message.startsWith('issues found')) console.error(`issues so far:\n- ${[...new Set(issues)].join('\n- ')}`);

@@ -7,7 +7,8 @@
  */
 
 export const FREE_LIMITS = { documents: 20, payments: 20, parties: 20 };
-export const PAYMENT_TYPES = new Set(['PAYMENT_RECEIPT', 'PAYMENT_VOUCHER']);
+/** Payments on the free plan: receipts, payment vouchers and the ledger's Given / Received entries. */
+export const PAYMENT_TYPES = new Set(['PAYMENT_RECEIPT', 'PAYMENT_VOUCHER', 'LEDGER_ENTRY']);
 
 let free = false;
 export const setFreePlan = (on) => {

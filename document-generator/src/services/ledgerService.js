@@ -36,8 +36,22 @@ export const LEDGER_SIGN = {
 export const LEDGER_TYPES = Object.keys(LEDGER_SIGN);
 const PAYMENTS = ['PAYMENT_RECEIPT', 'PAYMENT_VOUCHER'];
 
+/**
+ * A ledger entry made straight from a profile (phone: Given / Received), without a bill: goods sold or bought without
+ * a bill, credit, an opening balance, goods returned … Stored as a document of type LEDGER_ENTRY (never listed with
+ * the documents) with meta { side: 'gave' | 'got', reason, payment_mode, settles }. `settles` is the payment pool it
+ * joins ('PAYMENT_RECEIPT' / 'PAYMENT_VOUCHER'): money or goods back that clear the oldest bills, like a payment.
+ * The backend sums them per side as LEDGER_ENTRY_GAVE / LEDGER_ENTRY_GOT.
+ */
+export const LEDGER_ENTRY = 'LEDGER_ENTRY';
+LEDGER_SIGN.LEDGER_ENTRY_GAVE = 1;
+LEDGER_SIGN.LEDGER_ENTRY_GOT = -1;
+
+/** Sign of a document in the ledger: + you gave (they owe you), − you got. */
+const signOf = (d) => (d.document_type === LEDGER_ENTRY ? (metaOf(d).side === 'gave' ? 1 : -1) : LEDGER_SIGN[d.document_type]);
+
 /** A document that counts in the ledger. Drafts count: a saved invoice is owed. */
-export const counts = (d) => !d.deleted_at && d.status !== 'CANCELLED' && d.status !== 'VOID' && !!LEDGER_SIGN[d.document_type];
+export const counts = (d) => !d.deleted_at && d.status !== 'CANCELLED' && d.status !== 'VOID' && (d.document_type === LEDGER_ENTRY || !!LEDGER_SIGN[d.document_type]);
 
 const fixed = (v) => toFixed(v, 2);
 const metaOf = (d) => {
@@ -84,6 +98,12 @@ export function buildLedger(documents) {
   const pool = { PAYMENT_RECEIPT: 0n, PAYMENT_VOUCHER: 0n };
   for (const d of docs) if (isBill(d)) settled.set(d.id, dec(metaOf(d).paid || '0'));
   for (const d of docs) {
+    // Entries made without a bill that clear bills (payment, goods returned …) join the payments.
+    if (d.document_type === LEDGER_ENTRY) {
+      const pay = metaOf(d).settles;
+      if (pool[pay] !== undefined) pool[pay] += dec(d.grand_total);
+      continue;
+    }
     if (!PAYMENTS.includes(d.document_type)) continue;
     const bill = d.parent_document_id && byId.get(d.parent_document_id);
     if (bill && BILL_PAYMENT[bill.document_type] === d.document_type) settled.set(bill.id, settled.get(bill.id) + dec(d.grand_total));
@@ -120,7 +140,8 @@ export function buildLedger(documents) {
   for (const d of docs) {
     const meta = metaOf(d);
     const bill = byId.get(d.parent_document_id);
-    const sign = LEDGER_SIGN[d.document_type];
+    const sign = signOf(d);
+    const entry = d.document_type === LEDGER_ENTRY;
     events.push({
       sort: [d.issue_date, d.id, 0],
       sign,
@@ -130,10 +151,11 @@ export function buildLedger(documents) {
         id: d.id,
         date: d.issue_date,
         type: d.document_type,
-        label: getType(d.document_type).short,
-        number: d.document_number,
+        label: entry ? meta.reason || (sign > 0 ? 'Given' : 'Received') : getType(d.document_type).short,
+        number: entry ? '' : d.document_number,
         status: d.status,
-        mode: PAYMENTS.includes(d.document_type) ? meta.payment_mode || '' : '',
+        mode: PAYMENTS.includes(d.document_type) || entry ? meta.payment_mode || '' : '',
+        entry,
         against: bill ? bill.document_number : '',
       },
     });
@@ -275,4 +297,84 @@ export async function recordPayment({ party, side, amount, mode, date, ledger, c
   const saved = await saveDocument(model, ctx);
   await syncBillStatuses(party.id, `${getType(typeId).short} ${saved.document_number}`);
   return { ...saved, settles };
+}
+
+/**
+ * Given / Received on a customer's or vendor's profile (phone). Reasons that are a payment save a receipt / payment
+ * voucher (recordPayment: oldest bills first); the others save a ledger entry without a bill.
+ * pay: the payment side it records (customer = money in, vendor = money out); settles: whether it clears bills.
+ */
+export const ENTRY_REASONS = {
+  customer: {
+    gave: [
+      { id: 'goods', label: 'Goods sold (no bill)' },
+      { id: 'credit', label: 'Credit given' },
+      { id: 'refund', label: 'Cash given / refund' },
+      { id: 'opening', label: 'Opening balance' },
+      { id: 'other', label: 'Other' },
+    ],
+    got: [
+      { id: 'payment', label: 'Payment received', pay: 'customer' },
+      { id: 'advance', label: 'Advance received', pay: 'customer' },
+      { id: 'return', label: 'Goods returned', settles: true },
+      { id: 'discount', label: 'Discount / write-off', settles: true },
+      { id: 'other', label: 'Other', settles: true },
+    ],
+  },
+  vendor: {
+    gave: [
+      { id: 'payment', label: 'Payment made', pay: 'vendor' },
+      { id: 'advance', label: 'Advance paid', pay: 'vendor' },
+      { id: 'return', label: 'Goods returned', settles: true },
+      { id: 'other', label: 'Other', settles: true },
+    ],
+    got: [
+      { id: 'goods', label: 'Goods bought (no bill)' },
+      { id: 'credit', label: 'Credit received' },
+      { id: 'opening', label: 'Opening balance' },
+      { id: 'other', label: 'Other' },
+    ],
+  },
+};
+
+/** The side whose reasons apply: a vendor's, or a customer's ("both" use the customer's). */
+export const entrySide = (party) => (party?.kind === 'vendor' ? 'vendor' : 'customer');
+
+/**
+ * Save a Given / Received entry. Returns { id, document_number, payment: boolean }.
+ * @param {{ party, direction: 'gave'|'got', reasonId, amount, mode, date, ledger, ctx }} entry
+ */
+export async function recordLedgerEntry({ party, direction, reasonId, amount, mode, date, ledger, ctx }) {
+  if (dec(amount || '0') <= 0n) throw new Error('Please enter the amount.');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) throw new Error('Please choose a valid date.');
+  const side = entrySide(party);
+  const reason = (ENTRY_REASONS[side][direction] || []).find((r) => r.id === reasonId);
+  if (!reason) throw new Error('Please choose a reason.');
+  if (reason.pay) {
+    const saved = await recordPayment({ party, side: reason.pay, amount, mode, date, ledger, ctx });
+    return { ...saved, payment: true };
+  }
+  const settles = reason.settles ? (side === 'vendor' ? 'PAYMENT_VOUCHER' : 'PAYMENT_RECEIPT') : '';
+  const settings = ctx?.settings || {};
+  const saved = await call('document_save', {
+    payload: {
+      defaultPrefix: 'LE',
+      document: {
+        document_type: LEDGER_ENTRY,
+        status: 'ISSUED',
+        issue_date: date,
+        party_id: party.id,
+        party_name: party.name,
+        party_phone: party.phone || '',
+        currency: settings.baseCurrency || 'INR',
+        grand_total: toFixed(amount, 2),
+        subtotal: toFixed(amount, 2),
+        meta: { side: direction, reason: reason.label, reason_id: reason.id, payment_mode: mode || 'Cash', settles },
+      },
+      items: [],
+      taxes: [],
+    },
+  });
+  if (settles) await syncBillStatuses(party.id, `${reason.label} ${date}`);
+  return { ...saved, payment: false };
 }

@@ -138,7 +138,7 @@ const ACCENTS = ['#1f4fd8', '#0f766e', '#7c3aed', '#b91c1c', '#c2410c', '#111827
 export function DocumentsSection() {
   const { draft, set, dirty, save } = useSettingsDraft([
     'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showShippingAddress', 'showAmountInWords', 'showSignature', 'showStamp', 'autoRoundOff',
-    'defaultPaymentTerms', 'qrContent', 'qrCustomText', 'footerText', 'declaration', 'jurisdiction', 'documentCopies',
+    'defaultPaymentTerms', 'qrContent', 'qrCustomText', 'footerText', 'declaration', 'jurisdiction', 'documentCopies', 'issueOnSave', 'thermalPaper',
   ]);
   const overrides = useMemo(() => ({ ...draft }), [draft]);
   return (
@@ -151,6 +151,7 @@ export function DocumentsSection() {
           <TemplateCards value={draft.documentStyle} onChange={(id) => set({ documentStyle: id })} optionClass="template-option" />
         </Field>
         <SamplePreview overrides={overrides} />
+        <Toggle checked={!!draft.issueOnSave} onChange={(v) => set({ issueOnSave: v })} label="Issue on save" hint="New bills, quotations and orders are saved as Issued instead of Draft — a bill paid in full on saving becomes Paid at once" data-testid="issue-on-save" />
         <Field label="Number of copies" hint="Printed / saved as PDF. GST invoices are labelled Original for Recipient, Duplicate for Transporter, Triplicate for Supplier.">
           <Segmented
             value={String(draft.documentCopies || 1)}
@@ -162,6 +163,17 @@ export function DocumentsSection() {
               { value: '4', label: '4' },
             ]}
             testId="copies"
+          />
+        </Field>
+        <Field label="Thermal receipt paper" hint="For Receipt: a small bill on a 58 mm or 80 mm roll printer">
+          <Segmented
+            value={String(draft.thermalPaper || '58')}
+            onChange={(v) => set({ thermalPaper: v })}
+            options={[
+              { value: '58', label: '58 mm' },
+              { value: '80', label: '80 mm' },
+            ]}
+            testId="thermal-paper"
           />
         </Field>
         <Field label="Accent colour">

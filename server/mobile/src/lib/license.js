@@ -136,12 +136,6 @@ export async function activateWithLogin(email, password) {
   return store(await call('/login', { email, password, ...(await device()) }));
 }
 
-/** The signed license token of this phone (for the data transfer after an upgrade), or ''. */
-export async function licenseToken() {
-  const record = await opened(await kvGet('license'));
-  return record?.token || '';
-}
-
 /** Refresh from the server (when online). Clears the license if the server removed this phone. */
 export async function refresh() {
   const record = await opened(await kvGet('license'));

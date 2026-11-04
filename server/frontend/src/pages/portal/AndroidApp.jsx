@@ -14,7 +14,7 @@ const POINTS = [
   ['chat', 'SMS & WhatsApp', 'An SMS to your customer for every new bill or payment, a WhatsApp payment reminder in one tap, and a notification on the day a bill is due.'],
   ['file', 'Simple retail bills', 'A counter bill without GST — share it as a PDF straight away. GST invoices and every other document type too.'],
   ['chart', 'Reports at a glance', 'Sales, purchases, money in and out, and who still owes you — this month, last month or this year.'],
-  ['refresh', 'Upgrade, keep everything', 'When you upgrade, your customers, bills and payments move with you to your DocGen account. No limits, no ads.'],
+  ['refresh', 'Upgrade any time', 'No limits and no ads, and DocGen on your computer too. Everything you made stays on your phone.'],
 ];
 
 /** "Get it on Google Play" (or the APK link), or a "Coming soon" badge. */

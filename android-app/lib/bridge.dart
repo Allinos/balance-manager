@@ -5,6 +5,7 @@ library;
 import 'account.dart';
 import 'ads.dart';
 import 'dues.dart';
+import 'printer.dart';
 import 'phone.dart';
 import 'pin.dart';
 
@@ -16,6 +17,7 @@ class Bridge {
     required this.pins,
     required this.ads,
     this.dues,
+    this.printers,
     this.sendSms = Phone.sendSms,
     this.smsPermission = Phone.smsPermission,
     this.open = Phone.open,
@@ -27,6 +29,7 @@ class Bridge {
   final PinStore pins;
   final AdsController ads;
   final DueReminders? dues;
+  final Printers? printers;
   final Future<Map<String, Object?>> Function(String phone, String text) sendSms;
   final Future<bool> Function({bool ask}) smsPermission;
   final Future<bool> Function(String url) open;
@@ -67,6 +70,8 @@ class Bridge {
       return {'ok': true};
     },
     'ads.rewarded': (_) => ads.rewarded(),
+    'printer.list': (_) async => await printers?.list() ?? {'ok': false, 'printers': const [], 'reason': 'Printing is not available.'},
+    'printer.print': (a) async => await printers?.print(_s(a, 'address'), _s(a, 'base64')) ?? {'ok': false, 'reason': 'Printing is not available.'},
     'dues.sync': (a) async {
       final bills = (a['bills'] is List ? a['bills'] as List : const []).whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
       return await dues?.sync(bills, enabled: a['enabled'] != false) ?? {'ok': false, 'scheduled': 0};

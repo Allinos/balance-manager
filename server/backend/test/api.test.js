@@ -343,7 +343,7 @@ describe('admin', () => {
   });
 });
 
-describe('Android app: data transfer after an upgrade', () => {
+describe('Android app: license and origin', () => {
   let adminToken;
   let appToken;
   const phone = { ...device(21), deviceKind: 'mobile', platform: 'android' };
@@ -371,38 +371,9 @@ describe('Android app: data transfer after an upgrade', () => {
     appToken = r.body.token;
   });
 
-  test('the phone data is kept with the license; demo and deleted rows are not counted', async () => {
-    const docs = [
-      { id: 1, document_type: 'TAX_INVOICE', document_number: 'INV-1' },
-      { id: 2, document_type: 'RETAIL_BILL', document_number: 'RB-1' },
-      { id: 3, document_type: 'TAX_INVOICE', document_number: 'INV-2', deleted_at: '2026-11-01' },
-    ];
-    const account = { uid: 'firebase-uid-1', name: 'Ravi', business: 'Ravi Traders', phone: '9876543210' };
-    const r = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, account, data: backup(docs) } });
-    assert.equal(r.status, 200, JSON.stringify(r.body));
-    assert.deepEqual([r.body.documents, r.body.parties, r.body.products], [2, 1, 1]);
-    const row = await knex('app_data_uploads').orderBy('id', 'desc').first();
-    assert.equal(row.account_uid, 'firebase-uid-1');
-    assert.equal(JSON.parse(row.data).stores.documents.length, 3);
-    assert.equal(crypto.createHash('sha256').update(row.data).digest('hex'), r.body.sha256);
-  });
-
-  test('a large phone (over the normal 100 kB limit) is accepted; only the latest three copies are kept', async () => {
-    const many = Array.from({ length: 1500 }, (_, i) => ({ id: i + 1, document_type: 'TAX_INVOICE', document_number: `INV-${i + 1}`, notes: 'x'.repeat(100) }));
-    for (let i = 0; i < 3; i += 1) {
-      const r = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, data: backup(many) } });
-      assert.equal(r.status, 200, JSON.stringify(r.body));
-      assert.equal(r.body.documents, 1500);
-    }
-    const rows = await knex('app_data_uploads').where({ device_id: phone.deviceId });
-    assert.equal(rows.length, 3);
-  });
-
-  test('a wrong token, another phone or not a backup is refused', async () => {
-    const other = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: device(22).deviceId, data: backup([]) } });
-    assert.equal(other.status, 401);
-    const bad = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, data: { format: 'something-else' } } });
-    assert.equal(bad.status, 400);
+  test('no data upload: the phone keeps its data (the online copy was withdrawn)', async () => {
+    const r = await api('POST', '/api/app/migrate', { body: { token: appToken, deviceId: phone.deviceId, data: backup([]) } });
+    assert.equal(r.status, 404);
   });
 
   test('CORS: the app origin may call the app endpoints only', async () => {

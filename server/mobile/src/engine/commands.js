@@ -43,7 +43,7 @@ const PARTY_KINDS = ['customer', 'vendor', 'both'];
 const VENDOR_TYPES = new Set(['REVERSE_QUOTATION', 'PURCHASE_ORDER', 'GOODS_RECEIPT', 'PURCHASE_INVOICE', 'PAYMENT_VOUCHER', 'WORK_ORDER']);
 
 /** The documents of a customer's / vendor's ledger (desktop: LEDGER_TYPES in commands.rs). */
-const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE']);
+const LEDGER_TYPES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL', 'DEBIT_NOTE', 'PAYMENT_VOUCHER', 'CREDIT_NOTE', 'PAYMENT_RECEIPT', 'PURCHASE_INVOICE', 'LEDGER_ENTRY']);
 /** Paid on a bill itself (Payment & Ledger: meta.paid), from its stored meta text. */
 const paidOnBill = (meta) => {
   try {
@@ -58,7 +58,7 @@ function partyKind(p, docs) {
   if (PARTY_KINDS.includes(p.kind)) return p.kind;
   const mine = docs.filter((d) => d.party_id === p.id);
   const vendor = mine.some((d) => VENDOR_TYPES.has(d.document_type));
-  const customer = mine.some((d) => !VENDOR_TYPES.has(d.document_type));
+  const customer = mine.some((d) => !VENDOR_TYPES.has(d.document_type) && d.document_type !== 'LEDGER_ENTRY');
   return vendor && customer ? 'both' : vendor ? 'vendor' : 'customer';
 }
 
@@ -376,8 +376,19 @@ const commands = {
       while (cursor) {
         const d = cursor.value;
         if (!d.deleted_at && d.status !== 'CANCELLED' && d.status !== 'VOID' && LEDGER_TYPES.has(d.document_type)) {
-          const key = `${d.party_id}|${d.document_type}`;
-          const row = sums.get(key) || { party_id: d.party_id, document_type: d.document_type, total: 0n, paid: 0n, count: 0 };
+          // Ledger entries without a bill are summed per side (ledgerService: LEDGER_ENTRY_GAVE / _GOT).
+          let type = d.document_type;
+          if (type === 'LEDGER_ENTRY') {
+            let side = '';
+            try {
+              side = JSON.parse(d.meta || '{}').side;
+            } catch {
+              /* unreadable entry: counted as received */
+            }
+            type = side === 'gave' ? 'LEDGER_ENTRY_GAVE' : 'LEDGER_ENTRY_GOT';
+          }
+          const key = `${d.party_id}|${type}`;
+          const row = sums.get(key) || { party_id: d.party_id, document_type: type, total: 0n, paid: 0n, count: 0 };
           row.total += dec(d.grand_total);
           row.paid += dec(paidOnBill(d.meta));
           row.count += 1;
@@ -458,6 +469,8 @@ const commands = {
           : await documents.getAll();
       const rows = source.filter((d) => {
         if (f.deleted ? !d.deleted_at : d.deleted_at) return false;
+        // Ledger entries (Given / Received without a bill) belong to the ledger, not to Documents.
+        if (d.document_type === 'LEDGER_ENTRY' && !types.includes('LEDGER_ENTRY')) return false;
         if (types.length && !types.includes(d.document_type)) return false;
         if (status && d.status !== status) return false;
         if (Number.isInteger(f.folderId)) {
@@ -722,7 +735,8 @@ const commands = {
   dashboard_stats: () =>
     read(['documents', 'products', 'parties'], async ({ documents, products, parties }) => {
       const all = await documents.getAll();
-      const live = all.filter((d) => !d.deleted_at);
+      // Ledger entries (Given / Received without a bill) are not documents.
+      const live = all.filter((d) => !d.deleted_at && d.document_type !== 'LEDGER_ENTRY');
       const count = (key) => Object.entries(live.reduce((acc, d) => ({ ...acc, [d[key]]: (acc[d[key]] || 0) + 1 }), {})).map(([k, n]) => ({ [key]: k, count: n }));
       const t = new Date();
       const monthStart = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-01`;

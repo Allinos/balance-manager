@@ -90,6 +90,8 @@ export const DEFAULT_SETTINGS = {
   dashboardTypes: [], // empty = the business type's first 8 document types
   showShippingAddress: false, // new invoices start with the Shipping address switch off (config/shipping.js)
   documentCopies: 1, // 1–4 copies when printing / downloading
+  thermalPaper: '58', // thermal receipt roll: '58' or '80' mm (Settings → Documents)
+  issueOnSave: false, // a new bill, quotation, order … is saved as Issued instead of Draft (Settings → Documents)
   customersModule: false, // Customers screen (config/partyModules.js); off until switched on
   vendorsModule: false, // Vendors screen
   ledgerModule: false, // Payment & Ledger (services/billPayment.js): payments on bills, balances and the ledger

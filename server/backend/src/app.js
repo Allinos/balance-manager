@@ -72,8 +72,6 @@ export function createApp(knex, { logger = console, vite = null } = {}) {
       cb(null, { origin: !origin || list.has(origin), maxAge: 600 });
     }),
   );
-  // Data transfer after an upgrade in the Android app: the whole phone's data in one request.
-  app.use('/api/app/migrate', express.json({ limit: '25mb' }));
   // Keep the raw body: payment webhooks are signed over the exact bytes received.
   app.use('/api', express.json({ limit: '100kb', verify: (req, _res, buf) => (req.rawBody = buf) }));
   app.use('/api', limits.api);

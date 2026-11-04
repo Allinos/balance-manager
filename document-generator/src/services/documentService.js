@@ -338,6 +338,9 @@ export function validate(model) {
  * Save a model. Optionally stores the customer for reuse first.
  * @returns {Promise<{id: number, document_number: string}>}
  */
+/** Issue on save (Settings → Documents): a new document that starts as a draft is saved as Issued, when its type has that status. */
+export const issuesOnSave = (doc, settings) => !!settings?.issueOnSave && !doc?.id && doc?.status === 'DRAFT' && getType(doc.document_type).statuses.includes('ISSUED');
+
 export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
   const error = validate(model);
   if (error) throw new Error(error);
@@ -361,6 +364,8 @@ export async function saveDocument(model, ctx, { saveCustomer = false } = {}) {
   }
   const { lines, taxes, totals } = calculate(model, ctx);
   const type = getType(doc.document_type);
+  // Settings → Documents → Issue on save: a new document is saved as Issued (a bill paid on it then becomes Paid).
+  if (issuesOnSave(doc, ctx.settings)) doc.status = 'ISSUED';
   // Payment & Ledger: the payment taken on a bill, and its status moved forward (Issued → Partly paid → Paid).
   if (takesPayment(doc, ctx.settings)) {
     const problem = paymentError(doc, totals.grand_total);

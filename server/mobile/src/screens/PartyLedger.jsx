@@ -1,27 +1,31 @@
 /**
- * A customer's / vendor's profile on the phone (Payment & Ledger on): I'll get / I'll give, one big
- * Payment received (customer) / Payment made (vendor) button, the ledger and the unpaid bills — the desktop's
- * PartyLedgerPage. The payment sheet asks only for the amount and the mode, and clears the oldest bills first.
+ * A customer's / vendor's ledger on the phone (and in the Android app) with Payment & Ledger on — compact:
+ *   - the balance (I'll get / I'll give) with "Unpaid bills (n)", which opens all the party's unpaid bills;
+ *   - the ledger, newest first; an entry made here can be opened and deleted;
+ *   - Send reminder: WhatsApp and SMS with the amount due and an optional "pay by" date;
+ *   - at the bottom, Given (left) and Received (right): add a ledger entry straight away, without a bill —
+ *     reason, date, amount and payment mode. A payment reason saves a receipt / payment voucher that clears the
+ *     oldest bills first (ledgerService.recordLedgerEntry).
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { currencyInfo } from '@desktop/services/documentService.js';
+import { currencyInfo, deleteDocument } from '@desktop/services/documentService.js';
 import { PAYMENT_MODES } from '@desktop/config/documentTypes.js';
 import { ledgerOn } from '@desktop/services/billPayment.js';
-import { allocate, balanceLabel, partyLedger, PAYMENT_SIDES, recordPayment, sidesOf } from '@desktop/services/ledgerService.js';
+import { ENTRY_REASONS, PAYMENT_SIDES, allocate, balanceLabel, entrySide, partyLedger, recordLedgerEntry } from '@desktop/services/ledgerService.js';
 import { formatMoney } from '@desktop/utils/format.js';
 import { formatDate, todayISO } from '@desktop/utils/dates.js';
-import { abs, dec } from '@desktop/utils/decimal.js';
+import { abs, dec, toFixed } from '@desktop/utils/decimal.js';
 import { maskAmount, useAmountsHidden } from '@desktop/hooks/usePrivacy.js';
 import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import Icon from '../components/Icon.jsx';
 import { Empty, Header, NumberInput, Sheet, Spinner, back, go, useUi } from '../components/ui.jsx';
 import { useApp, useDocContext } from '../data.jsx';
 import { PartySheet } from './Parties.jsx';
-import { sendWhatsAppReminder, smsAlert } from '../lib/notify.js';
-import { reportEvent } from '../lib/native.js';
-import { syncDues } from '../lib/dues.js';
+import { phoneDigits, sendSmsReminder, sendWhatsAppReminder, smsAlert } from '../lib/notify.js';
+import { native, reportEvent } from '../lib/native.js';
 import { isLimitError } from '../lib/plan.js';
+import { syncDues } from '../lib/dues.js';
 import { useFreeLimit } from './Android.jsx';
 
 /** Money in the base currency, hidden while the privacy eye is on. */
@@ -37,64 +41,97 @@ const KIND_LABEL = { customer: 'Customer', vendor: 'Vendor', both: 'Customer & v
 const tone = (v) => (dec(v) > 0n ? 'get' : dec(v) < 0n ? 'give' : '');
 const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 
-/** Bottom sheet: amount, mode and date (today by default), then what it will settle. */
-function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
+/** WhatsApp and SMS marks for the reminder buttons. */
+function WhatsAppMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2c-1.5 0-3-.4-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.9 11.9 0 0 0 4.6 4c1.7.7 2.4.8 3.2.7.5-.1 1.5-.6 1.8-1.2.2-.6.2-1.1.1-1.2l-.5-.4z" />
+    </svg>
+  );
+}
+function SmsMark() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 5h16v11H9l-5 4z" />
+      <path d="M8 9.5h8M8 12.5h5" />
+    </svg>
+  );
+}
+
+/** Given / Received: reason, date, amount and payment mode. */
+function EntrySheet({ party, direction, ledger, onClose, onSaved }) {
   const ctx = useDocContext();
   const { toast } = useUi();
   const freeLimit = useFreeLimit();
   const money = useMoney();
+  const side = entrySide(party);
+  const reasons = ENTRY_REASONS[side][direction];
+  const [reasonId, setReasonId] = useState(reasons[0].id);
+  const [date, setDate] = useState(todayISO());
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('Cash');
-  const [date, setDate] = useState(todayISO());
   const [saving, setSaving] = useState(false);
-  const labels = PAYMENT_SIDES[side];
-  const plan = allocate(ledger, side, amount);
-  const after = dec(plan.balanceAfter);
+  const reason = reasons.find((r) => r.id === reasonId) || reasons[0];
   const has = dec(amount || '0') > 0n;
+  // A payment (or goods back) clears the oldest bills first: show which.
+  const plan = reason.pay ? allocate(ledger, reason.pay, amount) : null;
+  const after = dec(ledger.balance) + BigInt(direction === 'gave' ? 1 : -1) * dec(amount || '0');
+  const title = direction === 'gave' ? `Given to ${party.name}` : `Received from ${party.name}`;
 
   const save = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (saving || !has || !date) return;
     setSaving(true);
     try {
-      const saved = await recordPayment({ party, side, amount, mode, date, ledger, ctx });
-      toast(`${labels.button}: ${money(amount)} saved as ${saved.document_number}`);
-      const doc = { document_type: labels.type, document_number: saved.document_number, status: 'ISSUED', issue_date: date, party_name: party.name, party_phone: party.phone, grand_total: amount };
-      smsAlert(doc, ctx).then((r) => r === 'sent' && toast(`SMS sent to ${party.name}`));
-      reportEvent('doc_saved');
-      // A payment that clears bills also clears their due date reminders.
+      const saved = await recordLedgerEntry({ party, direction, reasonId: reason.id, amount, mode, date, ledger, ctx });
+      toast(`${reason.label}: ${money(amount)} saved${saved.payment ? ` as ${saved.document_number}` : ''}`);
+      if (saved.payment) {
+        const doc = { document_type: PAYMENT_SIDES[reason.pay].type, document_number: saved.document_number, status: 'ISSUED', issue_date: date, party_name: party.name, party_phone: party.phone, grand_total: amount };
+        smsAlert(doc, ctx).then((r) => r === 'sent' && toast(`SMS sent to ${party.name}`));
+        reportEvent('doc_saved');
+      }
       syncDues(ctx.settings);
       onSaved();
     } catch (err) {
       setSaving(false);
       if (!isLimitError(err)) toast(err.message, 'bad');
-      // Free plan (Android app): a rewarded ad earns one more payment, then it is saved again.
-      else if (await freeLimit(err)) save(e);
+      // Free plan (Android app): a rewarded ad earns one more, then it is saved again.
+      else if (await freeLimit(err)) save();
     }
   };
 
   return (
-    <Sheet title={labels.button} onClose={onClose} testId="pay-sheet">
-      <form onSubmit={save} className="pay-sheet">
-        <label className="field">
-          <span className="field-label">{labels.amount}</span>
-          <NumberInput className="input pay-amount" placeholder="0.00" value={amount} onChange={setAmount} inputMode="decimal" autoFocus data-testid="pay-amount" />
-        </label>
+    <Sheet title={title} onClose={onClose} testId="entry-sheet">
+      <form onSubmit={save} className="entry-form">
+        <span className="field-label">Reason</span>
+        <div className="mode-chips" role="radiogroup" data-testid="entry-reason">
+          {reasons.map((r) => (
+            <button type="button" key={r.id} role="radio" aria-checked={reasonId === r.id} className={reasonId === r.id ? 'on' : ''} onClick={() => setReasonId(r.id)} data-testid={`entry-reason-${r.id}`}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="entry-row">
+          <label className="field">
+            <span className="field-label">Amount</span>
+            <NumberInput className="input pay-amount" placeholder="0.00" value={amount} onChange={setAmount} inputMode="decimal" autoFocus data-testid="entry-amount" />
+          </label>
+          <label className="field">
+            <span className="field-label">Date</span>
+            <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required data-testid="entry-date" />
+          </label>
+        </div>
         <span className="field-label">Payment mode</span>
-        <div className="mode-chips" role="radiogroup" data-testid="pay-mode">
+        <div className="mode-chips" role="radiogroup" data-testid="entry-mode">
           {PAYMENT_MODES.map((m) => (
-            <button type="button" key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)} data-testid={`pay-mode-${m}`}>
+            <button type="button" key={m} role="radio" aria-checked={mode === m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)} data-testid={`entry-mode-${m}`}>
               {m}
             </button>
           ))}
         </div>
-        <label className="field">
-          <span className="field-label">Payment date</span>
-          <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} required data-testid="pay-date" />
-        </label>
         {has && (
-          <div className="pay-plan" data-testid="pay-settles">
-            {plan.settles.map((s) => (
+          <div className="pay-plan" data-testid="entry-settles">
+            {plan?.settles.map((s) => (
               <div key={s.id}>
                 <span>
                   Settles {s.number || 'bill'}
@@ -103,19 +140,13 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
                 <span>{money(s.amount)}</span>
               </div>
             ))}
-            {dec(plan.left) > 0n && (
-              <div>
-                <span>Not against a bill</span>
-                <span>{money(plan.left)}</span>
-              </div>
-            )}
             <div className="pay-plan-total">
               <strong>Balance after</strong>
               <strong className={tone(after)}>{after === 0n ? `${money('0')} · settled` : `${money(abs(after))} · ${balanceLabel(after)}`}</strong>
             </div>
           </div>
         )}
-        <button type="submit" className="btn btn-primary btn-block" disabled={saving || !has || !date} data-testid="pay-save">
+        <button type="submit" className={`btn btn-block ${direction === 'gave' ? 'btn-danger-solid' : 'btn-green'}`} disabled={saving || !has || !date} data-testid="entry-save">
           {saving ? 'Saving…' : 'Save'}
         </button>
       </form>
@@ -123,13 +154,132 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
   );
 }
 
+/** All unpaid bills of the party, with the total. */
+function UnpaidSheet({ ledger, onClose }) {
+  const { settings } = useApp();
+  const money = useMoney();
+  const today = todayISO();
+  const total = ledger.open.reduce((s, b) => s + dec(b.due), 0n);
+  return (
+    <Sheet title={`Unpaid bills (${ledger.open.length})`} onClose={onClose} testId="unpaid-sheet">
+      {ledger.open.length === 0 ? (
+        <p className="small muted" data-testid="open-bills-empty">
+          Nothing outstanding.
+        </p>
+      ) : (
+        <>
+          <div className="unpaid-list" data-testid="open-bills">
+            {ledger.open.map((b) => {
+              const overdue = b.due_date && b.due_date < today;
+              return (
+                <button type="button" className="unpaid-row" key={b.id} onClick={() => go(`/doc/${b.id}`)} data-testid="open-bill">
+                  <span className="unpaid-main">
+                    <strong>{b.number}</strong>
+                    <span className="small muted">
+                      {formatDate(b.date, settings.dateFormat)}
+                      {b.due_date ? ` · due ${formatDate(b.due_date, settings.dateFormat)}` : ''}
+                    </span>
+                  </span>
+                  <span className="unpaid-amt">
+                    <strong>{money(b.due)}</strong>
+                    <span className={`pill ${overdue ? 'CANCELLED' : b.state === 'partial' ? 'PARTIAL' : 'ISSUED'}`} data-testid="open-bill-state">
+                      {overdue ? 'Overdue' : STATE_LABEL[b.state]}
+                    </span>
+                  </span>
+                  {b.state === 'partial' && (
+                    <span className="small muted unpaid-paid">
+                      {money(b.paid)} paid of {money(b.total)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="unpaid-total" data-testid="unpaid-total">
+            <span>Total due</span>
+            <strong>{money(toFixed(total, 2))}</strong>
+          </div>
+        </>
+      )}
+    </Sheet>
+  );
+}
+
+/** An entry made here (Given / Received without a bill): its details, and Delete. */
+function EntryDetails({ row, onClose, onDeleted }) {
+  const { settings } = useApp();
+  const { toast, confirm } = useUi();
+  const money = useMoney();
+  const remove = async () => {
+    if (!(await confirm({ title: 'Delete this entry?', message: `${row.label}, ${money(row.gave || row.got)} on ${formatDate(row.date, settings.dateFormat)}.`, confirmLabel: 'Delete', danger: true }))) return;
+    try {
+      await deleteDocument(row.id);
+      toast('Entry deleted');
+      onDeleted();
+    } catch (e) {
+      toast(e.message, 'bad');
+    }
+  };
+  return (
+    <Sheet title={row.gave ? 'Given' : 'Received'} onClose={onClose} testId="ledger-entry-sheet">
+      <dl className="kv">
+        <dt>Reason</dt>
+        <dd>{row.label}</dd>
+        <dt>Amount</dt>
+        <dd>{money(row.gave || row.got)}</dd>
+        <dt>Date</dt>
+        <dd>{formatDate(row.date, settings.dateFormat)}</dd>
+        <dt>Mode</dt>
+        <dd>{row.mode || '—'}</dd>
+      </dl>
+      <button className="btn btn-block btn-danger" style={{ marginTop: 14 }} onClick={remove} data-testid="ledger-entry-delete">
+        <Icon name="trash" size={17} /> Delete entry
+      </button>
+    </Sheet>
+  );
+}
+
+/** Send reminder: WhatsApp and SMS with what is due, and an optional "pay by" date. */
+function Reminder({ party, due }) {
+  const { company } = useApp();
+  const { toast } = useUi();
+  const [payBy, setPayBy] = useState('');
+  const args = { phone: party.phone, name: party.name, due, company, upi: company?.upi_id, payBy };
+  const sms = async () => {
+    const r = await sendSmsReminder(args);
+    if (r === 'no phone') toast(`Add ${party.name}'s mobile number (Edit) to send an SMS.`, 'bad');
+    else if (r === 'sent') toast(`Reminder sent by SMS to ${party.name}`);
+  };
+  return (
+    <section className="reminder" data-testid="reminder-section">
+      <div className="reminder-head">
+        <strong>Send reminder</strong>
+        <label className="reminder-date">
+          <span className="small muted">Pay by</span>
+          <input className="input" type="date" value={payBy} min={todayISO()} onChange={(e) => setPayBy(e.target.value)} aria-label="Pay by date (optional)" data-testid="reminder-paydate" />
+        </label>
+      </div>
+      <div className="reminder-buttons">
+        <button className="btn reminder-wa" onClick={() => sendWhatsAppReminder(args)} data-testid="reminder-whatsapp">
+          <WhatsAppMark /> WhatsApp
+        </button>
+        <button className="btn reminder-sms" onClick={sms} disabled={!native() && !phoneDigits(party.phone)} data-testid="reminder-sms">
+          <SmsMark /> SMS
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function PartyLedger({ id }) {
-  const { settings, company } = useApp();
+  const { settings } = useApp();
   const { toast } = useUi();
   const money = useMoney();
   const [data, setData] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [paying, setPaying] = useState('');
+  const [entry, setEntry] = useState('');
+  const [unpaid, setUnpaid] = useState(false);
+  const [details, setDetails] = useState(null);
   const withLedger = ledgerOn(settings);
 
   const load = useCallback(async () => {
@@ -145,7 +295,7 @@ export default function PartyLedger({ id }) {
 
   if (!data) return <Spinner />;
   const { party, ledger } = data;
-  const today = todayISO();
+  const owes = dec(ledger.balance) > 0n;
 
   return (
     <>
@@ -162,40 +312,30 @@ export default function PartyLedger({ id }) {
           </>
         }
       />
-      <div className="page" data-testid="party-ledger">
+      <div className={`page ${withLedger ? 'ledger-page' : ''}`} data-testid="party-ledger">
         {!withLedger ? (
           <div className="card small muted" data-testid="ledger-off">
             Switch on <strong>Payment &amp; Ledger</strong> in Settings → Features to take payments on bills and see what {party.name} owes you or you owe them.
           </div>
         ) : (
           <>
-            <div className={`card balance-card ${tone(ledger.balance)}`} data-testid="party-balance">
-              <span className="small muted">{balanceLabel(ledger.balance)}</span>
-              <strong data-testid="party-balance-amount">{money(abs(ledger.balance))}</strong>
-              <span className="small muted">{ledger.open.length === 0 ? 'No unpaid bills' : `${ledger.open.length} bill${ledger.open.length > 1 ? 's' : ''} unpaid`}</span>
+            <div className={`balance-strip ${tone(ledger.balance)}`} data-testid="party-balance">
+              <span className="balance-strip-main">
+                <span className="small muted">{balanceLabel(ledger.balance)}</span>
+                <strong data-testid="party-balance-amount">{money(abs(ledger.balance))}</strong>
+              </span>
+              <button className="btn btn-sm" onClick={() => setUnpaid(true)} data-testid="view-unpaid">
+                Unpaid bills ({ledger.open.length})
+              </button>
             </div>
-            {dec(ledger.balance) > 0n && (
-              <button
-                className="btn btn-green btn-block"
-                onClick={() => sendWhatsAppReminder({ phone: party.phone, name: party.name, due: ledger.balance, company, upi: company?.upi_id })}
-                data-testid="party-whatsapp"
-              >
-                <Icon name="share" size={18} /> WhatsApp payment reminder
-              </button>
-            )}
-            {sidesOf(party).map((side) => (
-              <button key={side} className="btn btn-primary btn-block btn-lg" onClick={() => setPaying(side)} data-testid={`party-pay-${side}`}>
-                <Icon name="wallet" size={18} /> {PAYMENT_SIDES[side].button}
-              </button>
-            ))}
 
             <div className="section-label">Ledger</div>
             {ledger.rows.length === 0 ? (
-              <Empty icon="book" title="No transactions yet" message="Invoices, bills and payments of this party appear here automatically." />
+              <Empty icon="book" title="No transactions yet" message="Bills, payments and entries you add with Given / Received appear here." />
             ) : (
               <div className="list ledger-list" data-testid="ledger-table">
                 {[...ledger.rows].reverse().map((r) => (
-                  <button type="button" key={r.key} className="ledger-row" onClick={() => go(`/doc/${r.id}`)} data-testid="ledger-row">
+                  <button type="button" key={r.key} className="ledger-row" onClick={() => (r.entry ? setDetails(r) : go(`/doc/${r.id}`))} data-testid="ledger-row">
                     <span className="ledger-what">
                       <strong>
                         {r.label} {r.number}
@@ -217,45 +357,38 @@ export default function PartyLedger({ id }) {
               </div>
             )}
 
-            <div className="section-label">Unpaid bills</div>
-            {ledger.open.length === 0 ? (
-              <p className="small muted" data-testid="open-bills-empty">
-                Nothing outstanding.
-              </p>
-            ) : (
-              <div className="list" data-testid="open-bills">
-                {ledger.open.map((b) => {
-                  const overdue = b.due_date && b.due_date < today && b.state === 'unpaid';
-                  return (
-                    <button type="button" className="list-item plain" key={b.id} onClick={() => go(`/doc/${b.id}`)} data-testid="open-bill">
-                      <span className="list-main">
-                        <strong>
-                          {b.number}{' '}
-                          <span className={`pill ${b.state === 'partial' ? 'PARTIAL' : overdue ? 'CANCELLED' : 'ISSUED'}`} data-testid="open-bill-state">
-                            {overdue ? 'Overdue' : STATE_LABEL[b.state]}
-                          </span>
-                        </strong>
-                        <span className="small muted">
-                          {b.label} · {formatDate(b.date, settings.dateFormat)} · total {money(b.total)}
-                        </span>
-                      </span>
-                      <strong className="list-end">{money(b.due)}</strong>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+            {owes && <Reminder party={party} due={ledger.balance} />}
+
+            <div className="ledger-actions no-print" data-testid="ledger-actions">
+              <button className="btn ledger-given" onClick={() => setEntry('gave')} data-testid="ledger-given">
+                <span aria-hidden="true">↑</span> Given
+              </button>
+              <button className="btn ledger-received" onClick={() => setEntry('got')} data-testid="ledger-received">
+                <span aria-hidden="true">↓</span> Received
+              </button>
+            </div>
           </>
         )}
       </div>
-      {paying && (
-        <PaymentSheet
+      {entry && (
+        <EntrySheet
           party={party}
-          side={paying}
+          direction={entry}
           ledger={ledger}
-          onClose={() => setPaying('')}
+          onClose={() => setEntry('')}
           onSaved={() => {
-            setPaying('');
+            setEntry('');
+            load();
+          }}
+        />
+      )}
+      {unpaid && <UnpaidSheet ledger={ledger} onClose={() => setUnpaid(false)} />}
+      {details && (
+        <EntryDetails
+          row={details}
+          onClose={() => setDetails(null)}
+          onDeleted={() => {
+            setDetails(null);
             load();
           }}
         />

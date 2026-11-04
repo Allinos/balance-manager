@@ -19,6 +19,7 @@ import 'ads.dart';
 import 'bridge.dart';
 import 'config.dart';
 import 'dues.dart';
+import 'printer.dart';
 import 'phone.dart';
 import 'pin.dart';
 
@@ -34,7 +35,7 @@ Future<void> main() async {
   final accounts = AccountService(store, pins);
   // An account made offline (or before Firebase was set up) is copied to Firebase now, in the background.
   accounts.sync();
-  runApp(DocGenApp(pins: pins, accounts: accounts, locked: await pins.enabled, account: await accounts.get()));
+  runApp(DocGenApp(pins: pins, accounts: accounts, locked: await pins.enabled, account: await accounts.get(), store: store));
 }
 
 const _appBars = SystemUiOverlayStyle(
@@ -45,13 +46,16 @@ const _appBars = SystemUiOverlayStyle(
 );
 
 class DocGenApp extends StatefulWidget {
-  const DocGenApp({super.key, required this.pins, required this.accounts, required this.locked, this.account});
+  const DocGenApp({super.key, required this.pins, required this.accounts, required this.locked, this.account, this.store});
   final PinStore pins;
   final AccountService accounts;
   final bool locked;
 
   /// The free account (name and business on the lock screen), if one was created.
   final Map<String, dynamic>? account;
+
+  /// Encrypted storage on the phone (the ads remember the last full-screen ad here).
+  final SecretStore? store;
 
   @override
   State<DocGenApp> createState() => _DocGenAppState();
@@ -61,12 +65,12 @@ class _DocGenAppState extends State<DocGenApp> with WidgetsBindingObserver {
   late bool _locked = widget.locked;
   late Map<String, dynamic>? _account = widget.account;
   DateTime? _leftAt;
-  final _ads = AdsController();
+  late final _ads = AdsController(store: widget.store);
   final _dues = DueReminders();
 
   /// A screen of the web app to open (a tapped due date reminder: /doc/12).
   final _openPath = ValueNotifier<String?>(null);
-  late final _bridge = Bridge(accounts: widget.accounts, pins: widget.pins, ads: _ads, dues: _dues);
+  late final _bridge = Bridge(accounts: widget.accounts, pins: widget.pins, ads: _ads, dues: _dues, printers: Printers());
 
   @override
   void initState() {

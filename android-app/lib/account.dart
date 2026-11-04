@@ -1,7 +1,7 @@
 /// Free accounts in Firebase (not the DocGen server): anonymous sign-in plus a profile document
 /// users/{uid} = {name, business, phone, plan, createdAt}. No password — the app is protected by the PIN.
 /// The account is also kept on the phone, so it works offline; it is copied to Firebase when possible.
-/// After an upgrade the profile is marked as paid and the data goes to the DocGen server (web app → /api/app/migrate).
+/// After an upgrade the profile is marked as paid. Business data never leaves the phone.
 library;
 
 import 'dart:convert';

@@ -51,7 +51,7 @@ export default function DocumentSettings() {
   const { draft, set, dirty, save } = useSettingsDraft([
     'documentStyle', 'documentAccent', 'showBank', 'showHsn', 'showCustomerTaxId', 'showShippingAddress', 'showAmountInWords',
     'showSignature', 'showStamp', 'autoRoundOff', 'defaultPaymentTerms', 'qrContent', 'qrCustomText',
-    'footerText', 'dateFormat', 'declaration', 'jurisdiction', 'documentCopies',
+    'footerText', 'dateFormat', 'declaration', 'jurisdiction', 'documentCopies', 'issueOnSave', 'thermalPaper',
   ]);
   const overrides = useMemo(() => ({ ...draft }), [draft]);
 
@@ -64,6 +64,7 @@ export default function DocumentSettings() {
         <Field label="Template" hint="Only changes the look — your documents and data are never modified">
           <TemplateCards value={draft.documentStyle} onChange={(id) => set({ documentStyle: id })} compact />
         </Field>
+        <Toggle checked={!!draft.issueOnSave} onChange={(v) => set({ issueOnSave: v })} label="Issue on save" hint="New bills, quotations and orders are saved as Issued instead of Draft — a bill paid in full on saving becomes Paid at once" data-testid="issue-on-save" />
         <Field
           label="Number of copies"
           help="How many copies are printed or saved to PDF. GST invoices are labelled Original for Recipient, Duplicate for Transporter and Triplicate for Supplier."
@@ -77,6 +78,17 @@ export default function DocumentSettings() {
               { value: '3', label: 'Triple Copy' },
               { value: '4', label: '4 Copies' },
             ]}
+          />
+        </Field>
+        <Field label="Thermal receipt paper" hint="For Receipt: a small bill on a 58 mm or 80 mm roll printer">
+          <Segmented
+            value={String(draft.thermalPaper || '58')}
+            onChange={(v) => set({ thermalPaper: v })}
+            options={[
+              { value: '58', label: '58 mm' },
+              { value: '80', label: '80 mm' },
+            ]}
+            testId="thermal-paper"
           />
         </Field>
         <Field label="Accent colour">

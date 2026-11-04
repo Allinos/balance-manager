@@ -171,7 +171,8 @@ function Shell() {
     body = (
       <Welcome
         onDone={async (acc) => {
-          await updateSettings({ androidWelcome: true });
+          // New Android installs save bills as Issued (Settings → Documents → Issue on save can turn it off).
+          await updateSettings({ androidWelcome: true, issueOnSave: true });
           if (acc) setAccount(acc);
         }}
       />

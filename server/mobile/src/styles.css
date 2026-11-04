@@ -1424,15 +1424,16 @@ button.license-chip {
 }
 .view-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
 }
 .view-actions .btn {
-  padding: 0 6px;
-  gap: 5px;
+  padding: 0 4px;
+  gap: 4px;
   min-width: 0;
   white-space: nowrap;
-  font-size: 14.5px;
+  font-size: 13px;
+  overflow: hidden;
 }
 .view-actions .btn .icon {
   flex: none;
@@ -2089,3 +2090,35 @@ html.docgen-native .sheet-top { padding-top: 4px; }
 .tabbar button { min-width: 0; }
 .tabbar.many button { font-size: 10.5px; letter-spacing: -0.01em; }
 .tabbar.many .tab-icon { width: 44px; }
+
+/* ---------------------------------------------------------------- Ledger (phone): compact, actions at the bottom */
+.ledger-page { padding-bottom: calc(76px + var(--safe-bottom)); }
+.balance-strip { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.balance-strip-main { display: flex; flex-direction: column; line-height: 1.2; }
+.balance-strip-main strong { font-size: 1.35rem; }
+.balance-strip.get strong { color: var(--good); }
+.balance-strip.give strong { color: var(--bad); }
+.ledger-actions { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px 12px calc(10px + var(--safe-bottom)); background: rgba(255, 255, 255, 0.97); border-top: 1px solid var(--border); }
+.ledger-actions .btn { min-height: 46px; font-size: 1rem; font-weight: 700; color: #fff; border: 0; }
+.ledger-given { background: var(--bad); }
+.ledger-received { background: #16a34a; }
+.reminder { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.reminder-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.reminder-date { display: flex; align-items: center; gap: 6px; }
+.reminder-date .input { width: 150px; min-height: 36px; padding: 4px 8px; }
+.reminder-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.reminder-buttons .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; }
+.reminder-wa { color: #128c4b; border-color: #a7e3c0; background: #effbf3; }
+.reminder-sms { color: var(--brand); border-color: #c8d4f6; background: var(--brand-soft); }
+.entry-form { display: flex; flex-direction: column; gap: 8px; }
+.entry-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.unpaid-list { display: flex; flex-direction: column; }
+.unpaid-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--border); padding: 9px 2px; color: inherit; font: inherit; }
+.unpaid-main { display: flex; flex-direction: column; min-width: 0; }
+.unpaid-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.unpaid-paid { grid-column: 1 / -1; }
+.unpaid-total { display: flex; justify-content: space-between; padding: 10px 2px 2px; font-size: 1.02rem; }
+
+/* Thermal receipt preview */
+.receipt-preview { display: flex; justify-content: center; background: #f1f3f7; border-radius: 12px; padding: 12px 6px; overflow-x: auto; }
+.receipt-preview .thermal-receipt { background: #fff; padding: 8px; box-shadow: 0 2px 10px rgba(15, 23, 42, 0.12); }

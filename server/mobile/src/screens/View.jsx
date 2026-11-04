@@ -17,9 +17,10 @@ import { ActionSheet, Header, Picker, Sheet, Spinner, StatusBadge, go, useUi } f
 import { StatusSheet } from '../components/docs.jsx';
 import { isCancelled, useApp, useDocumentActions } from '../data.jsx';
 import { canShareFiles, documentPdf, saveFile } from '../lib/pdf.js';
-import { native, nativeFile } from '../lib/native.js';
+import { bridge, native, nativeFile } from '../lib/native.js';
 import { sendWhatsAppReminder } from '../lib/notify.js';
 import { BILL_PAYMENT } from '@desktop/services/billPayment.js';
+import { escposBytes, paperOf, printThermal, receiptHtml, receiptLines, toBase64 } from '@desktop/services/thermal.js';
 import { dec, toFixed } from '@desktop/utils/decimal.js';
 
 const parseMeta = (meta) => {
@@ -107,6 +108,53 @@ function billDue(doc) {
   return due > 0n ? toFixed(due, 2) : '';
 }
 
+/**
+ * Receipt for a 58 / 80 mm thermal printer: a preview, then Print. Android app: straight to the Bluetooth printer
+ * chosen in Settings → Printer. Browser: the print dialog with a narrow roll page (a USB thermal printer).
+ */
+function ReceiptSheet({ bundle, onClose }) {
+  const { settings, company } = useApp();
+  const { toast } = useUi();
+  const [busy, setBusy] = useState(false);
+  const paper = paperOf(settings);
+  const doc = { ...bundle.document, meta: parseMeta(bundle.document.meta) };
+  const lines = receiptLines({ ...bundle, document: doc }, { company: company || {}, settings, paper });
+  const printer = settings.thermalPrinter;
+  const run = async () => {
+    setBusy(true);
+    try {
+      if (native()) {
+        if (!printer?.address) {
+          toast('Choose your Bluetooth printer in Settings → Printer first.', 'bad');
+          return go('/settings/printer');
+        }
+        const bytes = escposBytes(receiptLines({ ...bundle, document: doc }, { company: company || {}, settings, paper, symbol: 'Rs.' }));
+        const res = await bridge('printer.print', { address: printer.address, base64: toBase64(bytes) });
+        if (res?.ok) toast(`Receipt printed on ${printer.name || 'the printer'}`);
+        else toast(res?.reason || 'The printer did not answer. Is it on and paired?', 'bad');
+      } else {
+        await printThermal(lines, paper, () => window.print());
+      }
+    } finally {
+      setBusy(false);
+    }
+    return undefined;
+  };
+  return (
+    <Sheet title={`Receipt · ${paper} mm`} onClose={onClose} testId="receipt-sheet">
+      <div className="receipt-preview" dangerouslySetInnerHTML={{ __html: receiptHtml(lines, paper) }} />
+      {native() && (
+        <p className="small muted" style={{ margin: '8px 0 0' }}>
+          {printer?.address ? `Printer: ${printer.name || printer.address}` : 'No printer chosen yet (Settings → Printer).'}
+        </p>
+      )}
+      <button className="btn btn-primary btn-block" style={{ marginTop: 10 }} onClick={run} disabled={busy} data-testid="receipt-print">
+        <Icon name="printer" size={18} /> {busy ? 'Printing…' : 'Print receipt'}
+      </button>
+    </Sheet>
+  );
+}
+
 export default function View({ id, query = {} }) {
   const { settings, company, docSettings } = useApp();
   const { toast } = useUi();
@@ -172,6 +220,7 @@ export default function View({ id, query = {} }) {
 
   // Download / Share as PDF: made on the phone from the same drawing as the preview.
   const [making, setMaking] = useState('');
+  const [receipt, setReceipt] = useState(false);
   const makePdf = (copies) => documentPdf(payload, { copies, fileName: fileTitle });
   const download = async () => {
     if (making) return;
@@ -340,6 +389,9 @@ export default function View({ id, query = {} }) {
               <button className="btn" onClick={download} disabled={!!making} data-testid="download-pdf">
                 <Icon name="download" size={18} /> {making === 'download' ? 'Making…' : 'Download'}
               </button>
+              <button className="btn" onClick={() => setReceipt(true)} data-testid="print-receipt">
+                <Icon name="receipt" size={18} /> Receipt
+              </button>
               <button className="btn btn-primary" onClick={share} disabled={!!making} data-testid="share-doc">
                 <Icon name="share" size={18} /> {making === 'share' ? 'Making…' : 'Share'}
               </button>
@@ -384,6 +436,7 @@ export default function View({ id, query = {} }) {
       {sheet === 'status' && <StatusSheet doc={doc} onClose={() => setSheet('')} onChanged={load} />}
       {sheet === 'history' && <HistorySheet doc={doc} history={bundle.history || []} onClose={() => setSheet('')} />}
       {sheet === 'contact' && <ContactSheet doc={doc} onClose={() => setSheet('')} />}
+      {receipt && <ReceiptSheet bundle={bundle} onClose={() => setReceipt(false)} />}
     </>
   );
 }

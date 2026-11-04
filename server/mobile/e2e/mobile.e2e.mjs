@@ -268,8 +268,27 @@ try {
   await a.page.evaluate(() => window.scrollTo(0, 0));
   await shot(a.page, '04a-view-actions');
   const order = await a.page.locator('.view-actions .btn').allTextContents();
-  check(/Print/.test(order[0]) && /Download/.test(order[1]) && /Share/.test(order[2]) && (await a.page.getByTestId('edit-doc').boundingBox()).y > (await a.page.getByTestId('share-doc').boundingBox()).y,
-    `document actions: Print · Download · Share, Edit in the row below (${order.join(' | ')})`);
+  check(/Print/.test(order[0]) && /Download/.test(order[1]) && /Receipt/.test(order[2]) && /Share/.test(order[3]) && (await a.page.getByTestId('edit-doc').boundingBox()).y > (await a.page.getByTestId('share-doc').boundingBox()).y,
+    `document actions: Print · Download · Receipt · Share, Edit in the row below (${order.join(' | ')})`);
+  {
+    // Receipt for a thermal printer: a 58 mm preview (Settings → Documents → Thermal receipt paper), then Print.
+    await a.page.getByTestId('print-receipt').click();
+    await a.page.getByTestId('receipt-sheet').waitFor();
+    const r = await a.page.getByTestId('thermal-receipt').textContent();
+    const lines = await a.page.locator('[data-testid=thermal-receipt] .tr-line:not(.tr-big)').allTextContents();
+    check(r.includes('INV-00001') && r.includes('TOTAL') && r.includes('Teak Dining Table') && lines.every((l) => l.length <= 32), `thermal receipt preview: 58 mm, every line within 32 characters (${lines.length} lines)`);
+    await a.page.evaluate(() => {
+      window.__printed = 0;
+      window.print = () => {
+        window.__printed = document.documentElement.classList.contains('thermal-printing') && !!document.querySelector('#thermal-print .thermal-receipt') && /size: 58mm/.test(document.getElementById('thermal-page')?.textContent || '') ? 1 : -1;
+      };
+    });
+    await a.page.getByTestId('receipt-print').click();
+    await a.page.waitForFunction(() => window.__printed !== 0);
+    check((await a.page.evaluate(() => window.__printed)) === 1, 'Print receipt: the print dialog with only the receipt on a 58 mm roll page');
+    await a.page.keyboard.press('Escape');
+    await a.page.getByTestId('receipt-sheet').waitFor({ state: 'detached' });
+  }
   const [pdfDownload] = await Promise.all([a.page.waitForEvent('download', { timeout: 30000 }), a.page.getByTestId('download-pdf').click()]);
   const pdfBytes = fs.readFileSync(await pdfDownload.path());
   if (process.env.PDF_OUT) fs.writeFileSync(path.join(process.env.PDF_OUT, 'invoice.pdf'), pdfBytes);
@@ -606,27 +625,34 @@ try {
     return (await a.page.getByTestId('party-balance').textContent()).includes("I'll give") ? -v : v;
   };
   const before = await balance();
-  check(!(await a.page.getByTestId('party-advance-customer').count()), 'no separate Advance received button');
+  check(!(await a.page.getByTestId('party-advance-customer').count()) && !(await a.page.getByTestId('party-pay-customer').count()) && !(await a.page.getByTestId('party-whatsapp').count()),
+    'no separate Advance received, Payment received or WhatsApp buttons at the top: Given / Received at the bottom');
+  check((await a.page.getByTestId('ledger-given').textContent()).includes('Given') && (await a.page.getByTestId('ledger-received').textContent()).includes('Received'), 'Given (left) and Received (right) at the bottom of the ledger');
+  {
+    const [g, r] = await Promise.all(['ledger-given', 'ledger-received'].map((id) => a.page.getByTestId(id).boundingBox()));
+    check(g.x < r.x && Math.abs(g.y - r.y) < 2 && g.y + g.height > 844 - 90, 'Given on the left, Received on the right, fixed at the bottom of the screen');
+  }
   await shot(a.page, '05d-party-ledger');
 
-  // Payment received: amount and mode only; clears the oldest bills first.
-  await a.page.getByTestId('party-pay-customer').click();
-  await a.page.getByTestId('pay-sheet').waitFor();
-  check(!(await a.page.getByTestId('pay-sheet').getByTestId('party-name').count()), 'Payment received sheet asks only for the amount, the mode and the date');
-  await a.page.getByTestId('pay-amount').fill('5000');
-  await a.page.getByTestId('pay-mode-UPI').click();
+  // Received → Payment received: reason, date, amount and mode; clears the oldest bills first.
+  await a.page.getByTestId('ledger-received').click();
+  await a.page.getByTestId('entry-sheet').waitFor();
+  check((await a.page.getByTestId('entry-reason-payment').getAttribute('aria-checked')) === 'true' && (await a.page.getByTestId('entry-reason').textContent()).includes('Goods returned'),
+    'Received asks for a reason (Payment received first, goods returned, …), the date, the amount and the mode');
+  await a.page.getByTestId('entry-amount').fill('5000');
+  await a.page.getByTestId('entry-mode-UPI').click();
   {
     const t = new Date();
     const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    check((await a.page.getByTestId('pay-date').inputValue()) === iso(t), 'Payment received has a payment date, today by default');
+    check((await a.page.getByTestId('entry-date').inputValue()) === iso(t), 'the date is today by default');
     const earlier = new Date(t.getFullYear(), t.getMonth(), t.getDate() - 2);
-    await a.page.getByTestId('pay-date').fill(iso(earlier));
+    await a.page.getByTestId('entry-date').fill(iso(earlier));
     var payShown = `${String(earlier.getDate()).padStart(2, '0')}-${String(earlier.getMonth() + 1).padStart(2, '0')}-${earlier.getFullYear()}`;
   }
-  await a.page.getByTestId('pay-settles').waitFor();
-  check((await a.page.getByTestId('pay-settles').textContent()).includes('Balance after'), `it shows what it settles and the balance after (${await a.page.getByTestId('pay-settles').textContent()})`);
+  await a.page.getByTestId('entry-settles').waitFor();
+  check((await a.page.getByTestId('entry-settles').textContent()).includes('Balance after'), `it shows what it settles and the balance after (${await a.page.getByTestId('entry-settles').textContent()})`);
   await shot(a.page, '05e-payment-received');
-  await a.page.getByTestId('pay-save').click();
+  await a.page.getByTestId('entry-save').click();
   await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 1);
   const after = await balance();
   check(Math.abs(after - (before - 5000)) < 0.01 && (await a.page.getByTestId('ledger-table').textContent()).includes('UPI'),
@@ -665,6 +691,63 @@ try {
   check(Math.abs(withBill - (after + billTotal - 500)) < 0.01 && /Payment received[\s\S]*UPI[\s\S]*Payment received[\s\S]*Cash/.test(await a.page.getByTestId('ledger-table').textContent()) &&
       (await a.page.getByTestId('ledger-table').textContent()).includes(laterDate.split('-').reverse().join('-')),
     `the bill and the payment taken on it are in the ledger (${after} → ${withBill})`);
+
+  // Given without a bill: goods sold on credit, straight into the ledger.
+  await a.page.getByTestId('ledger-given').click();
+  await a.page.getByTestId('entry-sheet').waitFor();
+  check((await a.page.getByTestId('entry-reason-goods').getAttribute('aria-checked')) === 'true', 'Given: Goods sold (no bill) first');
+  await a.page.getByTestId('entry-reason-credit').click();
+  await a.page.getByTestId('entry-amount').fill('750');
+  await shot(a.page, '05f-given');
+  await a.page.getByTestId('entry-save').click();
+  await a.page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 5);
+  const withGiven = await balance();
+  check(Math.abs(withGiven - (withBill + 750)) < 0.01 && (await a.page.getByTestId('ledger-row').allTextContents()).some((t) => t.includes('Credit given') && t.includes('Cash')), `Given ₹750 "Credit given": in the ledger at once (${withBill} → ${withGiven})`);
+  await a.page.goto(`${base}/app/#/documents`);
+  await a.page.getByTestId('doc-row').first().waitFor();
+  check(!(await a.page.locator('[data-testid=doc-row]').allTextContents()).some((t) => t.includes('LE-') || t.includes('Credit given')), 'a ledger entry is not a document: not in Documents');
+  await a.page.goto(`${base}/app/#/party/${abcId}`);
+  await a.page.getByTestId('ledger-row').filter({ hasText: 'Credit given' }).click();
+  await a.page.getByTestId('ledger-entry-sheet').waitFor();
+  await a.page.getByTestId('ledger-entry-delete').click();
+  await a.page.getByTestId('confirm-ok').click();
+  await a.page.waitForFunction((n) => document.querySelectorAll('[data-testid=ledger-row]').length === n, ledgerRows + 4);
+  check(Math.abs((await balance()) - withBill) < 0.01, 'an entry made here can be opened and deleted');
+
+  // Unpaid bills, all in one place.
+  await a.page.getByTestId('view-unpaid').click();
+  await a.page.getByTestId('unpaid-sheet').waitFor();
+  check((await a.page.getByTestId('view-unpaid').textContent()).includes('(0)') && (await a.page.getByTestId('open-bills-empty').count()) === 1,
+    'View unpaid bills: none left for ABC (the advance cleared them) — "Nothing outstanding"');
+  await shot(a.page, '05g-unpaid');
+  await a.page.keyboard.press('Escape');
+  await a.page.getByTestId('unpaid-sheet').waitFor({ state: 'detached' });
+
+  // Send reminder (only while the customer owes you): goods sold without a bill, then WhatsApp and SMS with a pay-by date.
+  check((await a.page.getByTestId('reminder-section').count()) === 0, 'no reminder while the balance is in the customer\'s favour');
+  await a.page.getByTestId('ledger-given').click();
+  await a.page.getByTestId('entry-amount').fill('10000');
+  await a.page.getByTestId('entry-save').click();
+  await a.page.getByTestId('entry-sheet').waitFor({ state: 'detached' });
+  await a.page.getByTestId('reminder-section').scrollIntoViewIfNeeded();
+  {
+    const t = new Date(Date.now() + 5 * 864e5);
+    const payBy = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    await a.page.getByTestId('reminder-paydate').fill(payBy);
+    await a.page.evaluate(() => {
+      window.__opened = [];
+      window.open = (url) => (window.__opened.push(url), {});
+    });
+    await a.page.getByTestId('reminder-whatsapp').click();
+    const wa = decodeURIComponent((await a.page.evaluate(() => window.__opened.at(-1))) || '');
+    const longDate = t.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    check(wa.startsWith('https://wa.me/919876543210?text=') && wa.includes('outstanding') && wa.includes(`Kindly pay by ${longDate}`), `Send reminder → WhatsApp with the amount and "pay by ${longDate}"`);
+    await shot(a.page, '05h-reminder');
+    await a.page.getByTestId('reminder-sms').click();
+    const sms = decodeURIComponent((await a.page.evaluate(() => window.__opened.at(-1))) || '');
+    check(sms.startsWith('sms:+919876543210?body=Dear ABC Construction') && sms.includes(`Kindly pay by ${longDate}`), 'Send reminder → SMS opens the SMS app with the message ready to send');
+  }
 
   await a.page.goto(`${base}/app/#/parties/all`);
   await a.page.getByTestId('tab-dashboard').click();
@@ -745,7 +828,11 @@ try {
   const backupFile = path.join(dataDir, 'backup.json');
   fs.copyFileSync(await backupDownload.path(), backupFile);
   const backup = JSON.parse(fs.readFileSync(backupFile, 'utf8'));
-  check(backup.format === 'docgen-mobile-data' && backup.stores.documents.length === 9 && backup.stores.company.logo.startsWith('data:image'), `backup file with documents and logo (${backup.stores.documents.length} documents)`);
+  {
+    const docs = backup.stores.documents.filter((d) => d.document_type !== 'LEDGER_ENTRY');
+    const entries = backup.stores.documents.length - docs.length;
+    check(backup.format === 'docgen-mobile-data' && docs.length === 9 && entries === 2 && backup.stores.company.logo.startsWith('data:image'), `backup file with documents, ledger entries and logo (${docs.length} documents, ${entries} ledger entries)`);
+  }
   await a.page.goto(`${base}/app/#/products`);
   await a.page.getByTestId('add-product').click();
   await a.page.getByTestId('product-name').fill('Added after the backup');

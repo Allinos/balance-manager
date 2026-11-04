@@ -3,7 +3,7 @@
  *  - Welcome: first start — create a free account (name, business, mobile, 4-digit PIN; no password) or explore first.
  *    The account is created in Firebase by the Android app, not on the DocGen server.
  *  - Plan & Account (Settings): free plan usage, account, Upgrade (buy on the website, then enter the license key or
- *    sign in); after an upgrade this phone's data is copied to the DocGen server with the license.
+ *    sign in). The data stays on the phone (no online copy for now).
  *  - Security (Settings): PIN lock on/off — asked every time the app is opened.
  *  - SMS alerts switch (Settings → Features).
  */
@@ -13,13 +13,13 @@ import Icon from '../components/Icon.jsx';
 import { Field, Input, Sheet, Spinner, Toggle, go, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
 import { call } from '../engine/api.js';
-import { exportData } from '../engine/backup.js';
-import { activateWithKey, activateWithLogin, deviceId, formatKey, licenseToken, status as licenseStatus } from '../lib/license.js';
+import { activateWithKey, activateWithLogin, formatKey, status as licenseStatus } from '../lib/license.js';
 import { bridge, native, openLink, serverUrl } from '../lib/native.js';
 import { BONUS_SETTING, FREE_LIMITS, bonusOf, isLimitError, limitOf } from '../lib/plan.js';
 import { SMS_SETTING } from '../lib/notify.js';
 import { DUE_REMINDERS_SETTING, dueRemindersOn, syncDues } from '../lib/dues.js';
 import { LicenseSection } from './settings/system.jsx';
+import { escposBytes, toBase64 } from '@desktop/services/thermal.js';
 
 const PIN_RE = /^\d{4}$/;
 const PHONE_RE = /^[+\d][\d\s-]{7,15}$/;
@@ -158,22 +158,6 @@ export function Welcome({ onDone }) {
   );
 }
 
-/** Copy this phone's data to the DocGen server with the license (after an upgrade). */
-export async function transferToServer(account) {
-  const token = await licenseToken();
-  if (!token) throw new Error('Activate your license first.');
-  const body = JSON.stringify({ token, deviceId: await deviceId(), account: account || null, data: await exportData() });
-  let res;
-  try {
-    res = await fetch(`${serverUrl()}/api/app/migrate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
-  } catch {
-    throw new Error('No internet connection. Your data will be copied the next time you are online.');
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error?.message || 'Your data could not be copied to your account. Please try again.');
-  return data;
-}
-
 function Meter({ label, used, limit, testId }) {
   const pct = Math.min(100, Math.round((used / limit) * 100));
   return (
@@ -264,7 +248,6 @@ export function PlanSection() {
   const [account, setAccount] = useState(undefined);
   const [activating, setActivating] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [moving, setMoving] = useState(false);
 
   const load = useCallback(async () => {
     setUsage(await call('plan_usage'));
@@ -274,45 +257,15 @@ export function PlanSection() {
     load().catch((e) => toast(e.message, 'bad'));
   }, [load, toast]);
 
-  const transfer = async () => {
-    setMoving(true);
-    try {
-      const r = await transferToServer(account);
-      // The key of the license just activated (this screen may still hold the free plan's state).
-      await bridge('account.upgraded', { licenseKey: (await licenseStatus()).license?.key || lic?.license?.key || '' });
-      toast(`Your data is safe in your DocGen account (${r.documents ?? 0} documents, ${r.parties ?? 0} customers & vendors).`);
-    } catch (e) {
-      toast(e.message, 'bad');
-    } finally {
-      setMoving(false);
-    }
-  };
-
   const activated = async () => {
     setActivating(false);
     await reload();
-    toast('DocGen is upgraded: no limits and no ads.');
-    await transfer();
+    toast('DocGen is upgraded: no limits and no ads. Your data stays on this phone.');
+    // The account in Firebase is marked as paid (only the plan — no business data leaves the phone).
+    await bridge('account.upgraded', { licenseKey: (await licenseStatus()).license?.key || '' });
   };
 
-  if (lic?.state === 'active') {
-    return (
-      <>
-        <LicenseSection />
-        <div className="page" style={{ paddingTop: 0 }}>
-          <div className="card form" data-testid="plan-transfer">
-            <strong>Your data in your DocGen account</strong>
-            <p className="small muted" style={{ margin: 0 }}>
-              Copy everything on this phone (customers, vendors, documents and payments) to your DocGen account on the server.
-            </p>
-            <button className="btn btn-block" onClick={transfer} disabled={moving} data-testid="plan-transfer-go">
-              <Icon name="upload" size={18} /> {moving ? 'Copying…' : 'Copy my data to my account'}
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  }
+  if (lic?.state === 'active') return <LicenseSection />;
 
   return (
     <div className="page" data-testid="plan">
@@ -336,7 +289,7 @@ export function PlanSection() {
           </>
         )}
         <p className="small muted" style={{ margin: 0 }}>
-          Every feature is included. Upgrade for unlimited documents, no ads, your computer and your data saved in your DocGen account.
+          Every feature is included. Upgrade for unlimited documents, no ads and DocGen on your computer too. Your data stays on this phone.
         </p>
         <button className="btn btn-primary btn-block btn-lg" onClick={() => openLink(upgradeUrl(account))} data-testid="plan-upgrade">
           <Icon name="crown" size={18} /> Upgrade
@@ -558,6 +511,100 @@ export function DueRemindersSwitch() {
           <span className="small muted">A notification at 9:30 on the day a customer&apos;s bill is due, with a tap to open it and send a reminder.</span>
         </span>
         <Toggle checked={on} onChange={toggle} label="" aria-label="Due date reminders" data-testid="module-dues-toggle" />
+      </div>
+    </div>
+  );
+}
+
+/** Settings → Printer (Android app): a paired Bluetooth thermal printer for receipts, the paper width, a test print. */
+export function PrinterSection() {
+  const { settings, updateSettings, company } = useApp();
+  const { toast } = useUi();
+  const [printers, setPrinters] = useState(null);
+  const [busy, setBusy] = useState('');
+  const chosen = settings.thermalPrinter || null;
+  const paper = String(settings.thermalPaper || '58');
+
+  const find = useCallback(async () => {
+    setPrinters(null);
+    const res = await bridge('printer.list');
+    if (!res?.ok) toast(res?.reason || 'Bluetooth is not available.', 'bad');
+    setPrinters(res?.printers || []);
+  }, [toast]);
+  useEffect(() => {
+    find();
+  }, [find]);
+
+  const choose = async (p) => {
+    await updateSettings({ thermalPrinter: { name: p.name, address: p.address } });
+    toast(`${p.name || p.address} chosen for receipts`);
+  };
+  const test = async () => {
+    setBusy('test');
+    const width = paper === '80' ? 48 : 32;
+    const lines = [
+      { text: company?.name || 'DocGen', align: 'center', bold: true, big: true },
+      { text: 'Test print', align: 'center' },
+      { text: '-'.repeat(width), align: 'left' },
+      { text: `${paper} mm paper, ${width} characters a line`, align: 'left' },
+      { text: '1234567890'.repeat(5).slice(0, width), align: 'left' },
+      { text: 'If this fits on one line, you are ready.', align: 'left' },
+    ];
+    const res = await bridge('printer.print', { address: chosen.address, base64: toBase64(escposBytes(lines)) });
+    setBusy('');
+    if (res?.ok) toast('Test receipt printed');
+    else toast(res?.reason || 'The printer did not answer. Is it on and paired?', 'bad');
+  };
+
+  return (
+    <div className="page" data-testid="printer">
+      <div className="card form">
+        <strong>Paper</strong>
+        <div className="segmented" role="tablist">
+          {['58', '80'].map((w) => (
+            <button key={w} type="button" className={paper === w ? 'active' : ''} aria-selected={paper === w} onClick={() => updateSettings({ thermalPaper: w })} data-testid={`printer-paper-${w}`}>
+              {w} mm
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="card form">
+        <div className="row between">
+          <strong>Bluetooth printer</strong>
+          <button className="link-btn" onClick={find} data-testid="printer-refresh">
+            Refresh
+          </button>
+        </div>
+        <p className="small muted" style={{ margin: 0 }}>
+          Pair the printer in your phone&apos;s Bluetooth settings first (PIN is often 0000 or 1234), then choose it here.
+        </p>
+        {printers === null ? (
+          <Spinner />
+        ) : printers.length === 0 ? (
+          <p className="small muted" data-testid="printer-none">
+            No paired printers found.
+          </p>
+        ) : (
+          <div className="list" data-testid="printer-list">
+            {printers.map((p) => (
+              <button key={p.address} type="button" className="list-item plain" onClick={() => choose(p)} data-testid="printer-option">
+                <span className="avatar">
+                  <Icon name="printer" size={18} />
+                </span>
+                <span className="list-main">
+                  <strong>{p.name || 'Printer'}</strong>
+                  <span className="small muted">{p.address}</span>
+                </span>
+                {chosen?.address === p.address && <Icon name="check" size={18} />}
+              </button>
+            ))}
+          </div>
+        )}
+        {chosen?.address && (
+          <button className="btn btn-block" onClick={test} disabled={!!busy} data-testid="printer-test">
+            <Icon name="printer" size={18} /> {busy ? 'Printing…' : `Test print on ${chosen.name || chosen.address}`}
+          </button>
+        )}
       </div>
     </div>
   );
