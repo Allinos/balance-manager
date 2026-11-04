@@ -24,7 +24,9 @@ import { paymentSummary, takesPayment } from '@desktop/services/billPayment.js';
 import BillPayCard from '../components/BillPayCard.jsx';
 import { smsAlert } from '../lib/notify.js';
 import { reportEvent } from '../lib/native.js';
+import { syncDues } from '../lib/dues.js';
 import { isLimitError } from '../lib/plan.js';
+import { useFreeLimit } from './Android.jsx';
 import { balanceAfter, detachInvoice, invoicesForReceipt, PAPER_SIZES, receiptFromInvoice, settleInvoice } from '@desktop/services/receiptService.js';
 import DueDateInput from '@desktop/components/DueDateInput.jsx';
 import { issueDatePatch } from '@desktop/utils/dates.js';
@@ -380,6 +382,7 @@ export default function Editor({ typeId, id, query = {} }) {
   const ctx = useDocContext();
   const { settings, company } = useApp();
   const { toast, confirm } = useUi();
+  const freeLimit = useFreeLimit();
   const actions = useDocumentActions();
   const [model, setModel] = useState(null);
   const [loadError, setLoadError] = useState('');
@@ -521,6 +524,7 @@ export default function Editor({ typeId, id, query = {} }) {
   const save = async ({ print = false } = {}) => {
     if (saving) return;
     setSaving(true);
+    let retry = false;
     try {
       const isNew = !model.document.id;
       const result = await saveDocument(model, ctx, { saveCustomer: saveParty });
@@ -534,6 +538,8 @@ export default function Editor({ typeId, id, query = {} }) {
         smsAlert(saved, { settings, company, due }).then((r) => r === 'sent' && toast(`SMS sent to ${saved.party_name}`));
         reportEvent('doc_saved');
       }
+      // Android: due date reminders follow the bills (a new due date, a bill now paid …).
+      syncDues(settings);
       const inv = model.document.parent_document_id && invoices.find((i) => i.id === model.document.parent_document_id);
       if (inv) {
         const receipt = { ...model.document, document_number: result.document_number, grand_total: calc.totals.grand_total };
@@ -543,11 +549,13 @@ export default function Editor({ typeId, id, query = {} }) {
       go(`/doc/${result.id}${print ? '?print=1' : ''}`, { replace: true });
     } catch (e) {
       if (isLimitError(e)) {
-        if (await confirm({ title: 'Free plan limit reached', message: e.message, confirmLabel: 'See plans', cancelLabel: 'Not now' })) go('/settings/plan');
+        // Free plan (Android app): watch a rewarded ad for one more document, then save again.
+        if (await freeLimit(e)) retry = true;
       } else toast(e.message, 'bad');
     } finally {
       setSaving(false);
     }
+    if (retry) await save({ print });
   };
 
   if (loadError) {

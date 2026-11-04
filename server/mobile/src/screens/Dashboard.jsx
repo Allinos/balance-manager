@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react';
 import { BUSINESS_TYPES, DOCUMENT_TYPES, TYPE_MAP } from '@desktop/config/documentTypes.js';
 import { native } from '../lib/native.js';
+import { dueLabel, dueMoney, dueSoon, listDues, syncDues } from '../lib/dues.js';
+import { sendWhatsAppReminder } from '../lib/notify.js';
+import { useAmountsHidden, maskAmount } from '@desktop/hooks/usePrivacy.js';
 import { dashboardStats } from '@desktop/services/documentService.js';
 import Icon from '../components/Icon.jsx';
 import InstallBanner from '../components/InstallBanner.jsx';
@@ -110,6 +113,48 @@ export function LicenseChip() {
   );
 }
 
+/** Home → Payments due: customer bills that are overdue or due within a week, with a WhatsApp reminder each. */
+function DuesCard({ rows }) {
+  const { company } = useApp();
+  const [hidden] = useAmountsHidden();
+  const soon = dueSoon(rows);
+  if (!soon.length) return null;
+  const overdue = soon.filter((r) => dueLabel(r.due_date).startsWith('Overdue')).length;
+  return (
+    <section className="card dues-card" data-testid="dues-card">
+      <div className="dues-head">
+        <strong>
+          <Icon name="calendar" size={17} /> Payments due
+        </strong>
+        <span className={`small ${overdue ? 'bad-text' : 'muted'}`}>{overdue ? `${overdue} overdue` : `${soon.length} this week`}</span>
+      </div>
+      {soon.slice(0, 5).map((r) => {
+        const label = dueLabel(r.due_date);
+        return (
+          <div key={r.id} className="due-row" data-testid="due-row">
+            <button className="due-main" onClick={() => go(`/doc/${r.id}`)}>
+              <strong>{r.party_name || r.document_number}</strong>
+              <span className="small muted">
+                {r.document_number} · <span className={label.startsWith('Overdue') ? 'bad-text' : label === 'Due today' ? 'warn-text' : ''}>{label}</span>
+              </span>
+            </button>
+            <strong className="due-amt">{maskAmount(dueMoney(r), hidden, r.currency_symbol || '₹')}</strong>
+            <button
+              className="icon-btn due-wa"
+              aria-label={`WhatsApp reminder to ${r.party_name || 'the customer'}`}
+              onClick={() => sendWhatsAppReminder({ phone: r.party_phone, name: r.party_name, due: r.due, company, upi: company?.upi_id, doc: r })}
+              data-testid="due-whatsapp"
+            >
+              <Icon name="share" size={18} />
+            </button>
+          </div>
+        );
+      })}
+      {soon.length > 5 && <p className="small muted" style={{ margin: '6px 0 0' }}>+ {soon.length - 5} more</p>}
+    </section>
+  );
+}
+
 export default function Dashboard() {
   const { settings, company, updateSettings } = useApp();
   const { toast } = useUi();
@@ -118,11 +163,18 @@ export default function Dashboard() {
   const [chooser, setChooser] = useState(false);
   const [sharing, setSharing] = useState(false);
 
+  const [dues, setDues] = useState([]);
+
   useEffect(() => {
     dashboardStats()
       .then(setStats)
       .catch((e) => toast(e.message, 'bad'));
-  }, [toast]);
+    listDues()
+      .then(setDues)
+      .catch(() => setDues([]));
+    // Android: keep the due date notifications in step with the bills.
+    syncDues(settings);
+  }, [toast, settings]);
 
   const types = dashboardTypes(settings);
   const counts = Object.fromEntries((stats?.byType || []).map((r) => [r.document_type, Number(r.count)]));
@@ -153,6 +205,7 @@ export default function Dashboard() {
           )}
         </div>
         <InstallBanner />
+        <DuesCard rows={dues} />
         <div className="type-cards" data-testid="type-cards">
           {types.map((t) => (
             <div key={t.id} className="type-card" data-testid={`card-${t.id}`}>

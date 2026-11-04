@@ -48,7 +48,8 @@ const tabMatches = ([p, , , prefix], path) => (p === '/' ? path === '/' : path =
 function TabBar({ path, tabs }) {
   const current = tabs.find((t) => tabMatches(t, path))?.[0];
   return (
-    <nav className="tabbar no-print" aria-label="Main" style={{ gridTemplateColumns: `repeat(${tabs.length}, 1fr)` }}>
+    // minmax(0, 1fr): six tabs (Android with Customers & Vendors) must fit a 360-px phone; long labels shrink, never push.
+    <nav className={`tabbar no-print${tabs.length > 5 ? ' many' : ''}`} aria-label="Main" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
       {tabs.map(([p, label, icon]) => (
         <button key={p} className={current === p ? 'active' : ''} onClick={() => go(p)} aria-current={current === p ? 'page' : undefined} data-testid={`tab-${label.toLowerCase()}`}>
           <span className="tab-icon">

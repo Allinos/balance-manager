@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { call } from '../engine/api.js';
+import { owedTotal } from '../lib/dues.js';
 import { formatDate } from '@desktop/utils/dates.js';
 import PrivacyToggle from '@desktop/components/PrivacyToggle.jsx';
 import { Empty, Header, Segmented, Spinner, useUi } from '../components/ui.jsx';
@@ -55,8 +56,9 @@ export default function Reports() {
   useEffect(() => {
     let live = true;
     setData(null);
-    call('report_summary', range)
-      .then((r) => live && setData(r))
+    // What customers still owe comes from their ledgers (payments received later count), like Home → Payments due.
+    Promise.all([call('report_summary', range), owedTotal()])
+      .then(([r, owed]) => live && setData({ ...r, unpaid: owed.total, unpaidCount: owed.count }))
       .catch((e) => toast(e.message, 'bad'));
     return () => {
       live = false;

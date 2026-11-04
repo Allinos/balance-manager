@@ -15,17 +15,14 @@ class AppConfig {
 
   // ------------------------------------------------------------------ AdMob (free plan only)
   // Google's official TEST ad units. Put your own (AdMob → Apps → Ad units) here or pass them with --dart-define.
-  static const bannerAdUnit = String.fromEnvironment('ADMOB_BANNER', defaultValue: 'ca-app-pub-3940256099942544/9214589741');
+  /// Rewarded ad: "Watch a short ad, +1 document" once the free plan is used up.
+  static const rewardedAdUnit = String.fromEnvironment('ADMOB_REWARDED', defaultValue: 'ca-app-pub-3940256099942544/5224354917');
   static const interstitialAdUnit = String.fromEnvironment('ADMOB_INTERSTITIAL', defaultValue: 'ca-app-pub-3940256099942544/1033173712');
 
   /// Not irritating: at most one full-screen ad every 10 minutes, never in the first 3 minutes,
   /// only right after a bill or payment is saved — never while typing.
   static const interstitialEvery = Duration(minutes: 10);
   static const interstitialNotBefore = Duration(minutes: 3);
-
-  /// Screens with the small banner (lists and reports). Never on the editor, a document or Settings forms.
-  static bool bannerOn(String path) =>
-      path == '/' || path == '/documents' || path == '/products' || path == '/reports' || path == '/settings' || path.startsWith('/parties');
 
   // ------------------------------------------------------------------ PIN lock
   /// The PIN is asked when the app opens, and again when it comes back after this long in the background

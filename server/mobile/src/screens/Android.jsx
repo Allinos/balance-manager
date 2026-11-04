@@ -10,14 +10,15 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import { Field, Input, Sheet, Spinner, Toggle, useUi } from '../components/ui.jsx';
+import { Field, Input, Sheet, Spinner, Toggle, go, useUi } from '../components/ui.jsx';
 import { useApp } from '../data.jsx';
 import { call } from '../engine/api.js';
 import { exportData } from '../engine/backup.js';
 import { activateWithKey, activateWithLogin, deviceId, formatKey, licenseToken, status as licenseStatus } from '../lib/license.js';
-import { bridge, openLink, serverUrl } from '../lib/native.js';
-import { FREE_LIMITS } from '../lib/plan.js';
+import { bridge, native, openLink, serverUrl } from '../lib/native.js';
+import { BONUS_SETTING, FREE_LIMITS, bonusOf, isLimitError, limitOf } from '../lib/plan.js';
 import { SMS_SETTING } from '../lib/notify.js';
+import { DUE_REMINDERS_SETTING, dueRemindersOn, syncDues } from '../lib/dues.js';
 import { LicenseSection } from './settings/system.jsx';
 
 const PIN_RE = /^\d{4}$/;
@@ -327,6 +328,11 @@ export function PlanSection() {
             <Meter label="Documents" used={usage.documents} limit={usage.limits.documents} testId="plan-documents" />
             <Meter label="Payments" used={usage.payments} limit={usage.limits.payments} testId="plan-payments" />
             <Meter label="Customers & vendors" used={usage.parties} limit={usage.limits.parties} testId="plan-parties" />
+            {(usage.bonus?.documents > 0 || usage.bonus?.payments > 0) && (
+              <p className="small muted" style={{ margin: 0 }} data-testid="plan-bonus">
+                Earned by watching ads: {[usage.bonus.documents && `${usage.bonus.documents} document${usage.bonus.documents === 1 ? '' : 's'}`, usage.bonus.payments && `${usage.bonus.payments} payment${usage.bonus.payments === 1 ? '' : 's'}`].filter(Boolean).join(' and ')}
+              </p>
+            )}
           </>
         )}
         <p className="small muted" style={{ margin: 0 }}>
@@ -485,3 +491,74 @@ export function SmsSwitch() {
   );
 }
 
+
+/**
+ * A free-plan limit was reached while saving. Offers, in the Android app:
+ *   "Watch a short ad · +1 document" (a rewarded ad earns one more place, then the save is tried again),
+ *   "See plans", or "Not now".
+ * Returns true when the caller should save again. Errors that are not a limit return false untouched.
+ */
+export function useFreeLimit() {
+  const { settings, updateSettings } = useApp();
+  const { confirm, toast } = useUi();
+  return useCallback(
+    async (err) => {
+      if (!isLimitError(err)) return false;
+      const what = limitOf(err);
+      const canEarn = native() && (what === 'documents' || what === 'payments');
+      const one = what === 'payments' ? 'payment' : 'document';
+      const choice = await confirm({
+        title: 'Free plan limit reached',
+        message: canEarn ? `${err.message.replace(/ Upgrade to add more.*$/, '')} Watch a short ad to make one more ${one}, or upgrade for unlimited ${one}s and no ads.` : err.message,
+        confirmLabel: canEarn ? `Watch ad · +1 ${one}` : 'See plans',
+        ...(canEarn ? { altLabel: 'See plans' } : {}),
+        cancelLabel: 'Not now',
+      });
+      if ((choice === true && !canEarn) || choice === 'alt') {
+        go('/settings/plan');
+        return false;
+      }
+      if (choice !== true) return false;
+      const res = await bridge('ads.rewarded');
+      if (!res?.rewarded) {
+        toast(res?.reason || 'No ad is available right now. Please try again in a moment.', 'bad');
+        return false;
+      }
+      const bonus = bonusOf(settings[BONUS_SETTING]);
+      await updateSettings({ [BONUS_SETTING]: { ...bonus, [what]: bonus[what] + 1 } });
+      toast(`Thanks! You can make 1 more ${one}.`);
+      return true;
+    },
+    [confirm, toast, settings, updateSettings],
+  );
+}
+
+/** Settings → Features: due date reminders (Android notifications at 9:30 on the day a customer bill is due). */
+export function DueRemindersSwitch() {
+  const { settings, updateSettings } = useApp();
+  const { toast } = useUi();
+  const [shown, setShown] = useState(null);
+  const on = shown ?? dueRemindersOn(settings);
+  const toggle = async (next) => {
+    setShown(next);
+    const values = { ...settings, [DUE_REMINDERS_SETTING]: next };
+    await updateSettings({ [DUE_REMINDERS_SETTING]: next });
+    const res = await syncDues(values);
+    if (next && res?.reason === 'permission') toast('Allow notifications for DocGen in your phone settings to get due date reminders.', 'bad');
+    else toast(next ? 'Due date reminders on: a notification on the morning a bill is due.' : 'Due date reminders off');
+  };
+  return (
+    <div className="list">
+      <div className="list-item module-row" data-testid="module-dues">
+        <span className="avatar">
+          <Icon name="calendar" size={19} />
+        </span>
+        <span className="list-main">
+          <strong>Due date reminders</strong>
+          <span className="small muted">A notification at 9:30 on the day a customer&apos;s bill is due, with a tap to open it and send a reminder.</span>
+        </span>
+        <Toggle checked={on} onChange={toggle} label="" aria-label="Due date reminders" data-testid="module-dues-toggle" />
+      </div>
+    </div>
+  );
+}

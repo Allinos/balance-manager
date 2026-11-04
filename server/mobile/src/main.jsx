@@ -7,6 +7,8 @@ import { captureInstallPrompt, rememberInstalled } from './lib/install.js';
 import '@desktop/styles/print.css';
 import './styles.css';
 
+// Inside the Android app (lib/native.js): styles that leave the status bar to Android.
+if (window.DOCGEN_NATIVE) document.documentElement.classList.add('docgen-native');
 captureInstallPrompt();
 keepDataSafe();
 window.addEventListener('docgen-db-blocked', () =>

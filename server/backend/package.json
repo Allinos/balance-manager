@@ -18,7 +18,7 @@
     "test": "node --test --test-concurrency=1 test/*.test.js",
     "test:portal": "node ../frontend/e2e/portal.e2e.mjs",
     "test:mobile": "node ../mobile/e2e/mobile.e2e.mjs",
-    "test:android": "node ../mobile/e2e/android.e2e.mjs"
+    "test:android": "node ../mobile/e2e/android.e2e.mjs && node ../mobile/e2e/android-walk.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

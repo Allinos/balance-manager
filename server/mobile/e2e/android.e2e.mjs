@@ -100,6 +100,15 @@ const NATIVE_MOCK = (server) => {
     'file.share': () => ({ ok: true }),
     screen: () => ({ ok: true }),
     event: () => ({ ok: true }),
+    // Rewarded ads: the next answers queued by the test (default: watched to the end).
+    'ads.rewarded': () => {
+      const s = state();
+      const queue = s.rewards || [];
+      const next = queue.length ? queue[0] : { rewarded: true };
+      save({ ...s, rewards: queue.slice(1) });
+      return next;
+    },
+    'dues.sync': (a) => ({ ok: true, scheduled: a.enabled ? (a.bills || []).length : 0 }),
   };
   window.flutter_inappwebview = {
     callHandler: async (name, args) => {
@@ -138,12 +147,21 @@ const cleanShot = async (page, name) => {
 };
 
 /** A backup with `n` invoices and `n` customers (the app's own backup format), for the free plan limits. */
+/** Due dates of the first restored invoices, in days from today: two overdue, today, tomorrow, in 3 and in 20 days. */
+const DUE_OFFSETS = [-3, -1, 0, 1, 3, 20];
+const shiftDay = (iso, n) => {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
 function backupWith(n, settings) {
-  const today = new Date().toISOString().slice(0, 10);
+  const t = new Date();
+  const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   const parties = Array.from({ length: n }, (_, i) => ({ id: i + 1, name: `Customer ${i + 1}`, phone: `98765 4${String(i).padStart(4, '0')}`, kind: 'customer', company_name: '', email: '', address: '', shipping_address: '', state: '', gstin: '', tax_id: '', is_demo: 0, notes: '', archived_at: null, created_at: `${today}T00:00:00Z`, updated_at: `${today}T00:00:00Z` }));
   const documents = Array.from({ length: n }, (_, i) => ({
     id: i + 1, document_type: 'TAX_INVOICE', document_number: `INV-${String(i + 1).padStart(5, '0')}`, status: 'ISSUED', party_id: i + 1, party_name: `Customer ${i + 1}`,
-    issue_date: today, due_date: '', currency: 'INR', currency_symbol: '₹', currency_decimals: 2, exchange_rate: '1', tax_mode: 'INTRA', tax_label: 'GST',
+    issue_date: today, due_date: DUE_OFFSETS[i] === undefined ? '' : shiftDay(today, DUE_OFFSETS[i]), currency: 'INR', currency_symbol: '₹', currency_decimals: 2, exchange_rate: '1', tax_mode: 'INTRA', tax_label: 'GST',
     subtotal: '1000', discount: '0', taxable: '1000', tax: '0', cgst: '0', sgst: '0', igst: '0', shipping: '0', other_charges: '0', round_off: '0', grand_total: '1000',
     meta: '{}', is_demo: 0, deleted_at: null, created_at: `${today}T00:00:00Z`, updated_at: `${today}T00:00:00Z`, __items: [{ name: 'Item', quantity: '1', unit_price: '1000', total_amount: '1000' }], __taxes: [],
   }));
@@ -185,8 +203,12 @@ try {
   check(await a.page.getByTestId('free-chip').isVisible(), 'Home shows "Free plan · Upgrade"');
   check((await a.page.getByTestId('type-cards').locator('.type-card').first().textContent()).includes('Retail Bill'), 'Home: Retail Bill is the first card');
   check((await a.page.getByTestId('install-banner').count()) === 0, 'no "Install app" banner inside the Android app');
+  check(
+    await a.page.evaluate(() => document.documentElement.classList.contains('docgen-native') && getComputedStyle(document.querySelector('.app-header')).paddingTop === '6px'),
+    'no empty band at the top: Android keeps the status bar clear, the page does not add it again',
+  );
   const screens = await calls(a.page, 'screen');
-  check(screens.some((c) => c.args.path === '/' && c.args.free === true), 'the app tells Android the screen and the free plan (ad banner on lists)');
+  check(screens.some((c) => c.args.path === '/' && c.args.free === true), 'the app tells Android the screen and the free plan (ads only for free users)');
   await cleanShot(a.page, '03-home');
 
   console.log('Explore first (second phone)');
@@ -308,6 +330,37 @@ try {
   const [chooser] = await Promise.all([a.page.waitForEvent('filechooser'), a.page.getByTestId('restore-choose').click()]);
   await chooser.setFiles(backupFile);
   await a.page.getByText('Backup restored').waitFor();
+  console.log('Payments due and due date reminders');
+  await clearCalls(a.page);
+  await a.page.goto(`${base}/app/#/`);
+  await a.page.getByTestId('dues-card').waitFor();
+  {
+    const card = (await a.page.getByTestId('dues-card').textContent()).replace(/\s+/g, ' ');
+    check((await a.page.getByTestId('due-row').count()) === 5 && card.includes('2 overdue') && card.includes('Overdue 3 days') && card.includes('Due today') && card.includes('Due tomorrow') && card.includes('Due in 3 days') && !card.includes('Due in 20 days'),
+      'Home: Payments due — the overdue bills and those due this week, soonest first');
+    await a.page.waitForFunction(() => JSON.parse(sessionStorage.getItem('__calls') || '[]').some((c) => c.name === 'dues.sync'));
+    const sync = (await calls(a.page, 'dues.sync')).at(-1).args;
+    check(sync.enabled === true && sync.bills.length === 4 && sync.bills.every((b) => b.amount.includes('1,000') && b.number.startsWith('INV-')),
+      'Android gets the bills due from today on, for a notification at 9:30 on each due date (4 bills)');
+    await cleanShot(a.page, '10-payments-due');
+    await a.page.getByTestId('due-whatsapp').first().click();
+    const wa = decodeURIComponent((await calls(a.page, 'open')).at(-1)?.args.url || '');
+    check(wa.startsWith('https://wa.me/919876540000?text=') && wa.includes('₹1,000.00') && wa.includes('INV-00001'), 'Payments due: one tap sends the WhatsApp reminder with the amount');
+    await a.page.getByTestId('due-row').first().locator('.due-main').click();
+    await a.page.getByTestId('share-doc').waitFor();
+    check(true, 'tapping a due bill opens it');
+  }
+  await a.page.goto(`${base}/app/#/settings/parties`);
+  await a.page.getByTestId('module-dues-toggle').waitFor();
+  check(await a.page.getByTestId('module-dues-toggle').isChecked(), 'Features: Due date reminders on by default');
+  await clearCalls(a.page);
+  await a.page.getByTestId('module-dues-toggle').click();
+  await a.page.getByText('Due date reminders off').waitFor();
+  check((await calls(a.page, 'dues.sync')).at(-1).args.enabled === false, 'switching reminders off removes the notifications');
+  await a.page.getByTestId('module-dues-toggle').click();
+  await a.page.getByText('Due date reminders on').waitFor();
+  check((await calls(a.page, 'dues.sync')).at(-1).args.enabled === true, 'and on again');
+
   await a.page.goto(`${base}/app/#/settings/plan`);
   await a.page.getByTestId('plan-documents').waitFor();
   check((await a.page.getByTestId('plan-documents').textContent()).includes('20 / 20'), 'Plan & Account: 20 / 20 documents used');
@@ -323,11 +376,34 @@ try {
   await a.page.getByTestId('save-doc').click();
   await a.page.getByText('Free plan limit reached').waitFor();
   const limitText = await a.page.getByTestId('confirm').textContent();
-  check(limitText.includes('The free plan includes 20 documents'), 'the 21st document asks to upgrade (its new customer would be the 21st too: the bill is not blocked by that)');
-  await shot(a.page, '09-limit');
+  check(limitText.includes('The free plan includes 20 documents') && (await a.page.getByTestId('confirm-ok').textContent()).includes('Watch ad · +1 document') && (await a.page.getByTestId('confirm-alt').textContent()) === 'See plans',
+    'the 21st document offers a rewarded ad (+1 document), See plans or Not now (its new customer would be the 21st too: the bill is not blocked by that)');
+  await a.page.waitForTimeout(600); // the sheet slides in
+  await cleanShot(a.page, '09-limit');
+  // An ad closed early earns nothing.
+  await a.page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('__native') || '{}');
+    localStorage.setItem('__native', JSON.stringify({ ...s, rewards: [{ rewarded: false, reason: 'Watch the whole ad to get one more document.' }] }));
+  });
   await a.page.getByTestId('confirm-ok').click();
+  await a.page.getByText('Watch the whole ad to get one more document.').waitFor();
+  check((await a.page.getByTestId('editor').count()) === 1, 'an ad closed early: nothing earned, the bill stays open');
+  await a.page.getByTestId('save-doc').click();
+  await a.page.getByTestId('confirm-ok').click();
+  await a.page.getByTestId('share-doc').waitFor();
+  check((await calls(a.page, 'ads.rewarded')).length === 2, 'the ad watched to the end: the 21st document is saved straight away');
+  await a.page.goto(`${base}/app/#/settings/plan`);
+  await a.page.getByTestId('plan-bonus').waitFor();
+  check((await a.page.getByTestId('plan-documents').textContent()).includes('21 / 21') && (await a.page.getByTestId('plan-bonus').textContent()).includes('1 document'), 'Plan & Account: 21 / 21, 1 document earned with an ad');
+  await a.page.goto(`${base}/app/#/doc/new/TAX_INVOICE`);
+  await a.page.getByTestId('editor').waitFor();
+  await a.page.getByTestId('party-name').fill('One more');
+  await a.page.getByTestId('item-name-0').fill('Item');
+  await a.page.getByTestId('item-rate-0').fill('100');
+  await a.page.getByTestId('save-doc').click();
+  await a.page.getByTestId('confirm-alt').click();
   await a.page.getByTestId('plan').waitFor();
-  check(true, '"See plans" opens Plan & Account');
+  check(true, 'the 22nd: "See plans" opens Plan & Account');
   await clearCalls(a.page);
   await a.page.getByTestId('plan-upgrade').click();
   const buy = (await calls(a.page, 'open'))[0]?.args.url || '';
@@ -341,7 +417,7 @@ try {
   await a.page.getByTestId('plan-activate').click();
   await a.page.getByText('Your data is safe in your DocGen account').waitFor({ timeout: 20000 });
   const toast = await a.page.getByText('Your data is safe in your DocGen account').textContent();
-  check(toast.includes('20 documents') && toast.includes('20 customers & vendors'), `phone data copied to the server: ${toast}`);
+  check(toast.includes('21 documents') && toast.includes('20 customers & vendors'), `phone data copied to the server: ${toast}`);
   check((await calls(a.page, 'account.upgraded'))[0]?.args.licenseKey === license.code, 'the account is marked as upgraded (Firebase)');
   await a.page.getByTestId('license-card').waitFor();
   check(true, 'Plan & Account now shows the license');

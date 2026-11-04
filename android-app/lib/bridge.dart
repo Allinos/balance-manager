@@ -4,17 +4,29 @@ library;
 
 import 'account.dart';
 import 'ads.dart';
+import 'dues.dart';
 import 'phone.dart';
 import 'pin.dart';
 
 typedef Handler = Future<Object?> Function(Map<String, dynamic> args);
 
 class Bridge {
-  Bridge({required this.accounts, required this.pins, required this.ads, this.sendSms = Phone.sendSms, this.smsPermission = Phone.smsPermission, this.open = Phone.open, this.saveFile = Phone.saveToDownloads, this.shareFile = Phone.share});
+  Bridge({
+    required this.accounts,
+    required this.pins,
+    required this.ads,
+    this.dues,
+    this.sendSms = Phone.sendSms,
+    this.smsPermission = Phone.smsPermission,
+    this.open = Phone.open,
+    this.saveFile = Phone.saveToDownloads,
+    this.shareFile = Phone.share,
+  });
 
   final AccountService accounts;
   final PinStore pins;
   final AdsController ads;
+  final DueReminders? dues;
   final Future<Map<String, Object?>> Function(String phone, String text) sendSms;
   final Future<bool> Function({bool ask}) smsPermission;
   final Future<bool> Function(String url) open;
@@ -53,6 +65,11 @@ class Bridge {
     'screen': (a) async {
       ads.screen(_s(a, 'path'), a['free'] == true);
       return {'ok': true};
+    },
+    'ads.rewarded': (_) => ads.rewarded(),
+    'dues.sync': (a) async {
+      final bills = (a['bills'] is List ? a['bills'] as List : const []).whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+      return await dues?.sync(bills, enabled: a['enabled'] != false) ?? {'ok': false, 'scheduled': 0};
     },
     'event': (a) async {
       ads.event(_s(a, 'name'));

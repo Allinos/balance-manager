@@ -20,7 +20,9 @@ import { useApp, useDocContext } from '../data.jsx';
 import { PartySheet } from './Parties.jsx';
 import { sendWhatsAppReminder, smsAlert } from '../lib/notify.js';
 import { reportEvent } from '../lib/native.js';
+import { syncDues } from '../lib/dues.js';
 import { isLimitError } from '../lib/plan.js';
+import { useFreeLimit } from './Android.jsx';
 
 /** Money in the base currency, hidden while the privacy eye is on. */
 export function useMoney() {
@@ -38,7 +40,8 @@ const STATE_LABEL = { unpaid: 'Unpaid', partial: 'Partly paid' };
 /** Bottom sheet: amount, mode and date (today by default), then what it will settle. */
 function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
   const ctx = useDocContext();
-  const { toast, confirm } = useUi();
+  const { toast } = useUi();
+  const freeLimit = useFreeLimit();
   const money = useMoney();
   const [amount, setAmount] = useState('');
   const [mode, setMode] = useState('Cash');
@@ -59,11 +62,14 @@ function PaymentSheet({ party, side, ledger, onClose, onSaved }) {
       const doc = { document_type: labels.type, document_number: saved.document_number, status: 'ISSUED', issue_date: date, party_name: party.name, party_phone: party.phone, grand_total: amount };
       smsAlert(doc, ctx).then((r) => r === 'sent' && toast(`SMS sent to ${party.name}`));
       reportEvent('doc_saved');
+      // A payment that clears bills also clears their due date reminders.
+      syncDues(ctx.settings);
       onSaved();
     } catch (err) {
       setSaving(false);
-      if (isLimitError(err) && (await confirm({ title: 'Free plan limit reached', message: err.message, confirmLabel: 'See plans', cancelLabel: 'Not now' }))) go('/settings/plan');
-      else if (!isLimitError(err)) toast(err.message, 'bad');
+      if (!isLimitError(err)) toast(err.message, 'bad');
+      // Free plan (Android app): a rewarded ad earns one more payment, then it is saved again.
+      else if (await freeLimit(err)) save(e);
     }
   };
 

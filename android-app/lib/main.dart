@@ -18,6 +18,7 @@ import 'account.dart';
 import 'ads.dart';
 import 'bridge.dart';
 import 'config.dart';
+import 'dues.dart';
 import 'phone.dart';
 import 'pin.dart';
 
@@ -25,21 +26,32 @@ final _server = InAppLocalhostServer(port: AppConfig.localPort, documentRoot: 'a
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(statusBarColor: Color(0xFF224CC8), statusBarIconBrightness: Brightness.light));
+  // The status bar sits on the app's white header (dark icons); the lock screen sets its own.
+  SystemChrome.setSystemUIOverlayStyle(_appBars);
   if (!_server.isRunning()) await _server.start();
   final store = SecureSecretStore();
   final pins = PinStore(store);
   final accounts = AccountService(store, pins);
   // An account made offline (or before Firebase was set up) is copied to Firebase now, in the background.
   accounts.sync();
-  runApp(DocGenApp(pins: pins, accounts: accounts, locked: await pins.enabled));
+  runApp(DocGenApp(pins: pins, accounts: accounts, locked: await pins.enabled, account: await accounts.get()));
 }
 
+const _appBars = SystemUiOverlayStyle(
+  statusBarColor: Colors.white,
+  statusBarIconBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.white,
+  systemNavigationBarIconBrightness: Brightness.dark,
+);
+
 class DocGenApp extends StatefulWidget {
-  const DocGenApp({super.key, required this.pins, required this.accounts, required this.locked});
+  const DocGenApp({super.key, required this.pins, required this.accounts, required this.locked, this.account});
   final PinStore pins;
   final AccountService accounts;
   final bool locked;
+
+  /// The free account (name and business on the lock screen), if one was created.
+  final Map<String, dynamic>? account;
 
   @override
   State<DocGenApp> createState() => _DocGenAppState();
@@ -47,20 +59,26 @@ class DocGenApp extends StatefulWidget {
 
 class _DocGenAppState extends State<DocGenApp> with WidgetsBindingObserver {
   late bool _locked = widget.locked;
+  late Map<String, dynamic>? _account = widget.account;
   DateTime? _leftAt;
   final _ads = AdsController();
-  late final _bridge = Bridge(accounts: widget.accounts, pins: widget.pins, ads: _ads);
+  final _dues = DueReminders();
+
+  /// A screen of the web app to open (a tapped due date reminder: /doc/12).
+  final _openPath = ValueNotifier<String?>(null);
+  late final _bridge = Bridge(accounts: widget.accounts, pins: widget.pins, ads: _ads, dues: _dues);
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _dues.init((path) => _openPath.value = path);
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _ads.dispose();
+    _openPath.dispose();
     super.dispose();
   }
 
@@ -73,8 +91,14 @@ class _DocGenAppState extends State<DocGenApp> with WidgetsBindingObserver {
       final away = _leftAt == null ? Duration.zero : DateTime.now().difference(_leftAt!);
       _leftAt = null;
       if (away >= AppConfig.lockAfter) {
-        widget.pins.enabled.then((on) {
-          if (on && mounted) setState(() => _locked = true);
+        widget.pins.enabled.then((on) async {
+          if (!on || !mounted) return;
+          final account = await widget.accounts.get();
+          if (!mounted) return;
+          setState(() {
+            _account = account;
+            _locked = true;
+          });
         });
       }
     }
@@ -89,8 +113,16 @@ class _DocGenAppState extends State<DocGenApp> with WidgetsBindingObserver {
       home: Stack(
         children: [
           // The web app stays alive under the lock screen, so unlocking is instant.
-          WebHost(bridge: _bridge, ads: _ads),
-          if (_locked) Positioned.fill(child: LockScreen(pins: widget.pins, onUnlocked: () => setState(() => _locked = false))),
+          WebHost(bridge: _bridge, ads: _ads, openPath: _openPath),
+          if (_locked)
+            Positioned.fill(
+              child: LockScreen(
+                pins: widget.pins,
+                name: '${_account?['name'] ?? ''}',
+                business: '${_account?['business'] ?? ''}',
+                onUnlocked: () => setState(() => _locked = false),
+              ),
+            ),
         ],
       ),
     );
@@ -98,9 +130,10 @@ class _DocGenAppState extends State<DocGenApp> with WidgetsBindingObserver {
 }
 
 class WebHost extends StatefulWidget {
-  const WebHost({super.key, required this.bridge, required this.ads});
+  const WebHost({super.key, required this.bridge, required this.ads, required this.openPath});
   final Bridge bridge;
   final AdsController ads;
+  final ValueNotifier<String?> openPath;
 
   @override
   State<WebHost> createState() => _WebHostState();
@@ -116,7 +149,31 @@ class _WebHostState extends State<WebHost> {
     injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
   );
 
-  bool _ownPage(WebUri? uri) => uri != null && (uri.scheme == 'about' || uri.scheme == 'blob' || uri.scheme == 'data' || '${uri.scheme}://${uri.host}:${uri.port}' == _origin);
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.openPath.addListener(_open);
+  }
+
+  @override
+  void dispose() {
+    widget.openPath.removeListener(_open);
+    super.dispose();
+  }
+
+  /// Opens a screen of the web app (from a notification) once the page is ready.
+  void _open() {
+    final path = widget.openPath.value;
+    final web = _web;
+    if (path == null || web == null || !_loaded) return;
+    widget.openPath.value = null;
+    web.evaluateJavascript(source: 'window.location.hash = ${jsonEncode('#$path')};');
+  }
+
+  bool _ownPage(WebUri? uri) =>
+      uri != null && (uri.scheme == 'about' || uri.scheme == 'blob' || uri.scheme == 'data' || '${uri.scheme}://${uri.host}:${uri.port}' == _origin);
 
   @override
   Widget build(BuildContext context) {
@@ -131,55 +188,59 @@ class _WebHostState extends State<WebHost> {
           await SystemNavigator.pop();
         }
       },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F6FB),
-        body: SafeArea(
-          child: Column(
-            children: [
-              Expanded(
-                child: InAppWebView(
-                  initialUrlRequest: URLRequest(url: WebUri('$_origin/app/index.html#/')),
-                  initialUserScripts: UnmodifiableListView([_nativeScript]),
-                  initialSettings: InAppWebViewSettings(
-                    javaScriptEnabled: true,
-                    domStorageEnabled: true,
-                    databaseEnabled: true,
-                    useShouldOverrideUrlLoading: true,
-                    supportMultipleWindows: true,
-                    javaScriptCanOpenWindowsAutomatically: true,
-                    allowFileAccess: false,
-                    allowContentAccess: true,
-                    textZoom: 100,
-                    supportZoom: false,
-                    isInspectable: kDebugMode,
-                    mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: _appBars,
+        child: Scaffold(
+          // White behind the status and navigation bars, like the app's header and bottom tabs (no grey band).
+          backgroundColor: Colors.white,
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: InAppWebView(
+                    initialUrlRequest: URLRequest(url: WebUri('$_origin/app/index.html#/')),
+                    initialUserScripts: UnmodifiableListView([_nativeScript]),
+                    initialSettings: InAppWebViewSettings(
+                      javaScriptEnabled: true,
+                      domStorageEnabled: true,
+                      databaseEnabled: true,
+                      useShouldOverrideUrlLoading: true,
+                      supportMultipleWindows: true,
+                      javaScriptCanOpenWindowsAutomatically: true,
+                      allowFileAccess: false,
+                      allowContentAccess: true,
+                      textZoom: 100,
+                      supportZoom: false,
+                      isInspectable: kDebugMode,
+                      mixedContentMode: MixedContentMode.MIXED_CONTENT_NEVER_ALLOW,
+                    ),
+                    onWebViewCreated: (controller) {
+                      _web = controller;
+                      for (final name in widget.bridge.handlers.keys) {
+                        controller.addJavaScriptHandler(handlerName: name, callback: (args) => widget.bridge.handle(name, args));
+                      }
+                    },
+                    // Links to anything but the app itself (WhatsApp, the website, email) open in the phone's apps.
+                    shouldOverrideUrlLoading: (controller, action) async {
+                      final uri = action.request.url;
+                      if (_ownPage(uri)) return NavigationActionPolicy.ALLOW;
+                      if (uri != null) await Phone.open(uri.toString());
+                      return NavigationActionPolicy.CANCEL;
+                    },
+                    onCreateWindow: (controller, action) async {
+                      final uri = action.request.url;
+                      if (uri != null && !_ownPage(uri)) await Phone.open(uri.toString());
+                      return false;
+                    },
+                    onPermissionRequest: (controller, request) async => PermissionResponse(resources: request.resources, action: PermissionResponseAction.DENY),
+                    onLoadStop: (controller, url) {
+                      _loaded = true;
+                      _open();
+                    },
                   ),
-                  onWebViewCreated: (controller) {
-                    _web = controller;
-                    for (final name in widget.bridge.handlers.keys) {
-                      controller.addJavaScriptHandler(handlerName: name, callback: (args) => widget.bridge.handle(name, args));
-                    }
-                  },
-                  // Links to anything but the app itself (WhatsApp, the website, email) open in the phone's apps.
-                  shouldOverrideUrlLoading: (controller, action) async {
-                    final uri = action.request.url;
-                    if (_ownPage(uri)) return NavigationActionPolicy.ALLOW;
-                    if (uri != null) await Phone.open(uri.toString());
-                    return NavigationActionPolicy.CANCEL;
-                  },
-                  onCreateWindow: (controller, action) async {
-                    final uri = action.request.url;
-                    if (uri != null && !_ownPage(uri)) await Phone.open(uri.toString());
-                    return false;
-                  },
-                  onPermissionRequest: (controller, request) async => PermissionResponse(resources: request.resources, action: PermissionResponseAction.DENY),
                 ),
-              ),
-              ListenableBuilder(
-                listenable: widget.ads,
-                builder: (context, _) => widget.ads.bannerVisible ? const BannerSlot() : const SizedBox.shrink(),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

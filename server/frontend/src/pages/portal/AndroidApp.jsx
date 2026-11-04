@@ -11,7 +11,7 @@ export const ANDROID_FREE = { documents: 20, payments: 20, parties: 20 };
 const POINTS = [
   ['zap', 'Free to start', `No license needed: every feature for ${ANDROID_FREE.documents} documents, ${ANDROID_FREE.payments} payments and ${ANDROID_FREE.parties} customers & vendors.`],
   ['lock', 'A PIN, not a password', 'Create your account in the app with your name, business and mobile. Your 4-digit PIN locks DocGen every time it opens.'],
-  ['chat', 'SMS & WhatsApp', 'An SMS to your customer for every new bill or payment, and a WhatsApp payment reminder with the amount due in one tap.'],
+  ['chat', 'SMS & WhatsApp', 'An SMS to your customer for every new bill or payment, a WhatsApp payment reminder in one tap, and a notification on the day a bill is due.'],
   ['file', 'Simple retail bills', 'A counter bill without GST — share it as a PDF straight away. GST invoices and every other document type too.'],
   ['chart', 'Reports at a glance', 'Sales, purchases, money in and out, and who still owes you — this month, last month or this year.'],
   ['refresh', 'Upgrade, keep everything', 'When you upgrade, your customers, bills and payments move with you to your DocGen account. No limits, no ads.'],
@@ -61,7 +61,7 @@ export function AndroidAppSection({ url }) {
           <AndroidAppButton url={url} />
         </div>
         <p className="small muted" style={{ marginTop: 10 }}>
-          Android 7 or newer · small, occasional ads on the free plan only · your data stays on your phone
+          Android 7 or newer · occasional ads on the free plan only — watch one to make an extra bill · your data stays on your phone
         </p>
       </div>
       <div className="phone-shots three">

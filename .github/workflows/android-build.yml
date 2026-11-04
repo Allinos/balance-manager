@@ -16,7 +16,7 @@
 # the account kept on the phone only (no Firebase) and signed with a debug key — fine for testing, not for the Play Store.
 #   Variables (public values):
 #     DOCGEN_SERVER         e.g. https://docgen.reynrel.in
-#     ADMOB_APP_ID          ca-app-pub-…~…           ADMOB_BANNER / ADMOB_INTERSTITIAL   ca-app-pub-…/…
+#     ADMOB_APP_ID          ca-app-pub-…~…           ADMOB_REWARDED / ADMOB_INTERSTITIAL   ca-app-pub-…/…
 #     FIREBASE_API_KEY, FIREBASE_APP_ID, FIREBASE_SENDER_ID, FIREBASE_PROJECT_ID, FIREBASE_STORAGE_BUCKET
 #   Secrets (upload key for the Play Store):
 #     ANDROID_KEYSTORE_BASE64  the .jks file, base64-encoded     ANDROID_KEYSTORE_PASSWORD
@@ -98,7 +98,7 @@ jobs:
           defines=()
           add() { if [ -n "$2" ]; then defines+=("--dart-define=$1=$2"); fi; }
           add DOCGEN_SERVER "${{ vars.DOCGEN_SERVER }}"
-          add ADMOB_BANNER "${{ vars.ADMOB_BANNER }}"
+          add ADMOB_REWARDED "${{ vars.ADMOB_REWARDED }}"
           add ADMOB_INTERSTITIAL "${{ vars.ADMOB_INTERSTITIAL }}"
           add FIREBASE_API_KEY "${{ vars.FIREBASE_API_KEY }}"
           add FIREBASE_APP_ID "${{ vars.FIREBASE_APP_ID }}"

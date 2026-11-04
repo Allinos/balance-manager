@@ -2067,3 +2067,25 @@ button.license-chip {
 .pin-input { letter-spacing: .5em; font-size: 1.2rem; text-align: center; }
 /* A list being replaced (e.g. Customers → Vendors): kept in place, faded, until the new one arrives. */
 .list-stale { opacity: .55; pointer-events: none; transition: opacity .12s ease; }
+
+/* Android app (Flutter): the app already keeps clear of the status and navigation bars, so the page must not add
+   the phone's insets again (that left an empty band at the top). */
+html.docgen-native { --safe-bottom: 0px; }
+html.docgen-native .app-header { padding-top: 6px; }
+html.docgen-native .sheet-top { padding-top: 4px; }
+
+/* Home → Payments due */
+.dues-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 12px 8px 14px; }
+.dues-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.dues-head strong { display: inline-flex; align-items: center; gap: 6px; }
+.due-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+.due-main { display: flex; flex-direction: column; align-items: flex-start; text-align: left; background: none; border: 0; padding: 4px 0; min-width: 0; color: inherit; font: inherit; }
+.due-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.due-amt { font-size: .95rem; }
+.due-wa { color: #16a34a; }
+.warn-text { color: var(--warn); }
+
+/* Six bottom tabs (Android app with Customers & Vendors): narrower pills and labels so all fit a 360-px phone. */
+.tabbar button { min-width: 0; }
+.tabbar.many button { font-size: 10.5px; letter-spacing: -0.01em; }
+.tabbar.many .tab-icon { width: 44px; }

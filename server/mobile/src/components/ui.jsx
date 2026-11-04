@@ -288,7 +288,10 @@ export function UiProvider({ children }) {
     setToast({ id, message, tone });
     setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 3200);
   }, []);
-  /** Resolves true/false, or the typed text (possibly '') when `input` is given, or false when cancelled. */
+  /**
+   * Resolves true/false, or the typed text (possibly '') when `input` is given, or false when cancelled.
+   * With `altLabel` a third, full-width button above the two resolves 'alt'.
+   */
   const confirm = useCallback((options) => {
     setText('');
     return new Promise((resolve) => setConfirm({ ...options, resolve }));
@@ -313,7 +316,12 @@ export function UiProvider({ children }) {
               <input className="input" value={text} onChange={(e) => setText(e.target.value)} placeholder={confirmState.input.placeholder} autoFocus data-testid="confirm-input" />
             </Field>
           )}
-          <div className="grid-2" style={{ marginTop: 14 }}>
+          {confirmState.altLabel && (
+            <button className="btn btn-block" style={{ marginTop: 14 }} onClick={() => close('alt')} data-testid="confirm-alt">
+              {confirmState.altLabel}
+            </button>
+          )}
+          <div className="grid-2" style={{ marginTop: confirmState.altLabel ? 8 : 14 }}>
             <button className="btn" onClick={() => close(false)} data-testid="confirm-cancel">
               {confirmState.cancelLabel || 'Cancel'}
             </button>

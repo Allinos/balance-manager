@@ -1,17 +1,19 @@
-/// AdMob for free-plan users only — kept quiet on purpose:
-///  - a small banner under the list screens (Home, Documents, Products, Parties, Reports, Settings); never on
-///    the bill editor, a document or a form, and it never covers a button (it sits below the app, not on it);
-///  - a full-screen ad at most once every 10 minutes, never in the first 3 minutes, and only right after a bill
-///    or payment was saved (never while typing).
+/// AdMob for free-plan users only. No banners.
+///  - Rewarded ad, the user's choice: when the free plan's 20 documents (or payments) are used up, the app offers
+///    "Watch a short ad · +1 document". Watching the whole ad earns one more place (web app: useFreeLimit).
+///  - Full-screen (interstitial) ad: at most once every 10 minutes, never in the first 3 minutes, only right after a
+///    bill or payment was saved (never while typing), and never straight after a rewarded ad.
 /// With a license (upgrade) there are no ads at all.
 library;
 
-import 'package:flutter/material.dart';
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
 import 'config.dart';
 
-/// When a full-screen ad may show. Pure logic, tested in test/ads_policy_test.dart.
+/// When a full-screen ad may show. Pure logic, tested in test/app_test.dart.
 class InterstitialPolicy {
   InterstitialPolicy({required this.started, this.every = AppConfig.interstitialEvery, this.notBefore = AppConfig.interstitialNotBefore});
   final DateTime started;
@@ -28,18 +30,25 @@ class InterstitialPolicy {
   void shown(DateTime now) => lastShown = now;
 }
 
-class AdsController extends ChangeNotifier {
-  /// [startAds] starts AdMob and loads the first full-screen ad (replaced in tests).
-  AdsController({DateTime? started, Future<void> Function(AdsController)? startAds})
-      : policy = InterstitialPolicy(started: started ?? DateTime.now()),
-        _startAds = startAds ?? _startAdMob;
+/// Shows one rewarded ad; resolves true when the reward was earned (the whole ad watched), false when closed early,
+/// null when no ad could be loaded.
+typedef RewardedRunner = Future<bool?> Function();
+
+class AdsController {
+  /// [startAds] starts AdMob and loads the first full-screen ad; [runRewarded] shows a rewarded ad (both replaced in tests).
+  AdsController({DateTime? started, Future<void> Function(AdsController)? startAds, this.runRewarded})
+    : policy = InterstitialPolicy(started: started ?? DateTime.now()),
+      _startAds = startAds ?? _startAdMob;
 
   static Future<void> _startAdMob(AdsController c) async {
     await MobileAds.instance.initialize();
     c._loadInterstitial();
+    c._loadRewarded();
   }
 
   final Future<void> Function(AdsController) _startAds;
+  /// Shows a rewarded ad (AdMob by default; replaced in tests).
+  final RewardedRunner? runRewarded;
 
   final InterstitialPolicy policy;
   bool _free = false;
@@ -47,18 +56,21 @@ class AdsController extends ChangeNotifier {
   bool _initialised = false;
   InterstitialAd? _interstitial;
   bool _loadingInterstitial = false;
+  RewardedAd? _rewarded;
+  Completer<RewardedAd?>? _rewardedLoading;
 
   bool get free => _free;
-  bool get bannerVisible => _free && AppConfig.bannerOn(_path);
+  String get path => _path;
 
   /// The web app tells which screen shows and whether the user is on the free plan.
   void screen(String path, bool free) {
-    final changed = path != _path || free != _free;
     _path = path;
     _free = free;
-    if (free) _init();
-    if (!free) _dropInterstitial();
-    if (changed) notifyListeners();
+    if (free) {
+      _init();
+    } else {
+      _drop();
+    }
   }
 
   Future<void> _init() async {
@@ -87,9 +99,36 @@ class AdsController extends ChangeNotifier {
     );
   }
 
-  void _dropInterstitial() {
+  /// Loads a rewarded ad (one kept ready); resolves the ad or null.
+  Future<RewardedAd?> _loadRewarded() {
+    if (_rewarded != null) return Future.value(_rewarded);
+    final pending = _rewardedLoading;
+    if (pending != null) return pending.future;
+    final done = Completer<RewardedAd?>();
+    _rewardedLoading = done;
+    RewardedAd.load(
+      adUnitId: AppConfig.rewardedAdUnit,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewarded = ad;
+          _rewardedLoading = null;
+          done.complete(ad);
+        },
+        onAdFailedToLoad: (_) {
+          _rewardedLoading = null;
+          done.complete(null);
+        },
+      ),
+    );
+    return done.future;
+  }
+
+  void _drop() {
     _interstitial?.dispose();
     _interstitial = null;
+    _rewarded?.dispose();
+    _rewarded = null;
   }
 
   /// Something happened in the app ('doc_saved'): maybe a full-screen ad, within the policy.
@@ -116,67 +155,43 @@ class AdsController extends ChangeNotifier {
     );
     ad.show();
   }
-}
 
-/// The banner under the app (adaptive width). Takes no space until an ad is loaded.
-class BannerSlot extends StatefulWidget {
-  const BannerSlot({super.key});
-  @override
-  State<BannerSlot> createState() => _BannerSlotState();
-}
-
-class _BannerSlotState extends State<BannerSlot> {
-  BannerAd? _ad;
-  bool _loaded = false;
-  int? _width;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final width = MediaQuery.sizeOf(context).width.truncate();
-    if (width != _width) {
-      _width = width;
-      _load(width);
+  /// "Watch a short ad · +1 document": shows a rewarded ad. Answers {rewarded: true} only when it was watched.
+  Future<Map<String, Object?>> rewarded() async {
+    if (!_free) return {'rewarded': false, 'reason': 'There are no ads with a license.'};
+    await _init();
+    bool? earned;
+    try {
+      earned = await (runRewarded ?? _showRewardedAdMob)();
+    } catch (e) {
+      earned = null;
     }
+    // No full-screen ad straight after a rewarded one.
+    if (earned != null) policy.shown(DateTime.now());
+    if (earned == true) return {'rewarded': true};
+    if (earned == false) return {'rewarded': false, 'reason': 'Watch the whole ad to get one more document.'};
+    return {'rewarded': false, 'reason': 'No ad is available right now. Check your internet connection and try again.'};
   }
 
-  Future<void> _load(int width) async {
-    _ad?.dispose();
-    _loaded = false;
-    final size = await AdSize.getLargeAnchoredAdaptiveBannerAdSize(width);
-    if (!mounted || size == null) return;
-    final ad = BannerAd(
-      adUnitId: AppConfig.bannerAdUnit,
-      size: size,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (_) => mounted ? setState(() => _loaded = true) : null,
-        onAdFailedToLoad: (ad, _) {
-          ad.dispose();
-          if (mounted) setState(() => _loaded = false);
-        },
-      ),
+  Future<bool?> _showRewardedAdMob() async {
+    final ad = await _loadRewarded().timeout(const Duration(seconds: 15), onTimeout: () => null);
+    if (ad == null) return null;
+    _rewarded = null;
+    final result = Completer<bool?>();
+    var earned = false;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
+        if (!result.isCompleted) result.complete(earned);
+        _loadRewarded();
+      },
+      onAdFailedToShowFullScreenContent: (ad, _) {
+        ad.dispose();
+        if (!result.isCompleted) result.complete(null);
+        _loadRewarded();
+      },
     );
-    _ad = ad;
-    await ad.load();
-  }
-
-  @override
-  void dispose() {
-    _ad?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final ad = _ad;
-    if (!_loaded || ad == null) return const SizedBox.shrink();
-    return ColoredBox(
-      color: Colors.white,
-      child: SafeArea(
-        top: false,
-        child: SizedBox(width: ad.size.width.toDouble(), height: ad.size.height.toDouble(), child: AdWidget(ad: ad)),
-      ),
-    );
+    await ad.show(onUserEarnedReward: (_, _) => earned = true);
+    return result.future;
   }
 }

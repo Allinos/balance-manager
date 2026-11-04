@@ -2,6 +2,7 @@ import 'package:docgen_android/account.dart';
 import 'package:docgen_android/ads.dart';
 import 'package:docgen_android/bridge.dart';
 import 'package:docgen_android/config.dart';
+import 'package:docgen_android/dues.dart';
 import 'package:docgen_android/pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +21,13 @@ class FakeCloud implements AccountCloud {
 
   @override
   Future<void> update(String uid, Map<String, dynamic> fields) async => updates[uid] = fields;
+}
+
+/// A phone-sized screen (1080 × 2340 at 3×), like a typical Android phone.
+void phoneScreen(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2340);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
 }
 
 void main() {
@@ -49,6 +57,7 @@ void main() {
     });
 
     testWidgets('lock screen: wrong PIN shows tries left, right PIN unlocks', (tester) async {
+      phoneScreen(tester);
       final pins = PinStore(MemorySecretStore());
       await pins.set('2580');
       var unlocked = false;
@@ -66,6 +75,19 @@ void main() {
       expect(find.textContaining('${AppConfig.maxPinTries - 1} tries left'), findsOneWidget);
       await enter('2580');
       expect(unlocked, isTrue);
+    });
+
+    testWidgets('lock screen greets the account and explains a forgotten PIN', (tester) async {
+      phoneScreen(tester);
+      final pins = PinStore(MemorySecretStore());
+      await pins.set('2580');
+      await tester.pumpWidget(MaterialApp(home: LockScreen(pins: pins, name: 'Ravi Kumar', business: 'Ravi Traders', onUnlocked: () {})));
+      expect(find.text('Welcome back, Ravi'), findsOneWidget);
+      expect(find.text('Ravi Traders'), findsOneWidget);
+      expect(find.text('Enter your 4-digit PIN'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('pin-key-help')));
+      await tester.pumpAndSettle();
+      expect(find.text('Forgot your PIN?'), findsOneWidget);
     });
   });
 
@@ -121,20 +143,37 @@ void main() {
       expect(p.mayShow(free: true, now: first.add(const Duration(minutes: 10))), isTrue);
     });
 
-    test('banner: free users on list screens only, never in the editor or a document', () {
-      final ads = AdsController(started: start, startAds: (_) async {});
-      ads.screen('/doc/new/TAX_INVOICE', true);
-      expect(ads.bannerVisible, isFalse);
-      ads.screen('/doc/12', true);
-      expect(ads.bannerVisible, isFalse);
-      ads.screen('/settings/plan', true);
-      expect(ads.bannerVisible, isFalse);
-      for (final path in ['/', '/documents', '/reports', '/parties/all']) {
-        ads.screen(path, true);
-        expect(ads.bannerVisible, isTrue, reason: path);
-      }
-      ads.screen('/', false);
-      expect(ads.bannerVisible, isFalse, reason: 'licensed: no ads');
+    test('no banner ads: rewarded ad only on request, for free users; it earns a place only when watched to the end', () async {
+      var shown = 0;
+      bool? result = true;
+      final ads = AdsController(
+        started: start,
+        startAds: (_) async {},
+        runRewarded: () async {
+          shown += 1;
+          return result;
+        },
+      );
+      ads.screen('/documents', false);
+      expect((await ads.rewarded())['rewarded'], isFalse, reason: 'licensed: no ads at all');
+      expect(shown, 0);
+      ads.screen('/documents', true);
+      expect(await ads.rewarded(), {'rewarded': true});
+      result = false;
+      final early = await ads.rewarded();
+      expect(early['rewarded'], isFalse);
+      expect('${early['reason']}', contains('whole ad'));
+      result = null;
+      expect('${(await ads.rewarded())['reason']}', contains('No ad is available'));
+      expect(shown, 3);
+    });
+
+    test('no full-screen ad straight after a rewarded one', () async {
+      final ads = AdsController(started: DateTime.now().subtract(const Duration(hours: 1)), startAds: (_) async {}, runRewarded: () async => true);
+      ads.screen('/', true);
+      expect(ads.policy.mayShow(free: true, now: DateTime.now()), isTrue);
+      await ads.rewarded();
+      expect(ads.policy.mayShow(free: true, now: DateTime.now()), isFalse);
     });
   });
 
@@ -150,7 +189,7 @@ void main() {
       bridge = Bridge(
         accounts: AccountService(store, pins, cloud: FakeCloud()),
         pins: pins,
-        ads: AdsController(startAds: (_) async {}),
+        ads: AdsController(startAds: (_) async {}, runRewarded: () async => true),
         sendSms: (phone, text) async {
           sms.add([phone, text]);
           return {'sent': true};
@@ -190,8 +229,34 @@ void main() {
       expect(opened.single, startsWith('https://wa.me/'));
       expect(await bridge.handle('file.save', [{'name': 'INV-1.pdf', 'mime': 'application/pdf', 'base64': ''}]), {'ok': true});
       expect(await bridge.handle('screen', [{'path': '/', 'free': true}]), {'ok': true});
-      expect(bridge.ads.bannerVisible, isTrue);
+      expect(bridge.ads.free, isTrue);
+      expect(await bridge.handle('ads.rewarded', []), {'rewarded': true});
+      expect(await bridge.handle('dues.sync', [{'bills': [], 'enabled': true}]), {'ok': false, 'scheduled': 0}, reason: 'no reminders service in tests');
       expect((await bridge.handle('nope', []) as Map)['ok'], isFalse);
+    });
+  });
+
+  group('due date reminders', () {
+    final now = DateTime(2026, 11, 4, 10, 0);
+    test('one at 9:30 on each due date still ahead, soonest first, opening the bill', () {
+      final plan = DueReminders.plan([
+        {'id': 7, 'number': 'INV-00007', 'party': 'ABC Traders', 'amount': '₹5,900.00', 'dueDate': '2026-11-10', 'phone': '9876543210'},
+        {'id': 3, 'number': 'INV-00003', 'party': 'Meena', 'amount': '₹300.00', 'dueDate': '2026-11-05'},
+        {'id': 4, 'number': 'INV-00004', 'party': 'Past', 'amount': '₹1.00', 'dueDate': '2026-11-01'},
+        {'id': 5, 'number': 'INV-00005', 'party': 'Today, after 9:30', 'amount': '₹1.00', 'dueDate': '2026-11-04'},
+        {'id': 'x', 'dueDate': '2026-11-20'},
+      ], now);
+      expect(plan.map((r) => r.id), [3, 7]);
+      expect(plan.first.when, DateTime(2026, 11, 5, 9, 30));
+      expect(plan.first.title, 'Payment due today · ₹300.00');
+      expect(plan.first.body, 'INV-00003 · Meena');
+      expect(plan.last.body, contains('tap to send a reminder'));
+      expect(plan.last.payload, '/doc/7');
+    });
+
+    test('at most 40 reminders', () {
+      final many = List.generate(60, (i) => {'id': i + 1, 'number': 'INV-$i', 'dueDate': '2026-12-${(i % 28 + 1).toString().padLeft(2, '0')}'});
+      expect(DueReminders.plan(many, now).length, DueReminders.maxScheduled);
     });
   });
 }

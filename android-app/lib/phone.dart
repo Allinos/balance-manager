@@ -64,7 +64,12 @@ class Phone {
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/${cleanName(name)}');
     await file.writeAsBytes(base64Decode(base64Data), flush: true);
-    final result = await SharePlus.instance.share(ShareParams(files: [XFile(file.path, mimeType: mime)], text: text.isEmpty ? null : text));
+    final result = await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(file.path, mimeType: mime)],
+        text: text.isEmpty ? null : text,
+      ),
+    );
     return result.status != ShareResultStatus.unavailable;
   }
 

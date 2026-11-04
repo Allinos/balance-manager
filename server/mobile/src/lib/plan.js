@@ -24,6 +24,20 @@ export const LIMIT_TEXT = {
 /** The message for a reached limit (the screens offer "Upgrade" when they see it). */
 export const limitMessage = (what) => `${LIMIT_TEXT[what]} Upgrade to add more — your data stays on this phone.`;
 export const isLimitError = (e) => String(e?.message || e || '').includes('free plan includes');
+/** Which limit an error is about: 'documents', 'payments', 'parties' or ''. */
+export const limitOf = (e) => {
+  const m = String(e?.message || e || '');
+  return Object.keys(LIMIT_TEXT).find((k) => m.includes(LIMIT_TEXT[k])) || '';
+};
+
+/**
+ * Extra places earned by watching a rewarded ad (Android app): one ad = one more document (or payment).
+ * Kept in the settings as freeBonus: { documents, payments } — a total, so a place is "used" by saving.
+ */
+export const BONUS_SETTING = 'freeBonus';
+export const bonusOf = (value) => ({ documents: Math.max(0, Number(value?.documents) || 0), payments: Math.max(0, Number(value?.payments) || 0) });
+/** The limit including earned places. */
+export const limitWith = (what, bonus) => FREE_LIMITS[what] + (what === 'parties' ? 0 : bonusOf(bonus)[what]);
 
 /** What is used of the free plan, from the stored documents and parties. */
 export function usageOf(documents, parties) {

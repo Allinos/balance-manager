@@ -11,7 +11,7 @@ import { sha256 } from '@noble/hashes/sha2.js';
 import { AppError, STORES, byName, contains, dataDb, getAllBy, now, pick } from './db.js';
 import { dec, toFixed } from '@desktop/utils/decimal.js';
 import * as numbering from './numbering.js';
-import { FREE_LIMITS, PAYMENT_TYPES, isFreePlan, limitMessage, usageOf } from '../lib/plan.js';
+import { BONUS_SETTING, FREE_LIMITS, PAYMENT_TYPES, bonusOf, isFreePlan, limitMessage, limitWith, usageOf } from '../lib/plan.js';
 import { clean, download, openBlob, pickFiles, readAsDataUrl } from './io.js';
 import { exportData, importData } from './backup.js';
 import { APP_VERSION, status as licenseStatus } from '../lib/license.js';
@@ -527,7 +527,8 @@ const commands = {
       if (!previous && isFreePlan()) {
         const used = usageOf(await s.documents.getAll(), []);
         const what = PAYMENT_TYPES.has(docType) ? 'payments' : 'documents';
-        if (used[what] >= FREE_LIMITS[what]) fail(limitMessage(what));
+        // Places earned with rewarded ads count on top of the free limit.
+        if (used[what] >= limitWith(what, await s.settings.get(BONUS_SETTING))) fail(limitMessage(what));
       }
       if (!number) {
         number = previous ? previous.document_number : await numbering.allocate(s, docType, payload.defaultPrefix || '', doc.issue_date);
@@ -669,9 +670,54 @@ const commands = {
       };
     }),
 
+  /**
+   * Customer bills that may still be unpaid (lib/dues.js refines them with each customer's ledger, which also
+   * counts payments received later): not paid, not cancelled or deleted; due = the total less what was paid on the
+   * bill. With `all` false (default) only those with a due date; soonest due date first.
+   */
+  dues_list: ({ all = false } = {}) =>
+    read(['documents', 'parties'], async ({ documents, parties }) => {
+      const SALES = new Set(['TAX_INVOICE', 'SERVICE_INVOICE', 'BILL_OF_SUPPLY', 'RETAIL_BILL']);
+      // The customer's phone as saved now, for bills that were made without one.
+      const phones = new Map((await parties.getAll()).map((p) => [p.id, p.phone || '']));
+      const rows = [];
+      for (const d of await documents.getAll()) {
+        if (d.deleted_at || !SALES.has(d.document_type) || (!all && !d.due_date) || ['PAID', 'CANCELLED', 'VOID'].includes(d.status)) continue;
+        let meta = {};
+        try {
+          meta = JSON.parse(d.meta || '{}') || {};
+        } catch {
+          /* older document */
+        }
+        const due = dec(d.grand_total) - dec(meta.paid || '0');
+        if (due <= 0n) continue;
+        rows.push({
+          id: d.id,
+          document_type: d.document_type,
+          document_number: d.document_number,
+          party_id: d.party_id ?? null,
+          party_name: d.party_name || '',
+          party_phone: d.party_phone || phones.get(d.party_id) || '',
+          due_date: d.due_date,
+          due: toFixed(due, 2),
+          currency: d.currency,
+          currency_symbol: d.currency_symbol,
+          currency_decimals: d.currency_decimals,
+        });
+      }
+      return rows.sort((a, b) => ((a.due_date || '9') < (b.due_date || '9') ? -1 : (a.due_date || '9') > (b.due_date || '9') ? 1 : a.id - b.id));
+    }),
+
   /** Free plan: what is used of the limits (Android app). */
   plan_usage: () =>
-    read(['documents', 'parties'], async ({ documents, parties }) => ({ ...usageOf(await documents.getAll(), await parties.getAll()), limits: FREE_LIMITS })),
+    read(['documents', 'parties', 'settings'], async ({ documents, parties, settings }) => {
+      const bonus = bonusOf(await settings.get(BONUS_SETTING));
+      return {
+        ...usageOf(await documents.getAll(), await parties.getAll()),
+        bonus,
+        limits: { documents: FREE_LIMITS.documents + bonus.documents, payments: FREE_LIMITS.payments + bonus.payments, parties: FREE_LIMITS.parties },
+      };
+    }),
 
   dashboard_stats: () =>
     read(['documents', 'products', 'parties'], async ({ documents, products, parties }) => {
