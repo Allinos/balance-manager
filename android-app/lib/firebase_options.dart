@@ -12,12 +12,12 @@ import 'package:firebase_core/firebase_core.dart';
 class DefaultFirebaseOptions {
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: String.fromEnvironment('FIREBASE_API_KEY', defaultValue: 'AIzaSyBpdn6BpFVQLtlICkOSNMauGJcVqTABv7E'),
-    appId: String.fromEnvironment('FIREBASE_APP_ID', defaultValue: '1:642484344497:web:e6e8c95d2d73f12b6e3490'),
+    appId: String.fromEnvironment('FIREBASE_APP_ID', defaultValue: '1:642484344497:android:473325a864caacc66e3490'),
     messagingSenderId: String.fromEnvironment('FIREBASE_SENDER_ID', defaultValue: '642484344497'),
     projectId: String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: 'docgen-9f00b'),
     storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: 'docgen-9f00b.firebasestorage.app'),
   );
 
   static bool get configured =>
-      !android.apiKey.contains('REPLACE_ME') && android.apiKey.isNotEmpty && !android.projectId.contains('REPLACE_ME') && android.appId.contains(':android:');
+      !android.apiKey.contains('AIzaSyBpdn6BpFVQLtlICkOSNMauGJcVqTABv7E') && android.apiKey.isNotEmpty && !android.projectId.contains('docgen-9f00b') && android.appId.contains(':android:');
 }
