@@ -1,0 +1,1754 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>DocGen Growth Playbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Mono:wght@500;600&family=Mukta:wght@400;500;700&display=swap">
+<style>
+/* Layout: a sticky contents rail beside one 48rem reading column. Stage cards carry the plan; tables carry the research. */
+:root {
+  --paper: #f4f6fb;
+  --surface: #ffffff;
+  --sunken: #ecf0f7;
+  --ink: #141a2b;
+  --ink-2: #4a546b;
+  --ink-3: #6f7990;
+  --line: #dbe1ec;
+  --brand: #224cc8;
+  --brand-strong: #1a3a9e;
+  --brand-soft: #e7edfc;
+  --on-brand: #ffffff;
+  --saffron: #a35a0f;
+  --saffron-soft: #fbeedd;
+  --good: #16714a;
+  --good-soft: #e1f2e8;
+  --warn: #8a5200;
+  --warn-soft: #fcefd8;
+  --bad: #ad2330;
+  --bad-soft: #fae4e6;
+  --font-display: "Bricolage Grotesque", "Mukta", system-ui, sans-serif;
+  --font-body: "Mukta", "Noto Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 12px;
+  --shade: rgba(20, 26, 43, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d121d; --surface: #141a28; --sunken: #1a2233; --ink: #e6eaf4; --ink-2: #aab3c6; --ink-3: #828ca3; --line: #273049;
+    --brand: #8ea8ff; --brand-strong: #b8c7ff; --brand-soft: #1b2649; --on-brand: #0d121d;
+    --saffron: #eba95f; --saffron-soft: #33261a; --good: #63d39c; --good-soft: #12291f; --warn: #f1b860; --warn-soft: #2f2413;
+    --bad: #ff949e; --bad-soft: #3a1b21; --shade: rgba(0, 0, 0, 0.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d121d; --surface: #141a28; --sunken: #1a2233; --ink: #e6eaf4; --ink-2: #aab3c6; --ink-3: #828ca3; --line: #273049;
+  --brand: #8ea8ff; --brand-strong: #b8c7ff; --brand-soft: #1b2649; --on-brand: #0d121d;
+  --saffron: #eba95f; --saffron-soft: #33261a; --good: #63d39c; --good-soft: #12291f; --warn: #f1b860; --warn-soft: #2f2413;
+  --bad: #ff949e; --bad-soft: #3a1b21; --shade: rgba(0, 0, 0, 0.6); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.0625rem;
+  line-height: 1.62;
+  padding-inline: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--brand); text-underline-offset: 2px; }
+a:hover { color: var(--brand-strong); }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-left: 1.25rem; }
+li + li { margin-top: 0.3rem; }
+strong { font-weight: 700; }
+.num, td, .money { font-variant-numeric: tabular-nums; }
+
+.page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2.5rem;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding-block: 2rem 4rem;
+}
+@media (min-width: 1080px) {
+  .page { grid-template-columns: 14.5rem minmax(0, 48rem); justify-content: center; gap: 3.5rem; }
+}
+
+/* contents rail */
+.rail { display: none; }
+@media (min-width: 1080px) {
+  .rail { display: block; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 1.5rem); align-self: start; max-height: calc(100vh - 3rem); overflow: auto; padding-right: 0.25rem; }
+}
+.rail-title, .eyebrow, .label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.rail-title { color: var(--ink-3); margin-bottom: 0.6rem; }
+.toc { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.1rem; counter-reset: toc; }
+.toc li { margin: 0; }
+.toc a {
+  display: grid; grid-template-columns: 1.7rem 1fr; gap: 0.2rem;
+  padding: 0.28rem 0.5rem; border-radius: 8px;
+  color: var(--ink-2); text-decoration: none; font-size: 0.95rem; line-height: 1.35;
+}
+.toc a span { font-family: var(--font-mono); font-size: 0.78rem; color: var(--ink-3); padding-top: 0.12rem; }
+.toc a:hover { background: var(--sunken); color: var(--ink); }
+.toc-mobile { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 0.75rem 1rem; }
+.toc-mobile summary { cursor: pointer; font-weight: 700; }
+.toc-mobile .toc { margin-top: 0.6rem; }
+@media (min-width: 1080px) { .toc-mobile { display: none; } }
+
+main { min-width: 0; display: grid; gap: 0; }
+
+/* header */
+.top { display: grid; gap: 1rem; padding-bottom: 2rem; }
+.eyebrow { color: var(--saffron); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; color: var(--ink); }
+h1 { font-size: clamp(2.3rem, 6.5vw, 3.6rem); font-weight: 800; line-height: 1.02; letter-spacing: -0.025em; }
+.lede { font-size: 1.2rem; line-height: 1.55; color: var(--ink-2); max-width: 40rem; }
+.meta { display: flex; flex-wrap: wrap; gap: 0.4rem 1.2rem; color: var(--ink-3); font-size: 0.92rem; }
+.meta b { color: var(--ink-2); font-weight: 500; }
+
+/* sections */
+section { padding-block: 2.6rem; border-top: 1px solid var(--line); display: grid; gap: 1.15rem; scroll-margin-top: 1rem; }
+section > * { min-width: 0; }
+.sec-head { display: grid; gap: 0.35rem; }
+.sec-head .label { color: var(--brand); }
+h2 { font-size: clamp(1.6rem, 3.6vw, 2rem); font-weight: 800; line-height: 1.12; letter-spacing: -0.015em; }
+h3 { font-size: 1.22rem; font-weight: 600; line-height: 1.25; margin-top: 0.6rem; }
+h4 { font-size: 1rem; font-weight: 700; margin: 0; }
+.muted { color: var(--ink-2); }
+.small { font-size: 0.9rem; }
+.prose { display: grid; gap: 0.8rem; max-width: 46rem; }
+
+/* verdict */
+.verdict { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.verdict-head { background: var(--brand); color: var(--on-brand); padding: 0.55rem 1.1rem; font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.09em; text-transform: uppercase; font-weight: 600; }
+.verdict-body { padding: 1.2rem 1.25rem 1.3rem; display: grid; gap: 0.75rem; }
+.verdict-claim { font-family: var(--font-display); font-weight: 800; font-size: clamp(1.3rem, 3.2vw, 1.6rem); line-height: 1.2; letter-spacing: -0.01em; }
+
+/* ladder */
+.ladder { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .ladder { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.5rem; } }
+.ladder li { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.8rem 0.85rem; display: grid; gap: 0.25rem; align-content: start; }
+.ladder li a { color: inherit; text-decoration: none; display: grid; gap: 0.25rem; }
+.ladder li:hover { border-color: var(--brand); }
+.ladder .step { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.ladder .amt { font-family: var(--font-display); font-weight: 800; font-size: 1.25rem; line-height: 1.1; color: var(--brand); }
+.ladder .when { font-size: 0.86rem; color: var(--ink-2); line-height: 1.35; }
+.ladder .goal { font-size: 0.9rem; line-height: 1.35; }
+
+/* tables */
+/* edge shadows appear only while a wide table has more columns to scroll to (phones) */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius);
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left / 2.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) right / 2.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, var(--shade), transparent) left / 0.9rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, var(--shade), transparent) right / 0.9rem 100% no-repeat scroll,
+    var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; line-height: 1.45; }
+th, td { text-align: left; vertical-align: top; padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; background: var(--sunken); white-space: nowrap; }
+td.nowrap, th.nowrap { white-space: nowrap; }
+td.right, th.right { text-align: right; }
+.wide-table table { min-width: 44rem; }
+.mid-table table { min-width: 34rem; }
+td a { overflow-wrap: anywhere; }
+
+.chip { display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; padding: 0.12rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.chip.good { background: var(--good-soft); color: var(--good); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.bad { background: var(--bad-soft); color: var(--bad); }
+.chip.brand { background: var(--brand-soft); color: var(--brand); }
+
+/* callouts */
+.callout { border-radius: var(--radius); padding: 0.95rem 1.1rem; display: grid; gap: 0.35rem; }
+.callout .label { font-size: 0.7rem; }
+.callout.tip { background: var(--brand-soft); }
+.callout.tip .label { color: var(--brand); }
+.callout.warn { background: var(--warn-soft); }
+.callout.warn .label { color: var(--warn); }
+.callout.good { background: var(--good-soft); }
+.callout.good .label { color: var(--good); }
+
+/* two-column groups */
+.cols { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) { .cols { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; display: grid; gap: 0.55rem; align-content: start; }
+.panel h4 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; }
+.panel.good h4 { color: var(--good); }
+.panel.bad h4 { color: var(--bad); }
+.panel.warn h4 { color: var(--warn); }
+.panel.brand h4 { color: var(--brand); }
+.panel ul { display: grid; gap: 0.3rem; }
+.panel li { margin: 0; }
+
+/* personas */
+.personas { display: grid; gap: 0.9rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) { .personas { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.persona { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.1rem; display: grid; gap: 0.5rem; align-content: start; }
+.persona .who { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--saffron); font-weight: 600; }
+.persona h4 { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; }
+.persona dl { margin: 0; display: grid; gap: 0.35rem; font-size: 0.95rem; }
+.persona dt { font-weight: 700; display: inline; }
+.persona dd { margin: 0; display: inline; color: var(--ink-2); }
+.persona .say { font-style: italic; color: var(--ink); background: var(--sunken); padding: 0.45rem 0.6rem; border-radius: 8px; font-size: 0.95rem; }
+.persona.partner { border-color: var(--brand); }
+
+/* stage cards */
+.stages { display: grid; gap: 1.2rem; }
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; scroll-margin-top: 1rem; }
+.stage-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.4rem 1rem; padding: 1rem 1.2rem; border-bottom: 1px solid var(--line); background: var(--sunken); }
+.stage-head .left { display: grid; gap: 0.1rem; }
+.stage-head .step { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.09em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; }
+.stage-head h3 { margin: 0; font-size: 1.3rem; }
+.stage-head .amt { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; color: var(--brand); line-height: 1; }
+.stage-body { padding: 1.1rem 1.2rem 1.25rem; display: grid; gap: 1.1rem; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 760px) { .stage-body { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); } }
+.facts { display: grid; gap: 0.75rem; align-content: start; }
+.fact { display: grid; gap: 0.15rem; }
+.fact .label { color: var(--ink-3); font-size: 0.68rem; }
+.fact p, .fact ul { font-size: 0.97rem; }
+.split { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.25rem; font-size: 0.95rem; }
+.split li { display: flex; justify-content: space-between; gap: 0.8rem; border-bottom: 1px dashed var(--line); padding-bottom: 0.2rem; margin: 0; }
+.split li span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 700; }
+.tasks-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; }
+.progress { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-3); }
+.tasks { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.15rem; }
+.tasks li { margin: 0; }
+.tasks label { display: grid; grid-template-columns: 1.4rem minmax(0, 1fr); gap: 0.35rem; align-items: start; padding: 0.3rem 0.35rem; border-radius: 8px; cursor: pointer; font-size: 0.97rem; line-height: 1.45; }
+.tasks label:hover { background: var(--sunken); }
+.tasks input { margin: 0.25rem 0 0; width: 1.05rem; height: 1.05rem; accent-color: var(--brand); }
+.tasks input:checked + span { color: var(--ink-3); text-decoration: line-through; text-decoration-color: var(--ink-3); }
+.gate { border-top: 1px solid var(--line); padding: 0.8rem 1.2rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: baseline; background: var(--good-soft); }
+.gate .label { color: var(--good); }
+
+/* flow */
+.flow { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; grid-template-columns: minmax(0, 1fr); counter-reset: flow; }
+@media (min-width: 640px) { .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 900px) { .flow { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.flow li { margin: 0; counter-increment: flow; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.7rem 0.8rem; display: grid; gap: 0.15rem; align-content: start; }
+.flow li::before { content: counter(flow); font-family: var(--font-mono); font-size: 0.72rem; color: var(--brand); font-weight: 600; }
+.flow b { font-size: 1rem; }
+.flow span { font-size: 0.9rem; color: var(--ink-2); line-height: 1.4; }
+
+/* copy blocks */
+.block { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.block-head { display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem 0.45rem 0.9rem; border-bottom: 1px solid var(--line); background: var(--sunken); }
+.block-head .label { color: var(--ink-2); font-size: 0.7rem; }
+.block pre { margin: 0; padding: 0.85rem 0.95rem; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--font-body); font-size: 0.98rem; line-height: 1.55; color: var(--ink); }
+.block pre.mono { font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.6; }
+.block .gloss { padding: 0 0.95rem 0.85rem; color: var(--ink-2); font-size: 0.9rem; }
+.copy { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 7px; padding: 0.25rem 0.6rem; cursor: pointer; white-space: nowrap; }
+.copy:hover { color: var(--brand); border-color: var(--brand); }
+.copy.done { color: var(--good); border-color: var(--good); }
+.blocks { display: grid; gap: 0.8rem; }
+
+/* ad concept cards */
+.concept { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.concept-head { padding: 0.85rem 1.1rem; display: grid; gap: 0.2rem; border-bottom: 1px solid var(--line); }
+.concept-head .label { color: var(--saffron); }
+.concept-head h4 { font-family: var(--font-display); font-size: 1.12rem; font-weight: 600; }
+.concept-head p { color: var(--ink-2); font-size: 0.93rem; }
+.concept table { font-size: 0.93rem; min-width: 34rem; }
+.concept .table-wrap { border: 0; border-radius: 0; }
+.concept td:first-child { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink-3); white-space: nowrap; }
+.say-line { font-style: italic; }
+
+.hooks { display: grid; gap: 0.4rem; grid-template-columns: minmax(0, 1fr); counter-reset: hook; list-style: none; padding: 0; margin: 0; }
+@media (min-width: 720px) { .hooks { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hooks li { margin: 0; counter-increment: hook; display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.3rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 0.5rem 0.7rem; }
+.hooks li::before { content: counter(hook, decimal-leading-zero); font-family: var(--font-mono); font-size: 0.78rem; color: var(--saffron); padding-top: 0.15rem; }
+.hooks b { display: block; font-weight: 700; }
+.hooks span { color: var(--ink-2); font-size: 0.9rem; }
+
+.deva { font-family: "Mukta", "Noto Sans Devanagari", system-ui, sans-serif; }
+.src { font-size: 0.82rem; color: var(--ink-3); }
+.src a { color: var(--ink-3); }
+.sources { display: grid; gap: 0.35rem; font-size: 0.92rem; }
+.sources li { overflow-wrap: anywhere; }
+footer.end { padding-top: 2rem; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 0.88rem; }
+</style>
+
+<div class="page">
+  <aside class="rail" aria-label="Contents">
+    <div class="rail-title">Contents</div>
+    <ol class="toc">
+      <li><a href="#answer"><span>01</span>Short answer</a></li>
+      <li><a href="#stages"><span>02</span>Plan by budget</a></li>
+      <li><a href="#days"><span>03</span>First 90 days</a></li>
+      <li><a href="#product"><span>04</span>What you are selling</a></li>
+      <li><a href="#market"><span>05</span>Indian market</a></li>
+      <li><a href="#competitors"><span>06</span>Competitors and prices</a></li>
+      <li><a href="#swot"><span>07</span>SWOT</a></li>
+      <li><a href="#positioning"><span>08</span>Positioning and messages</a></li>
+      <li><a href="#pricing"><span>09</span>Pricing and offers</a></li>
+      <li><a href="#funnel"><span>10</span>The sales path</a></li>
+      <li><a href="#channels"><span>11</span>Free and low-cost channels</a></li>
+      <li><a href="#meta"><span>12</span>Facebook and Instagram ads</a></li>
+      <li><a href="#creatives"><span>13</span>Making the ads</a></li>
+      <li><a href="#templates"><span>14</span>Scripts and templates</a></li>
+      <li><a href="#tracking"><span>15</span>Tracking and numbers</a></li>
+      <li><a href="#risks"><span>16</span>Risks</a></li>
+      <li><a href="#upgrades"><span>17</span>Product upgrades</a></li>
+      <li><a href="#sources"><span>—</span>Sources</a></li>
+    </ol>
+  </aside>
+
+  <main>
+    <header class="top">
+      <div class="eyebrow">Go-to-market plan · India · 5 October 2026</div>
+      <h1>DocGen Growth Playbook</h1>
+      <p class="lede">How to start selling DocGen in India with almost no money: what the market looks like, who will buy, how to price and position it, how to make the ads, and exactly what to do at each budget stage, from ₹0 to ₹50,000+ a month.</p>
+      <div class="meta">
+        <span><b>Product</b> DocGen for computer + DocGen Mobile, by Reynrel</span>
+        <span><b>Website</b> docgen.reynrel.in</span>
+        <span><b>Price today</b> ₹1,250 a year</span>
+      </div>
+      <details class="toc-mobile">
+        <summary>Contents</summary>
+        <ol class="toc">
+          <li><a href="#answer"><span>01</span>Short answer</a></li>
+          <li><a href="#stages"><span>02</span>Plan by budget</a></li>
+          <li><a href="#days"><span>03</span>First 90 days</a></li>
+          <li><a href="#product"><span>04</span>What you are selling</a></li>
+          <li><a href="#market"><span>05</span>Indian market</a></li>
+          <li><a href="#competitors"><span>06</span>Competitors and prices</a></li>
+          <li><a href="#swot"><span>07</span>SWOT</a></li>
+          <li><a href="#positioning"><span>08</span>Positioning and messages</a></li>
+          <li><a href="#pricing"><span>09</span>Pricing and offers</a></li>
+          <li><a href="#funnel"><span>10</span>The sales path</a></li>
+          <li><a href="#channels"><span>11</span>Free and low-cost channels</a></li>
+          <li><a href="#meta"><span>12</span>Facebook and Instagram ads</a></li>
+          <li><a href="#creatives"><span>13</span>Making the ads</a></li>
+          <li><a href="#templates"><span>14</span>Scripts and templates</a></li>
+          <li><a href="#tracking"><span>15</span>Tracking and numbers</a></li>
+          <li><a href="#risks"><span>16</span>Risks</a></li>
+          <li><a href="#upgrades"><span>17</span>Product upgrades</a></li>
+          <li><a href="#sources"><span>—</span>Sources</a></li>
+        </ol>
+      </details>
+    </header>
+
+    <!-- 01 -->
+    <section id="answer">
+      <div class="sec-head"><span class="label">01 · Short answer</span><h2>Will DocGen sell in India?</h2></div>
+      <div class="verdict">
+        <div class="verdict-head">Verdict</div>
+        <div class="verdict-body">
+          <p class="verdict-claim">Yes, to a clear group of buyers: small businesses that need professional GST documents but not full accounting software.</p>
+          <p>The market is huge and still half offline, and DocGen costs about one-third of the popular billing apps. The hard part is trust, not the product. Nobody knows DocGen yet, and free tools exist. So your first 50 customers will come from people: CAs, shop visits, WhatsApp and referrals. Ads come later, to multiply what already works.</p>
+        </div>
+      </div>
+
+      <h3>The plan in one minute</h3>
+      <ol class="prose">
+        <li><strong>Sell to one group first:</strong> traders, distributors, contractors and service firms whose CA keeps the books in Tally.</li>
+        <li><strong>Spend ₹0 in the first month:</strong> visit shops, win CAs and computer shops as partners, build your WhatsApp and Reels.</li>
+        <li><strong>Make it urgent:</strong> a founding price of ₹799 for the first 100 customers, and a Diwali offer that ends on 8 November 2026.</li>
+        <li><strong>When you have ₹1,000–2,000,</strong> run one click-to-WhatsApp video ad for 10 days. Treat it as a test that teaches you your cost per customer.</li>
+        <li><strong>Reinvest about 30% of each month's sales</strong> into the channel that brought the cheapest customers. Move to the next stage only when the numbers say so.</li>
+      </ol>
+
+      <h3>Scorecard</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Factor</th><th>Rating</th><th>Why</th></tr></thead>
+          <tbody>
+            <tr><td>Need for the product</td><td><span class="chip good">Strong</span></td><td>1.67 crore GST businesses must issue proper invoices; many still write them by hand.</td></tr>
+            <tr><td>Market size</td><td><span class="chip good">Strong</span></td><td>8.84 crore businesses on Udyam; 46% of MSMEs still work fully offline.</td></tr>
+            <tr><td>Price advantage</td><td><span class="chip good">Strong</span></td><td>₹1,250 a year, against ₹3,000–4,000 a year for the popular apps and ₹22,500 for TallyPrime.</td></tr>
+            <tr><td>Difference from others</td><td><span class="chip warn">Medium</span></td><td>Offline, Tally-style print formats, 18 document types, computer + phone. Real, but you must explain it clearly.</td></tr>
+            <tr><td>Reaching buyers cheaply</td><td><span class="chip warn">Medium</span></td><td>WhatsApp, CAs and local markets cost nothing; ads are cheap per view but a new brand converts slowly.</td></tr>
+            <tr><td>Competition</td><td><span class="chip bad">Hard</span></td><td>Well-funded apps (Vyapar, myBillBook, Swipe) and free tools (Zoho Invoice).</td></tr>
+            <tr><td>Brand and trust</td><td><span class="chip bad">Hard</span></td><td>New name, no reviews yet. Buyers need a demo, reviews and someone they know to vouch for it.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>The five budget stages</h3>
+      <ol class="ladder">
+        <li><a href="#stage-0"><span class="step">Stage 0</span><span class="amt">₹0</span><span class="when">Start now</span><span class="goal">First 10–20 customers, by hand</span></a></li>
+        <li><a href="#stage-1"><span class="step">Stage 1</span><span class="amt">₹1–2k</span><span class="when">One-time, when you can spare it</span><span class="goal">Learn what an ad customer costs</span></a></li>
+        <li><a href="#stage-2"><span class="step">Stage 2</span><span class="amt">₹5k/mo</span><span class="when">Sales ≥ ₹15,000 a month</span><span class="goal">25–40 customers a month</span></a></li>
+        <li><a href="#stage-3"><span class="step">Stage 3</span><span class="amt">₹15–25k/mo</span><span class="when">Sales ≥ ₹50,000 a month</span><span class="goal">60–120 a month, a second channel</span></a></li>
+        <li><a href="#stage-4"><span class="step">Stage 4</span><span class="amt">₹50k+/mo</span><span class="when">Sales ≥ ₹1.5 lakh a month</span><span class="goal">Many states, partner network</span></a></li>
+      </ol>
+      <div class="callout warn">
+        <span class="label">Spending rule</span>
+        <p>Never spend money you need to live on. From Stage 2, spend about 30% of last month's sales on marketing. Raise the budget only after your cost per customer has stayed under your target for two weeks.</p>
+      </div>
+    </section>
+
+    <!-- 02 -->
+    <section id="stages">
+      <div class="sec-head"><span class="label">02 · Plan by budget</span><h2>What to do at each stage</h2></div>
+      <p class="prose muted">Each stage lists when to start it, the goal, how to split the money, the tasks (tick them off as you go; ticks are saved in this browser only) and the sign that you are ready for the next stage. Channels and ads are explained in detail in sections 11–13.</p>
+
+      <div class="stages">
+        <!-- stage 0 -->
+        <article class="stage" id="stage-0">
+          <div class="stage-head">
+            <div class="left"><span class="step">Stage 0 · Weeks 1–4</span><h3>No budget: sell by hand</h3></div>
+            <span class="amt">₹0</span>
+          </div>
+          <div class="stage-body">
+            <div class="facts">
+              <div class="fact"><span class="label">When</span><p>Now, until you have 10–20 paying customers.</p></div>
+              <div class="fact"><span class="label">Goal</span><p>10–20 paying customers, 5 Google reviews, 3 CA partners, 3 reseller shops and 5 videos that people watch.</p></div>
+              <div class="fact"><span class="label">Money</span><p>₹0. Only your time, your phone and local travel.</p></div>
+              <div class="fact"><span class="label">Measure every week</span><p>Chats started, demos, trials, sales, reviews, active partners.</p></div>
+            </div>
+            <div>
+              <div class="tasks-head"><h4>Do this</h4><span class="progress" data-progress>12 tasks</span></div>
+              <ul class="tasks">
+                <li><label><input type="checkbox" id="t-s0-01"><span>Set up WhatsApp Business: profile, catalogue with the 3 prices, greeting message, quick replies, labels (section 14).</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-02"><span>Create a Google Business Profile, and free listings on JustDial, IndiaMART, SoftwareSuggest, Techjockey and Capterra.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-03"><span>Turn on the founding price: ₹799 for 1 year, first 100 customers (section 9).</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-04"><span>Make a demo company in DocGen (realistic shop name, 10 products) for every demo and video. Never show a real customer's data.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-05"><span>Make your lead sheet and your tracking links (section 15).</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-06"><span>Record 5 short videos (concepts A, B, C, D, F in section 13). Post 4 Reels a week.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-07"><span>Visit 10–15 shops a day, 5 days a week, in 2–3 market areas. Install the trial on the spot.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-08"><span>Sign up 3–5 computer and printer shops as resellers before Diwali, when people buy new computers.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-09"><span>From 1 November, contact 20 CAs a week (CAs are busy with audits until the end of October).</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-10"><span>Make the first invoice together with every trial user, on a call or in person.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-11"><span>Ask every buyer for a Google review and one referral.</span></label></li>
+                <li><label><input type="checkbox" id="t-s0-12"><span>Run the Diwali offer (+3 months free if bought by 8 November) on WhatsApp Status, groups and through resellers.</span></label></li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate"><span class="label">Move on when</span><span>You can spare ₹1,000–2,000, and at least 3 of your videos get good views and saves.</span></div>
+        </article>
+
+        <!-- stage 1 -->
+        <article class="stage" id="stage-1">
+          <div class="stage-head">
+            <div class="left"><span class="step">Stage 1 · Weeks 5–8</span><h3>Small budget: your first ad test</h3></div>
+            <span class="amt">₹1,000–2,000</span>
+          </div>
+          <div class="stage-body">
+            <div class="facts">
+              <div class="fact"><span class="label">When</span><p>As soon as you can spare the money. Never use money you need for rent or food.</p></div>
+              <div class="fact"><span class="label">Goal</span><p>Find out what one WhatsApp chat and one sale cost from ads. Win 5–10 more customers.</p></div>
+              <div class="fact">
+                <span class="label">Money split (₹2,000 example)</span>
+                <ul class="split">
+                  <li><span>Click-to-WhatsApp ad, ₹150/day × 10 days</span><span>₹1,500</span></li>
+                  <li><span>18% GST that Meta adds</span><span>₹270</span></li>
+                  <li><span>100 printed one-page leaflets for CAs and shops</span><span>₹230</span></li>
+                </ul>
+                <p class="small muted">With only ₹1,000: run ₹85 a day for 10 days (₹850 + ₹153 GST) and skip the leaflets.</p>
+              </div>
+              <div class="fact"><span class="label">Measure</span><p>Cost per WhatsApp chat (aim under ₹60), chats that buy (aim 1 in 15), cost per sale (aim under ₹400).</p></div>
+            </div>
+            <div>
+              <div class="tasks-head"><h4>Do this</h4><span class="progress" data-progress>8 tasks</span></div>
+              <ul class="tasks">
+                <li><label><input type="checkbox" id="t-s1-01"><span>Complete the pre-ad checklist (section 12.1). Pay Meta with UPI or net banking; no credit card is needed.</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-02"><span>Run one click-to-WhatsApp campaign with 2 videos that have different hooks (section 12.2).</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-03"><span>Reply to every ad chat within 5 minutes. Label each one "Ad lead" in WhatsApp.</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-04"><span>After day 4, pause the weaker video; keep the stronger one running.</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-05"><span>Keep every Stage 0 activity going. Ads add to them; they don't replace them.</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-06"><span>Start the referral offer with your first customers (section 11.4).</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-07"><span>Start the trial email sequence in Brevo (section 14).</span></label></li>
+                <li><label><input type="checkbox" id="t-s1-08"><span>After 10 days, write down: money spent, chats, trials, sales, cost per chat, cost per sale.</span></label></li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate"><span class="label">Move on when</span><span>Sales reach ₹15,000 in a month (about 12–20 sales) and you know which channel brings the cheapest customers.</span></div>
+        </article>
+
+        <!-- stage 2 -->
+        <article class="stage" id="stage-2">
+          <div class="stage-head">
+            <div class="left"><span class="step">Stage 2 · From about month 3</span><h3>Steady budget: repeat what works</h3></div>
+            <span class="amt">₹5,000 / month</span>
+          </div>
+          <div class="stage-body">
+            <div class="facts">
+              <div class="fact"><span class="label">When</span><p>Monthly sales of ₹15,000 or more.</p></div>
+              <div class="fact"><span class="label">Goal</span><p>25–40 new customers a month and your first renewals.</p></div>
+              <div class="fact">
+                <span class="label">Money split</span>
+                <ul class="split">
+                  <li><span>Meta ads (₹100/day, best video + retargeting)</span><span>₹3,000</span></li>
+                  <li><span>Partner commissions (₹250 per CA sale)</span><span>₹1,000</span></li>
+                  <li><span>Content (micro-influencer Reel, leaflets, standee)</span><span>₹1,000</span></li>
+                </ul>
+              </div>
+              <div class="fact"><span class="label">Measure</span><p>Cost per customer across all marketing (under ₹400), renewals, share of sales from partners.</p></div>
+            </div>
+            <div>
+              <div class="tasks-head"><h4>Do this</h4><span class="progress" data-progress>8 tasks</span></div>
+              <ul class="tasks">
+                <li><label><input type="checkbox" id="t-s2-01"><span>Keep the winning ad always on. Make 2 new videos a month with new hooks.</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-02"><span>Retarget people who watched half of a video with a testimonial or offer video.</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-03"><span>Add a second city or state, in its own language.</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-04"><span>Grow to 10 active CA partners and 5 resellers. Pay commissions on the 1st of every month.</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-05"><span>Publish 4 Hindi YouTube tutorials; add "format" pages to the website (section 17).</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-06"><span>Collect 3 video testimonials and turn the best one into an ad (concept H).</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-07"><span>Send renewal reminders 30, 7 and 1 day before a license ends; offer the 2-year plan at renewal.</span></label></li>
+                <li><label><input type="checkbox" id="t-s2-08"><span>Run a small offer only in season: Diwali, new financial year.</span></label></li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate"><span class="label">Move on when</span><span>Sales are ₹50,000 a month for two months in a row, and support takes under 2 hours a day.</span></div>
+        </article>
+
+        <!-- stage 3 -->
+        <article class="stage" id="stage-3">
+          <div class="stage-head">
+            <div class="left"><span class="step">Stage 3 · From about month 5–6</span><h3>Growing budget: add a second engine</h3></div>
+            <span class="amt">₹15,000–25,000 / month</span>
+          </div>
+          <div class="stage-body">
+            <div class="facts">
+              <div class="fact"><span class="label">When</span><p>Monthly sales of ₹50,000 or more.</p></div>
+              <div class="fact"><span class="label">Goal</span><p>60–120 customers a month, and at least one channel that brings sales without you.</p></div>
+              <div class="fact">
+                <span class="label">Money split (₹20,000 example)</span>
+                <ul class="split">
+                  <li><span>Meta: new audiences + retargeting + lookalike</span><span>₹10,000</span></li>
+                  <li><span>Google Search ads, exact keywords</span><span>₹4,000</span></li>
+                  <li><span>Partner and reseller commissions</span><span>₹4,000</span></li>
+                  <li><span>Freelance video editor or creators</span><span>₹2,000</span></li>
+                </ul>
+              </div>
+              <div class="fact"><span class="label">Measure</span><p>Cost per customer by channel, renewal rate (aim 60%+), refunds (aim under 3%).</p></div>
+            </div>
+            <div>
+              <div class="tasks-head"><h4>Do this</h4><span class="progress" data-progress>7 tasks</span></div>
+              <ul class="tasks">
+                <li><label><input type="checkbox" id="t-s3-01"><span>Add the Meta Pixel to the website and retarget website visitors (section 17).</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-02"><span>Create a lookalike audience from your customer list once you have 100+ customers.</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-03"><span>Start Google Search ads on exact keywords with a ₹100–150 daily cap (section 12.5).</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-04"><span>Run the new financial year campaign from mid-March 2027; push the 2- and 5-year plans.</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-05"><span>Hire part-time help for chats and setups when you get more than about 30 chats a day.</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-06"><span>Publish DocGen on the Microsoft Store (free for individual developers) and DocGen Mobile on Google Play.</span></label></li>
+                <li><label><input type="checkbox" id="t-s3-07"><span>Hold a monthly 30-minute online session for CAs: "GST invoice mistakes clients make".</span></label></li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate"><span class="label">Move on when</span><span>Sales reach ₹1.5 lakh a month while the cost per customer stays steady.</span></div>
+        </article>
+
+        <!-- stage 4 -->
+        <article class="stage" id="stage-4">
+          <div class="stage-head">
+            <div class="left"><span class="step">Stage 4 · Month 9–12 onwards</span><h3>Scale: many states, many partners</h3></div>
+            <span class="amt">₹50,000+ / month</span>
+          </div>
+          <div class="stage-body">
+            <div class="facts">
+              <div class="fact"><span class="label">When</span><p>Monthly sales of ₹1.5 lakh or more.</p></div>
+              <div class="fact"><span class="label">Goal</span><p>Strong in several states, a partner network, and renewals as a steady base.</p></div>
+              <div class="fact">
+                <span class="label">Money split</span>
+                <ul class="split">
+                  <li><span>Meta, regional campaigns per state</span><span>~50%</span></li>
+                  <li><span>Google Search and YouTube ads</span><span>~20%</span></li>
+                  <li><span>Partners, resellers, leaflets, small events</span><span>~20%</span></li>
+                  <li><span>Tests: IndiaMART paid plan, a trade-fair stall, creator series</span><span>~10%</span></li>
+                </ul>
+              </div>
+              <div class="fact"><span class="label">Measure</span><p>Money from renewals each month, cost per customer paid back within the first year, reviews.</p></div>
+            </div>
+            <div>
+              <div class="tasks-head"><h4>Do this</h4><span class="progress" data-progress>6 tasks</span></div>
+              <ul class="tasks">
+                <li><label><input type="checkbox" id="t-s4-01"><span>Make ads and videos in the languages where you sell most (Hindi, Gujarati, Marathi, Tamil, Telugu, Bengali).</span></label></li>
+                <li><label><input type="checkbox" id="t-s4-02"><span>Build referral and CA partner codes into the website checkout (section 17).</span></label></li>
+                <li><label><input type="checkbox" id="t-s4-03"><span>Grow to 20–50 resellers with targets and festival incentives.</span></label></li>
+                <li><label><input type="checkbox" id="t-s4-04"><span>Try IndiaMART's paid plan only if leads from the free listing are buying.</span></label></li>
+                <li><label><input type="checkbox" id="t-s4-05"><span>Take a stall at a trade fair in your strongest region.</span></label></li>
+                <li><label><input type="checkbox" id="t-s4-06"><span>Offer Reynrel's inventory and POS products to customers who outgrow DocGen.</span></label></li>
+              </ul>
+            </div>
+          </div>
+          <div class="gate"><span class="label">Keep going</span><span>Protect renewals first. A customer who renews costs you nothing to win again.</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- 03 -->
+    <section id="days">
+      <div class="sec-head"><span class="label">03 · First 90 days</span><h2>Week by week, from 5 October 2026</h2></div>
+      <p class="prose muted">Two dates shape this quarter: Diwali (Dhanteras on 6 November, Lakshmi Puja on 8 November 2026), when traders open new account books and buy computers, and the end of October, when CAs finish audit and income-tax work.</p>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Week</th><th>Dates</th><th>Focus</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">1</td><td class="nowrap">5–11 Oct</td><td>Set up WhatsApp Business, Google Business Profile, free listings, demo company, lead sheet, tracking links. Founding price live. Record the first 3 videos.</td></tr>
+            <tr><td>2</td><td class="nowrap">12–18 Oct</td><td>10 shop demos a day. Post 4 Reels. List 50 CAs near you. Visit 5 computer and printer shops with the reseller offer.</td></tr>
+            <tr><td>3</td><td class="nowrap">19–25 Oct</td><td>Demos and follow-ups. First sales and reviews. Announce the Diwali offer: buy by 8 November, get 3 extra months.</td></tr>
+            <tr><td>4</td><td class="nowrap">26 Oct–1 Nov</td><td>Diwali push on Status, groups and through resellers. If you have ₹1,000–2,000, start the first ad around 28 October for 10 days.</td></tr>
+            <tr><td>5</td><td class="nowrap">2–8 Nov</td><td>Last days of the Diwali offer. Start CA outreach now that audit season is over.</td></tr>
+            <tr><td>6</td><td class="nowrap">9–15 Nov</td><td>Festival break, then review the numbers. Ask every buyer for a review and a referral.</td></tr>
+            <tr><td>7</td><td class="nowrap">16–22 Nov</td><td>CA meetings. Referral offer live. Trial email sequence live.</td></tr>
+            <tr><td>8</td><td class="nowrap">23–29 Nov</td><td>Second ad test with a new hook, if Stage 1 money remains. First YouTube tutorial.</td></tr>
+            <tr><td>9</td><td class="nowrap">30 Nov–6 Dec</td><td>Follow up with CA partners. Give a talk at a trader association. Two more tutorials.</td></tr>
+            <tr><td>10</td><td class="nowrap">7–13 Dec</td><td>Record customer testimonials; make a testimonial ad. Decide whether you are ready for Stage 2.</td></tr>
+            <tr><td>11</td><td class="nowrap">14–20 Dec</td><td>Website "format" pages and Microsoft Store listing (if built). Recruit 2 more resellers.</td></tr>
+            <tr><td>12</td><td class="nowrap">21–27 Dec</td><td>Plan the new financial year campaign (March–April 2027). Build a list of 100 CAs for January–March.</td></tr>
+            <tr><td>13</td><td class="nowrap">28 Dec–3 Jan</td><td>90-day review: customers, cost per customer by channel, renewal plan. Set targets for the next quarter.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>A working day in Stages 0 and 1</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Time</th><th>Task</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">10:00–10:30</td><td>Reply to every chat. Plan today's shop route.</td></tr>
+            <tr><td class="nowrap">11:00–13:00</td><td>Shop visits: 5–7 demos.</td></tr>
+            <tr><td class="nowrap">13:00–14:00</td><td>Lunch. WhatsApp follow-ups to trials.</td></tr>
+            <tr><td class="nowrap">14:00–15:30</td><td>Setup calls with new trial users; CA calls.</td></tr>
+            <tr><td class="nowrap">16:00–18:00</td><td>Shop visits (5–7 demos) or CA office visits.</td></tr>
+            <tr><td class="nowrap">18:30–19:30</td><td>Record or edit one video. Post a Reel or Status.</td></tr>
+            <tr><td class="nowrap">20:00–20:30</td><td>Update the lead sheet. Plan tomorrow.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section id="product">
+      <div class="sec-head"><span class="label">04 · What you are selling</span><h2>Be clear about what DocGen is, and is not</h2></div>
+      <p class="prose muted">Selling the right thing to the right person avoids refunds and bad reviews.</p>
+      <div class="cols">
+        <div class="panel good">
+          <h4>What DocGen does</h4>
+          <ul>
+            <li>18 document types: GST invoices, quotations, proforma invoices, delivery challans, purchase orders, receipts, credit and debit notes, bill of supply and more.</li>
+            <li>4 print templates, including Tally-style Professional and Standard formats.</li>
+            <li>CGST, SGST and IGST worked out automatically, HSN/SAC, amount in words, logo, signature, bank details and a UPI QR code on the invoice.</li>
+            <li>Works without internet. Data stays on the customer's computer or phone.</li>
+            <li>One license covers 1 computer and 2 phones (DocGen Mobile installs from the browser).</li>
+            <li>Turn a quotation into an invoice in one click; track status from draft to paid.</li>
+            <li>Monthly sales data as a CSV file with party GSTIN, state and tax split, ready for the CA.</li>
+            <li>30-day free trial on the computer; backup to a file.</li>
+          </ul>
+        </div>
+        <div class="panel bad">
+          <h4>What it does not do (say this honestly)</h4>
+          <ul>
+            <li>No stock or inventory, no accounting ledgers, no GST return filing.</li>
+            <li>No e-invoice (IRN) or e-way bill generation. E-invoicing is only compulsory above ₹5 crore turnover, so most small businesses don't need it.</li>
+            <li>Not a restaurant or café POS (tables, kitchen orders). Send those buyers to Reynrel's POS and inventory software.</li>
+          </ul>
+          <div class="callout tip">
+            <span class="label">Prices today</span>
+            <p class="money">1 year ₹1,250 · 2 years ₹2,250 · 5 years ₹4,999. One payment per period, no auto-renewal.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 05 -->
+    <section id="market">
+      <div class="sec-head"><span class="label">05 · Indian market</span><h2>The market in numbers</h2></div>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Number</th><th>What it means for you</th><th>Source</th></tr></thead>
+          <tbody>
+            <tr><td><strong>1.67 crore</strong> active GST taxpayers (30 June 2026), including 13.55 lakh composition dealers</td><td>Every one must issue proper tax invoices or bills of supply.</td><td class="src"><a href="https://a2ztaxcorp.net/nine-years-of-gst-taxpayer-base-crosses-1-67-crore-as-indias-digital-indirect-tax-ecosystem-scales-new-milestones-report-highlights-expansion-of-taxpayer-base-192-27-crore-returns-filed-an/" target="_blank" rel="noopener">GST data via A2Z Taxcorp</a></td></tr>
+            <tr><td><strong>~8 lakh</strong> new GST registrations in January–June 2026 (about 1.3 lakh a month)</td><td>A steady flow of brand-new businesses that need invoices from day one.</td><td class="src"><a href="https://www.bdo.in/en-gb/news/2026/nearly-8-lakh-gst-registrations-in-6-months,-up-leads-the-way" target="_blank" rel="noopener">BDO India</a></td></tr>
+            <tr><td><strong>8.84 crore</strong> businesses on Udyam (June 2026)</td><td>Most are micro businesses: exactly your buyer.</td><td class="src"><a href="https://knnindia.co.in/news/newsdetails/msme/over-884-crore-msmes-registered-on-udyam-platforms-mos-karandlaje" target="_blank" rel="noopener">KNN India</a></td></tr>
+            <tr><td><strong>46.2%</strong> of MSMEs still fully offline; 53.8% use at least one digital tool (survey of 7,835 MSMEs, 2025)</td><td>Half the market has not chosen any software yet, so there is less switching to fight.</td><td class="src"><a href="https://indiasmeforum.org/digishaastra/assets/docs/Final-META-Report-Card-2025.pdf" target="_blank" rel="noopener">India SME Forum</a></td></tr>
+            <tr><td><strong>29%</strong> of tech-savvy MSMEs use accounting software; over 70% of micro-business users prefer a smartphone</td><td>Show the phone app in every demo and ad.</td><td class="src"><a href="https://paynearby.in/media/68-msmes-witness-growth-in-business-post-adoption-of-digital-tech-report/" target="_blank" rel="noopener">PayNearby MSME Digital Index</a></td></tr>
+            <tr><td>E-invoicing only above <strong>₹5 crore</strong> turnover (unchanged in 2026)</td><td>Small businesses don't need e-invoice features, so DocGen's gap doesn't hurt you with them.</td><td class="src"><a href="https://www.incorpx.io/blog/gst-e-invoice-turnover-limit-2026" target="_blank" rel="noopener">IncorpX</a></td></tr>
+            <tr><td><strong>~4.08 lakh</strong> chartered accountants (ICAI, 2025), plus many GST practitioners and tax consultants</td><td>Each one advises dozens of small businesses: your best partners.</td><td class="src"><a href="https://finance.careers360.com/articles/icai-student-and-member-report-2025" target="_blank" rel="noopener">ICAI report via Careers360</a></td></tr>
+            <tr><td>WhatsApp <strong>~535 million</strong>, Instagram ~481 million, Facebook ~403 million users in India (2026 estimates)</td><td>Your buyers are already there. WhatsApp is where they talk business.</td><td class="src"><a href="https://www.grabon.in/indulge/tech/social-media-statistics/" target="_blank" rel="noopener">GrabOn</a></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Trends working in your favour</h3>
+      <ul class="prose">
+        <li><strong>GST formalisation:</strong> more businesses register every month and need correct invoices.</li>
+        <li><strong>UPI everywhere:</strong> an invoice with a UPI QR code gets paid faster, and DocGen prints one.</li>
+        <li><strong>Phone-first owners:</strong> DocGen Mobile matters as much as the computer app.</li>
+        <li><strong>WhatsApp is the business channel:</strong> PDFs go to customers there, and so do your sales chats.</li>
+        <li><strong>Cheap video tools:</strong> phone + free editor + AI clips make good ads possible for ₹0.</li>
+        <li><strong>Buying seasons:</strong> Diwali (new account books) and the new financial year in April.</li>
+      </ul>
+
+      <h3>How small Indian businesses decide to buy</h3>
+      <ul class="prose">
+        <li>They trust people more than ads: their CA, a friend, a supplier, the computer shop.</li>
+        <li>They want to see it working on their own bills before paying. A 5-minute demo sells better than any ad.</li>
+        <li>They talk on WhatsApp, not email or forms. Reply fast, in their language.</li>
+        <li>They compare price per month. "₹104 a month" feels smaller than "₹1,250".</li>
+        <li>They prefer one payment to subscriptions. "No auto-debit" builds trust.</li>
+        <li>They fear losing data and complicated software. "Works offline, your data stays with you, ready in 5 minutes" answers both.</li>
+        <li>Many prefer Hindi or their regional language. Hinglish works well in ads.</li>
+      </ul>
+
+      <h3>Who will buy</h3>
+      <div class="personas">
+        <div class="persona">
+          <span class="who">Trader · wholesaler · distributor</span>
+          <h4>Rakesh, hardware and electricals, Indore</h4>
+          <dl>
+            <div><dt>Today: </dt><dd>handwritten bill book; his CA keeps the books in Tally.</dd></div>
+            <div><dt>Needs: </dt><dd>GST invoices, quotations, delivery challans, a sales list for the CA.</dd></div>
+            <div><dt>Find him: </dt><dd>market lanes, trader associations, WhatsApp groups, his CA.</dd></div>
+          </dl>
+          <p class="say">"Haath ka bill chhodiye. 1 minute mein GST bill, seedha WhatsApp par."</p>
+        </div>
+        <div class="persona">
+          <span class="who">Contractor · interiors · service firm</span>
+          <h4>Neha, interior designer, Pune</h4>
+          <dl>
+            <div><dt>Today: </dt><dd>quotations in Word or Excel that look different every time.</dd></div>
+            <div><dt>Needs: </dt><dd>quotations, proforma invoices, invoices, receipts, often from the phone at the site.</dd></div>
+            <div><dt>Find her: </dt><dd>Instagram, Facebook groups, architects' and builders' networks.</dd></div>
+          </dl>
+          <p class="say">"Site par hi professional quotation, phone se."</p>
+        </div>
+        <div class="persona">
+          <span class="who">New GST business</span>
+          <h4>Arjun, just got his GSTIN</h4>
+          <dl>
+            <div><dt>Today: </dt><dd>no system yet; searches "GST invoice format".</dd></div>
+            <div><dt>Needs: </dt><dd>correct invoices from day one, cheap and simple.</dd></div>
+            <div><dt>Find him: </dt><dd>the CA who registered him, YouTube, Google, registration agents.</dd></div>
+          </dl>
+          <p class="say">"GST mil gaya? Ab bill bhi professional banaiye. ₹104 mahina."</p>
+        </div>
+        <div class="persona">
+          <span class="who">Composition dealer · small town</span>
+          <h4>Sunita, kirana and stationery, Sagar</h4>
+          <dl>
+            <div><dt>Today: </dt><dd>printed bill book; weak internet.</dd></div>
+            <div><dt>Needs: </dt><dd>bill of supply (DocGen has it), low price, works offline.</dd></div>
+            <div><dt>Find her: </dt><dd>tax consultant, CSC centre, local computer shop.</dd></div>
+          </dl>
+          <p class="say">"Internet na ho, tab bhi bill banega."</p>
+        </div>
+        <div class="persona partner">
+          <span class="who">Partner, not buyer</span>
+          <h4>CA Amit, 80 small-business clients</h4>
+          <dl>
+            <div><dt>Wants: </dt><dd>clients' invoices correct and their sales data on time.</dd></div>
+            <div><dt>Worries about: </dt><dd>time and his reputation.</dd></div>
+            <div><dt>Find him: </dt><dd>ICAI branch events, LinkedIn, CA WhatsApp groups, his office.</dd></div>
+          </dl>
+          <p class="say">"Your clients send clean GST invoices and a monthly sales CSV. Free license for you, ₹250 for every client who buys."</p>
+        </div>
+        <div class="persona">
+          <span class="who">Not your customer now</span>
+          <h4>Who to send elsewhere</h4>
+          <dl>
+            <div><dt>Restaurants, cafés, salons: </dt><dd>need a POS with tables and kitchen orders.</dd></div>
+            <div><dt>Retailers scanning barcodes: </dt><dd>need stock management.</dd></div>
+            <div><dt>Firms above ₹5 crore: </dt><dd>need e-invoicing.</dd></div>
+          </dl>
+          <p class="say">Offer them Reynrel's POS or inventory software instead.</p>
+        </div>
+      </div>
+
+      <h3>Their problems, and DocGen's answer</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Problem</th><th>DocGen's answer</th></tr></thead>
+          <tbody>
+            <tr><td>Handwritten or Excel bills look unprofessional and have mistakes</td><td>Tally-style printed formats; GST calculated automatically</td></tr>
+            <tr><td>"Accounting software is too complicated"</td><td>Ready in 5 minutes; documents only, no accounting</td></tr>
+            <tr><td>Internet keeps going</td><td>Works fully offline</td></tr>
+            <tr><td>"I don't want my data on someone's server"</td><td>Data stays on your computer or phone; backup to a file</td></tr>
+            <tr><td>Monthly subscriptions feel like a trap</td><td>One payment for 1, 2 or 5 years; no auto-renewal</td></tr>
+            <tr><td>The CA asks for sales details every month</td><td>One click: sales CSV with GSTIN, state and tax split</td></tr>
+            <tr><td>Customers pay late</td><td>UPI QR code printed on every invoice</td></tr>
+            <tr><td>Quotes are needed at the site</td><td>The same documents on the phone</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 06 -->
+    <section id="competitors">
+      <div class="sec-head"><span class="label">06 · Competitors and prices</span><h2>Who else sells this, and for how much</h2></div>
+      <p class="prose muted">Prices as published or reported in 2026. Check them again before you quote them to a customer.</p>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Product</th><th>Price</th><th>What they sell</th><th>Where DocGen wins</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Vyapar</strong></td><td>Free mobile tier; desktop from ~₹3,399/yr; desktop + mobile ~₹4,010/yr</td><td>Billing, stock and accounting for small shops; big ad budgets</td><td>About one-third of the price, simpler, Tally-style formats, offline</td></tr>
+            <tr><td><strong>myBillBook</strong></td><td>Entry ₹399/yr; Diamond ₹3,490/yr; Platinum (adds desktop) ₹3,990/yr; Enterprise ~₹6,840/yr</td><td>Mobile-first billing with stock and godowns</td><td>Computer + phone included at ₹1,250; offline; more document formats</td></tr>
+            <tr><td><strong>Swipe</strong></td><td>Free plan; paid from ~₹2,999 per user per year</td><td>Fast invoicing, payment links, e-invoice</td><td>Offline and private; Tally-style formats; no per-user price</td></tr>
+            <tr><td><strong>Zoho Invoice</strong></td><td>Free</td><td>Free online invoicing from a big brand</td><td>Works without internet; desktop + phone apps; personal setup and support</td></tr>
+            <tr><td><strong>Zoho Books</strong></td><td>Standard ~₹899/month + GST</td><td>Full cloud accounting</td><td>About 10× cheaper for people who only need documents</td></tr>
+            <tr><td><strong>TallyPrime</strong></td><td>Silver ₹22,500 + GST one-time, or ₹8,100/yr rental</td><td>The accountant's standard for books and GST</td><td>Don't fight it. DocGen makes documents, Tally keeps the books; far cheaper for staff who only bill</td></tr>
+            <tr><td><strong>BUSY</strong></td><td>~₹3,600–9,000/yr subscription; ₹11,000–22,000 one-time</td><td>Full accounting and inventory</td><td>Simpler and cheaper</td></tr>
+            <tr><td><strong>Marg ERP</strong></td><td>₹9,999–26,000 + GST</td><td>Full ERP, strong in pharma and distribution</td><td>Far simpler and cheaper</td></tr>
+            <tr><td><strong>Ledger apps</strong> (Khatabook, OkCredit)</td><td>Free</td><td>Tracking credit (udhaar)</td><td>Proper GST documents; they complement DocGen</td></tr>
+            <tr><td><strong>Word/Excel templates, printed bill books</strong></td><td>Free or very cheap</td><td>What half the market uses today</td><td>No calculation mistakes, consistent look, saved history, PDFs ready for WhatsApp</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="cols">
+        <div class="panel good">
+          <h4>Where you win</h4>
+          <ul>
+            <li>Price: about ₹104 a month.</li>
+            <li>Offline and private.</li>
+            <li>Tally-style printed documents.</li>
+            <li>Computer + 2 phones in one license.</li>
+            <li>One payment, no auto-debit.</li>
+            <li>Personal service: the founder answers the WhatsApp.</li>
+          </ul>
+        </div>
+        <div class="panel bad">
+          <h4>Where you lose</h4>
+          <ul>
+            <li>Unknown brand, no reviews yet.</li>
+            <li>No inventory, accounting or e-invoice.</li>
+            <li>No free plan (only a 30-day trial).</li>
+            <li>One person for sales and support.</li>
+            <li>A very small marketing budget.</li>
+          </ul>
+        </div>
+      </div>
+
+      <h3>How competitors market, and what you do instead</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>They</th><th>You</th></tr></thead>
+          <tbody>
+            <tr><td>Buy YouTube, TV and Google ads at a scale you can't match</td><td>Win locally: one city, one market lane, one trader association at a time</td></tr>
+            <tr><td>Speak to "all small businesses" in English</td><td>Speak to one group, in its own words and language</td></tr>
+            <tr><td>Are apps with call centres</td><td>Are a person: your face, your number, fast replies</td></tr>
+            <tr><td>Use free plans that attract many non-payers</td><td>Offer a 30-day trial plus a demo, which filters serious buyers</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 07 -->
+    <section id="swot">
+      <div class="sec-head"><span class="label">07 · SWOT</span><h2>Strengths, weaknesses, opportunities, threats</h2></div>
+      <div class="cols">
+        <div class="panel good"><h4>Strengths</h4><ul>
+          <li>Low price: ₹104 a month.</li>
+          <li>Offline and private.</li>
+          <li>Tally-style formats, 18 document types.</li>
+          <li>Computer + 2 phones per license.</li>
+          <li>Ready in 5 minutes.</li>
+          <li>You own the product and can add what customers ask for.</li>
+        </ul></div>
+        <div class="panel bad"><h4>Weaknesses</h4><ul>
+          <li>Unknown brand, no reviews.</li>
+          <li>No inventory, accounting or e-invoice.</li>
+          <li>No free plan.</li>
+          <li>One-person sales and support.</li>
+          <li>Very small budget.</li>
+        </ul></div>
+        <div class="panel brand"><h4>Opportunities</h4><ul>
+          <li>46% of MSMEs still offline.</li>
+          <li>About 1.3 lakh new GST registrations a month.</li>
+          <li>CAs, computer shops and printers as sales partners.</li>
+          <li>Diwali (6–8 November 2026) and the new financial year (April 2027).</li>
+          <li>Few competitors make Hindi or regional content.</li>
+          <li>Free store listings (Microsoft Store is free for individual developers).</li>
+        </ul></div>
+        <div class="panel warn"><h4>Threats</h4><ul>
+          <li>Free tools from big brands.</li>
+          <li>Competitors cutting prices.</li>
+          <li>Ad costs rise 30–60% from October to December.</li>
+          <li>Meta or WhatsApp account bans if you spam.</li>
+          <li>Support load as you grow.</li>
+        </ul></div>
+      </div>
+    </section>
+
+    <!-- 08 -->
+    <section id="positioning">
+      <div class="sec-head"><span class="label">08 · Positioning and messages</span><h2>One clear idea people remember</h2></div>
+      <div class="callout tip">
+        <span class="label">Positioning statement</span>
+        <p>For small Indian businesses that need professional GST invoices, quotations and challans, but not accounting software, DocGen is the document maker that prints Tally-style formats on your computer and phone, works without internet, and costs ₹104 a month. Your CA keeps the books; you send documents your customers trust.</p>
+      </div>
+      <p class="prose">The category to own is <strong>"GST document maker"</strong>, not "accounting software". You don't compete with Tally; you sit next to it.</p>
+
+      <h3>Five messages, each with its proof</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Message</th><th>Show this as proof</th></tr></thead>
+          <tbody>
+            <tr><td>Professional bill in 1 minute</td><td>A timer running while you make an invoice</td></tr>
+            <tr><td>Works without internet</td><td>Wi-Fi switched off on camera, invoice still made</td></tr>
+            <tr><td>Computer + phone, one price</td><td>The same invoice on laptop and phone</td></tr>
+            <tr><td>₹104 a month, paid once a year, no auto-debit</td><td>The pricing page</td></tr>
+            <tr><td>Your CA will thank you</td><td>The sales CSV opening in Excel with GSTIN and tax columns</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Taglines</h3>
+      <div class="cols">
+        <div class="panel"><h4>English</h4><ul><li>Professional GST documents in a minute.</li><li>Bills your customers trust.</li></ul></div>
+        <div class="panel"><h4>Hinglish</h4><ul><li>Bill banao, bharosa badhao.</li><li>Ek minute mein GST bill.</li><li>Internet gaya? Billing nahi rukegi.</li></ul></div>
+        <div class="panel"><h4>Hindi</h4><ul class="deva"><li>बिल बनाओ, भरोसा बढ़ाओ।</li><li>एक मिनट में GST बिल।</li><li>इंटरनेट गया? बिलिंग नहीं रुकेगी।</li></ul></div>
+        <div class="panel"><h4>For CAs</h4><ul><li>Clean invoices from your clients, every month.</li><li>Your clients' sales register in one click.</li></ul></div>
+      </div>
+
+      <div class="callout warn">
+        <span class="label">Rules for ads and claims</span>
+        <ul>
+          <li>Keep competitor names out of ad text; Meta can reject such ads, and brand names carry trademark risk. Make fair comparisons in person and on your website.</li>
+          <li>Don't promise "100% GST compliant" or "saves tax".</li>
+          <li>Never show made-up customers or reviews. It breaks Meta's rules and consumer-protection law, and it destroys trust.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 09 -->
+    <section id="pricing">
+      <div class="sec-head"><span class="label">09 · Pricing and offers</span><h2>Keep the price, add urgency</h2></div>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Offer</th><th>Price</th><th>For</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Founding price</strong></td><td class="nowrap">₹799 for 1 year</td><td>First 100 customers, or until 30 Nov 2026</td><td>Creates urgency. Ask for a review in return.</td></tr>
+            <tr><td><strong>1 year</strong></td><td class="nowrap">₹1,250 (₹104/month)</td><td>Everyone</td><td>Keep as the normal price.</td></tr>
+            <tr><td><strong>2 years</strong></td><td class="nowrap">₹2,250 (₹94/month)</td><td>Renewals</td><td>Offer at renewal; better cash flow.</td></tr>
+            <tr><td><strong>5 years</strong></td><td class="nowrap">₹4,999 (₹83/month)</td><td>Serious buyers, CAs' clients</td><td>Already marked "Best value" on the website.</td></tr>
+            <tr><td><strong>CA reward</strong></td><td class="nowrap">₹250 per paid client</td><td>CA partners</td><td>Or 1 free year for the CA's office after 3 sales. Pay by UPI each month.</td></tr>
+            <tr><td><strong>Reseller price</strong></td><td class="nowrap">Buys at ₹850, sells at ₹1,250</td><td>Computer, printer and stationery shops</td><td>They sell license codes you create after they pay you.</td></tr>
+            <tr><td><strong>Festival bonus</strong></td><td class="nowrap">+3 months free</td><td>Diwali, new financial year</td><td>Give extra months instead of cutting the price.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout warn"><span class="label">Floor</span><p>Don't go below ₹799. Lower prices leave no money for partners and ads, and make the product look cheap.</p></div>
+
+      <h3>How to run these offers with your admin panel today</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Offer</th><th>Where</th><th>How</th></tr></thead>
+          <tbody>
+            <tr><td>Founding price</td><td>Admin → Products &amp; pricing</td><td>Change the 1-year price to ₹799 and name the plan "Founding offer". Change it back to ₹1,250 after 100 sales. (Two prices for the same duration aren't allowed, so edit the existing one.)</td></tr>
+            <tr><td>Festival bonus</td><td>Admin → Licenses</td><td>Open the buyer's license → Extend validity → 90 days.</td></tr>
+            <tr><td>Reseller codes</td><td>Admin → Licenses</td><td>After the reseller pays you, click "Create license codes" and send them the codes.</td></tr>
+            <tr><td>CA tracking</td><td>Admin → Dashboard</td><td>Give each CA a link like the ones in section 15; "Where customers come from" shows their sign-ups and sales.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>What you keep from each sale</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Line</th><th class="right">1 year at ₹1,250</th><th class="right">Founding at ₹799</th></tr></thead>
+          <tbody>
+            <tr><td>Customer pays</td><td class="right">₹1,250</td><td class="right">₹799</td></tr>
+            <tr><td>Razorpay fee (2% + 18% GST = 2.36%)</td><td class="right">− ₹30</td><td class="right">− ₹19</td></tr>
+            <tr><td>GST inside the price, only if you are GST-registered (18/118)</td><td class="right">− ₹191</td><td class="right">− ₹122</td></tr>
+            <tr><td><strong>You keep, not GST-registered</strong></td><td class="right"><strong>₹1,220</strong></td><td class="right"><strong>₹780</strong></td></tr>
+            <tr><td><strong>You keep, GST-registered</strong></td><td class="right"><strong>₹1,029</strong></td><td class="right"><strong>₹658</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="prose">
+        <li><strong>Target cost per customer:</strong> under ₹400 at the start, about one-third of what you keep, so two-thirds is left for running costs and growth.</li>
+        <li><strong>Ads carry GST:</strong> Meta adds 18% to Indian ad spend, so ₹1,000 of ads costs ₹1,180. GST-registered businesses can claim it back.</li>
+        <li><strong>Renewals are your profit:</strong> if 6 in 10 customers renew every year, an average customer pays you about ₹3,000 over time.</li>
+        <li><strong>GST registration:</strong> below ₹20 lakh a year in sales (₹10 lakh in some special-category states), registration is usually not compulsory for services. Ask your CA before deciding.</li>
+      </ul>
+    </section>
+
+    <!-- 10 -->
+    <section id="funnel">
+      <div class="sec-head"><span class="label">10 · The sales path</span><h2>From first look to renewal</h2></div>
+      <ol class="flow">
+        <li><b>They see you</b><span>Shop visit, CA, Reel, ad, Google or a friend</span></li>
+        <li><b>WhatsApp chat</b><span>Price, demo video, questions</span></li>
+        <li><b>Demo</b><span>Live, or a 2-minute video, using their own shop name</span></li>
+        <li><b>30-day trial</b><span>Installed on the spot or on a call</span></li>
+        <li><b>First invoice together</b><span>Logo, GSTIN, bank and UPI set up in 10 minutes</span></li>
+        <li><b>Payment</b><span>On the website with Razorpay; key on screen and by email</span></li>
+        <li><b>Review + referral</b><span>Google review link and the referral message</span></li>
+        <li><b>Renewal</b><span>Reminders 30, 7 and 1 day before expiry</span></li>
+      </ol>
+      <div class="callout good">
+        <span class="label">Golden rules</span>
+        <ul>
+          <li>Reply on WhatsApp within 5 minutes during working hours.</li>
+          <li>Follow up at least 5 times before you give up on a lead.</li>
+          <li>Make the first invoice together. People who make a real invoice in the trial usually buy.</li>
+          <li>Ask every happy customer for a Google review and one referral.</li>
+        </ul>
+      </div>
+      <h3>Starting assumptions</h3>
+      <p class="prose muted">These are estimates to plan with. Replace them with your own numbers after 4 weeks.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Step</th><th class="right">Expected rate</th></tr></thead>
+          <tbody>
+            <tr><td>Shop demo → trial</td><td class="right">40–60%</td></tr>
+            <tr><td>Trial → paid</td><td class="right">15–25%</td></tr>
+            <tr><td>CA introduction → paid</td><td class="right">30–50%</td></tr>
+            <tr><td>Friend referral → paid</td><td class="right">30–50%</td></tr>
+            <tr><td>Ad WhatsApp chat → paid</td><td class="right">3–8%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 11 -->
+    <section id="channels">
+      <div class="sec-head"><span class="label">11 · Free and low-cost channels</span><h2>Ways to get customers without ads</h2></div>
+      <p class="prose muted">Ranked by how quickly they bring paying customers for little money. Do the top three every week.</p>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Channel</th><th>Cost</th><th>Speed</th><th>Best for</th><th>Priority</th></tr></thead>
+          <tbody>
+            <tr><td>Shop visits and demos</td><td>₹0 + travel</td><td>Days</td><td>Local traders, contractors</td><td><span class="chip brand">1</span></td></tr>
+            <tr><td>CA and tax consultant partners</td><td>₹0 + ₹250 a sale</td><td>2–6 weeks</td><td>Traders, new GST businesses</td><td><span class="chip brand">1</span></td></tr>
+            <tr><td>WhatsApp Business</td><td>₹0</td><td>Days</td><td>Everyone</td><td><span class="chip brand">1</span></td></tr>
+            <tr><td>Referral offer</td><td>Free months</td><td>Weeks</td><td>Friends of happy customers</td><td><span class="chip warn">2</span></td></tr>
+            <tr><td>Resellers: computer, printer, stationery shops; bill-book printers; CSC and GST help centres</td><td>30% margin</td><td>Weeks</td><td>Small towns, first-time computer buyers</td><td><span class="chip warn">2</span></td></tr>
+            <tr><td>Instagram and Facebook posts</td><td>₹0</td><td>Slow, then steady</td><td>Contractors, designers, younger owners</td><td><span class="chip warn">2</span></td></tr>
+            <tr><td>Free listings (Google, IndiaMART, JustDial, software directories, Microsoft Store)</td><td>₹0</td><td>Slow, then steady</td><td>People already searching</td><td><span class="chip warn">2</span></td></tr>
+            <tr><td>YouTube and website format pages</td><td>₹0</td><td>Slow, lasts years</td><td>People searching "GST invoice format"</td><td><span class="chip good">3</span></td></tr>
+            <tr><td>Email</td><td>₹0 (300 a day free)</td><td>Supports trials and renewals</td><td>Trial users, customers</td><td><span class="chip good">3</span></td></tr>
+            <tr><td>Associations and events</td><td>₹0–2,000</td><td>Bursts</td><td>Trader groups</td><td><span class="chip good">3</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>11.1 CA and tax consultant partners</h3>
+      <p class="prose">One CA advises 30–200 small businesses, and a CA's word beats any ad. India has about 4 lakh CAs, plus many GST practitioners and tax consultants.</p>
+      <div class="callout tip">
+        <span class="label">The partner offer</span>
+        <ul>
+          <li>A free DocGen license for the CA's office.</li>
+          <li>₹250 by UPI for every client who buys (or a free year for one of their clients after 3 sales).</li>
+          <li>A personal tracking link, so they can see their clients' sales.</li>
+          <li>You install and train their clients. The CA only recommends.</li>
+        </ul>
+      </div>
+      <ol class="prose">
+        <li>List 50 CAs and tax consultants near you (Google Maps, JustDial, LinkedIn, ICAI branch directory).</li>
+        <li>Pick your timing. CAs are busiest until the end of October (audits and income-tax returns) and around the 11th and 20th of each month (GST return dates). Contact them from 1 November, ideally in the last or first week of a month.</li>
+        <li>Send a short WhatsApp or LinkedIn message (section 14), then visit with a one-page sheet and a sample invoice.</li>
+        <li>Give a 5-minute demo on your phone. Show the sales CSV export; that is what CAs care about.</li>
+        <li>Install DocGen on their office computer for free. Ask: "Which 3 clients would benefit most?" Offer to call them.</li>
+        <li>Pay commissions on time, every month. Send a short monthly update: "4 of your clients now use DocGen."</li>
+        <li>Later, offer a free 30-minute talk at an ICAI branch or CA study circle: "GST invoice mistakes clients make".</li>
+      </ol>
+      <p class="prose muted">Target: 20 CAs contacted a week → 5 meetings → 2 active partners. Ten active partners with 3 clients each gives you 30 customers.</p>
+
+      <h3>11.2 Shop visits and live demos</h3>
+      <ol class="prose">
+        <li>Pick 2–3 market areas: hardware, electricals, building material, furniture, textiles, auto parts, distributors.</li>
+        <li>Go at 11:00–13:00 and 16:00–18:00, when shops are quieter. Aim for 10–15 shops a day.</li>
+        <li>Use the 60-second pitch (section 14). Make an invoice with their shop name on your phone.</li>
+        <li>Install the trial on their computer, or the phone app, on the spot.</li>
+        <li>Save their number, label it "Trial", and follow up on day 2.</li>
+        <li>Leave a printed sample invoice with a QR code that opens your WhatsApp.</li>
+      </ol>
+      <p class="prose muted">Expect roughly: 10 demos → 4–6 trials → 1–2 sales.</p>
+
+      <h3>11.3 WhatsApp Business</h3>
+      <div class="cols">
+        <div class="panel"><h4>Set up once (free)</h4><ul>
+          <li>Business profile: logo, hours, website, address.</li>
+          <li>Catalogue: 1 year, 2 years, 5 years with prices.</li>
+          <li>Greeting and away messages.</li>
+          <li>Quick replies: /price /demo /trial /pay /setup (section 14).</li>
+          <li>Labels: New lead, Ad lead, Demo done, Trial, Paid, Renewal due, CA partner.</li>
+          <li>A free WhatsApp Channel: "DocGen: GST and billing tips".</li>
+        </ul></div>
+        <div class="panel"><h4>Every day</h4><ul>
+          <li>1–3 Status updates: demo clips, a customer's invoice (with permission), offer reminders.</li>
+          <li>Reply within 5 minutes.</li>
+          <li>Follow up with trial users.</li>
+          <li>Broadcast lists reach only people who saved your number; send at most 2–3 times a week, always with something useful.</li>
+        </ul></div>
+      </div>
+      <div class="callout warn"><span class="label">Never</span><p>Add people to groups without asking, message strangers in bulk, or buy number lists. WhatsApp bans numbers for spam, and you would lose your best channel. The free WhatsApp Business app is enough; the paid Business API (about ₹0.86 per marketing message plus GST) is only for much later.</p></div>
+
+      <h3>11.4 Referral offer: "Refer a friend, get 3 months free"</h3>
+      <ul class="prose">
+        <li>Every paid customer gets a short message to forward (section 14).</li>
+        <li>When a friend buys, the customer gets 3 free months (Admin → Licenses → Extend validity), and the friend gets the founding price or 1 extra month.</li>
+        <li>Ask at the best moment: right after their first invoice works, and when you send the receipt.</li>
+        <li>Ask every buyer "Who told you about DocGen?" and note it in your sheet.</li>
+        <li>Thank referrers in your Status, with permission: "Thank you, Sharma Traders, for recommending DocGen!"</li>
+      </ul>
+
+      <h3>11.5 Resellers and local partners</h3>
+      <ul class="prose">
+        <li><strong>Who:</strong> computer and laptop shops, printer and cartridge shops, stationery shops and bill-book printing presses, Tally training institutes, CSC centres and GST help centres, local computer technicians.</li>
+        <li><strong>Offer:</strong> they buy license codes at ₹850 and sell at ₹1,250, or earn ₹250 for each referral. You give them a free demo license and leaflets, and you handle support.</li>
+        <li><strong>Timing:</strong> Diwali is the biggest season for new computers and printers, so sign up computer and printer shops in October.</li>
+        <li><strong>Pitch:</strong> "Every shop that buys a computer or printer needs billing. Earn ₹400 for 5 minutes of installing."</li>
+        <li><strong>Target:</strong> 5 active resellers by the end of Stage 1.</li>
+      </ul>
+
+      <h3>11.6 Instagram and Facebook posts (free)</h3>
+      <div class="cols">
+        <div class="panel"><h4>Profile</h4><ul>
+          <li>Name: "DocGen · GST Bill &amp; Quotation App".</li>
+          <li>Bio: "1 minute mein GST bill · Computer + mobile · Offline · ₹104/month · 30 din free".</li>
+          <li>Link: your website with a tracking link; add the WhatsApp button.</li>
+          <li>Highlights: Demo, Price, Reviews, How to install.</li>
+        </ul></div>
+        <div class="panel"><h4>Posting plan</h4><ul>
+          <li>4 Reels a week and 3 Stories a day.</li>
+          <li>Mix: 40% how-to, 25% GST tips, 20% demos and before/after, 15% customers and behind the scenes.</li>
+          <li>Hindi or Hinglish captions and on-screen text.</li>
+          <li>City tags (#IndoreBusiness) and topic tags (#GSTBill, #SmallBusinessIndia).</li>
+        </ul></div>
+      </div>
+      <ul class="prose">
+        <li><strong>Facebook groups:</strong> join 20 local business, trader and city groups. Follow each group's rules, answer GST billing questions helpfully, and share a demo once a week where allowed.</li>
+        <li><strong>Creators:</strong> small finance, CA or business creators (5,000–50,000 followers) for a free license or ₹500–2,000 per Reel.</li>
+      </ul>
+
+      <h3>11.7 YouTube and search</h3>
+      <ul class="prose">
+        <li>Make 10 Hindi tutorials (5–8 minutes) and cut each into 3 Shorts: "GST bill kaise banaye", "Quotation format", "Delivery challan format", "Proforma invoice kya hota hai", "Bill of supply for composition dealers", "UPI QR on the invoice", "Sales register for your CA".</li>
+        <li>Title pattern: "GST Invoice Kaise Banaye (Computer + Mobile) | Free Trial | DocGen". Put your tracking link and WhatsApp number in the first line of the description.</li>
+        <li>Website "format" pages (GST invoice, quotation, delivery challan, proforma, bill of supply): people search these every day. Each page shows a sample and "Make this in DocGen, 30 days free" (section 17).</li>
+        <li>Google Business Profile: category "Software company", photos, a post every week, and a review from every happy customer.</li>
+      </ul>
+
+      <h3>11.8 Email</h3>
+      <p class="prose">Brevo's free plan sends 300 emails a day. Use it for trial users, customers, renewals and CA partners, never for bought lists.</p>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>When</th><th>Email</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">Trial day 0</td><td>Welcome + 2-minute setup video</td></tr>
+            <tr><td class="nowrap">Day 2</td><td>Make your first quotation, then turn it into an invoice</td></tr>
+            <tr><td class="nowrap">Day 5</td><td>Add your logo, signature and UPI QR code</td></tr>
+            <tr><td class="nowrap">Day 12</td><td>Send your CA the sales CSV</td></tr>
+            <tr><td class="nowrap">Day 25</td><td>Trial ends in 5 days: founding price ₹799</td></tr>
+            <tr><td class="nowrap">Day 31</td><td>Trial ended: your data is safe, activate any time</td></tr>
+            <tr><td class="nowrap">Customers</td><td>3 tips after week 1, referral ask after week 2, renewal reminders 30, 7 and 1 day before expiry, a monthly newsletter (1 GST tip, 1 feature, 1 customer story)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose muted">Email only people who agreed, and include an unsubscribe link. This is good practice and in line with India's Digital Personal Data Protection Act.</p>
+
+      <h3>11.9 Free listings and marketplaces</h3>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Platform</th><th>Cost</th><th>Good for</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Google Business Profile</strong></td><td>Free</td><td>Local owners searching "billing software near me"</td><td>Photos, weekly posts, reviews</td></tr>
+            <tr><td><strong>IndiaMART</strong></td><td>Free listing; paid plans from about ₹25,000 a year</td><td>Traders and B2B buyers searching for software</td><td>Free listing now; a paid plan only at Stage 4, if leads buy</td></tr>
+            <tr><td><strong>JustDial</strong></td><td>Free listing</td><td>Owners who search by phone in their city</td><td>Listing, photos, reviews</td></tr>
+            <tr><td><strong>SoftwareSuggest</strong></td><td>Free listing</td><td>Indian small businesses comparing software</td><td>Full profile, screenshots, customer reviews</td></tr>
+            <tr><td><strong>Techjockey</strong></td><td>Free listing</td><td>Indian small-business software buyers</td><td>Same as above</td></tr>
+            <tr><td><strong>Capterra, GetApp, G2</strong></td><td>Free listing</td><td>Buyers who read reviews first</td><td>Credibility; aim for 10+ reviews</td></tr>
+            <tr><td><strong>Microsoft Store</strong></td><td>Free for individual developers</td><td>Windows users who trust "official" downloads</td><td>List the desktop app (section 17)</td></tr>
+            <tr><td><strong>Google Play</strong></td><td>US$25 one-time</td><td>Phone-first owners searching the Play Store</td><td>Publish DocGen Mobile as an app later</td></tr>
+            <tr><td><strong>YouTube</strong></td><td>Free</td><td>Owners learning "how to"</td><td>Tutorials (11.7)</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose muted">Amazon, Flipkart and ONDC are not built for selling software licenses like this, and the government marketplace (GeM) can wait until you are established.</p>
+
+      <h3>11.10 Associations, partnerships and events</h3>
+      <ul class="prose">
+        <li><strong>Trader associations</strong> (vyapar mandal, chamber of commerce, market associations): offer a free 20-minute talk, "GST bills and WhatsApp billing", with a members' offer.</li>
+        <li><strong>Industry groups</strong> (textiles, hardware, auto parts, pharma distributors): their WhatsApp groups, with the admin's permission.</li>
+        <li><strong>Loan agents and registration agents:</strong> they meet new businesses every day. ₹250 per sale.</li>
+        <li><strong>Local news and city Instagram pages:</strong> "Local founder builds a billing app" is a free story.</li>
+        <li><strong>Trade fairs:</strong> only from Stage 3.</li>
+      </ul>
+
+      <h3>11.11 Season calendar</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>When</th><th>Moment</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">Oct–8 Nov 2026</td><td>Diwali: new account books (Dhanteras 6 Nov, Lakshmi Puja 8 Nov), new computers</td><td>"Naye bahi-khate, naya DocGen": buy by 8 November, +3 months free. Sign up computer and printer shops.</td></tr>
+            <tr><td class="nowrap">Nov 2026–Feb 2027</td><td>CAs' quieter months (outside the 11th and 20th)</td><td>Build the CA partner network.</td></tr>
+            <tr><td class="nowrap">Mid-Mar–Apr 2027</td><td>New financial year 2027-28</td><td>"Start the new year with professional invoices." Push 2- and 5-year plans.</td></tr>
+            <tr><td class="nowrap">1 July 2027</td><td>GST Day</td><td>A week of GST tips, plus an offer.</td></tr>
+            <tr><td class="nowrap">1st–10th of each month</td><td>Owners prepare GST data for their CA</td><td>Content: "Send your CA the sales CSV in one click."</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>11.12 Reviews and proof</h3>
+      <ul class="prose">
+        <li>After 7 days of use, send each customer your Google review link.</li>
+        <li>Collect 15-second selfie videos: name, business, city, what changed.</li>
+        <li>With permission, share a photo of their real invoice with private details blurred.</li>
+        <li>Post one piece of proof every week. Add a reviews section to the website (section 17).</li>
+      </ul>
+    </section>
+
+    <!-- 12 -->
+    <section id="meta">
+      <div class="sec-head"><span class="label">12 · Facebook and Instagram ads</span><h2>How to start with ₹1,000–2,000</h2></div>
+
+      <h3>12.1 Before you spend anything</h3>
+      <ul class="tasks">
+        <li><label><input type="checkbox" id="t-ad-01"><span>Facebook Page and Instagram professional account connected in Meta Business Suite.</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-02"><span>Your WhatsApp Business number connected to the Page (needed for click-to-WhatsApp ads).</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-03"><span>Ads Manager account in INR with time zone Asia/Kolkata. These can't be changed later.</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-04"><span>Payment: no credit card needed. In Ads Manager → Billing, add prepaid funds by UPI or net banking. Meta adds 18% GST, so add about ₹1,180 for every ₹1,000 of ads.</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-05"><span>At least 5 Reels posted organically. Advertise the one with the most views, saves and shares.</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-06"><span>WhatsApp quick replies ready, and you can reply within 5 minutes while the ad runs.</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-07"><span>Lead sheet and tracking links ready (section 15).</span></label></li>
+        <li><label><input type="checkbox" id="t-ad-08"><span>Two-factor login turned on for your Facebook account. Ad accounts are a common hacking target.</span></label></li>
+      </ul>
+
+      <h3>12.2 Your first campaign</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Setting</th><th>Choose</th></tr></thead>
+          <tbody>
+            <tr><td>Objective</td><td>Engagement → conversations on WhatsApp ("click to WhatsApp")</td></tr>
+            <tr><td>Budget</td><td>₹100–150 a day for 10–12 days (₹1,000–1,800 plus GST). With ₹1,000 total: ₹85 a day for 10 days.</td></tr>
+            <tr><td>Schedule</td><td>All day at first. Later, only the hours you can reply (for example 9:00–21:00).</td></tr>
+            <tr><td>Location</td><td>Your state, or 2–3 cities you can serve in your language</td></tr>
+            <tr><td>Age</td><td>25–55</td></tr>
+            <tr><td>Audience</td><td>Advantage+ audience with suggestions: small business owners, entrepreneurship, retail, wholesale, GST, accounting software. Or go broad and let Meta find people.</td></tr>
+            <tr><td>Language</td><td>Hindi and English, or your regional language</td></tr>
+            <tr><td>Placements</td><td>Advantage+ placements (most will go to Reels and Stories, the cheapest)</td></tr>
+            <tr><td>Ads</td><td>2 videos with different hooks and the same offer</td></tr>
+            <tr><td>Message template</td><td>Greeting: "Namaste! DocGen ka 2-minute demo chahiye ya price?" Quick questions: "Price batao" · "Demo dikhao" · "30 din free trial"</td></tr>
+            <tr><td>Text</td><td>See the copy templates in 13.7</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>12.3 What ₹1,500 can realistically buy</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Item</th><th>Typical India range</th><th class="right">For ₹1,500</th></tr></thead>
+          <tbody>
+            <tr><td>Reels views</td><td>₹45–140 per 1,000 views</td><td class="right">10,000–30,000</td></tr>
+            <tr><td>Clicks to WhatsApp</td><td>₹5–25 per click</td><td class="right">60–300</td></tr>
+            <tr><td>Conversations that start</td><td>35–55% of clicks; about ₹80 per conversation on average, ₹30–40 with a good ad</td><td class="right">15–40</td></tr>
+            <tr><td>Sales, with good follow-up</td><td>3–8% of conversations</td><td class="right">1–3</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="callout tip"><span class="label">What this means</span><p>The first ₹1,500 will roughly pay for itself, not make a profit. Its real value is learning: which hook gets cheap chats, which city replies, what people ask. Don't judge ads by the first test alone.</p></div>
+
+      <h3>12.4 While the ad runs</h3>
+      <ul class="prose">
+        <li>Change nothing for the first 3 days; Meta is learning who to show it to.</li>
+        <li>Check daily: money spent, cost per conversation, chats, trials, sales.</li>
+        <li>After day 4, pause the video with the higher cost per conversation.</li>
+        <li><strong>Stop rule:</strong> if a conversation costs more than ₹120 after ₹600 spent, stop and change the hook of the video, not the targeting.</li>
+        <li><strong>Grow rule:</strong> if a conversation costs under ₹60 and at least 1 in 15 chats buys, raise the budget by 20% every 3 days.</li>
+        <li>Reply within 5 minutes. A slow reply throws away the chat you paid for.</li>
+      </ul>
+
+      <h3>12.5 Next steps at later stages</h3>
+      <ul class="prose">
+        <li><strong>Stage 2:</strong> retarget people who watched half of a video (Custom audience → Video viewers) with a testimonial or offer. Add a second city. Run Diwali and new-year offer ads in season.</li>
+        <li><strong>Stage 3:</strong> add the Meta Pixel to the website and retarget visitors; use lookalike audiences once you have 100+ customers. Start Google Search ads on exact keywords such as "gst billing software", "quotation software" and "invoice software for small business". Software clicks cost about ₹50–300 each in India, so use exact match and a tight daily cap.</li>
+        <li><strong>Stage 4:</strong> separate campaigns per state and language; testimonial ads always running.</li>
+      </ul>
+
+      <h3>12.6 Mistakes that burn small budgets</h3>
+      <ul class="prose">
+        <li>Pressing "Boost post" with the "profile visits" goal.</li>
+        <li>Choosing the "Sales" goal with a tiny budget. Meta can't learn without many purchases a week.</li>
+        <li>Targeting all of India, in English.</li>
+        <li>Changing ads every day.</li>
+        <li>Long, slow videos without captions.</li>
+        <li>Sending clicks to a website when WhatsApp is where you close sales.</li>
+        <li>Not tracking where each sale came from.</li>
+        <li>Forgetting the season: October to December ad prices are 30–60% higher. Lean on free channels and offers then, and advertise only with a ready Diwali video.</li>
+      </ul>
+    </section>
+
+    <!-- 13 -->
+    <section id="creatives">
+      <div class="sec-head"><span class="label">13 · Making the ads</span><h2>Video first, made on your phone</h2></div>
+
+      <h3>13.1 Why video, and the rules</h3>
+      <p class="prose">Reels are the cheapest place to advertise (about ₹45–140 per 1,000 views, against ₹150–350 in the feed), and a screen recording proves the product works. Trust is your biggest problem, so showing the real screen is your biggest weapon.</p>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+          <tbody>
+            <tr><td>Format</td><td>Vertical 9:16, 1080 × 1920, 15–30 seconds</td></tr>
+            <tr><td>Hook</td><td>The first 2 seconds decide everything (13.3)</td></tr>
+            <tr><td>Captions</td><td>Always on screen; most people watch muted</td></tr>
+            <tr><td>Product</td><td>Show the real DocGen screen within 5 seconds</td></tr>
+            <tr><td>Message</td><td>One idea per ad</td></tr>
+            <tr><td>Ending</td><td>Price + offer + "WhatsApp karo"</td></tr>
+            <tr><td>Language</td><td>Hinglish voice-over; Hindi or English captions</td></tr>
+            <tr><td>Sound and light</td><td>Daylight from a window; voice louder than music</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>13.2 Make it for ₹0</h3>
+      <div class="cols">
+        <div class="panel"><h4>Tools</h4><ul>
+          <li>Your phone (camera and screen recorder).</li>
+          <li>Windows screen recording: Win + Alt + R (Xbox Game Bar), or OBS Studio (free).</li>
+          <li>CapCut (free): editing and automatic Hindi or English captions.</li>
+          <li>Canva (free): end cards, thumbnails, image ads.</li>
+          <li>Optional AI video tools (13.5).</li>
+        </ul></div>
+        <div class="panel"><h4>Steps</h4><ol>
+          <li>Write a 4-line script (13.4).</li>
+          <li>Screen-record DocGen with your demo company. Never use real customer data.</li>
+          <li>Record the hook with a face to camera: near a window, phone at eye level, 1 metre away.</li>
+          <li>Record the voice-over in a quiet room; a cupboard full of clothes kills echo.</li>
+          <li>Edit in CapCut: hook → screen → result (PDF on WhatsApp) → end card. Add captions, cut every pause, zoom in on key moments.</li>
+          <li>End card in Canva: logo, "₹104/month · 30 din free", WhatsApp number.</li>
+          <li>Export 1080 × 1920 at 30 fps. Post as a Reel first; advertise the winner after 3–5 days.</li>
+        </ol></div>
+      </div>
+
+      <h3>13.3 Hook bank</h3>
+      <ol class="hooks">
+        <li><div><b>"Abhi bhi haath se bill likhte ho?"</b><span>Still writing bills by hand?</span></div></li>
+        <li><div><b>"1 minute. 1 GST bill. Dekho."</b><span>One minute. One GST bill. Watch.</span></div></li>
+        <li><div><b>"Internet band hai… phir bhi bill ban gaya."</b><span>Internet is off, and the bill is still done.</span></div></li>
+        <li><div><b>"Customer bola: 'Ye bill to badi company jaisa hai!'"</b><span>The customer said this bill looks like a big company's.</span></div></li>
+        <li><div><b>"Aapka CA har mahine sales ki list maangta hai?"</b><span>Does your CA ask for your sales list every month?</span></div></li>
+        <li><div><b>"₹104 mahina. Bas."</b><span>₹104 a month. That's all.</span></div></li>
+        <li><div><b>"Quotation site par hi, phone se."</b><span>Quotations right at the site, from your phone.</span></div></li>
+        <li><div><b>"GST mil gaya? Ab bill bhi professional banao."</b><span>Got your GSTIN? Now make professional bills.</span></div></li>
+        <li><div><b>"Aapke GST bill ki 3 galtiyan."</b><span>3 mistakes in your GST bill.</span></div></li>
+        <li><div><b>"Delivery challan se invoice, 1 click mein."</b><span>Challan to invoice in one click.</span></div></li>
+        <li><div><b>"Ye bill 40 second mein bana."</b><span>This bill took 40 seconds.</span></div></li>
+        <li><div><b>"Bill par UPI QR. Payment jaldi aata hai."</b><span>UPI QR on the bill. Get paid faster.</span></div></li>
+        <li><div><b>"Sirf bill banane ke liye mehenga software kyun?"</b><span>Why costly software just to make bills?</span></div></li>
+        <li><div><b>"Apna data, apne computer mein."</b><span>Your data, on your own computer.</span></div></li>
+        <li><div><b>"Bill book ki chhutti."</b><span>Goodbye, bill book.</span></div></li>
+        <li><div><b>"Naye bahi-khate, naya billing."</b><span>New account books, new billing (Diwali).</span></div></li>
+        <li><div><b>"Ek license: computer + 2 phone."</b><span>One license: a computer and 2 phones.</span></div></li>
+        <li><div><b>"Contractor ho? Ye quotation dekho."</b><span>Contractor? Look at this quotation.</span></div></li>
+        <li><div><b>"Composition dealer? Bill of supply bhi ready."</b><span>Composition dealer? Bill of supply is ready too.</span></div></li>
+        <li><div><b>"30 din free. Pasand aaye tabhi lena."</b><span>30 days free. Buy only if you like it.</span></div></li>
+      </ol>
+
+      <h3>13.4 Eight ad concepts with scripts</h3>
+      <div class="blocks">
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept A · Traders · 25 s</span><h4>"Bill in 60 seconds"</h4><p>Proves speed with a running timer.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–2 s</td><td>Face to camera holding a messy bill book, then putting it away</td><td class="say-line">"Abhi bhi haath se bill?"</td></tr>
+              <tr><td>2–5 s</td><td>Phone screen; a timer starts at 00:00</td><td class="say-line">"Dekho, 1 minute mein GST bill."</td></tr>
+              <tr><td>5–18 s</td><td>Screen: pick customer (GSTIN fills the state), add item, GST appears, total in words</td><td>Text: "GSTIN se state apne aap" · "CGST + SGST apne aap"</td></tr>
+              <tr><td>18–22 s</td><td>Share → PDF opens in WhatsApp; timer stops near 00:45</td><td class="say-line">"PDF seedha customer ko WhatsApp par."</td></tr>
+              <tr><td>22–25 s</td><td>End card</td><td class="say-line">"DocGen: computer aur mobile. Sirf ₹104 mahina. 30 din free. Abhi WhatsApp karo."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept B · Everyone · 20 s</span><h4>"Internet gaya, billing nahi"</h4><p>Proves offline use.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–3 s</td><td>Router lights go off; the owner looks worried</td><td class="say-line">"Internet chala gaya?"</td></tr>
+              <tr><td>3–15 s</td><td>Wi-Fi off on the laptop; DocGen makes and prints an invoice</td><td class="say-line">"DocGen bina internet ke chalta hai. Bill banao, print karo."</td></tr>
+              <tr><td>15–20 s</td><td>End card</td><td class="say-line">"Data aapke computer mein, safe. 30 din free."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept C · Traders · 20 s</span><h4>Before and after</h4><p>Builds trust by comparison.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–4 s</td><td>Split screen: crossed-out handwritten bill vs a DocGen invoice with logo and QR</td><td class="say-line">"Customer kaunsa bill dekh ke jaldi payment karega?"</td></tr>
+              <tr><td>4–15 s</td><td>Zoom on logo, GSTIN, HSN, tax, UPI QR</td><td class="say-line">"Logo, GST, HSN, UPI QR. Sab ek professional bill mein."</td></tr>
+              <tr><td>15–20 s</td><td>End card</td><td class="say-line">"Bill banao, bharosa badhao. ₹104 mahina."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept D · Contractors, interiors · 25 s</span><h4>Quotation at the site</h4><p>Shows the phone app and quote-to-invoice.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–3 s</td><td>Person at a half-finished site with a phone (real or AI clip)</td><td class="say-line">"Site par client ko quotation chahiye?"</td></tr>
+              <tr><td>3–15 s</td><td>Phone screen: quotation with items and amounts, shared as PDF</td><td class="say-line">"Phone se 2 minute mein professional quotation."</td></tr>
+              <tr><td>15–21 s</td><td>Quotation → Convert to invoice</td><td class="say-line">"Order mila? Ek click mein invoice."</td></tr>
+              <tr><td>21–25 s</td><td>End card</td><td class="say-line">"DocGen. 30 din free."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept E · Owners with a CA · 25 s</span><h4>"Your CA will thank you"</h4><p>Shows the sales CSV.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–3 s</td><td>Phone ringing: "CA Sahab"</td><td class="say-line">"CA ka phone: 'Sales ki list bhejo'?"</td></tr>
+              <tr><td>3–17 s</td><td>Screen: Download sales data → CSV opens in Excel with GSTIN, CGST, SGST, IGST</td><td class="say-line">"Ek click. Poore mahine ki sales, GSTIN aur tax ke saath."</td></tr>
+              <tr><td>17–25 s</td><td>End card</td><td class="say-line">"CA bhi khush, aap bhi. DocGen, ₹104 mahina."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept F · Price-conscious owners · 15 s</span><h4>Price shock</h4><p>Bold numbers, no competitor names.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–4 s</td><td>Big text animating: "₹8,000+ a year?"</td><td class="say-line">"Sirf bill banane ke liye itna kharcha?"</td></tr>
+              <tr><td>4–11 s</td><td>Quick DocGen screen montage</td><td class="say-line">"DocGen: GST bill, quotation, challan. Computer + mobile."</td></tr>
+              <tr><td>11–15 s</td><td>Big text: "₹1,250 saal · ₹104 mahina"</td><td class="say-line">"30 din free try karo."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept G · Diwali, until 8 Nov · 20 s</span><h4>"Naye bahi-khate, naya DocGen"</h4><p>Season offer; run only while it is true.</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–4 s</td><td>Diyas and a red bahi-khata on a shop counter (AI clip)</td><td class="say-line">"Naye saal ke naye bahi-khate…"</td></tr>
+              <tr><td>4–14 s</td><td>Laptop with DocGen making a festive-season invoice</td><td class="say-line">"…aur is saal, professional GST bill bhi."</td></tr>
+              <tr><td>14–20 s</td><td>End card: "8 Nov tak · 3 mahine extra free"</td><td class="say-line">"8 November tak lijiye, 3 mahine free. Shubh Deepavali!"</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+
+        <article class="concept">
+          <div class="concept-head"><span class="label">Concept H · Anyone · 20–30 s</span><h4>Real customer story</h4><p>Your strongest ad once you have one. Get written permission (a WhatsApp message is fine).</p></div>
+          <div class="table-wrap"><table>
+            <thead><tr><th>Time</th><th>Picture</th><th>Voice and on-screen text</th></tr></thead>
+            <tbody>
+              <tr><td>0–8 s</td><td>The customer's own selfie video in their shop</td><td class="say-line">"Main Rakesh, Indore. Hardware ki dukaan. Pehle haath se bill banata tha…"</td></tr>
+              <tr><td>8–20 s</td><td>Their real invoice (private details blurred); screen recording</td><td class="say-line">"…ab DocGen se 1 minute mein, aur customer ko WhatsApp par."</td></tr>
+              <tr><td>20–25 s</td><td>End card</td><td class="say-line">"Aap bhi try kariye. 30 din free."</td></tr>
+            </tbody>
+          </table></div>
+        </article>
+      </div>
+
+      <h3>13.5 AI video and image prompts</h3>
+      <p class="prose">Use AI only for the scenes around the product: the shop, the owner, the site. Always use a real screen recording for DocGen itself, and never use an AI person as a "customer".</p>
+      <ul class="prose">
+        <li><strong>Meta's own tools</strong> (free while you create the ad): image animation and other Advantage+ creative options turn a still image into motion.</li>
+        <li><strong>Google Veo</strong> through the Gemini app: included in Google AI Pro (₹1,999 a month, 1-month free trial). Some Jio plans include Google AI Pro; check yours. It makes 8-second clips with sound.</li>
+        <li><strong>CapCut and Canva</strong> have AI features in their free tiers, with limits.</li>
+        <li><strong>Prompt recipe:</strong> subject + action + place + camera + light + mood + length, and add "vertical 9:16, no text, no logos".</li>
+      </ul>
+      <div class="blocks">
+        <div class="block"><div class="block-head"><span class="label">Video · Owner with a messy bill book</span><button class="copy" type="button" data-copy="p1">Copy</button></div><pre id="p1">Vertical 9:16 video, 5 seconds. A middle-aged Indian shopkeeper in a small hardware shop in Indore sits behind a wooden counter, flipping through a messy handwritten bill book with crossed-out numbers. He sighs and rubs his forehead. Shelves with pipes and paint tins behind him. Warm afternoon light, handheld camera, realistic, natural colours. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · Happy owner shows the bill</span><button class="copy" type="button" data-copy="p2">Copy</button></div><pre id="p2">Vertical 9:16 video, 4 seconds. The same Indian shopkeeper smiles and turns his laptop screen towards a customer across the counter; the customer nods with approval. Small hardware shop, warm light, shallow depth of field, realistic. The screen content is not readable. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · Interior designer at a site</span><button class="copy" type="button" data-copy="p3">Copy</button></div><pre id="p3">Vertical 9:16 video, 5 seconds. A young Indian woman interior designer in a half-finished apartment with plastered walls and stacked tiles types quickly on her smartphone, then shows the phone to a client couple. Daylight from large windows, realistic documentary style. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · Internet goes off</span><button class="copy" type="button" data-copy="p4">Copy</button></div><pre id="p4">Vertical 9:16 video, 3 seconds. Close-up of a Wi-Fi router on a shop shelf in India; its lights blink and then turn off. Dim shop interior, a little dust, realistic. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · Diwali shop</span><button class="copy" type="button" data-copy="p5">Copy</button></div><pre id="p5">Vertical 9:16 video, 5 seconds. An Indian wholesale shop at dusk decorated with marigold garlands and clay diyas. A red cloth-bound account book (bahi-khata) lies on the counter next to a laptop. Gentle warm glow, slow push-in camera, festive but calm, realistic. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · Distributor's warehouse</span><button class="copy" type="button" data-copy="p6">Copy</button></div><pre id="p6">Vertical 9:16 video, 4 seconds. A distributor's warehouse in Surat with stacked cartons. A worker loads boxes onto a small tempo truck while the owner checks a printed delivery challan. Realistic daylight, handheld camera. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Video · CA's office</span><button class="copy" type="button" data-copy="p7">Copy</button></div><pre id="p7">Vertical 9:16 video, 4 seconds. An Indian chartered accountant in a small office with files and a desktop computer smiles as he opens an email attachment. Relaxed, realistic, soft office light. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Image · Shop counter background</span><button class="copy" type="button" data-copy="p8">Copy</button></div><pre id="p8">Square 1:1 photo-realistic image of a clean shop counter in an Indian electrical store, with a laptop and a printed professional invoice beside it. Soft daylight. Empty space on the left third for a headline. No text, no logos.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Image · Phone and laptop illustration</span><button class="copy" type="button" data-copy="p9">Copy</button></div><pre id="p9">Flat illustration, 4:5. A smartphone and a laptop side by side, each showing a generic invoice layout. Blue and saffron colour palette on a clean white background, lots of empty space at the top for a headline. No brand names, no text.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Text AI · Ask for more scripts</span><button class="copy" type="button" data-copy="p10">Copy</button></div><pre id="p10">Write 5 Hinglish video ad scripts, 20 seconds each, for DocGen: a ₹104-a-month app for small Indian shops that makes GST invoices, quotations and delivery challans on a computer and phone, even without internet. For each script give: a hook for the first 2 seconds, 3 scenes with on-screen text, and an ending that asks people to send a WhatsApp message for a 30-day free trial. Audience: hardware and electrical traders in Madhya Pradesh. Do not mention competitor names or make claims about saving tax.</pre></div>
+      </div>
+
+      <h3>13.6 Image and carousel ads</h3>
+      <ul class="prose">
+        <li><strong>Carousel "One app, 18 documents":</strong> GST invoice · Quotation · Delivery challan · Proforma · Purchase order · Receipt · Bill of supply, then a last card with the offer.</li>
+        <li><strong>Before and after:</strong> a handwritten bill next to a DocGen invoice.</li>
+        <li><strong>Price card:</strong> "₹104/month" with a phone and laptop showing DocGen.</li>
+        <li><strong>Offline:</strong> an airplane-mode icon over a finished invoice.</li>
+        <li><strong>Rules:</strong> at most 6 big words, a real product screenshot, a small logo, the offer visible.</li>
+      </ul>
+
+      <h3>13.7 Ad copy templates</h3>
+      <div class="blocks">
+        <div class="block"><div class="block-head"><span class="label">Hinglish</span><button class="copy" type="button" data-copy="c1">Copy</button></div><pre id="c1">Primary text: Haath se bill likhna band karo. DocGen se 1 minute mein GST bill, quotation aur delivery challan, computer aur mobile dono par, bina internet ke bhi. Sirf ₹104/mahina (saal ka ₹1,250). 30 din free try karo.
+Headline: 1 minute mein GST bill
+Button: Send WhatsApp message</pre></div>
+        <div class="block"><div class="block-head"><span class="label">English</span><button class="copy" type="button" data-copy="c2">Copy</button></div><pre id="c2">Primary text: Make GST invoices, quotations and delivery challans in 1 minute, on your computer and phone, even without internet. Only ₹104 a month (₹1,250 a year). Try it free for 30 days.
+Headline: Professional GST bills in 1 minute
+Button: Send WhatsApp message</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Hindi</span><button class="copy" type="button" data-copy="c3">Copy</button></div><pre id="c3" class="deva">मुख्य टेक्स्ट: हाथ से बिल लिखना छोड़िए। DocGen से 1 मिनट में GST बिल, कोटेशन और डिलीवरी चालान, कंप्यूटर और मोबाइल दोनों पर, बिना इंटरनेट के भी। सिर्फ ₹104 महीना। 30 दिन फ्री।
+हेडलाइन: 1 मिनट में GST बिल
+बटन: Send WhatsApp message</pre></div>
+      </div>
+
+      <h3>13.8 How to test ads</h3>
+      <ul class="prose">
+        <li>Test hooks first: the same video with 2–3 different openings.</li>
+        <li>Then test offers (founding price vs 30-day trial), then audiences.</li>
+        <li>Change one thing at a time.</li>
+        <li>Post as an organic Reel first; advertise only the winner.</li>
+        <li>Keep a simple log for every video: hook, cost per 1,000 views, average watch time, cost per chat.</li>
+      </ul>
+    </section>
+
+    <!-- 14 -->
+    <section id="templates">
+      <div class="sec-head"><span class="label">14 · Scripts and templates</span><h2>Words you can copy and use today</h2></div>
+
+      <h3>14.1 The 60-second shop pitch</h3>
+      <div class="block"><div class="block-head"><span class="label">Say this</span><button class="copy" type="button" data-copy="s1">Copy</button></div><pre id="s1">Namaste ji, main [Naam], DocGen se. Aap abhi bill kaise banate hain, haath se ya computer par?
+(Sunein.)
+Dekhiye, ye 1 minute mein GST bill. Aapka logo, GSTIN, HSN, CGST aur SGST sab apne aap. PDF banakar seedha customer ko WhatsApp par.
+Internet na ho tab bhi chalta hai, aur data aapke hi computer mein rehta hai.
+Saal ka sirf ₹1,250, yaani ₹104 mahina. 30 din free try kijiye. Main abhi install kar deta hoon.</pre><p class="gloss">Meaning: introduce yourself, ask how they make bills now, show a GST bill made in 1 minute, mention offline and data privacy, give the price per month, and offer to install the free trial right now.</p></div>
+
+      <h3>14.2 WhatsApp greeting and quick replies</h3>
+      <div class="blocks">
+        <div class="block"><div class="block-head"><span class="label">Greeting message</span><button class="copy" type="button" data-copy="w0">Copy</button></div><pre id="w0">Namaste! DocGen mein aapka swagat hai.
+1 minute mein GST bill, quotation aur challan, computer + mobile par, bina internet ke bhi.
+Reply karein:
+1 = Price
+2 = 2-minute demo video
+3 = 30 din free trial</pre></div>
+        <div class="block"><div class="block-head"><span class="label">/price</span><button class="copy" type="button" data-copy="w1">Copy</button></div><pre id="w1">DocGen ka price: 1 saal ₹1,250 (₹104/mahina) · 2 saal ₹2,250 · 5 saal ₹4,999.
+Ek license mein 1 computer + 2 mobile.
+Abhi founding offer: pehle 100 customers ke liye 1 saal sirf ₹799.
+Ek baar payment, koi auto-debit nahi.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">/demo</span><button class="copy" type="button" data-copy="w2">Copy</button></div><pre id="w2">Ye 2 minute ka demo dekhiye: [video link]
+Chahein to main video call par aapke hi bill se demo dikha deta hoon. Aap kab free hain?</pre></div>
+        <div class="block"><div class="block-head"><span class="label">/trial</span><button class="copy" type="button" data-copy="w3">Copy</button></div><pre id="w3">Computer par 30 din free: docgen.reynrel.in se download kijiye.
+Install karke "Skip" dabaiye, trial shuru ho jayega.
+Main 10 minute mein setup karwa deta hoon: aapka logo, GSTIN aur pehla bill.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">/pay</span><button class="copy" type="button" data-copy="w4">Copy</button></div><pre id="w4">Payment yahan se kijiye: docgen.reynrel.in/buy
+UPI, card ya net banking. License key turant screen par aur email par aa jayegi.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">/setup</span><button class="copy" type="button" data-copy="w5">Copy</button></div><pre id="w5">Setup ke liye ye bhej dijiye:
+1) Business ka naam
+2) GSTIN
+3) Address
+4) Logo ki photo
+5) Bank aur UPI details
+Main 10 minute mein sab set kar dunga.</pre></div>
+      </div>
+
+      <h3>14.3 Follow-ups after a demo or trial</h3>
+      <div class="block"><div class="block-head"><span class="label">Day 2 · 5 · 12 · 25 · 31</span><button class="copy" type="button" data-copy="f1">Copy</button></div><pre id="f1">Day 2: Namaste [Naam] ji, DocGen chal raha hai? Pehla bill ban gaya? Koi dikkat ho to 5 minute call kar lete hain.
+Day 5: Ek tip: Settings mein apna logo aur UPI QR laga dijiye, bill aur bhi professional lagega. Main help kar doon?
+Day 12: Kya aapka CA har mahine sales ki list maangta hai? DocGen mein "Download sales data" se ek click mein file ban jaati hai.
+Day 25: Aapka free trial 5 din mein khatam hoga. Founding offer abhi bhi hai: 1 saal sirf ₹799. Link: docgen.reynrel.in/buy
+Day 31: Trial khatam ho gaya, par aapka saara data safe hai. Jab chahein activate kar sakte hain. Koi sawaal ho to batayein.</pre><p class="gloss">Meaning: check that the first bill worked; a tip about logo and UPI QR; mention the sales file for the CA; a reminder that the trial ends with the founding offer; and a polite note that their data is safe after the trial.</p></div>
+
+      <h3>14.4 Messages for CAs</h3>
+      <div class="blocks">
+        <div class="block"><div class="block-head"><span class="label">First WhatsApp or LinkedIn message</span><button class="copy" type="button" data-copy="ca1">Copy</button></div><pre id="ca1">Namaste CA [Name] ji. I'm [Your name] from Reynrel. We make DocGen, a simple GST invoice and quotation app (computer + mobile, works offline, ₹1,250 a year).
+Many of your small clients probably send you bills in Excel or handwriting. DocGen gives them correct GST invoices and a one-click monthly sales file with GSTIN and tax split, ready for GSTR-1.
+Can I show you in 5 minutes? I'll also give your office a free license.</pre></div>
+        <div class="block"><div class="block-head"><span class="label">Partner terms (send after the meeting)</span><button class="copy" type="button" data-copy="ca2">Copy</button></div><pre id="ca2">DocGen partner programme for CAs:
+1) Free DocGen license for your office.
+2) ₹250 by UPI for every client who buys (or 1 free year for a client after 3 sales), paid on the 1st of each month.
+3) Your personal link: https://docgen.reynrel.in/?utm_source=ca&amp;utm_medium=partner&amp;utm_campaign=ca-[firm-name]
+4) We install and train your clients ourselves. You only recommend.
+5) You can stop any time. No targets.</pre></div>
+      </div>
+
+      <h3>14.5 Referral message for customers to forward</h3>
+      <div class="block"><div class="block-head"><span class="label">Customer forwards this</span><button class="copy" type="button" data-copy="r1">Copy</button></div><pre id="r1">Main GST bill aur quotation ke liye DocGen use karta hoon. 1 minute mein professional bill, computer aur mobile par, bina internet ke bhi. ₹104 mahina.
+30 din free try karo: https://docgen.reynrel.in/?utm_source=referral&amp;utm_medium=whatsapp&amp;utm_campaign=friend
+WhatsApp par mera naam bolna, tumhe 1 mahina extra milega.</pre><p class="gloss">Meaning: "I use DocGen for GST bills and quotations… try it free for 30 days; mention my name on WhatsApp and you get 1 extra month."</p></div>
+
+      <h3>14.6 Reseller pitch</h3>
+      <div class="block"><div class="block-head"><span class="label">For computer, printer and stationery shops</span><button class="copy" type="button" data-copy="rs1">Copy</button></div><pre id="rs1">Bhai sahab, aapke paas jo bhi dukaan wala computer ya printer lene aata hai, use billing chahiye hoti hai.
+DocGen bechiye: aap code ₹850 mein lijiye, customer ko ₹1,250 mein dijiye. Har sale par ₹400, sirf 5 minute install ka kaam.
+Support hum karenge. Demo ke liye ek free license abhi de deta hoon.</pre><p class="gloss">Meaning: every customer who buys a computer or printer needs billing; buy codes at ₹850 and sell at ₹1,250, earn ₹400 per sale, we handle support, and here is a free demo license.</p></div>
+
+      <h3>14.7 Answers to common objections</h3>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>They say</th><th>You say</th></tr></thead>
+          <tbody>
+            <tr><td>"Free apps hain."<br><span class="src">There are free apps.</span></td><td>"Haan, online free apps hain. DocGen bina internet chalta hai, data aapke computer mein rehta hai, Tally jaisa print format hai, aur setup aur support main khud karta hoon. ₹104 mahina, ek chai-samosa ka kharcha."</td></tr>
+            <tr><td>"Mera CA Tally use karta hai."<br><span class="src">My CA uses Tally.</span></td><td>"Bahut badhiya. DocGen Tally ki jagah nahi hai. Aap bill banaiye, mahine ke end mein sales ki file CA ko bhejiye. CA bhi khush."</td></tr>
+            <tr><td>"GST registered nahi hoon."<br><span class="src">I'm not GST-registered.</span></td><td>"Koi baat nahi. Bina GST ke bill, quotation, receipt sab bana sakte hain. Composition dealer ke liye bill of supply bhi hai."</td></tr>
+            <tr><td>"Computer nahi aata."<br><span class="src">I'm not good with computers.</span></td><td>"Mobile par bhi chalta hai. Pehla bill hum saath mein banayenge, 10 minute lagenge."</td></tr>
+            <tr><td>"Data safe hai?"<br><span class="src">Is my data safe?</span></td><td>"Data aapke hi computer ya phone mein rehta hai, hamare server par nahi. Backup ek file mein le sakte hain."</td></tr>
+            <tr><td>"Mehenga hai."<br><span class="src">It's expensive.</span></td><td>"₹104 mahina. Ek galat bill ya ek late payment ka nuksan isse zyada hota hai. Pehle 30 din free try kijiye."</td></tr>
+            <tr><td>"Stock bhi chahiye."<br><span class="src">I need stock management too.</span></td><td>"DocGen bill aur documents ke liye hai. Stock ke liye Reynrel ka inventory software hai. Main dikhata hoon."</td></tr>
+            <tr><td>"Baad mein dekhenge."<br><span class="src">Maybe later.</span></td><td>"Bilkul. Main trial abhi install kar deta hoon: 30 din free, koi payment nahi. Pasand aaye tabhi lijiye."</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 15 -->
+    <section id="tracking">
+      <div class="sec-head"><span class="label">15 · Tracking and numbers</span><h2>Know where every customer came from</h2></div>
+
+      <h3>15.1 Lead sheet (Google Sheets)</h3>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Date</th><th>Name</th><th>Business</th><th>City</th><th>Phone</th><th>Source</th><th>Stage</th><th>Next follow-up</th><th>Notes</th><th class="right">Paid ₹</th></tr></thead>
+          <tbody>
+            <tr><td class="nowrap">12 Oct</td><td>Rakesh</td><td>Hardware</td><td>Indore</td><td>98xxxxxx10</td><td>Walk-in</td><td><span class="chip warn">Trial</span></td><td class="nowrap">14 Oct</td><td>Wants logo</td><td class="right">—</td></tr>
+            <tr><td class="nowrap">14 Oct</td><td>Neha</td><td>Interiors</td><td>Pune</td><td>97xxxxxx22</td><td>Instagram</td><td><span class="chip good">Paid</span></td><td class="nowrap">21 Oct</td><td>Ask review</td><td class="right">799</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose muted">Example rows. Stages: Lead → Demo → Trial → Paid → Renewal due, or Lost (write why).</p>
+
+      <h3>15.2 Tracking links</h3>
+      <p class="prose">Use a different link for every channel. Your admin panel shows sign-ups and sales for each one under <strong>Admin → Dashboard → Where customers come from</strong>.</p>
+      <div class="block"><div class="block-head"><span class="label">Links</span><button class="copy" type="button" data-copy="u1">Copy</button></div><pre id="u1" class="mono">Instagram bio     https://docgen.reynrel.in/?utm_source=instagram&amp;utm_medium=bio&amp;utm_campaign=profile
+WhatsApp Status   https://docgen.reynrel.in/?utm_source=whatsapp&amp;utm_medium=status&amp;utm_campaign=diwali26
+Facebook groups   https://docgen.reynrel.in/?utm_source=facebook&amp;utm_medium=group&amp;utm_campaign=organic
+Ad to website     https://docgen.reynrel.in/?utm_source=facebook&amp;utm_medium=paid&amp;utm_campaign=test-oct26
+YouTube           https://docgen.reynrel.in/?utm_source=youtube&amp;utm_medium=video&amp;utm_campaign=gst-invoice-tutorial
+Google profile    https://docgen.reynrel.in/?utm_source=google&amp;utm_medium=gbp&amp;utm_campaign=profile
+IndiaMART         https://docgen.reynrel.in/?utm_source=indiamart&amp;utm_medium=listing&amp;utm_campaign=free
+CA partner        https://docgen.reynrel.in/?utm_source=ca&amp;utm_medium=partner&amp;utm_campaign=ca-sharma-associates
+Reseller          https://docgen.reynrel.in/?utm_source=reseller&amp;utm_medium=partner&amp;utm_campaign=shop-name</pre></div>
+      <p class="prose muted">Click-to-WhatsApp ads open a chat instead of the website, so label those chats "Ad lead" in WhatsApp and write "Ad" as the source in your sheet.</p>
+
+      <h3>15.3 Weekly scorecard</h3>
+      <div class="table-wrap mid-table">
+        <table>
+          <thead><tr><th>Measure</th><th class="right">Stage 0</th><th class="right">Stage 1</th><th class="right">Stage 2</th></tr></thead>
+          <tbody>
+            <tr><td>Conversations started</td><td class="right">40</td><td class="right">60</td><td class="right">120</td></tr>
+            <tr><td>Demos given</td><td class="right">30</td><td class="right">40</td><td class="right">60</td></tr>
+            <tr><td>Trials started</td><td class="right">15</td><td class="right">20</td><td class="right">40</td></tr>
+            <tr><td>Sales</td><td class="right">3–5</td><td class="right">5–8</td><td class="right">7–10</td></tr>
+            <tr><td>New reviews</td><td class="right">2</td><td class="right">2</td><td class="right">3</td></tr>
+            <tr><td>Active CA partners (total)</td><td class="right">3</td><td class="right">6</td><td class="right">10</td></tr>
+            <tr><td>Cost per customer</td><td class="right">₹0</td><td class="right">under ₹400</td><td class="right">under ₹400</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="prose">
+        <li><strong>Cost per customer</strong> = all marketing money spent ÷ new paying customers.</li>
+        <li><strong>Trial to paid %</strong> = sales ÷ trials started.</li>
+        <li><strong>Renewal %</strong> = licenses renewed ÷ licenses that ended.</li>
+      </ul>
+    </section>
+
+    <!-- 16 -->
+    <section id="risks">
+      <div class="sec-head"><span class="label">16 · Risks</span><h2>What can go wrong, and what to do</h2></div>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Risk</th><th>What to do</th></tr></thead>
+          <tbody>
+            <tr><td>Free tools from big brands</td><td>Trial + demo + offline and privacy + personal service. Stay focused on your group of buyers.</td></tr>
+            <tr><td>People don't trust a new brand</td><td>Reviews, video testimonials, your face and phone number, the clear refund policy on the website, "Made in India by Reynrel".</td></tr>
+            <tr><td>Ad account blocked</td><td>Verify your business with Meta, follow ad rules, avoid big claims, use two-factor login, don't launch many new ads at once.</td></tr>
+            <tr><td>WhatsApp number banned</td><td>No bulk messages to strangers. Broadcasts only to saved contacts. Be polite in groups.</td></tr>
+            <tr><td>Too many support chats</td><td>Quick replies, tutorial videos, the Help &amp; Support page, a setup checklist. Hire part-time help at Stage 3.</td></tr>
+            <tr><td>Running out of money</td><td>The 30% rule. Free channels first. Never borrow money for ads.</td></tr>
+            <tr><td>Customers want features you don't have</td><td>Say no politely, offer Reynrel's other products, and note every request for the product plan.</td></tr>
+            <tr><td>A broken purchase or activation</td><td>Buy, install and activate DocGen yourself every week. Fix payment problems the same day.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 17 -->
+    <section id="upgrades">
+      <div class="sec-head"><span class="label">17 · Product upgrades</span><h2>Changes that would help sales</h2></div>
+      <div class="table-wrap wide-table">
+        <table>
+          <thead><tr><th>Upgrade</th><th>Why it helps</th><th>Impact</th><th>Needed by</th></tr></thead>
+          <tbody>
+            <tr><td>Coupon and referral codes at checkout</td><td>Track CAs, referrals and festival offers automatically</td><td><span class="chip good">High</span></td><td>Stage 2</td></tr>
+            <tr><td>Automatic renewal reminder emails (30, 7, 1 days)</td><td>Renewals are your profit</td><td><span class="chip good">High</span></td><td>Stage 2</td></tr>
+            <tr><td>Reviews section on the website, edited in the admin panel</td><td>Proof for new visitors</td><td><span class="chip good">High</span></td><td>Stage 1</td></tr>
+            <tr><td>"Format" pages (GST invoice, quotation, challan, proforma, bill of supply)</td><td>Free Google traffic for years</td><td><span class="chip warn">Medium</span></td><td>Stage 2</td></tr>
+            <tr><td>Demo-company mode for shop demos</td><td>Faster, cleaner demos</td><td><span class="chip warn">Medium</span></td><td>Stage 0</td></tr>
+            <tr><td>Meta Pixel on the website</td><td>Retargeting website visitors</td><td><span class="chip warn">Medium</span></td><td>Stage 3</td></tr>
+            <tr><td>Microsoft Store package; DocGen Mobile on Google Play</td><td>Trust and store searches</td><td><span class="chip warn">Medium</span></td><td>Stage 3</td></tr>
+            <tr><td>Hindi interface</td><td>Big for small towns</td><td><span class="chip warn">Medium–High</span></td><td>Stage 3–4</td></tr>
+            <tr><td>Reseller portal to buy codes in bulk</td><td>Scales the partner network</td><td><span class="chip brand">Later</span></td><td>Stage 4</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="prose muted">Already built and ready to use: tracking of where customers come from, founding and festival offers through Products &amp; pricing and license extensions, license codes for resellers, Help &amp; Support, policy pages and the Terms checkbox at checkout.</p>
+    </section>
+
+    <!-- sources -->
+    <section id="sources">
+      <div class="sec-head"><span class="label">Sources</span><h2>Where the numbers come from</h2></div>
+      <p class="prose muted">Public sources from 2025–2026. Prices and costs change; check them before quoting. Rates marked as estimates or starting assumptions are planning numbers, not measurements.</p>
+      <ul class="sources">
+        <li>Market: <a href="https://a2ztaxcorp.net/nine-years-of-gst-taxpayer-base-crosses-1-67-crore-as-indias-digital-indirect-tax-ecosystem-scales-new-milestones-report-highlights-expansion-of-taxpayer-base-192-27-crore-returns-filed-an/" target="_blank" rel="noopener">GST taxpayer base 1.67 crore (A2Z Taxcorp)</a> · <a href="https://www.bdo.in/en-gb/news/2026/nearly-8-lakh-gst-registrations-in-6-months,-up-leads-the-way" target="_blank" rel="noopener">8 lakh new GST registrations (BDO India)</a> · <a href="https://knnindia.co.in/news/newsdetails/msme/over-884-crore-msmes-registered-on-udyam-platforms-mos-karandlaje" target="_blank" rel="noopener">8.84 crore Udyam registrations (KNN India)</a> · <a href="https://indiasmeforum.org/digishaastra/assets/docs/Final-META-Report-Card-2025.pdf" target="_blank" rel="noopener">State of digitalisation in MSMEs (India SME Forum)</a> · <a href="https://paynearby.in/media/68-msmes-witness-growth-in-business-post-adoption-of-digital-tech-report/" target="_blank" rel="noopener">MSME Digital Index (PayNearby)</a> · <a href="https://www.incorpx.io/blog/gst-e-invoice-turnover-limit-2026" target="_blank" rel="noopener">E-invoice limit 2026 (IncorpX)</a> · <a href="https://finance.careers360.com/articles/icai-student-and-member-report-2025" target="_blank" rel="noopener">ICAI members (Careers360)</a> · <a href="https://www.grabon.in/indulge/tech/social-media-statistics/" target="_blank" rel="noopener">Social media users in India (GrabOn)</a></li>
+        <li>Competitors: <a href="https://www.itforsme.in/pricing/vyapar-india" target="_blank" rel="noopener">Vyapar pricing (ITforSME)</a> · <a href="https://www.capterra.com/p/202732/FloBooks/" target="_blank" rel="noopener">myBillBook (Capterra)</a> · <a href="https://www.capterra.com/p/152813/Swipe/" target="_blank" rel="noopener">Swipe (Capterra)</a> · <a href="https://startuptalky.com/free-gst-invoice-software-indian-businesses/" target="_blank" rel="noopener">Free GST invoice software (StartupTalky)</a> · <a href="https://www.patronaccounting.com/blog/zoho-books-pricing-india-2026" target="_blank" rel="noopener">Zoho Books pricing (Patron Accounting)</a> · <a href="https://tallysolutions.com/business-guides/tallyprime-total-cost-of-ownership-india/" target="_blank" rel="noopener">TallyPrime cost (Tally Solutions)</a> · <a href="https://tallysolutions.com/tally/tallyprime-pricing-for-seasonal-businesses/" target="_blank" rel="noopener">TallyPrime rental (Tally Solutions)</a> · <a href="https://www.erpresearch.com/pricing/busy-accounting" target="_blank" rel="noopener">BUSY pricing (ERP Research)</a> · <a href="https://alternatives.co/software/marg-erp/pricing/" target="_blank" rel="noopener">Marg ERP pricing (alternatives.co)</a></li>
+        <li>Ads: <a href="https://upgrowth.in/instagram-ads-pricing-india-2026/" target="_blank" rel="noopener">Instagram ads pricing India 2026 (upGrowth)</a> · <a href="https://upgrowth.in/facebook-advertising-pricing/" target="_blank" rel="noopener">Facebook ad pricing (upGrowth)</a> · <a href="https://codingclave.com/blog/click-to-whatsapp-ads-india-2026" target="_blank" rel="noopener">Click-to-WhatsApp ads India (Codingclave)</a> · <a href="https://cropink.com/minimum-budget-for-facebook-ads" target="_blank" rel="noopener">Minimum Facebook ad budget (Cropink)</a> · <a href="https://savemyleads.com/blog/other/meta-ads-payment-methods" target="_blank" rel="noopener">Meta ads payment methods (SaveMyLeads)</a> · <a href="https://www.taxaj.com/learn/?p=519" target="_blank" rel="noopener">GST on digital marketing (TaxAJ)</a> · <a href="https://searchengineland.com/meta-generative-ai-video-advertising-tools-447367" target="_blank" rel="noopener">Meta generative AI video tools (Search Engine Land)</a> · <a href="https://megadigital.ai/en/blog/google-ads-cost-in-india/" target="_blank" rel="noopener">Google Ads cost in India (MegaDigital)</a></li>
+        <li>Tools and platforms: <a href="https://montymobile.com/blogs/whatsapp-business-api-pricing-in-india-inr-rates-gst-and-the-2026-currency-migration-deadline" target="_blank" rel="noopener">WhatsApp Business API pricing India (Monty Mobile)</a> · <a href="https://www.sender.net/reviews/brevo/pricing/free-plan" target="_blank" rel="noopener">Brevo free plan (Sender)</a> · <a href="https://blogs.windows.com/windowsdeveloper/2025/09/10/free-developer-registration-for-individual-developers-on-microsoft-store/" target="_blank" rel="noopener">Free Microsoft Store registration (Windows Developer Blog)</a> · <a href="https://www.rfp.wiki/vendors/softwaresuggest" target="_blank" rel="noopener">SoftwareSuggest listings (rfp.wiki)</a> · <a href="https://esellerhub-us.techjockey.com/" target="_blank" rel="noopener">Techjockey seller hub</a> · <a href="https://www.shiprocket.in/te/blog/indiamart-seller-guide/" target="_blank" rel="noopener">IndiaMART seller plans (Shiprocket)</a> · <a href="https://www.xflowpay.com/blog/razorpay-international-payment-gateway-charges" target="_blank" rel="noopener">Razorpay charges (Xflow)</a> · <a href="https://www.etvbharat.com/en/!technology/google-veo-3-ai-video-tool-officially-launched-in-india-via-gemini-ai-pro-plan-enn25070403123" target="_blank" rel="noopener">Veo in India (ETV Bharat)</a> · <a href="https://www.deccanherald.com/technology/reliance-teams-up-with-google-to-offer-18-month-google-ai-pro-plan-for-free-to-jio-users-3780521" target="_blank" rel="noopener">Google AI Pro for Jio users (Deccan Herald)</a></li>
+        <li>Dates: <a href="https://www.kissht.com/blog/diwali-2026-date-and-lakshmi-puja-timing" target="_blank" rel="noopener">Diwali 2026 dates (Kissht)</a></li>
+      </ul>
+      <footer class="end">Prepared for Reynrel, 5 October 2026. Estimates and starting assumptions are marked; replace them with your own numbers as sales come in.</footer>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  // Ticks are a per-viewer convenience, kept in this browser only.
+  var KEY = 'docgen-playbook-ticks';
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+  var boxes = document.querySelectorAll('.tasks input[type="checkbox"]');
+
+  function updateProgress() {
+    document.querySelectorAll('.stage').forEach(function (stage) {
+      var all = stage.querySelectorAll('.tasks input[type="checkbox"]');
+      var done = stage.querySelectorAll('.tasks input[type="checkbox"]:checked').length;
+      var label = stage.querySelector('[data-progress]');
+      if (label) label.textContent = done ? done + ' of ' + all.length + ' done' : all.length + ' tasks';
+    });
+  }
+
+  boxes.forEach(function (box) {
+    if (saved[box.id]) box.checked = true;
+    box.addEventListener('change', function () {
+      saved[box.id] = box.checked;
+      if (!box.checked) delete saved[box.id];
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) { /* storage unavailable: ticks last for this visit only */ }
+      updateProgress();
+    });
+  });
+  updateProgress();
+
+  // Copy buttons: copy the text of the block they belong to; fall back to selecting it.
+  function selectText(el) {
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  function flash(button, text) {
+    var original = button.getAttribute('data-label') || button.textContent;
+    button.setAttribute('data-label', original);
+    button.textContent = text;
+    button.classList.add('done');
+    setTimeout(function () { button.textContent = original; button.classList.remove('done'); }, 1600);
+  }
+  document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-copy]');
+    if (!button) return;
+    var target = document.getElementById(button.getAttribute('data-copy'));
+    if (!target) return;
+    var text = target.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { flash(button, 'Copied'); }, function () { selectText(target); flash(button, 'Press Ctrl+C'); });
+    } else {
+      selectText(target);
+      flash(button, 'Press Ctrl+C');
+    }
+  });
+})();
+</script>
+
+</body></html>
