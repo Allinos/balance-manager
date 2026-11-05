@@ -18,6 +18,7 @@ class DefaultFirebaseOptions {
     storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: 'docgen-9f00b.firebasestorage.app'),
   );
 
+  // Leave this line as it is: it looks for the REPLACE_ME placeholders, not for your own values.
   static bool get configured =>
-      !android.apiKey.contains('AIzaSyBpdn6BpFVQLtlICkOSNMauGJcVqTABv7E') && android.apiKey.isNotEmpty && !android.projectId.contains('docgen-9f00b') && android.appId.contains(':android:');
+      !android.apiKey.contains('REPLACE_ME') && android.apiKey.isNotEmpty && !android.projectId.contains('REPLACE_ME') && android.appId.contains(':android:');
 }
