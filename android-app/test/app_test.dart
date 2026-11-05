@@ -141,9 +141,10 @@ void main() {
 
   group('ads are not irritating', () {
     final start = DateTime(2026, 11, 2, 10);
-    test('full-screen: free users only, not in the first 3 minutes, at most every 10 minutes (when set so)', () {
+    test('full-screen: free users only, not in the first minutes, at most every 10 minutes (when set so)', () {
       final p = InterstitialPolicy(started: start, every: const Duration(minutes: 10));
-      expect(p.mayShow(free: true, now: start.add(const Duration(minutes: 2))), isFalse);
+      expect(AppConfig.interstitialNotBefore, const Duration(minutes: 1));
+      expect(p.mayShow(free: true, now: start.add(const Duration(seconds: 50))), isFalse);
       expect(p.mayShow(free: false, now: start.add(const Duration(minutes: 30))), isFalse);
       final first = start.add(const Duration(minutes: 4));
       expect(p.mayShow(free: true, now: first), isTrue);
@@ -177,16 +178,16 @@ void main() {
       expect(shown, 3);
     });
 
-    test('by default at most one full-screen ad every 7 days, remembered across restarts', () async {
-      expect(AppConfig.interstitialEvery, const Duration(days: 7));
+    test('by default at most one full-screen ad every 2 days, remembered across restarts', () async {
+      expect(AppConfig.interstitialEvery, const Duration(days: 2));
       final store = MemorySecretStore();
-      final shownAt = DateTime.now().subtract(const Duration(days: 2));
+      final shownAt = DateTime.now().subtract(const Duration(days: 1));
       store.values['ads.lastShown'] = shownAt.toIso8601String();
       final ads = AdsController(started: DateTime.now().subtract(const Duration(hours: 1)), startAds: (_) async {}, store: store);
       await Future<void>.delayed(Duration.zero);
       expect(ads.policy.lastShown, shownAt, reason: 'the last ad, from before the restart');
-      expect(ads.policy.mayShow(free: true, now: DateTime.now()), isFalse, reason: 'only 2 days ago');
-      expect(ads.policy.mayShow(free: true, now: shownAt.add(const Duration(days: 7))), isTrue);
+      expect(ads.policy.mayShow(free: true, now: DateTime.now()), isFalse, reason: 'only 1 day ago');
+      expect(ads.policy.mayShow(free: true, now: shownAt.add(const Duration(days: 2))), isTrue);
       final rewarded = AdsController(started: DateTime.now(), startAds: (_) async {}, runRewarded: () async => true, store: store);
       rewarded.screen('/', true);
       await rewarded.rewarded();

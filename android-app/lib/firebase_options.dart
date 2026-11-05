@@ -18,5 +18,6 @@ class DefaultFirebaseOptions {
     storageBucket: String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: 'docgen-9f00b.firebasestorage.app'),
   );
 
-  static bool get configured => !android.apiKey.contains('AIzaSyBpdn6BpFVQLtlICkOSNMauGJcVqTABv7E') && !android.projectId.contains('docgen-9f00b');
+  static bool get configured =>
+      !android.apiKey.contains('REPLACE_ME') && android.apiKey.isNotEmpty && !android.projectId.contains('REPLACE_ME') && android.appId.contains(':android:');
 }

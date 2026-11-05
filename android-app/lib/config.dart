@@ -14,13 +14,13 @@ class AppConfig {
   static const version = '2.5.1';
 
   // ------------------------------------------------------------------ AdMob (free plan only)
-  // Google's official TEST ad units. Put your own (AdMob → Apps → Ad units) here or pass them with --dart-define.
+  // Your AdMob ad units (AdMob → Apps → Ad units); --dart-define=ADMOB_REWARDED=… / ADMOB_INTERSTITIAL=… override them.
   /// Rewarded ad: "Watch a short ad, +1 document" once the free plan is used up.
   static const rewardedAdUnit = String.fromEnvironment('ADMOB_REWARDED', defaultValue: 'ca-app-pub-6476459310344533/7028056628');
   static const interstitialAdUnit = String.fromEnvironment('ADMOB_INTERSTITIAL', defaultValue: 'ca-app-pub-6476459310344533/8404717470');
 
-  /// Not irritating: at most one full-screen ad every 7 days (remembered across restarts), never in the first
-  /// 3 minutes, only right after a bill or payment is saved — never while typing.
+  /// Not irritating: at most one full-screen ad every 2 days (remembered across restarts), never in the first
+  /// minute, only right after a bill or payment is saved — never while typing.
   /// Change with --dart-define=ADS_EVERY_DAYS=n.
   static const interstitialEvery = Duration(days: int.fromEnvironment('ADS_EVERY_DAYS', defaultValue: 2));
   static const interstitialNotBefore = Duration(minutes: 1);
