@@ -91,7 +91,13 @@ jobs:
           if [ -z "$KEYSTORE" ]; then echo "::warning::No upload key: the app is signed with a debug key (testing only)."; exit 0; fi
           # Tolerate how the key was copied: line breaks, spaces, Windows line ends, certutil's BEGIN/END lines.
           printf '%s' "$KEYSTORE" | sed 's/-----[A-Z ]*-----//g' | tr -d ' \r\n\t' | base64 -d > upload.jks || { echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64 of the .jks file."; exit 1; }
-          keytool -list -keystore upload.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" > /dev/null || { echo "::error::The keystore, its password or the alias does not match (check ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS)."; exit 1; }
+          # A line break pasted at the end of a secret is not part of the password or alias.
+          STORE_PASSWORD=$(printf '%s' "$STORE_PASSWORD" | tr -d '\r\n'); KEY_PASSWORD=$(printf '%s' "$KEY_PASSWORD" | tr -d '\r\n')
+          KEY_ALIAS=$(printf '%s' "$KEY_ALIAS" | tr -d '\r\n' | sed 's/^ *//; s/ *$//')
+          if ! out=$(keytool -list -keystore upload.jks -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" 2>&1); then
+            echo "$out" | grep -i 'keytool error' || true
+            echo "::error::The keystore, its password or the alias does not match (check ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS)."; exit 1
+          fi
           printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' "$PWD/upload.jks" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD" > key.properties
 
       - name: Build APK and App Bundle
