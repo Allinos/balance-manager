@@ -91,6 +91,9 @@ jobs:
           if [ -z "$KEYSTORE" ]; then echo "::warning::No upload key: the app is signed with a debug key (testing only)."; exit 0; fi
           # Tolerate how the key was copied: line breaks, spaces, Windows line ends, certutil's BEGIN/END lines.
           printf '%s' "$KEYSTORE" | sed 's/-----[A-Z ]*-----//g' | tr -d ' \r\n\t' | base64 -d > upload.jks || { echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64 of the .jks file."; exit 1; }
+          # Encoded twice by mistake: the result is base64 text again — decode once more.
+          if [ -s upload.jks ] && ! LC_ALL=C grep -qavE '^[A-Za-z0-9+/=[:space:]-]*$' upload.jks; then sed 's/-----[A-Z ]*-----//g' upload.jks | tr -d ' \r\n\t' | base64 -d > upload2.jks && mv upload2.jks upload.jks; fi
+          echo "Decoded key file: $(stat -c %s upload.jks) bytes (a keystore is usually 2,000–4,000 bytes)"
           # A line break pasted at the end of a secret is not part of the password or alias.
           STORE_PASSWORD=$(printf '%s' "$STORE_PASSWORD" | tr -d '\r\n'); KEY_PASSWORD=$(printf '%s' "$KEY_PASSWORD" | tr -d '\r\n')
           KEY_ALIAS=$(printf '%s' "$KEY_ALIAS" | tr -d '\r\n' | sed 's/^ *//; s/ *$//')
