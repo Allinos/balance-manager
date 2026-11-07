@@ -1,5 +1,6 @@
-/// PIN lock: a 4-digit PIN instead of a password. Only a salted SHA-256 hash is kept, in the phone's
-/// encrypted storage (Android Keystore). When the lock is on, the PIN is asked every time DocGen opens.
+/// PIN lock: a 6-digit PIN instead of a password (it is also the login of the free account, see account.dart).
+/// Only a salted SHA-256 hash is kept, in the phone's encrypted storage (Android Keystore). When the lock is on, the
+/// PIN is asked every time DocGen opens. PINs made before (4 digits) keep working until they are changed.
 library;
 
 import 'dart:convert';
@@ -39,8 +40,11 @@ class MemorySecretStore implements SecretStore {
   Future<void> delete(String key) async => values.remove(key);
 }
 
-final _pinPattern = RegExp(r'^\d{4}$');
-bool validPin(String pin) => _pinPattern.hasMatch(pin);
+/// A PIN that can unlock: 6 digits, or 4 for a PIN made by an earlier version.
+bool validPin(String pin) => RegExp(r'^(\d{4}|\d{6})$').hasMatch(pin);
+
+/// A new PIN: 6 digits.
+bool validNewPin(String pin) => RegExp(r'^\d{6}$').hasMatch(pin);
 
 String hashPin(String pin, String salt) => sha256.convert(utf8.encode('docgen-pin:$salt:$pin')).toString();
 
@@ -51,15 +55,26 @@ class PinStore {
 
   static const _hashKey = 'pin.hash';
   static const _saltKey = 'pin.salt';
+  static const _lengthKey = 'pin.length';
+  static const _offKey = 'pin.lockOff';
 
-  Future<bool> get enabled async => (await store.read(_hashKey)) != null;
+  /// A PIN is saved (it may be the login of the account even while the lock is off).
+  Future<bool> get hasPin async => (await store.read(_hashKey)) != null;
+
+  /// The lock is on: the PIN is asked when DocGen opens.
+  Future<bool> get enabled async => await hasPin && (await store.read(_offKey)) != '1';
+
+  /// How many digits the saved PIN has (4 for a PIN from an earlier version).
+  Future<int> get length async => int.tryParse(await store.read(_lengthKey) ?? '') ?? 4;
 
   /// Set (or change) the PIN; switches the lock on.
   Future<void> set(String pin) async {
-    if (!validPin(pin)) throw ArgumentError('The PIN must be 4 digits.');
+    if (!validNewPin(pin)) throw ArgumentError('The PIN must be 6 digits.');
     final salt = base64Url.encode(List<int>.generate(16, (_) => _random.nextInt(256)));
     await store.write(_saltKey, salt);
     await store.write(_hashKey, hashPin(pin, salt));
+    await store.write(_lengthKey, '${pin.length}');
+    await store.delete(_offKey);
   }
 
   Future<bool> check(String pin) async {
@@ -69,11 +84,25 @@ class PinStore {
     return validPin(pin) && hashPin(pin, salt) == hash;
   }
 
-  /// Switch the lock off (the current PIN is required).
-  Future<bool> disable(String pin) async {
+  /// Switch the lock off (the current PIN is required). With [keep] (the PIN is the account's login) the PIN stays
+  /// saved and only the lock is off; otherwise the PIN is removed.
+  Future<bool> disable(String pin, {bool keep = false}) async {
     if (!await check(pin)) return false;
-    await store.delete(_hashKey);
-    await store.delete(_saltKey);
+    if (keep) {
+      await store.write(_offKey, '1');
+    } else {
+      await store.delete(_hashKey);
+      await store.delete(_saltKey);
+      await store.delete(_lengthKey);
+      await store.delete(_offKey);
+    }
+    return true;
+  }
+
+  /// Switch the lock on again with the saved PIN.
+  Future<bool> resume(String pin) async {
+    if (!await hasPin || !await check(pin)) return false;
+    await store.delete(_offKey);
     return true;
   }
 }
@@ -101,9 +130,16 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
   DateTime? _waitUntil;
   String _message = '';
   bool _checking = false;
+  int _digits = 6;
   late final AnimationController _shake = AnimationController(vsync: this, duration: const Duration(milliseconds: 420));
 
   bool get _waiting => _waitUntil != null && DateTime.now().isBefore(_waitUntil!);
+
+  @override
+  void initState() {
+    super.initState();
+    widget.pins.length.then((n) => mounted ? setState(() => _digits = n) : null);
+  }
 
   @override
   void dispose() {
@@ -112,13 +148,13 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
   }
 
   Future<void> _press(String digit) async {
-    if (_checking || _waiting || _entered.length >= 4) return;
+    if (_checking || _waiting || _entered.length >= _digits) return;
     HapticFeedback.selectionClick();
     setState(() {
       _entered += digit;
       _message = '';
     });
-    if (_entered.length < 4) return;
+    if (_entered.length < _digits) return;
     _checking = true;
     final ok = await widget.pins.check(_entered);
     _checking = false;
@@ -155,10 +191,10 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
       builder: (context) => AlertDialog(
         title: const Text('Forgot your PIN?'),
         content: const Text(
-          'For your security the PIN cannot be shown or reset from this screen.\n\n'
-          'If you have a backup (Settings → Backup), reinstall DocGen and restore it. '
-          'Reinstalling removes the PIN and the data on this phone.\n\n'
-          'Need help? Write to info.reynrel@gmail.com.',
+          'For your security the PIN cannot be shown or reset from this screen. Your PIN is also the login of '
+          'your DocGen account.\n\n'
+          'Write to info.reynrel@gmail.com from your registered details and we will help you reset it. '
+          'Reinstalling DocGen removes the data on this phone, so keep a backup (Settings → Backup).',
         ),
         actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
       ),
@@ -250,7 +286,7 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
                               ),
                             ],
                             const SizedBox(height: 28),
-                            Text('Enter your 4-digit PIN', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 15)),
+                            Text('Enter your $_digits-digit PIN', style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 15)),
                             const SizedBox(height: 18),
                             AnimatedBuilder(
                               animation: _shake,
@@ -262,10 +298,10 @@ class _LockScreenState extends State<LockScreen> with SingleTickerProviderStateM
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: List.generate(
-                                  4,
+                                  _digits,
                                   (i) => AnimatedContainer(
                                     duration: const Duration(milliseconds: 120),
-                                    margin: const EdgeInsets.symmetric(horizontal: 11),
+                                    margin: EdgeInsets.symmetric(horizontal: _digits > 4 ? 8 : 11),
                                     width: i < _entered.length ? 18 : 16,
                                     height: i < _entered.length ? 18 : 16,
                                     decoration: BoxDecoration(

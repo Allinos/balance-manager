@@ -1,7 +1,8 @@
 /**
  * Screens only in DocGen for Android (see lib/native.js):
- *  - Welcome: first start — create a free account (name, business, mobile, 4-digit PIN; no password) or explore first.
- *    The account is created in Firebase by the Android app, not on the DocGen server.
+ *  - Welcome: first start — create a free account (name, business, mobile, 6-digit PIN), log in to an existing one
+ *    (mobile number + PIN: after a reinstall or on a new phone), or explore first. The account lives in Firebase
+ *    (created by the Android app, not the DocGen server); only the profile is there — the business data stays here.
  *  - Plan & Account (Settings): free plan usage, account, Upgrade (buy on the website, then enter the license key or
  *    sign in). The data stays on the phone (no online copy for now).
  *  - Security (Settings): PIN lock on/off — asked every time the app is opened.
@@ -21,7 +22,8 @@ import { DUE_REMINDERS_SETTING, dueRemindersOn, syncDues } from '../lib/dues.js'
 import { LicenseSection } from './settings/system.jsx';
 import { escposBytes, toBase64 } from '@desktop/services/thermal.js';
 
-const PIN_RE = /^\d{4}$/;
+const PIN_RE = /^\d{6}$/;
+const PIN_DIGITS = 6;
 const PHONE_RE = /^[+\d][\d\s-]{7,15}$/;
 
 /** The account stored by the Android app (Firebase), or null. */
@@ -30,17 +32,17 @@ export async function nativeAccount() {
   return res?.account || null;
 }
 
-function PinInput({ value, onChange, testId, label = 'PIN' }) {
+function PinInput({ value, onChange, testId, label = 'PIN', digits = PIN_DIGITS }) {
   return (
     <input
       className="input pin-input"
       type="password"
       inputMode="numeric"
       autoComplete="off"
-      placeholder="••••"
+      placeholder={'•'.repeat(digits)}
       aria-label={label}
       value={value}
-      onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, 4))}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, digits))}
       data-testid={testId}
     />
   );
@@ -80,14 +82,14 @@ function AccountForm({ onDone, submitLabel = 'Create free account' }) {
         <Input value={phone} onChange={setPhone} placeholder="98765 43210" type="tel" inputMode="tel" autoComplete="tel" data-testid="account-phone" />
       </Field>
       <div className="grid-2">
-        <Field label="4-digit PIN" hint="No password needed">
+        <Field label="6-digit PIN" hint="You log in with your mobile number and this PIN">
           <PinInput value={pin} onChange={setPin} testId="account-pin" />
         </Field>
         <Field label="Repeat PIN">
           <PinInput value={pin2} onChange={setPin2} testId="account-pin2" label="Repeat PIN" />
         </Field>
       </div>
-      {pin2.length === 4 && pin !== pin2 && <p className="small bad-text">The PINs are not the same.</p>}
+      {pin2.length === PIN_DIGITS && pin !== pin2 && <p className="small bad-text">The PINs are not the same.</p>}
       {error && (
         <div className="alert alert-bad" role="alert" data-testid="account-error">
           {error}
@@ -97,6 +99,64 @@ function AccountForm({ onDone, submitLabel = 'Create free account' }) {
         {busy ? 'Creating…' : submitLabel}
       </button>
     </form>
+  );
+}
+
+/** Log in to an existing account: mobile number and PIN (after a reinstall, or on a new phone). */
+function LoginForm({ onDone }) {
+  const { toast } = useUi();
+  const [phone, setPhone] = useState('');
+  const [pin, setPin] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const valid = PHONE_RE.test(phone.trim()) && PIN_RE.test(pin);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!valid || busy) return;
+    setBusy(true);
+    setError('');
+    const res = await bridge('account.login', { phone: phone.trim(), pin });
+    setBusy(false);
+    if (!res?.ok) return setError(res?.error || 'Could not log in. Please try again.');
+    if (res.account?.plan === 'paid') toast('Your account has Premium: Settings → Plan → "I have a license key" to switch it on for this phone.');
+    return onDone(res.account);
+  };
+
+  return (
+    <form className="form" onSubmit={submit} data-testid="login-form">
+      <Field label="Mobile number">
+        <Input value={phone} onChange={setPhone} placeholder="98765 43210" type="tel" inputMode="tel" autoComplete="tel" data-testid="login-phone" />
+      </Field>
+      <Field label="6-digit PIN">
+        <PinInput value={pin} onChange={setPin} testId="login-pin" />
+      </Field>
+      {error && (
+        <div className="alert alert-bad" role="alert" data-testid="login-error">
+          {error}
+        </div>
+      )}
+      <button className="btn btn-primary btn-block btn-lg" disabled={!valid || busy} data-testid="login-submit">
+        {busy ? 'Logging in…' : 'Log in'}
+      </button>
+      <p className="small muted" style={{ margin: 0 }}>
+        Your account comes back (name, business and plan). Bills and customers are kept on the phone where you made them: restore them from a backup (Settings →
+        Backup).
+      </p>
+    </form>
+  );
+}
+
+/** Create a free account, or "Already have an account? Log in". */
+function AccountForms({ onDone, start = 'create' }) {
+  const [mode, setMode] = useState(start);
+  return (
+    <>
+      {mode === 'create' ? <AccountForm onDone={onDone} /> : <LoginForm onDone={onDone} />}
+      <button type="button" className="link-btn account-switch" onClick={() => setMode(mode === 'create' ? 'login' : 'create')} data-testid="account-switch">
+        {mode === 'create' ? 'Already have an account? Log in' : 'New to DocGen? Create a free account'}
+      </button>
+    </>
   );
 }
 
@@ -112,7 +172,7 @@ export function Welcome({ onDone }) {
           <span className="wm-gen">Gen</span>
         </span>
       </div>
-      {mode !== 'create' ? (
+      {!mode ? (
         <>
           <div>
             <h1>Bills, invoices and payments on your phone</h1>
@@ -138,17 +198,23 @@ export function Welcome({ onDone }) {
           <button className="btn btn-primary btn-block btn-lg" onClick={() => setMode('create')} data-testid="welcome-create">
             Create free account
           </button>
-          <button className="btn btn-block" onClick={() => onDone(null)} data-testid="welcome-explore">
+          <button className="btn btn-block" onClick={() => setMode('login')} data-testid="welcome-login">
+            I already have an account — Log in
+          </button>
+          <button className="link-btn" onClick={() => onDone(null)} data-testid="welcome-explore">
             Explore first
           </button>
         </>
       ) : (
         <>
           <div>
-            <h1>Create your free account</h1>
-            <p className="muted small">No password: you open DocGen with your 4-digit PIN.</p>
+            <h1>{mode === 'login' ? 'Log in' : 'Create your free account'}</h1>
+            <p className="muted small">{mode === 'login' ? 'With your mobile number and your 6-digit PIN.' : 'You log in with your mobile number and a 6-digit PIN — no password.'}</p>
           </div>
-          <AccountForm onDone={onDone} />
+          {mode === 'login' ? <LoginForm onDone={onDone} /> : <AccountForm onDone={onDone} />}
+          <button className="link-btn" onClick={() => setMode(mode === 'login' ? 'create' : 'login')} data-testid="account-switch">
+            {mode === 'login' ? 'New to DocGen? Create a free account' : 'Already have an account? Log in'}
+          </button>
           <button className="link-btn" onClick={() => setMode('')}>
             Back
           </button>
@@ -171,7 +237,7 @@ function AccountPitch() {
         <strong>Create your free account to make documents</strong>
         <p className="small muted" style={{ margin: '2px 0 0' }}>
           It takes a minute and stays free: {FREE_LIMITS.documents} documents, {FREE_LIMITS.payments} payments and {FREE_LIMITS.parties} customers &amp; vendors.
-          No password — you open DocGen with your PIN. Upgrade to Premium any time for no limits and no ads.
+          You log in with your mobile number and a 6-digit PIN. Upgrade to Premium any time for no limits and no ads.
         </p>
       </div>
     </div>
@@ -188,10 +254,10 @@ export function AccountGate({ children }) {
       <Header title="Free account" onBack={() => back('/')} />
       <div className="page" data-testid="account-gate">
         <AccountPitch />
-        <AccountForm
+        <AccountForms
           onDone={(acc) => {
             setAccount(acc);
-            toast('Free account created. You can make your first document now.');
+            toast('You are signed in. You can make your first document now.');
           }}
         />
       </div>
@@ -205,7 +271,7 @@ export function AccountSheet({ onClose, onDone }) {
   return (
     <Sheet title="Create your free account" onClose={onClose} testId="account-sheet">
       <AccountPitch />
-      <AccountForm
+      <AccountForms
         onDone={(acc) => {
           setAccount(acc);
           onDone?.(acc);
@@ -368,14 +434,16 @@ export function PlanSection() {
             <dd>{account.business}</dd>
             <dt>Mobile</dt>
             <dd>{account.phone}</dd>
+            <dt>Log in</dt>
+            <dd data-testid="plan-account-login">{account.login ? 'Mobile number + PIN' : 'On this phone only'}</dd>
           </dl>
         ) : (
           <>
             <p className="small muted" style={{ margin: 0 }}>
-              You are exploring DocGen without an account. Create a free account (no password, just a PIN) so your business is ready to upgrade.
+              You are exploring DocGen without an account. Create a free account (your mobile number and a 6-digit PIN), or log in to the one you have.
             </p>
             <button className="btn btn-block" onClick={() => setCreating(true)} data-testid="plan-create-account">
-              Create free account
+              Create free account or log in
             </button>
           </>
         )}
@@ -383,12 +451,12 @@ export function PlanSection() {
 
       {activating && <ActivateSheet onClose={() => setActivating(false)} onDone={activated} />}
       {creating && (
-        <Sheet title="Create your free account" onClose={() => setCreating(false)} testId="account-sheet">
-          <AccountForm
+        <Sheet title="Your free account" onClose={() => setCreating(false)} testId="account-sheet">
+          <AccountForms
             onDone={(a) => {
               setCreating(false);
               setAccount(a);
-              toast('Your free account is ready. Your PIN now protects DocGen.');
+              toast('You are signed in. Your PIN now protects DocGen.');
             }}
           />
         </Sheet>
@@ -397,67 +465,97 @@ export function PlanSection() {
   );
 }
 
-/** Settings → Security: PIN lock. */
+/**
+ * Settings → Security: PIN lock and Change PIN. With an account the PIN is also the login (mobile number + PIN), so
+ * switching the lock off keeps the PIN, and switching it on again only asks for it.
+ */
 export function SecuritySection() {
   const { toast } = useUi();
-  const [enabled, setEnabled] = useState(null);
+  const [state, setState] = useState(null);
   const [sheet, setSheet] = useState('');
+  const [current, setCurrent] = useState('');
   const [pin, setPin] = useState('');
   const [pin2, setPin2] = useState('');
   const [busy, setBusy] = useState(false);
 
+  const load = useCallback(() => bridge('pin.get').then((r) => setState({ enabled: !!r?.enabled, saved: !!(r?.saved ?? r?.enabled), digits: r?.digits || PIN_DIGITS })), []);
   useEffect(() => {
-    bridge('pin.get').then((r) => setEnabled(!!r?.enabled));
-  }, []);
+    load();
+  }, [load]);
 
   const close = () => {
     setSheet('');
+    setCurrent('');
     setPin('');
     setPin2('');
   };
+  // off: current PIN · resume: the saved PIN · on: a new PIN (none saved) · change: current + new
+  const needsCurrent = sheet === 'off' || sheet === 'resume' || sheet === 'change';
+  const needsNew = sheet === 'on' || sheet === 'change';
+  const currentOk = !needsCurrent || new RegExp(`^\\d{${state?.digits || PIN_DIGITS}}$`).test(current);
+  const newOk = !needsNew || (PIN_RE.test(pin) && pin === pin2);
+
   const save = async (e) => {
     e.preventDefault();
     setBusy(true);
-    const res = sheet === 'off' ? await bridge('pin.disable', { pin }) : await bridge('pin.set', { pin });
+    const res =
+      sheet === 'off'
+        ? await bridge('pin.disable', { pin: current })
+        : sheet === 'resume'
+          ? await bridge('pin.resume', { pin: current })
+          : await bridge('pin.set', { current, pin });
     setBusy(false);
     if (!res?.ok) return toast(res?.error || 'That PIN is not correct.', 'bad');
-    setEnabled(sheet !== 'off');
-    toast(sheet === 'off' ? 'PIN lock switched off' : 'PIN lock is on. DocGen asks for it every time it opens.');
-    return close();
+    toast(sheet === 'off' ? 'PIN lock switched off' : sheet === 'change' ? 'PIN changed. Use the new PIN to log in too.' : 'PIN lock is on. DocGen asks for it every time it opens.');
+    close();
+    return load();
   };
 
-  if (enabled === null) return <Spinner />;
-  const setting = sheet === 'on' || sheet === 'change';
+  if (!state) return <Spinner />;
   return (
     <div className="page" data-testid="security">
       <div className="card form">
         <Toggle
-          checked={enabled}
-          onChange={(v) => setSheet(v ? 'on' : 'off')}
+          checked={state.enabled}
+          onChange={(v) => setSheet(v ? (state.saved ? 'resume' : 'on') : 'off')}
           label="PIN lock"
-          hint="Ask for your 4-digit PIN every time DocGen is opened"
+          hint={`Ask for your ${state.digits}-digit PIN every time DocGen is opened`}
           data-testid="pin-toggle"
         />
-        {enabled && (
+        {state.saved && (
           <button className="btn btn-block" onClick={() => setSheet('change')} data-testid="pin-change">
             Change PIN
           </button>
         )}
       </div>
-      <p className="small muted">Forgot your PIN? Uninstalling the app removes the PIN and everything on this phone, so keep a backup (Settings → Backup).</p>
+      <p className="small muted">
+        Your PIN is also how you log in to your account on a new phone (mobile number + PIN). Forgot it? Write to info.reynrel@gmail.com. Uninstalling the app removes
+        everything on this phone, so keep a backup (Settings → Backup).
+      </p>
       {sheet && (
-        <Sheet title={sheet === 'off' ? 'Switch off PIN lock' : sheet === 'change' ? 'New PIN' : 'Set a PIN'} onClose={close} testId="pin-sheet">
+        <Sheet
+          title={sheet === 'off' ? 'Switch off PIN lock' : sheet === 'change' ? 'Change PIN' : sheet === 'resume' ? 'Switch on PIN lock' : 'Set a PIN'}
+          onClose={close}
+          testId="pin-sheet"
+        >
           <form className="form" onSubmit={save}>
-            <Field label={sheet === 'off' ? 'Your current PIN' : 'New 4-digit PIN'}>
-              <PinInput value={pin} onChange={setPin} testId="pin-1" />
-            </Field>
-            {setting && (
-              <Field label="Repeat PIN">
-                <PinInput value={pin2} onChange={setPin2} testId="pin-2" label="Repeat PIN" />
+            {needsCurrent && (
+              <Field label={sheet === 'resume' ? 'Your PIN' : 'Your current PIN'}>
+                <PinInput value={current} onChange={setCurrent} digits={state.digits} testId="pin-current" />
               </Field>
             )}
-            <button className="btn btn-primary btn-block" disabled={busy || !PIN_RE.test(pin) || (setting && pin !== pin2)} data-testid="pin-save">
-              {sheet === 'off' ? 'Switch off' : 'Save PIN'}
+            {needsNew && (
+              <>
+                <Field label="New 6-digit PIN">
+                  <PinInput value={pin} onChange={setPin} testId="pin-1" />
+                </Field>
+                <Field label="Repeat PIN">
+                  <PinInput value={pin2} onChange={setPin2} testId="pin-2" label="Repeat PIN" />
+                </Field>
+              </>
+            )}
+            <button className="btn btn-primary btn-block" disabled={busy || !currentOk || !newOk} data-testid="pin-save">
+              {sheet === 'off' ? 'Switch off' : sheet === 'resume' ? 'Switch on' : 'Save PIN'}
             </button>
           </form>
         </Sheet>

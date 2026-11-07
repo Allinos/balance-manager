@@ -5,10 +5,10 @@ The Android app of DocGen. It runs the DocGen mobile app (`server/mobile`, with 
 | Feature | Where |
 |---|---|
 | **Free plan without a license**: every feature, up to 20 documents, 20 payments and 20 customers & vendors | `server/mobile/src/lib/plan.js`, engine limits in `engine/commands.js` |
-| **First start**: Welcome → create a free account (name, business, mobile, **4-digit PIN, no password**) or *Explore first*. A free account is required before the first document (or ledger entry): exploring users see the account form first. Premium (a license) removes the limits and ads | `screens/Android.jsx` (web) · `lib/account.dart` (Firebase) |
-| **Firebase accounts**: anonymous sign-in plus profile `users/{uid}`; works offline and syncs later | `lib/account.dart`, `firestore.rules` |
+| **First start**: Welcome → create a free account (name, business, mobile, **6-digit PIN, no password**), **Log in** to an existing one (mobile number + PIN — after a reinstall or on a new phone), or *Explore first*. A free account is required before the first document (or ledger entry): exploring users see the account form first. Premium (a license) removes the limits and ads | `screens/Android.jsx` (web) · `lib/account.dart` (Firebase) |
+| **Firebase accounts**: login = mobile number + 6-digit PIN (Firebase Email/Password behind the scenes), plus the profile `users/{uid}` (name, business, mobile, plan — no business data). Signing up and logging in need the internet once; changing the PIN changes the login too | `lib/account.dart`, `firestore.rules` |
 | **Upgrade**: opens the website checkout (name and mobile filled in); the license key (or account) is entered in Plan & Account. No limits and no ads after that. The data stays on the phone — there is no online copy for now | `screens/Android.jsx` |
-| **PIN lock** on or off in Settings → Security; asked every time the app opens (30-second grace for sharing). Full-screen lock in the brand colour with a greeting ("Welcome back, Ravi"), a large keypad, a shake on a wrong PIN and "Forgot PIN?" help | `lib/pin.dart` |
+| **PIN lock** (6 digits; PINs from earlier versions keep their 4 digits until changed) on or off in Settings → Security — with an account the PIN stays saved while the lock is off, because it is the login; asked every time the app opens (30-second grace for sharing). Full-screen lock in the brand colour with a greeting ("Welcome back, Ravi"), a large keypad, a shake on a wrong PIN and "Forgot PIN?" help | `lib/pin.dart` |
 | **Ledger (Payment & Ledger on)**: compact balance with *Unpaid bills (n)*; **Given** (left) and **Received** (right) at the bottom add an entry straight away — reason, date, amount, mode (a payment reason saves a receipt / voucher that clears the oldest bills); oldest entry at the top and the latest at the bottom, **Filter** by date in the top bar; one compact row above the buttons — an optional due date and **Send reminder** (WhatsApp or SMS; SMS goes out by itself after asking for the SMS permission) | `screens/PartyLedger.jsx`, `ledgerService.recordLedgerEntry` |
 | **Thermal receipts**: *Receipt* on a document — a 58 / 80 mm preview, printed straight to a paired Bluetooth printer (ESC/POS; Settings → Printer: choose the printer, paper, test print) | `services/thermal.js` · `lib/printer.dart` |
 | **Issue on save** (on for new installs; Settings → Documents): bills are saved as Issued, so a bill paid on saving is Paid at once | `documentService.issuesOnSave` |
@@ -48,7 +48,10 @@ The app works out of the box with **test values**: Google's test ads, accounts k
    - pass the ad units with `--dart-define=ADMOB_REWARDED=ca-app-pub-…/…` and `--dart-define=ADMOB_INTERSTITIAL=ca-app-pub-…/…`.
 3. **Firebase** (console.firebase.google.com):
    - add an Android app with package `in.reynrel.docgen`;
-   - enable **Authentication → Anonymous**;
+   - enable **Authentication → Sign-in method → Email/Password** (only the first switch, not "Email link"). Users
+     log in with their **mobile number and 6-digit PIN**: the app turns the number into a hidden login name
+     (`919876543210@users.docgen.app`, never emailed) and the PIN is the password, so a reinstall or a new phone gets
+     the same account back. In **Authentication → Users** you see one row per mobile number;
    - create **Firestore** and publish `firestore.rules`;
    - fill in `lib/firebase_options.dart`, run `flutterfire configure`, or pass `--dart-define=FIREBASE_API_KEY=… FIREBASE_APP_ID=… FIREBASE_SENDER_ID=… FIREBASE_PROJECT_ID=…`.
 
@@ -92,6 +95,6 @@ The launcher icon is the DocGen logo (`../document-generator/assets/app-icon.png
 
 | Test | Command |
 |---|---|
-| Flutter: PIN (hash only, wrong PIN, lock screen and its greeting / Forgot PIN), account (Firebase, offline then synced, upgrade), ads (free users only; rewarded only when watched to the end; full-screen never in the first 3 minutes, at most every 10 minutes, not after a rewarded one), due date reminders (9:30 on each due date ahead, soonest first, at most 40), bridge calls | `flutter test` |
+| Flutter: PIN (hash only, wrong PIN, lock screen and its greeting / Forgot PIN), account (sign up, log in on a new phone, wrong PIN, offline, change PIN = new login, upgrade), ads (free users only; rewarded only when watched to the end; full-screen never in the first 3 minutes, at most every 10 minutes, not after a rewarded one), due date reminders (9:30 on each due date ahead, soonest first, at most 40), bridge calls | `flutter test` |
 | Android walk-through on a 360-px phone as a new shop owner: no errors, nothing scrolling sideways, all six bottom tabs visible, a credit invoice in Payments due until the customer pays | `cd server && npm run test:android` |
 | Web side inside the Android app (Chromium with a recording bridge, real server): Welcome, account with PIN, tabs, retail bill, SMS, WhatsApp, share and save, Reports, PIN settings, 20-document limit, upgrade (no limits, no ads, data stays on the phone) | `cd server && npm run test:android` |

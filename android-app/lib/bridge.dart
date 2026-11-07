@@ -46,22 +46,39 @@ class Bridge {
       try {
         final account = await accounts.create(name: _s(a, 'name'), business: _s(a, 'business'), phone: _s(a, 'phone'), pin: _s(a, 'pin'));
         return {'ok': true, 'account': AccountService.public(account)};
-      } on ArgumentError catch (e) {
-        return {'ok': false, 'error': e.message.toString()};
+      } on AccountError catch (e) {
+        return {'ok': false, 'error': e.message};
+      }
+    },
+    'account.login': (a) async {
+      try {
+        final account = await accounts.login(phone: _s(a, 'phone'), pin: _s(a, 'pin'));
+        return {'ok': true, 'account': AccountService.public(account)};
+      } on AccountError catch (e) {
+        return {'ok': false, 'error': e.message};
       }
     },
     'account.upgraded': (a) async {
       await accounts.upgraded(_s(a, 'licenseKey'));
       return {'ok': true};
     },
-    'pin.get': (_) async => {'enabled': await pins.enabled},
+    'pin.get': (_) async => {'enabled': await pins.enabled, 'saved': await pins.hasPin, 'digits': await pins.length},
+    // A new PIN (lock on, or Change PIN). With a saved PIN the current one is needed; with an account it is also the login.
     'pin.set': (a) async {
-      final pin = _s(a, 'pin');
-      if (!validPin(pin)) return {'ok': false, 'error': 'The PIN must be 4 digits.'};
-      await pins.set(pin);
-      return {'ok': true};
+      try {
+        await accounts.changePin(_s(a, 'current'), _s(a, 'pin'));
+        return {'ok': true};
+      } on AccountError catch (e) {
+        return {'ok': false, 'error': e.message};
+      }
     },
-    'pin.disable': (a) async => (await pins.disable(_s(a, 'pin'))) ? {'ok': true} : {'ok': false, 'error': 'That PIN is not correct.'},
+    // Lock on again with the saved PIN.
+    'pin.resume': (a) async => (await pins.resume(_s(a, 'pin'))) ? {'ok': true} : {'ok': false, 'error': 'That PIN is not correct.'},
+    // Lock off. An account keeps its PIN (it is the login); otherwise the PIN is removed.
+    'pin.disable': (a) async {
+      final keep = (await accounts.get()) != null;
+      return (await pins.disable(_s(a, 'pin'), keep: keep)) ? {'ok': true} : {'ok': false, 'error': 'That PIN is not correct.'};
+    },
     'sms.permission': (a) async {
       final state = await smsPermission(ask: a['ask'] != false);
       return {'granted': state == 'granted', 'state': state};

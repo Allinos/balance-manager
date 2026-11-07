@@ -1,6 +1,6 @@
 rules_version = '2';
 // Firestore rules for DocGen for Android free accounts (lib/account.dart).
-// Each phone signs in anonymously and may read and write only its own profile, users/{uid}.
+// Each user logs in (mobile number + PIN, Firebase Email/Password) and may read and write only their own profile, users/{uid}.
 // The profile holds name, business, mobile and plan — never the PIN or any business data.
 service cloud.firestore {
   match /databases/{database}/documents {

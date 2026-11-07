@@ -10,7 +10,7 @@ export const ANDROID_FREE = { documents: 20, payments: 20, parties: 20 };
 
 const POINTS = [
   ['zap', 'Free to start', `No license needed: every feature for ${ANDROID_FREE.documents} documents, ${ANDROID_FREE.payments} payments and ${ANDROID_FREE.parties} customers & vendors.`],
-  ['lock', 'Free account, PIN lock', 'Create your free account before your first bill — just your name, business and mobile, no password. Your 4-digit PIN locks DocGen every time it opens.'],
+  ['lock', 'Free account, PIN lock', 'Create your free account before your first bill — just your name, business and mobile, no password. Log in with your mobile number and 6-digit PIN on any phone; the PIN also locks DocGen every time it opens.'],
   ['users', 'Customer ledger', 'Given and Received at the bottom of every customer and vendor — reason, date, amount and mode. Latest entry at the bottom, a date filter at the top, unpaid bills in one tap.'],
   ['chat', 'Reminders by WhatsApp or SMS', 'Pick a due date and tap Send reminder: WhatsApp, or an SMS sent straight from your phone. Plus an SMS for every new bill and a notification on the day a bill is due.'],
   ['file', 'Retail bills & receipts', 'A counter bill without GST, issued as you save it — share it as a PDF or print a receipt on a Bluetooth thermal printer. GST invoices and every other document type too.'],

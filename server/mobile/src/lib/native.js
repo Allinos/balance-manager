@@ -3,8 +3,8 @@
  * adds what a browser cannot do. The Flutter side sets `window.DOCGEN_NATIVE` before the page loads:
  *   { platform: 'android', version, server: 'https://…' (the DocGen server for licenses and upgrades) }
  * and answers these bridge calls (flutter_inappwebview handlers, see android-app/lib/bridge.dart):
- *   account.get / account.create {name, business, phone, pin} / account.upgraded {licenseKey}
- *   pin.get / pin.set {pin} / pin.disable
+ *   account.get / account.create {name, business, phone, pin} / account.login {phone, pin} / account.upgraded {licenseKey}
+ *   pin.get → {enabled, saved, digits} / pin.set {current, pin} / pin.resume {pin} / pin.disable {pin}
  *   sms.send {phone, text}  → {sent: true} | {sent: false, reason}
  *   open {url}              → WhatsApp, the website, email … in the phone's own apps
  *   file.share / file.save {name, mime, base64, text?}

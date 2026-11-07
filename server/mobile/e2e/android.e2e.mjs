@@ -80,9 +80,16 @@ const NATIVE_MOCK = (server) => {
   const handlers = {
     'account.get': () => ({ account: state().account || null }),
     'account.create': (a) => {
-      if (!/^\d{4}$/.test(a.pin)) return { ok: false, error: 'The PIN must be 4 digits.' };
-      const account = { uid: 'firebase-uid-e2e', name: a.name, business: a.business, phone: a.phone, plan: 'free', synced: true };
-      save({ ...state(), account, pin: a.pin });
+      if (!/^\d{6}$/.test(a.pin)) return { ok: false, error: 'The PIN must be 6 digits.' };
+      const account = { uid: 'firebase-uid-e2e', name: a.name, business: a.business, phone: a.phone, plan: 'free', login: true, synced: true };
+      save({ ...state(), account, pin: a.pin, lockOff: false });
+      return { ok: true, account };
+    },
+    // An existing account "in Firebase": 98765 11111 with PIN 111111.
+    'account.login': (a) => {
+      if (a.phone.replace(/\D/g, '').slice(-10) !== '9876511111' || a.pin !== '111111') return { ok: false, error: 'The mobile number or PIN is not correct.' };
+      const account = { uid: 'firebase-uid-login', name: 'Meena Shah', business: 'Meena Stores', phone: '98765 11111', plan: 'free', login: true, synced: true };
+      save({ ...state(), account, pin: a.pin, lockOff: false });
       return { ok: true, account };
     },
     'account.upgraded': (a) => {
@@ -90,9 +97,13 @@ const NATIVE_MOCK = (server) => {
       save({ ...s, account: { ...s.account, plan: 'paid' }, upgradedKey: a.licenseKey });
       return { ok: true };
     },
-    'pin.get': () => ({ enabled: !!state().pin }),
-    'pin.set': (a) => (save({ ...state(), pin: a.pin }), { ok: true }),
-    'pin.disable': (a) => (state().pin === a.pin ? (save({ ...state(), pin: null }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' }),
+    'pin.get': () => ({ enabled: !!state().pin && !state().lockOff, saved: !!state().pin, digits: 6 }),
+    'pin.set': (a) =>
+      state().pin && state().pin !== a.current ? { ok: false, error: 'Your current PIN is not correct.' } : (save({ ...state(), pin: a.pin, lockOff: false }), { ok: true }),
+    'pin.resume': (a) => (state().pin === a.pin ? (save({ ...state(), lockOff: false }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' }),
+    // With an account the PIN stays (it is the login); only the lock goes off.
+    'pin.disable': (a) =>
+      state().pin === a.pin ? (save(state().account ? { ...state(), lockOff: true } : { ...state(), pin: null }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' },
     'sms.permission': () => ({ granted: true }),
     'sms.send': () => ({ sent: true }),
     open: () => ({ ok: true }),
@@ -186,17 +197,18 @@ try {
   await a.page.getByTestId('account-name').fill('Ravi Kumar');
   await a.page.getByTestId('account-business').fill('Ravi Traders');
   await a.page.getByTestId('account-phone').fill('98765 43210');
-  await a.page.getByTestId('account-pin').fill('12ab34');
-  check((await a.page.getByTestId('account-pin').inputValue()) === '1234', 'PIN field takes 4 digits only');
-  await a.page.getByTestId('account-pin2').fill('1235');
+  await a.page.getByTestId('account-pin').fill('12ab345678');
+  check((await a.page.getByTestId('account-pin').inputValue()) === '123456', 'PIN field takes 6 digits only');
+  await a.page.getByTestId('account-pin2').fill('123457');
   check(await a.page.getByTestId('account-create').isDisabled(), 'different PINs: cannot create');
   check((await a.page.locator('input[type=password]').count()) === 2 && !(await a.page.getByText('Password', { exact: true }).count()), 'no password, only a PIN');
-  await a.page.getByTestId('account-pin2').fill('1234');
+  await a.page.getByTestId('account-pin2').fill('123456');
+  check((await a.page.getByTestId('account-switch').textContent()).includes('Log in'), 'the sign-up form offers "Already have an account? Log in"');
   await shot(a.page, '02-create-account');
   await a.page.getByTestId('account-create').click();
   await a.page.getByTestId('setup').waitFor();
   const created = (await calls(a.page, 'account.create'))[0]?.args;
-  check(created?.name === 'Ravi Kumar' && created.business === 'Ravi Traders' && created.pin === '1234', 'account created by the Android app (Firebase) with name, business, mobile and PIN');
+  check(created?.name === 'Ravi Kumar' && created.business === 'Ravi Traders' && created.pin === '123456', 'account created by the Android app (Firebase) with name, business, mobile and a 6-digit PIN');
   check((await a.page.getByTestId('company-name').inputValue()) === 'Ravi Traders', 'setup starts with the business name of the account');
   for (let i = 0; i < 3; i += 1) await a.page.getByTestId('setup-next').click();
   await a.page.getByTestId('setup-save').click();
@@ -231,12 +243,29 @@ try {
   await b.page.getByTestId('account-name').fill('Asha');
   await b.page.getByTestId('account-business').fill('Explorer Stores');
   await b.page.getByTestId('account-phone').fill('9876500000');
-  await b.page.getByTestId('account-pin').fill('4321');
-  await b.page.getByTestId('account-pin2').fill('4321');
+  await b.page.getByTestId('account-pin').fill('432100');
+  await b.page.getByTestId('account-pin2').fill('432100');
   await b.page.getByTestId('account-create').click();
   await b.page.getByTestId('editor').waitFor();
   check(true, 'after the free account is created, the new document opens');
   await b.context.close();
+
+  console.log('Log in (a reinstall or a new phone)');
+  const l = await phone();
+  await l.page.goto(`${base}/app/`);
+  await l.page.getByTestId('welcome-login').click();
+  await l.page.getByTestId('login-form').waitFor();
+  await l.page.getByTestId('login-phone').fill('98765 11111');
+  await l.page.getByTestId('login-pin').fill('999999');
+  await l.page.getByTestId('login-submit').click();
+  await l.page.getByTestId('login-error').waitFor();
+  check((await l.page.getByTestId('login-error').textContent()).includes('not correct'), 'a wrong PIN: "The mobile number or PIN is not correct."');
+  await l.page.getByTestId('login-pin').fill('111111');
+  await shot(l.page, '02b-login');
+  await l.page.getByTestId('login-submit').click();
+  await l.page.getByTestId('setup').waitFor();
+  check((await l.page.getByTestId('company-name').inputValue()) === 'Meena Stores', 'Log in with mobile number + PIN: the account comes back (business name in setup)');
+  await l.context.close();
 
   console.log('Settings: Features (Payment & Ledger, SMS alerts)');
   await a.page.getByTestId('tab-settings').click();
@@ -361,20 +390,27 @@ try {
   await a.page.getByTestId('security').waitFor();
   check(await a.page.getByTestId('pin-toggle').isChecked(), 'PIN lock is on after creating the account');
   await a.page.getByTestId('pin-toggle').click();
-  await a.page.getByTestId('pin-1').fill('9999');
+  await a.page.getByTestId('pin-current').fill('999999');
   await a.page.getByTestId('pin-save').click();
   await a.page.getByText('That PIN is not correct').waitFor();
   check(await a.page.getByTestId('pin-toggle').isChecked(), 'a wrong PIN cannot switch the lock off');
-  await a.page.getByTestId('pin-1').fill('1234');
+  await a.page.getByTestId('pin-current').fill('123456');
   await a.page.getByTestId('pin-save').click();
   await a.page.getByText('PIN lock switched off').waitFor();
-  check(!(await a.page.getByTestId('pin-toggle').isChecked()), 'the right PIN switches the lock off');
+  check(!(await a.page.getByTestId('pin-toggle').isChecked()) && (await a.page.getByTestId('pin-change').count()) === 1, 'the right PIN switches the lock off; the PIN stays (it is the login)');
   await a.page.getByTestId('pin-toggle').click();
-  await a.page.getByTestId('pin-1').fill('4321');
-  await a.page.getByTestId('pin-2').fill('4321');
+  check((await a.page.getByTestId('pin-1').count()) === 0, 'switching on again only asks for the PIN you have');
+  await a.page.getByTestId('pin-current').fill('123456');
   await a.page.getByTestId('pin-save').click();
   await a.page.getByText('PIN lock is on').waitFor();
-  check((await calls(a.page, 'pin.set')).at(-1).args.pin === '4321', 'PIN lock switched on again with a new PIN');
+  await a.page.getByTestId('pin-change').click();
+  await a.page.getByTestId('pin-current').fill('123456');
+  await a.page.getByTestId('pin-1').fill('654321');
+  await a.page.getByTestId('pin-2').fill('654321');
+  await a.page.getByTestId('pin-save').click();
+  await a.page.getByText('PIN changed').waitFor();
+  const changed = (await calls(a.page, 'pin.set')).at(-1).args;
+  check(changed.current === '123456' && changed.pin === '654321', 'Change PIN: the current PIN and a new 6-digit PIN (the login changes too)');
 
   console.log('Free plan limits');
   const settings = await a.page.evaluate(

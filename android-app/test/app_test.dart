@@ -8,20 +8,55 @@ import 'package:docgen_android/pin.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Firebase stand-in: records the profiles written; can be "offline".
+/// Firebase stand-in: logins (mobile → PIN) and profiles; can be "offline".
 class FakeCloud implements AccountCloud {
   bool offline = false;
-  final saved = <Map<String, dynamic>>[];
-  final updates = <String, Map<String, dynamic>>{};
-  @override
-  Future<String> save(Map<String, dynamic> profile, {String? uid}) async {
-    if (offline) throw StateError('offline');
-    saved.add(profile);
-    return uid ?? 'uid-${saved.length}';
+  bool setUp = true;
+  final logins = <String, String>{};
+  final profiles = <String, Map<String, dynamic>>{};
+  String? signedIn;
+
+  void _online() {
+    if (offline) throw AccountError('No internet connection. Connect to the internet and try again.');
   }
 
   @override
-  Future<void> update(String uid, Map<String, dynamic> fields) async => updates[uid] = fields;
+  Future<bool> get available async => setUp;
+
+  @override
+  Future<String> signUp(String phone, String pin, Map<String, dynamic> profile) async {
+    _online();
+    final key = phoneKey(phone);
+    if (logins.containsKey(key)) throw AccountError('This mobile number already has a DocGen account.');
+    logins[key] = pin;
+    profiles[key] = {...profile};
+    return signedIn = 'uid-$key';
+  }
+
+  @override
+  Future<({String uid, Map<String, dynamic> profile})> signIn(String phone, String pin) async {
+    _online();
+    final key = phoneKey(phone);
+    if (logins[key] != pin) throw AccountError('The mobile number or PIN is not correct.');
+    signedIn = 'uid-$key';
+    return (uid: signedIn!, profile: {...profiles[key]!});
+  }
+
+  @override
+  Future<bool> update(Map<String, dynamic> fields) async {
+    _online();
+    if (signedIn == null) return false;
+    profiles[signedIn!.substring(4)]!.addAll(fields);
+    return true;
+  }
+
+  @override
+  Future<void> changePin(String phone, String current, String next) async {
+    _online();
+    final key = phoneKey(phone);
+    if (logins[key] != current) throw AccountError('The mobile number or PIN is not correct.');
+    logins[key] = next;
+  }
 }
 
 /// A phone-sized screen (1080 × 2340 at 3×), like a typical Android phone.
@@ -38,35 +73,49 @@ void main() {
       final pins = PinStore(store);
       expect(await pins.enabled, isFalse);
       expect(await pins.check('0000'), isTrue, reason: 'no PIN set: nothing to check');
-      await pins.set('4821');
+      await pins.set('482190');
       expect(await pins.enabled, isTrue);
-      expect(store.values.values.any((v) => v.contains('4821')), isFalse);
-      expect(await pins.check('4821'), isTrue);
-      expect(await pins.check('1111'), isFalse);
-      expect(await pins.check('48211'), isFalse);
+      expect(await pins.length, 6);
+      expect(store.values.values.any((v) => v.contains('482190')), isFalse);
+      expect(await pins.check('482190'), isTrue);
+      expect(await pins.check('111111'), isFalse);
+      expect(await pins.check('4821901'), isFalse);
     });
 
-    test('switching off needs the current PIN; PINs must be 4 digits', () async {
-      final pins = PinStore(MemorySecretStore());
-      await pins.set('1234');
-      expect(await pins.disable('9999'), isFalse);
+    test('switching off needs the current PIN; new PINs must be 6 digits; old 4-digit PINs still unlock', () async {
+      final store = MemorySecretStore();
+      final pins = PinStore(store);
+      await pins.set('123456');
+      expect(await pins.disable('999999'), isFalse);
       expect(await pins.enabled, isTrue);
-      expect(await pins.disable('1234'), isTrue);
-      expect(await pins.enabled, isFalse);
-      expect(() => pins.set('12a4'), throwsArgumentError);
-      expect(() => pins.set('123'), throwsArgumentError);
+      expect(await pins.disable('123456', keep: true), isTrue);
+      expect(await pins.enabled, isFalse, reason: 'lock off');
+      expect(await pins.hasPin, isTrue, reason: 'the PIN stays: it is the login');
+      expect(await pins.resume('000000'), isFalse);
+      expect(await pins.resume('123456'), isTrue);
+      expect(await pins.enabled, isTrue);
+      expect(await pins.disable('123456'), isTrue);
+      expect(await pins.hasPin, isFalse);
+      expect(() => pins.set('12a456'), throwsArgumentError);
+      expect(() => pins.set('1234'), throwsArgumentError);
+      // A PIN saved by an earlier version (4 digits, no length stored).
+      store.values['pin.salt'] = 'salt';
+      store.values['pin.hash'] = hashPin('2580', 'salt');
+      expect(await pins.length, 4);
+      expect(await pins.check('2580'), isTrue);
     });
 
     testWidgets('lock screen: wrong PIN shows tries left, right PIN unlocks', (tester) async {
       phoneScreen(tester);
       final pins = PinStore(MemorySecretStore());
-      await pins.set('2580');
+      await pins.set('258000');
       var unlocked = false;
       await tester.pumpWidget(
         MaterialApp(
           home: LockScreen(pins: pins, onUnlocked: () => unlocked = true),
         ),
       );
+      await tester.pumpAndSettle();
       Future<void> enter(String pin) async {
         for (final d in pin.split('')) {
           await tester.tap(find.byKey(ValueKey('pin-key-$d')));
@@ -75,25 +124,26 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await enter('1111');
+      await enter('111111');
       expect(unlocked, isFalse);
       expect(find.textContaining('${AppConfig.maxPinTries - 1} tries left'), findsOneWidget);
-      await enter('2580');
+      await enter('258000');
       expect(unlocked, isTrue);
     });
 
     testWidgets('lock screen greets the account and explains a forgotten PIN', (tester) async {
       phoneScreen(tester);
       final pins = PinStore(MemorySecretStore());
-      await pins.set('2580');
+      await pins.set('258000');
       await tester.pumpWidget(
         MaterialApp(
           home: LockScreen(pins: pins, name: 'Ravi Kumar', business: 'Ravi Traders', onUnlocked: () {}),
         ),
       );
+      await tester.pumpAndSettle();
       expect(find.text('Welcome back, Ravi'), findsOneWidget);
       expect(find.text('Ravi Traders'), findsOneWidget);
-      expect(find.text('Enter your 4-digit PIN'), findsOneWidget);
+      expect(find.text('Enter your 6-digit PIN'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('pin-key-help')));
       await tester.pumpAndSettle();
       expect(find.text('Forgot your PIN?'), findsOneWidget);
@@ -101,41 +151,87 @@ void main() {
   });
 
   group('free account', () {
-    test('created on the phone with a PIN and copied to Firebase', () async {
+    test('sign up: a login (mobile + PIN) in Firebase, the profile, and the PIN lock', () async {
       final store = MemorySecretStore();
       final cloud = FakeCloud();
       final accounts = AccountService(store, PinStore(store), cloud: cloud);
-      final a = await accounts.create(name: ' Ravi ', business: 'Ravi Traders', phone: '98765 43210', pin: '1357');
+      final a = await accounts.create(name: ' Ravi ', business: 'Ravi Traders', phone: '98765 43210', pin: '135790');
       expect(a['name'], 'Ravi');
-      expect(a['uid'], 'uid-1');
+      expect(a['uid'], 'uid-919876543210');
       expect(a['synced'], isTrue);
-      expect(cloud.saved.single['plan'], 'free');
-      expect(cloud.saved.single.containsKey('pin'), isFalse, reason: 'the PIN never leaves the phone');
-      expect(await PinStore(store).check('1357'), isTrue);
+      expect(cloud.profiles['919876543210']!['plan'], 'free');
+      expect(cloud.profiles['919876543210']!.containsKey('pin'), isFalse, reason: 'the PIN is the password, never in the profile');
+      expect(await PinStore(store).check('135790'), isTrue);
+      await expectLater(
+        AccountService(
+          MemorySecretStore(),
+          PinStore(MemorySecretStore()),
+          cloud: cloud,
+        ).create(name: 'X', business: 'Y', phone: '+91 98765 43210', pin: '111111'),
+        throwsA(isA<AccountError>().having((e) => e.message, 'message', contains('already has'))),
+      );
     });
 
-    test('offline: kept on the phone and copied later; upgrade marks it paid with a key hint only', () async {
+    test('log in on a new phone with the mobile number and PIN: the account comes back', () async {
+      final cloud = FakeCloud();
+      final first = MemorySecretStore();
+      await AccountService(first, PinStore(first), cloud: cloud).create(name: 'Asha', business: 'Asha Stores', phone: '9876543210', pin: '246800');
+      final phone2 = MemorySecretStore();
+      final accounts = AccountService(phone2, PinStore(phone2), cloud: cloud);
+      await expectLater(accounts.login(phone: '9876543210', pin: '000000'), throwsA(isA<AccountError>()));
+      final a = await accounts.login(phone: '098765 43210', pin: '246800');
+      expect(a['business'], 'Asha Stores');
+      expect(a['login'], isTrue);
+      expect(await PinStore(phone2).check('246800'), isTrue, reason: 'the same PIN locks the new phone');
+    });
+
+    test('offline: sign up and log in need the internet once; upgrade marks it paid with a key hint only', () async {
       final store = MemorySecretStore();
       final cloud = FakeCloud()..offline = true;
       final accounts = AccountService(store, PinStore(store), cloud: cloud);
-      final a = await accounts.create(name: 'Asha', business: 'Asha Stores', phone: '+919876543210', pin: '2468');
-      expect(a['synced'], isFalse);
+      await expectLater(accounts.create(name: 'Asha', business: 'Asha Stores', phone: '+919876543210', pin: '246800'), throwsA(isA<AccountError>()));
+      expect(await accounts.get(), isNull, reason: 'nothing half-made on the phone');
+      cloud.offline = false;
+      await accounts.create(name: 'Asha', business: 'Asha Stores', phone: '+919876543210', pin: '246800');
+      cloud.offline = true;
+      await accounts.upgraded('AB12-CD34-EF56');
+      expect((await accounts.get())!['synced'], isFalse, reason: 'kept on the phone until online');
       cloud.offline = false;
       await accounts.sync();
+      final p = cloud.profiles['919876543210']!;
+      expect(p['plan'], 'paid');
+      expect(p['licenseKeyHint'], 'AB12-••••-••••');
+      expect(p.toString().contains('CD34'), isFalse);
       expect((await accounts.get())!['synced'], isTrue);
-      await accounts.upgraded('AB12-CD34-EF56');
-      final last = cloud.saved.last;
-      expect(last['plan'], 'paid');
-      expect(last['licenseKeyHint'], 'AB12-••••-••••');
-      expect(last.toString().contains('CD34'), isFalse);
+    });
+
+    test('changing the PIN changes the login too', () async {
+      final store = MemorySecretStore();
+      final cloud = FakeCloud();
+      final accounts = AccountService(store, PinStore(store), cloud: cloud);
+      await accounts.create(name: 'Ravi', business: 'Ravi Traders', phone: '9876543210', pin: '111111');
+      await expectLater(accounts.changePin('999999', '222222'), throwsA(isA<AccountError>()));
+      await accounts.changePin('111111', '222222');
+      expect(cloud.logins['919876543210'], '222222');
+      expect(await PinStore(store).check('222222'), isTrue);
+    });
+
+    test('without Firebase (test builds) the account stays on the phone', () async {
+      final store = MemorySecretStore();
+      final accounts = AccountService(store, PinStore(store), cloud: FakeCloud()..setUp = false);
+      final a = await accounts.create(name: 'Ravi', business: 'Ravi Traders', phone: '9876543210', pin: '111111');
+      expect(a['login'], isFalse);
+      await expectLater(accounts.login(phone: '9876543210', pin: '111111'), throwsA(isA<AccountError>()));
     });
 
     test('bad details are refused', () async {
       final store = MemorySecretStore();
       final accounts = AccountService(store, PinStore(store), cloud: FakeCloud());
-      expect(() => accounts.create(name: '', business: 'X', phone: '9876543210', pin: '1234'), throwsArgumentError);
-      expect(() => accounts.create(name: 'A', business: 'X', phone: 'abc', pin: '1234'), throwsArgumentError);
-      expect(() => accounts.create(name: 'A', business: 'X', phone: '9876543210', pin: '12'), throwsArgumentError);
+      expect(() => accounts.create(name: '', business: 'X', phone: '9876543210', pin: '123456'), throwsA(isA<AccountError>()));
+      expect(() => accounts.create(name: 'A', business: 'X', phone: 'abc', pin: '123456'), throwsA(isA<AccountError>()));
+      expect(() => accounts.create(name: 'A', business: 'X', phone: '9876543210', pin: '1234'), throwsA(isA<AccountError>()));
+      expect(phoneKey('+91 98765-43210'), '919876543210');
+      expect(phoneKey('09876543210'), '919876543210');
     });
   });
 
@@ -234,29 +330,47 @@ void main() {
     test('account and PIN calls', () async {
       expect(await bridge.handle('account.get', []), {'account': null});
       final bad = await bridge.handle('account.create', [
-        {'name': 'A', 'business': 'B', 'phone': '9876543210', 'pin': '12'},
+        {'name': 'A', 'business': 'B', 'phone': '9876543210', 'pin': '1234'},
       ]) as Map;
       expect(bad['ok'], isFalse);
-      expect(bad['error'], contains('4 digits'));
+      expect(bad['error'], contains('6 digits'));
       final ok = await bridge.handle('account.create', [
-        {'name': 'Ravi', 'business': 'Ravi Traders', 'phone': '9876543210', 'pin': '1234'},
+        {'name': 'Ravi', 'business': 'Ravi Traders', 'phone': '9876543210', 'pin': '123456'},
       ]) as Map;
       expect(ok['ok'], isTrue);
       expect((ok['account'] as Map)['business'], 'Ravi Traders');
-      expect(await bridge.handle('pin.get', []), {'enabled': true});
+      expect(await bridge.handle('pin.get', []), {'enabled': true, 'saved': true, 'digits': 6});
       expect(
         (await bridge.handle('pin.disable', [
-          {'pin': '0000'},
+          {'pin': '000000'},
         ]) as Map)['ok'],
         isFalse,
       );
       expect(
         (await bridge.handle('pin.disable', [
-          {'pin': '1234'},
+          {'pin': '123456'},
         ]) as Map)['ok'],
         isTrue,
       );
-      expect(await bridge.handle('pin.get', []), {'enabled': false});
+      expect(await bridge.handle('pin.get', []), {'enabled': false, 'saved': true, 'digits': 6}, reason: 'the PIN stays: it is the login');
+      expect(
+        (await bridge.handle('pin.resume', [
+          {'pin': '123456'},
+        ]) as Map)['ok'],
+        isTrue,
+      );
+      final changed = await bridge.handle('pin.set', [
+        {'current': '123456', 'pin': '654321'},
+      ]) as Map;
+      expect(changed['ok'], isTrue);
+      final login = await bridge.handle('account.login', [
+        {'phone': '9876543210', 'pin': '654321'},
+      ]) as Map;
+      expect(login['ok'], isTrue, reason: 'the new PIN is the login');
+      final wrong = await bridge.handle('account.login', [
+        {'phone': '9876543210', 'pin': '123456'},
+      ]) as Map;
+      expect(wrong['error'], contains('not correct'));
     });
 
     test('SMS, links, files, screens; unknown calls answer safely', () async {

@@ -75,9 +75,16 @@ const NATIVE_MOCK = (server) => {
   const handlers = {
     'account.get': () => ({ account: state().account || null }),
     'account.create': (a) => {
-      if (!/^\d{4}$/.test(a.pin)) return { ok: false, error: 'The PIN must be 4 digits.' };
-      const account = { uid: 'firebase-uid-e2e', name: a.name, business: a.business, phone: a.phone, plan: 'free', synced: true };
-      save({ ...state(), account, pin: a.pin });
+      if (!/^\d{6}$/.test(a.pin)) return { ok: false, error: 'The PIN must be 6 digits.' };
+      const account = { uid: 'firebase-uid-e2e', name: a.name, business: a.business, phone: a.phone, plan: 'free', login: true, synced: true };
+      save({ ...state(), account, pin: a.pin, lockOff: false });
+      return { ok: true, account };
+    },
+    // An existing account "in Firebase": 98765 11111 with PIN 111111.
+    'account.login': (a) => {
+      if (a.phone.replace(/\D/g, '').slice(-10) !== '9876511111' || a.pin !== '111111') return { ok: false, error: 'The mobile number or PIN is not correct.' };
+      const account = { uid: 'firebase-uid-login', name: 'Meena Shah', business: 'Meena Stores', phone: '98765 11111', plan: 'free', login: true, synced: true };
+      save({ ...state(), account, pin: a.pin, lockOff: false });
       return { ok: true, account };
     },
     'account.upgraded': (a) => {
@@ -85,9 +92,13 @@ const NATIVE_MOCK = (server) => {
       save({ ...s, account: { ...s.account, plan: 'paid' }, upgradedKey: a.licenseKey });
       return { ok: true };
     },
-    'pin.get': () => ({ enabled: !!state().pin }),
-    'pin.set': (a) => (save({ ...state(), pin: a.pin }), { ok: true }),
-    'pin.disable': (a) => (state().pin === a.pin ? (save({ ...state(), pin: null }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' }),
+    'pin.get': () => ({ enabled: !!state().pin && !state().lockOff, saved: !!state().pin, digits: 6 }),
+    'pin.set': (a) =>
+      state().pin && state().pin !== a.current ? { ok: false, error: 'Your current PIN is not correct.' } : (save({ ...state(), pin: a.pin, lockOff: false }), { ok: true }),
+    'pin.resume': (a) => (state().pin === a.pin ? (save({ ...state(), lockOff: false }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' }),
+    // With an account the PIN stays (it is the login); only the lock goes off.
+    'pin.disable': (a) =>
+      state().pin === a.pin ? (save(state().account ? { ...state(), lockOff: true } : { ...state(), pin: null }), { ok: true }) : { ok: false, error: 'That PIN is not correct.' },
     'sms.permission': () => ({ granted: true }),
     'sms.send': () => ({ sent: true }),
     open: () => ({ ok: true }),
@@ -207,8 +218,8 @@ try {
   await page.getByTestId('account-name').fill('Lakshmi');
   await page.getByTestId('account-business').fill('Sri Lakshmi Stores');
   await page.getByTestId('account-phone').fill('9845011111');
-  await page.getByTestId('account-pin').fill('2468');
-  await page.getByTestId('account-pin2').fill('2468');
+  await page.getByTestId('account-pin').fill('246800');
+  await page.getByTestId('account-pin2').fill('246800');
   await page.getByTestId('account-create').click();
   await page.getByTestId('editor').waitFor();
   await page.getByTestId('party-name').fill('Kumar Hardware');

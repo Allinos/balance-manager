@@ -36,7 +36,7 @@ const FAQ = [
   ],
   [
     'Is there a free Android app?',
-    'Yes. DocGen for Android starts free, without a license: every feature for 20 documents, 20 payments and 20 customers & vendors, with small, occasional ads. Create your free account in the app before your first bill — name, business and mobile, with a 4-digit PIN instead of a password. Upgrade to Premium and the limits and ads go away; everything you made stays on your phone.',
+    'Yes. DocGen for Android starts free, without a license: every feature for 20 documents, 20 payments and 20 customers & vendors, with small, occasional ads. Create your free account in the app before your first bill — name, business and mobile, with a 6-digit PIN instead of a password. You log in with your mobile number and PIN, also after a reinstall or on a new phone. Upgrade to Premium and the limits and ads go away; everything you made stays on your phone.',
   ],
   ['Does it work without internet?', 'Yes. You only need internet to activate and, now and then, to check your license.'],
   [
