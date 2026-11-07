@@ -440,6 +440,7 @@ try {
     ['/terms', ['Terms & Conditions', 'Last updated'], 'Terms & Conditions'],
     ['/privacy', ['Privacy Policy'], 'Privacy Policy'],
     ['/refunds', ['Refund'], 'Cancellation & Refunds'],
+    ['/delete-account', ['Delete your DocGen account', 'What we delete', 'What we keep'], 'Delete your account'],
   ];
   for (const [url, texts, title] of PAGES_NOJS) {
     await nj.goto(`${base}${url}`);
@@ -639,6 +640,24 @@ try {
   await shot('04i-contact');
   await page.goto(`${base}/support`);
   check((await page.getByTestId('support-form').count()) === 1, 'Help & Support page with the request form');
+
+  // Account deletion (the address given to Google Play).
+  await page.goto(`${base}/account-deletion`);
+  await page.getByTestId('delete-account').waitFor();
+  check(page.url().endsWith('/delete-account') && (await page.getByTestId('site-footer').textContent()).includes('Delete your account'), 'account deletion page at /delete-account (also /account-deletion), linked in the footer');
+  const delText = await page.getByTestId('delete-account').textContent();
+  check(['Android app', 'mobile number', 'What we delete', 'up to 8 years', 'only on your phone', '7 working days'].every((t) => delText.includes(t)), 'deletion page: how to ask, what is deleted, what is kept and for how long, data on the phone');
+  await page.getByTestId('delete-name').fill('Meena Shah');
+  await page.getByTestId('delete-phone').fill('98765 11111');
+  await page.getByTestId('delete-email').fill('meena@example.com');
+  await page.getByTestId('delete-send').click();
+  await page.getByText('Please tick the box').waitFor();
+  check(true, 'deletion request needs the confirmation tick');
+  await page.getByTestId('delete-confirm').check();
+  await page.getByTestId('delete-send').click();
+  await page.getByTestId('delete-sent').waitFor();
+  check(/^#\d+$/.test((await page.getByTestId('delete-ref').textContent()).trim()), 'deletion request sent, request number shown');
+  await shot('04k-delete-account');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(base);
   check(await page.getByTestId('header-login').isVisible(), 'phone: Login button in the header');
@@ -672,7 +691,7 @@ try {
   const campaign = page.getByTestId('acquisition').locator('tr', { hasText: 'gst-oct' });
   await campaign.waitFor();
   check(/google.*gst-oct.*2.*1.*50%/.test((await campaign.textContent()).replace(/\s+/g, ' ')), 'dashboard: sign-ups and sale attributed to the Google ad campaign');
-  check((await page.getByTestId('support-alert').textContent()).includes('2 support requests are waiting'), 'dashboard: support requests waiting for an answer');
+  check((await page.getByTestId('support-alert').textContent()).includes('3 support requests are waiting'), 'dashboard: support requests waiting for an answer');
   await shot('05-admin-dashboard');
 
   await page.getByTestId('nav-partners').click();
@@ -705,7 +724,8 @@ try {
   await page.getByTestId('nav-support-requests').click();
   await page.getByTestId('support-requests').waitFor();
   const requests = await page.getByTestId('support-requests').textContent();
-  check(requests.includes('Bulk licenses') && requests.includes('Move license to my new laptop'), 'Support requests: website and client panel requests listed');
+  check(requests.includes('Bulk licenses') && requests.includes('Move license to my new laptop') && requests.includes('Account deletion request') && requests.includes('Delete account page'),
+    'Support requests: website, client panel and account deletion requests listed');
   await page.getByRole('link', { name: /Move license to my new laptop/ }).click();
   await page.getByTestId('admin-reply').fill('Open My License, release the old computer and enter your key on the new laptop.');
   await page.getByTestId('admin-reply-send').click();

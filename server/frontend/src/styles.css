@@ -2483,12 +2483,22 @@ a.stat:hover {
   margin: 28px 0 8px;
 }
 .policy p,
-.policy ul {
+.policy ul,
+.policy ol {
   margin: 0 0 12px;
   color: var(--text-2);
 }
-.policy ul {
+.policy ul,
+.policy ol {
   padding-left: 20px;
+}
+.policy .delete-form-card {
+  margin: 18px 0 8px;
+  padding: 20px;
+  background: var(--surface-2);
+}
+.policy .delete-form-card h2 {
+  margin-top: 0;
 }
 .policy li {
   margin-bottom: 6px;

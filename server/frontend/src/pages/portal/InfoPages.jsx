@@ -4,17 +4,17 @@
  * from Admin → Website → Business details.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { bootSite, clientApi } from '../../api.js';
-import { useLoad } from '../../components/ui.jsx';
+import { ErrorText, Field, Input, Select, Textarea, useLoad } from '../../components/ui.jsx';
 import Icon from '../../components/Icons.jsx';
 import { SiteFooter, SiteHeader } from '../../App.jsx';
 import { SUPPORT_EMAIL } from '../../constants.js';
 import { SupportForm } from './Support.jsx';
 
 /** Date the policies below were last changed. Update it whenever their text changes. */
-export const POLICIES_UPDATED = '8 October 2026';
+export const POLICIES_UPDATED = '7 November 2026';
 
 const DEFAULT_BUSINESS = { legalName: 'Reynrel', address: '', phone: '', hours: 'Monday to Saturday, 10:00 to 18:00 IST', jurisdiction: '' };
 
@@ -272,8 +272,8 @@ function Privacy({ b }) {
       <ul>
         <li>You can see and correct your details in your account (Account page).</li>
         <li>
-          You can ask us for a copy of your information, or to delete your account, by writing to <Mail b={b} />. We keep only what the law requires
-          us to keep.
+          You can ask us for a copy of your information by writing to <Mail b={b} />, and delete your account (website or Android app) on the{' '}
+          <Link to="/delete-account">Delete your account</Link> page. We keep only what the law requires us to keep.
         </li>
         <li>DocGen is meant for businesses and is not intended for children under 18.</li>
       </ul>
@@ -396,6 +396,7 @@ export function PolicyPage({ id }) {
               {p.title}
             </NavLink>
           ))}
+          <NavLink to="/delete-account">Delete your account</NavLink>
           <NavLink to="/contact">Contact Us</NavLink>
         </aside>
         <article className="policy card" data-testid={`policy-${id}`}>
@@ -480,6 +481,190 @@ export function ContactPage() {
             <SupportForm source="contact" defaultTopic="buying" />
           </div>
         </div>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
+
+const DELETE_WHICH = [
+  { value: 'android', label: 'DocGen Android app (mobile number + PIN)' },
+  { value: 'website', label: 'DocGen website account (email + password)' },
+  { value: 'both', label: 'Both' },
+];
+
+/** The deletion request: a support request with its own topic, so it is easy to find in Admin → Support requests. */
+function DeleteRequestForm() {
+  const [form, setForm] = useState({ name: '', phone: '', email: '', which: 'android', note: '', confirm: false, website: '' });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(null);
+  const set = (k) => (v) => {
+    setForm((f) => ({ ...f, [k]: v }));
+    setError(null);
+  };
+  const fieldError = (k) => error?.details?.fields?.[k];
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.confirm) return setError({ message: 'Please tick the box to confirm that you want your account deleted.' });
+    setBusy(true);
+    setError(null);
+    try {
+      const which = DELETE_WHICH.find((w) => w.value === form.which).label;
+      const message = [
+        'Please delete my DocGen account.',
+        `Account: ${which}`,
+        `Mobile number used in the app: ${form.phone || '-'}`,
+        `Email: ${form.email}`,
+        form.note.trim() ? `Note: ${form.note.trim()}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+      const r = await clientApi.post('/support', {
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        topic: 'account_delete',
+        subject: 'Account deletion request',
+        message,
+        source: 'delete',
+        website: form.website,
+      });
+      setSent(r);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div className="support-sent" data-testid="delete-sent">
+        <span className="support-sent-icon">
+          <Icon name="check" size={26} strokeWidth={2.4} />
+        </span>
+        <h3>We received your request</h3>
+        <p>
+          Your request number is <strong data-testid="delete-ref">#{sent.request.id}</strong>. We will confirm by email to {form.email} and delete
+          your account within 7 working days.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form className="form" onSubmit={submit} data-testid="delete-form" noValidate>
+      <ErrorText error={error?.details?.fields ? { message: 'Please check the highlighted fields.' } : error} />
+      <Field label="Which account?">
+        <Select value={form.which} onChange={set('which')} options={DELETE_WHICH} data-testid="delete-which" />
+      </Field>
+      <Field label="Your name" error={fieldError('name')}>
+        <Input value={form.name} onChange={set('name')} autoComplete="name" required data-testid="delete-name" />
+      </Field>
+      <Field label="Mobile number you use in the app" error={fieldError('phone')} hint="The number you log in with in the DocGen Android app">
+        <Input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" required={form.which !== 'website'} data-testid="delete-phone" />
+      </Field>
+      <Field label="Email address" error={fieldError('email')} hint="We confirm the deletion to this address (for a website account: the email you log in with)">
+        <Input type="email" value={form.email} onChange={set('email')} autoComplete="email" required data-testid="delete-email" />
+      </Field>
+      <Field label="Anything else (optional)">
+        <Textarea rows={3} value={form.note} onChange={set('note')} maxLength={1000} data-testid="delete-note" />
+      </Field>
+      <label className="check terms-check">
+        <input type="checkbox" checked={form.confirm} onChange={(e) => set('confirm')(e.target.checked)} data-testid="delete-confirm" />
+        <span>I want my DocGen account and its data deleted. I understand this cannot be undone.</span>
+      </label>
+      {/* Left empty by people; robots fill it in. */}
+      <input className="hp-field" tabIndex={-1} autoComplete="off" aria-hidden="true" value={form.website} onChange={(e) => set('website')(e.target.value)} name="website" />
+      <button className="btn btn-danger btn-lg" disabled={busy} data-testid="delete-send">
+        <Icon name="x" size={17} /> {busy ? 'Sending…' : 'Request account deletion'}
+      </button>
+    </form>
+  );
+}
+
+/** Account deletion (the address given to Google Play): how to delete, what is deleted, what is kept and for how long. */
+export function DeleteAccountPage() {
+  const b = useBusiness();
+  useEffect(() => {
+    document.title = 'Delete your account · DocGen';
+    window.scrollTo(0, 0);
+    return () => {
+      document.title = 'DocGen';
+    };
+  }, []);
+  return (
+    <div className="site">
+      <SiteHeader nav />
+      <main className="info-page">
+        <aside className="info-side" aria-label="Policies">
+          <strong>Policies</strong>
+          {POLICIES.map((p) => (
+            <NavLink key={p.id} to={p.path}>
+              {p.title}
+            </NavLink>
+          ))}
+          <NavLink to="/delete-account">Delete your account</NavLink>
+          <NavLink to="/contact">Contact Us</NavLink>
+        </aside>
+        <article className="policy card" data-testid="delete-account">
+          <h1>Delete your DocGen account</h1>
+          <p className="muted small">DocGen by {b.legalName} · Android app and website · Last updated: {POLICIES_UPDATED}</p>
+          <p>
+            You can ask us to delete your <strong>DocGen</strong> account at any time, free of charge. This page is for the DocGen Android app
+            (account with your mobile number and PIN) and for the DocGen website account (email and password).
+          </p>
+
+          <h2>How to ask for deletion</h2>
+          <ol>
+            <li>Fill in the form below with the mobile number you use in the DocGen app (or the email of your website account).</li>
+            <li>We check that the request comes from the owner of the account and confirm by email. We may ask you to reply from that email or to confirm your mobile number.</li>
+            <li>We delete your account within 7 working days and tell you when it is done.</li>
+          </ol>
+          <p>
+            You can also write to <Mail b={b} /> with the subject “Delete my account” and the mobile number or email of the account.
+          </p>
+
+          <div className="card delete-form-card">
+            <h2 className="contact-form-title">Request account deletion</h2>
+            <DeleteRequestForm />
+          </div>
+
+          <h2>What we delete</h2>
+          <ul>
+            <li>
+              <strong>Android app account:</strong> your login (mobile number and PIN) and your profile — name, business name, mobile number, plan and
+              the first characters of your license key.
+            </li>
+            <li>
+              <strong>Website account:</strong> your name, email, mobile number, password, business details (GSTIN, address), your devices and your
+              support messages.
+            </li>
+          </ul>
+
+          <h2>What we keep, and for how long</h2>
+          <ul>
+            <li>
+              <strong>Purchase records</strong> (invoice, amount, date and payment reference) of a paid plan, because Indian tax law (GST) requires us to
+              keep them — for up to 8 years. They are not used for anything else.
+            </li>
+            <li>
+              <strong>Your deletion request</strong> itself, as proof that we deleted the account, for up to 1 year.
+            </li>
+          </ul>
+
+          <h2>Bills and customers on your phone</h2>
+          <p>
+            Your bills, customers, products and payments are stored <strong>only on your phone</strong> — they never reach our servers, so we cannot
+            delete them for you. To remove them, uninstall DocGen, or open Android Settings → Apps → DocGen → Storage → Clear storage. Backup files you
+            saved yourself (for example in Downloads or Google Drive) must be deleted by you.
+          </p>
+
+          <h2>Questions</h2>
+          <ContactLines b={b} />
+        </article>
       </main>
       <SiteFooter />
     </div>

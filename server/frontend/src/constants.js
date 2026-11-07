@@ -19,5 +19,6 @@ export const SUPPORT_TOPICS = [
   { value: 'install', label: 'Installing DocGen' },
   { value: 'using', label: 'Using DocGen' },
   { value: 'refund', label: 'Cancellation & refund' },
+  { value: 'account_delete', label: 'Delete my account' },
   { value: 'other', label: 'Something else' },
 ];

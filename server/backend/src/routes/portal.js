@@ -525,7 +525,7 @@ export function portalRoutes(knex) {
         topic: z.enum(Object.keys(SUPPORT_TOPICS)).default('other'),
         subject: z.string().trim().min(3, 'please add a short subject').max(160),
         message: supportText,
-        source: z.enum(['website', 'contact', 'panel']).default('website'),
+        source: z.enum(['website', 'contact', 'panel', 'delete']).default('website'),
         // Hidden field that people never fill in; spam robots do.
         website: z.string().max(500).optional().default(''),
       }),

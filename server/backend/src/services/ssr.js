@@ -50,4 +50,4 @@ export function sitemapXml(baseUrl, paths, lastmod) {
 }
 
 /** The public pages when the renderer is not built (sitemap only). */
-export const DEFAULT_PATHS = ['/', '/buy', '/mobile', '/partners', '/support', '/contact', '/terms', '/privacy', '/shipping', '/refunds', '/partner-terms'];
+export const DEFAULT_PATHS = ['/', '/buy', '/mobile', '/partners', '/support', '/contact', '/terms', '/privacy', '/shipping', '/refunds', '/delete-account', '/partner-terms'];

@@ -10,7 +10,7 @@ import CheckoutPage from './pages/portal/Checkout.jsx';
 import OfferPage from './pages/portal/Offer.jsx';
 import { ForgotPasswordPage, LoginPage, ResetPasswordPage } from './pages/portal/Auth.jsx';
 import MobilePage from './pages/portal/MobilePage.jsx';
-import { ContactPage, PolicyPage } from './pages/portal/InfoPages.jsx';
+import { ContactPage, DeleteAccountPage, PolicyPage } from './pages/portal/InfoPages.jsx';
 import PanelLayout from './components/PanelLayout.jsx';
 import { PartnerApplyPage, PartnerDashboard, PartnerLoginPage, PartnersPage, PartnerTermsPage } from './pages/partner/PartnerPages.jsx';
 
@@ -181,6 +181,7 @@ const FOOTER_COLUMNS = [
       { to: '/privacy', label: 'Privacy Policy' },
       { to: '/shipping', label: 'Shipping Policy' },
       { to: '/refunds', label: 'Cancellation & Refunds' },
+      { to: '/delete-account', label: 'Delete your account' },
     ],
   ],
 ];
@@ -353,6 +354,8 @@ export default function App() {
                 <Route path="/shipping" element={<PolicyPage id="shipping" />} />
                 <Route path="/refunds" element={<PolicyPage id="refunds" />} />
                 <Route path="/cancellation-refunds" element={<Navigate to="/refunds" replace />} />
+                <Route path="/delete-account" element={<DeleteAccountPage />} />
+                <Route path="/account-deletion" element={<Navigate to="/delete-account" replace />} />
                 <Route path="/account" element={<PortalLayout />}>
                   <Route index element={<ClientHome />} />
                   <Route path="services" element={<Services />} />

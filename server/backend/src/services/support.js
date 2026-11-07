@@ -13,6 +13,7 @@ export const SUPPORT_TOPICS = {
   install: 'Installing DocGen',
   using: 'Using DocGen',
   refund: 'Cancellation & refund',
+  account_delete: 'Delete my account',
   other: 'Something else',
 };
 export const SUPPORT_STATUSES = ['open', 'answered', 'closed'];

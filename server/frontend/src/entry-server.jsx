@@ -18,7 +18,7 @@ import OfferPage from './pages/portal/Offer.jsx';
 import MobilePage from './pages/portal/MobilePage.jsx';
 import SupportPage from './pages/portal/Support.jsx';
 import { ForgotPasswordPage, LoginPage } from './pages/portal/Auth.jsx';
-import { ContactPage, PolicyPage, POLICIES } from './pages/portal/InfoPages.jsx';
+import { ContactPage, DeleteAccountPage, PolicyPage, POLICIES } from './pages/portal/InfoPages.jsx';
 import { PartnerApplyPage, PartnerLoginPage, PartnersPage, PartnerTermsPage } from './pages/partner/PartnerPages.jsx';
 
 /** Address → page, title and description (for <title>, <meta name="description"> and the sitemap). */
@@ -31,6 +31,7 @@ export const PAGES = {
   '/contact': { element: <ContactPage />, title: 'Contact Us · DocGen', description: 'Contact DocGen: email, phone and business hours. Questions before buying, license help or anything else.', index: true },
   '/partners': { element: <PartnersPage />, title: 'Become a DocGen Partner · Earn by recommending DocGen', description: 'Join the DocGen Partner Programme: your own referral link, a live dashboard and a commission on every sale and renewal. Free to join.', index: true },
   '/partner-terms': { element: <PartnerTermsPage />, title: 'Partner Terms & Conditions · DocGen', description: 'Terms of the DocGen Partner Programme: eligibility, referral rules, commissions, payouts, refunds, fraud prevention and termination.', index: true },
+  '/delete-account': { element: <DeleteAccountPage />, title: 'Delete your account · DocGen', description: 'How to delete your DocGen account (Android app or website): what is deleted, what is kept and for how long.', index: true },
   '/partners/apply': { element: <PartnerApplyPage />, title: 'Apply · DocGen Partner Programme', index: false },
   '/partners/login': { element: <PartnerLoginPage />, title: 'Partner login · DocGen', index: false },
   '/login': { element: <LoginPage />, title: 'Login · DocGen', index: false },

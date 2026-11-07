@@ -18,7 +18,7 @@ const FILTERS = [
   { value: 'closed', label: 'Solved' },
   { value: 'all', label: 'All' },
 ];
-const SOURCE_LABEL = { website: 'Website', contact: 'Contact Us', panel: 'Client panel' };
+const SOURCE_LABEL = { website: 'Website', contact: 'Contact Us', panel: 'Client panel', delete: 'Delete account page' };
 
 export default function AdminSupport() {
   const [params, setParams] = useSearchParams();
