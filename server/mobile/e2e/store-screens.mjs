@@ -33,7 +33,7 @@ await new Promise((resolve, reject) => {
 });
 
 const NATIVE_MOCK = (srv) => {
-  window.DOCGEN_NATIVE = { platform: 'android', version: '2.5.2', server: srv };
+  window.DOCGEN_NATIVE = { platform: 'android', version: '2.5.3', server: srv };
   const state = () => JSON.parse(localStorage.getItem('__native') || '{}');
   const save = (s) => localStorage.setItem('__native', JSON.stringify(s));
   const handlers = {

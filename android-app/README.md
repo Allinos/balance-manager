@@ -69,7 +69,7 @@ The launcher icon is the DocGen logo (`../document-generator/assets/app-icon.png
 
 ## Publishing on Google Play — checklist
 
-1. **Version**: raise `version:` in `pubspec.yaml` for every upload (`2.5.1+1` → `2.5.2+2`; the number after `+` must
+1. **Version**: raise `version:` in `pubspec.yaml` for every upload (`2.5.2+2` → `2.5.3+3`; the number after `+` must
    always go up).
 2. **Your IDs** (above): AdMob app and ad units, Firebase, `DOCGEN_SERVER`.
 3. **Upload key**: sign with your own key (`android/key.properties` or the `ANDROID_KEYSTORE_*` secrets) and turn on
