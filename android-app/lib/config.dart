@@ -11,7 +11,7 @@ class AppConfig {
   /// the data on the phone belongs to this exact address.
   static const localPort = 47312;
 
-  static const version = '2.5.3'; // keep equal to pubspec.yaml version
+  static const version = '2.5.4'; // keep equal to pubspec.yaml version
 
   // ------------------------------------------------------------------ AdMob (free plan only)
   // Your AdMob ad units (AdMob → Apps → Ad units); --dart-define=ADMOB_REWARDED=… / ADMOB_INTERSTITIAL=… override them.

@@ -69,7 +69,7 @@ The launcher icon is the DocGen logo (`../document-generator/assets/app-icon.png
 
 ## Publishing on Google Play — checklist
 
-1. **Version**: raise `version:` in `pubspec.yaml` for every upload (`2.5.2+2` → `2.5.3+3`; the number after `+` must
+1. **Version**: raise `version:` in `pubspec.yaml` for every upload (`2.5.3+3` → `2.5.4+4`; the number after `+` must
    always go up).
 2. **Your IDs** (above): AdMob app and ad units, Firebase, `DOCGEN_SERVER`.
 3. **Upload key**: sign with your own key (`android/key.properties` or the `ANDROID_KEYSTORE_*` secrets) and turn on
@@ -79,9 +79,10 @@ The launcher icon is the DocGen logo (`../document-generator/assets/app-icon.png
    - *Keep direct SMS* (reminders and alerts go out by themselves): fill in the **Permissions declaration** for
      `SEND_SMS` in the Play Console (App content → Sensitive permissions). Google allows it only when sending SMS is a
      core feature and may refuse it;
-   - *Play-safe build*: set `DOCGEN_SMS=false` (in `android/gradle.properties`, or as a GitHub variable). The release
-     then has no `SEND_SMS` permission, and SMS opens the SMS app with the message ready (the user taps Send).
-     Use this if the declaration is refused or while it is being reviewed.
+   - *Play-safe build* (the default on GitHub): no `SEND_SMS` permission, and SMS opens the SMS app with the message
+     ready (the user taps Send). Locally set `DOCGEN_SMS=false` in `android/gradle.properties`. Sending bills and
+     reminders by SMS is not one of the uses Google allows `SEND_SMS` for, so keep this for the Play Store; set the
+     GitHub variable `DOCGEN_SMS=true` only for builds you share outside Play.
 6. **Store listing**: icon `store/play-icon-512.png`, feature graphic `store/feature-graphic-1024x500.png`, at least 2
    phone screenshots, short and full description, a privacy policy URL (your website's privacy page).
 7. **App content**: *Contains ads* = yes. *Data safety*: name, business name and mobile number are collected for the
